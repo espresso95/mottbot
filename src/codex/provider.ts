@@ -1,0 +1,74 @@
+import type { TransportMode } from "./transport.js";
+
+export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
+export const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+export const OPENAI_CODEX_API = "openai-codex-responses";
+
+export type CodexModelRef =
+  | "openai-codex/gpt-5.4"
+  | "openai-codex/gpt-5.4-mini"
+  | "openai-codex/gpt-5.3-codex-spark"
+  | (string & {});
+
+export type RuntimeCodexModel = {
+  id: string;
+  name: string;
+  api: typeof OPENAI_CODEX_API;
+  provider: typeof OPENAI_CODEX_PROVIDER_ID;
+  baseUrl: typeof OPENAI_CODEX_BASE_URL;
+  reasoning: boolean;
+  input: Array<"text" | "image">;
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  contextWindow: number;
+  contextTokens?: number;
+  maxTokens: number;
+  transport: TransportMode;
+};
+
+export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
+  const [, modelId = "gpt-5.4"] = modelRef.split("/");
+  if (modelId === "gpt-5.4-mini") {
+    return {
+      id: modelId,
+      name: modelId,
+      api: OPENAI_CODEX_API,
+      provider: OPENAI_CODEX_PROVIDER_ID,
+      baseUrl: OPENAI_CODEX_BASE_URL,
+      reasoning: true,
+      input: ["text", "image"],
+      cost: { input: 0.75, output: 4.5, cacheRead: 0.075, cacheWrite: 0 },
+      contextWindow: 272_000,
+      maxTokens: 128_000,
+      transport,
+    };
+  }
+  if (modelId === "gpt-5.3-codex-spark") {
+    return {
+      id: modelId,
+      name: modelId,
+      api: OPENAI_CODEX_API,
+      provider: OPENAI_CODEX_PROVIDER_ID,
+      baseUrl: OPENAI_CODEX_BASE_URL,
+      reasoning: true,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128_000,
+      maxTokens: 128_000,
+      transport,
+    };
+  }
+  return {
+    id: modelId,
+    name: modelId,
+    api: OPENAI_CODEX_API,
+    provider: OPENAI_CODEX_PROVIDER_ID,
+    baseUrl: OPENAI_CODEX_BASE_URL,
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 0 },
+    contextWindow: 1_050_000,
+    contextTokens: 272_000,
+    maxTokens: 128_000,
+    transport,
+  };
+}

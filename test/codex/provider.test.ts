@@ -1,0 +1,18 @@
+import { describe, expect, it } from "vitest";
+import { OPENAI_CODEX_API, OPENAI_CODEX_BASE_URL, resolveCodexModel } from "../../src/codex/provider.js";
+
+describe("resolveCodexModel", () => {
+  it("builds gpt-5.4 defaults", () => {
+    const model = resolveCodexModel("openai-codex/gpt-5.4", "auto");
+    expect(model.api).toBe(OPENAI_CODEX_API);
+    expect(model.baseUrl).toBe(OPENAI_CODEX_BASE_URL);
+    expect(model.contextTokens).toBe(272_000);
+  });
+
+  it("builds spark defaults", () => {
+    const model = resolveCodexModel("openai-codex/gpt-5.3-codex-spark", "sse");
+    expect(model.transport).toBe("sse");
+    expect(model.input).toEqual(["text"]);
+    expect(model.maxTokens).toBe(128_000);
+  });
+});
