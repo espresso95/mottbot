@@ -50,4 +50,11 @@ pnpm dev
 
 ## Docs
 
-- [Design doc](/Users/nimoraki/mottbot/docs/telegram-codex-design.md)
+- [Docs index](/Users/nimoraki/mottbot/docs/README.md)
+- [Architecture](/Users/nimoraki/mottbot/docs/architecture.md)
+- [Telegram runtime](/Users/nimoraki/mottbot/docs/telegram-runtime.md)
+- [Codex subscription provider](/Users/nimoraki/mottbot/docs/codex-subscription-provider.md)
+- [Data model](/Users/nimoraki/mottbot/docs/data-model.md)
+- [Testing](/Users/nimoraki/mottbot/docs/testing.md)
+- [Operations](/Users/nimoraki/mottbot/docs/operations.md)
+- [Single-file design brief](/Users/nimoraki/mottbot/docs/telegram-codex-design.md)

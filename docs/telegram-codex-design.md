@@ -1,6 +1,10 @@
-# Telegram Codex Subscription Bot Design
+# Telegram Codex Subscription Bot Design Brief
 
-Status: proposed
+Status: original single-file design brief
+
+For the implementation-aligned documentation set, start with [README.md](./README.md).
+
+This file is the original design brief that drove the scaffold. It is still useful as a single-pass architectural summary, but some sections describe target hardening that is not fully implemented yet.
 
 ## Objective
 

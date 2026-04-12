@@ -1,0 +1,275 @@
+# Telegram Runtime
+
+## Runtime Contract
+
+The Telegram layer receives updates, decides whether they are eligible for handling, maps them to a session, and then streams model output back into Telegram. Everything after normalization works on internal event records instead of raw Telegram payloads.
+
+## Inbound Event Shape
+
+`normalizeUpdate()` emits this internal event contract:
+
+```ts
+type InboundEvent = {
+  updateId: number;
+  chatId: string;
+  chatType: "private" | "group" | "supergroup" | "channel";
+  messageId: number;
+  threadId?: number;
+  fromUserId?: string;
+  fromUsername?: string;
+  text?: string;
+  caption?: string;
+  entities: NormalizedEntity[];
+  attachments: NormalizedAttachment[];
+  replyToMessageId?: number;
+  mentionsBot: boolean;
+  isCommand: boolean;
+  arrivedAt: number;
+};
+```
+
+## Ingress Normalization
+
+Current behavior:
+
+- accepts only Telegram message updates
+- captures `text` or `caption` as visible text
+- extracts entities from `entities` or `caption_entities`
+- extracts a single representative file ID for supported attachment kinds
+- detects bot mention by username substring match
+- flags commands when the visible text begins with `/`
+- carries topic thread ID through `message_thread_id`
+
+Supported attachment kinds:
+
+- `photo`
+- `document`
+- `audio`
+- `voice`
+- `video`
+- `sticker`
+- `animation`
+
+Current limitation:
+
+- attachments are recorded on the event but not yet included in model prompts
+
+## Access Control
+
+`AccessController` applies the following policy:
+
+1. Admin users listed in `telegram.adminUserIds` are always allowed.
+2. If `telegram.allowedChatIds` is non-empty, all other chats are denied unless listed.
+3. Private chats are always allowed.
+4. Commands are always allowed.
+5. A previously bound route is always allowed.
+6. Replies are allowed.
+7. In groups, if `behavior.respondInGroupsOnlyWhenMentioned` is true, only direct mentions are allowed.
+
+Decision reasons returned today:
+
+- allow: `private`, `mentioned`, `reply`, `bound`, `command`
+- deny: `chat_not_allowed`, `mention_required`
+
+Important nuance:
+
+- a reply to any message counts as eligible today; the implementation does not yet verify that the reply target came from the bot
+
+## Session Routing
+
+`RouteResolver` first checks for an existing bound route for the same `chat_id` and `thread_id`. If it finds one, that route wins. Otherwise it computes a session key from chat type and topic state.
+
+### Session Key Rules
+
+Private chat with user ID:
+
+```text
+tg:dm:<chat_id>:user:<user_id>
+```
+
+Private chat without user ID:
+
+```text
+tg:dm:<chat_id>
+```
+
+Group chat:
+
+```text
+tg:group:<chat_id>
+```
+
+Topic in a supergroup:
+
+```text
+tg:group:<chat_id>:topic:<thread_id>
+```
+
+Bound route:
+
+```text
+tg:bound:<bound_name>
+```
+
+### Route Modes
+
+- `dm`
+- `group`
+- `topic`
+- `bound`
+
+When a new route is created, it inherits:
+
+- `profileId = auth.defaultProfile`
+- `modelRef = models.default`
+- `fastMode = false`
+
+## Command Surface
+
+`TelegramCommandRouter` handles commands before the ACL-model pipeline.
+
+### Session and runtime commands
+
+- `/status`
+- `/model <provider/model>`
+- `/profile <profile_id>`
+- `/fast on|off`
+- `/new`
+- `/reset`
+- `/stop`
+- `/bind [name]`
+- `/unbind`
+
+### Auth commands
+
+- `/auth status`
+- `/auth import-cli`
+- `/auth login`
+
+### Current command behavior
+
+- `/status` includes session key, model, profile, fast mode, profile count, and usage when available
+- `/model` updates `session_routes.model_ref`
+- `/profile` updates `session_routes.profile_id`
+- `/fast` updates `session_routes.fast_mode`
+- `/new` and `/reset` both clear transcript history for the session
+- `/stop` aborts the active run for the session if one exists
+- `/bind` switches the existing route into `bound` mode
+- `/unbind` restores the route mode based on the session key shape
+- `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
+- `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
+
+## Session Queue
+
+`SessionQueue` is the primary concurrency guard.
+
+Behavior:
+
+- one active task per `session_key`
+- later tasks chain behind the current tail
+- cancellation aborts only the active task
+- queue state is in memory, not persisted
+
+Important implementation detail:
+
+- the internal stored tail promise is deliberately non-throwing so cancelled or failed runs do not leak unhandled rejections
+
+## Run Execution Flow
+
+`RunOrchestrator` owns one full assistant turn.
+
+### Execution steps
+
+1. Ignore empty text and caption-only empty events.
+2. Ensure the session route exists in the database.
+3. Persist the user message to the transcript.
+4. Create a `runs` row in `queued` state.
+5. Send a placeholder Telegram message through the outbox.
+6. Move the run to `starting`.
+7. Resolve auth for the selected profile.
+8. Load recent transcript history.
+9. Build the model prompt.
+10. Start streaming through `CodexTransport`.
+11. Move the run to `streaming` on stream start.
+12. Append text deltas to the collector and edit the placeholder message.
+13. Finalize the message, persist the assistant transcript entry, and record usage.
+14. Mark the run `completed`.
+
+### Failure path
+
+If execution throws:
+
+- the error is logged
+- the outbox is finalized with `Run failed: <message>`
+- the run is marked `failed`, or `cancelled` if the abort signal was set
+
+## Prompt Building
+
+The prompt builder is intentionally simple.
+
+Current policy:
+
+- default system prompt is short and Telegram-specific
+- only the latest history window is sent to the model
+- tool messages are excluded from prompt construction
+- there is no summarization pass yet
+
+Default system prompt:
+
+```text
+You are Mottbot, a Telegram-based coding and operator assistant.
+Reply concisely and clearly.
+Preserve code fences when returning code.
+Prefer direct answers over padding.
+```
+
+## Outbox Rendering
+
+`TelegramOutbox` uses a single-message-first strategy.
+
+### Start
+
+- send one placeholder message, currently `Working...`
+- store its Telegram message ID in `outbox_messages`
+
+### Streaming updates
+
+- split text to Telegram-safe chunk size
+- edit only the first chunk in place
+- throttle edits using `behavior.editThrottleMs`
+- skip edits when the next rendered text is empty or unchanged
+
+### Finish
+
+- edit the original placeholder into the first final chunk
+- send remaining chunks as continuation messages
+- mark the outbox row `final`
+
+### Fail
+
+- try to edit the placeholder with an error summary
+- if that edit fails, send a new message
+- mark the outbox row `failed`
+
+## Telegram-Specific Limits
+
+The runtime is optimized for Telegram's constraints:
+
+- edits are throttled to avoid flood control
+- long output is chunked before sending
+- the first message in a stream remains stable for better chat readability
+
+Current limitation:
+
+- if a mid-stream edit fails, the outbox logs a warning and keeps streaming against the old handle; it does not yet rebind to a fresh message during the active stream
+
+## Runtime Gaps
+
+The Telegram runtime intentionally leaves several hardening items for later:
+
+- no webhook mode
+- no durable update dedupe despite the presence of `telegram_updates`
+- no media group coalescing
+- no bot-reply verification for generic replies
+- no attachment upload or rehydration into model inputs
+- no persisted queue recovery on restart
