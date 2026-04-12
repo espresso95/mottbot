@@ -5,12 +5,17 @@ Telegram-first Codex subscription bot scaffold that mirrors OpenClaw's `openai-c
 ## What this repo implements
 
 - Telegram polling bot via `grammY`
+- Optional webhook mode with local HTTP listener and Telegram webhook registration
 - SQLite-backed session, run, outbox, and auth profile storage
 - OpenClaw-style `openai-codex` provider boundary
 - ChatGPT/Codex OAuth bootstrap command
 - Codex CLI auth reuse from `$CODEX_HOME/auth.json` or `~/.codex/auth.json`
 - Per-session run serialization
+- Durable Telegram update dedupe and bot-reply tracking
+- Restart recovery for interrupted runs
+- Attachment-aware prompt construction and transcript compaction
 - Streaming-ready run orchestration and Telegram outbox editing
+- CLI and Telegram health reporting
 
 ## Quick start
 
@@ -47,6 +52,7 @@ pnpm dev
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
+- `pnpm health`
 
 ## Docs
 

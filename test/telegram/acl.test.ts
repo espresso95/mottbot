@@ -7,7 +7,7 @@ describe("AccessController", () => {
   it("allows private chats", () => {
     const stores = createStores();
     try {
-      const acl = new AccessController(createTestConfig(), stores.sessions);
+      const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore);
       expect(acl.evaluate(createInboundEvent())).toEqual({ allow: true, reason: "private" });
     } finally {
       stores.database.close();
@@ -18,7 +18,7 @@ describe("AccessController", () => {
   it("requires mentions in groups by default", () => {
     const stores = createStores();
     try {
-      const acl = new AccessController(createTestConfig(), stores.sessions);
+      const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore);
       expect(
         acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", mentionsBot: false })),
       ).toEqual({ allow: false, reason: "mention_required" });
@@ -34,7 +34,16 @@ describe("AccessController", () => {
   it("allows replies and bound sessions in groups", () => {
     const stores = createStores();
     try {
-      const acl = new AccessController(createTestConfig(), stores.sessions);
+      const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore);
+      expect(
+        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 })),
+      ).toEqual({ allow: false, reason: "mention_required" });
+
+      stores.messageStore.record({
+        chatId: "g1",
+        telegramMessageId: 10,
+        kind: "primary",
+      });
       expect(
         acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 })),
       ).toEqual({ allow: true, reason: "reply" });

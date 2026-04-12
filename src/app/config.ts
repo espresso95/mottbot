@@ -15,6 +15,15 @@ const rawConfigSchema = z.object({
       polling: z.boolean().default(true),
       adminUserIds: z.array(z.string()).default([]),
       allowedChatIds: z.array(z.string()).default([]),
+      webhook: z
+        .object({
+          publicUrl: z.string().optional(),
+          path: z.string().default("/telegram/webhook"),
+          host: z.string().default("0.0.0.0"),
+          port: z.number().int().default(8080),
+          secretToken: z.string().optional(),
+        })
+        .default({}),
     })
     .default({}),
   models: z
@@ -61,6 +70,13 @@ export type AppConfig = {
     polling: boolean;
     adminUserIds: string[];
     allowedChatIds: string[];
+    webhook: {
+      publicUrl?: string;
+      path: string;
+      host: string;
+      port: number;
+      secretToken?: string;
+    };
   };
   models: {
     default: string;
@@ -150,6 +166,57 @@ export function loadConfig(): AppConfig {
               ? (fileObject.telegram as any).polling
               : true)
           : process.env.MOTTBOT_TELEGRAM_POLLING !== "false",
+      webhook: {
+        ...(
+          fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).webhook &&
+          typeof (fileObject.telegram as any).webhook === "object"
+            ? ((fileObject.telegram as any).webhook as object)
+            : {}
+        ),
+        publicUrl:
+          process.env.MOTTBOT_TELEGRAM_WEBHOOK_URL ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).webhook &&
+          typeof (fileObject.telegram as any).webhook === "object"
+            ? (fileObject.telegram as any).webhook.publicUrl
+            : undefined),
+        path:
+          process.env.MOTTBOT_TELEGRAM_WEBHOOK_PATH ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).webhook &&
+          typeof (fileObject.telegram as any).webhook === "object"
+            ? (fileObject.telegram as any).webhook.path
+            : undefined),
+        host:
+          process.env.MOTTBOT_TELEGRAM_WEBHOOK_HOST ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).webhook &&
+          typeof (fileObject.telegram as any).webhook === "object"
+            ? (fileObject.telegram as any).webhook.host
+            : undefined),
+        port:
+          process.env.MOTTBOT_TELEGRAM_WEBHOOK_PORT === undefined
+            ? (fileObject.telegram &&
+              typeof fileObject.telegram === "object" &&
+              (fileObject.telegram as any).webhook &&
+              typeof (fileObject.telegram as any).webhook === "object"
+                ? (fileObject.telegram as any).webhook.port
+                : undefined)
+            : Number(process.env.MOTTBOT_TELEGRAM_WEBHOOK_PORT),
+        secretToken:
+          process.env.MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).webhook &&
+          typeof (fileObject.telegram as any).webhook === "object"
+            ? (fileObject.telegram as any).webhook.secretToken
+            : undefined),
+      },
     },
     models: {
       ...(fileObject.models && typeof fileObject.models === "object" ? (fileObject.models as object) : {}),
@@ -245,6 +312,7 @@ export function loadConfig(): AppConfig {
       polling: parsed.telegram.polling,
       adminUserIds: parsed.telegram.adminUserIds,
       allowedChatIds: parsed.telegram.allowedChatIds,
+      webhook: parsed.telegram.webhook,
     },
     models: parsed.models,
     auth: parsed.auth,

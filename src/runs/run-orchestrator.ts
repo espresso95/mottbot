@@ -14,6 +14,25 @@ import type { RunStore } from "./run-store.js";
 import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
 
+function buildUserTranscriptPayload(event: InboundEvent): {
+  contentText?: string;
+  contentJson?: string;
+} {
+  const visibleText = event.text ?? event.caption;
+  const normalizedText = visibleText?.trim();
+  const hasAttachments = event.attachments.length > 0;
+  const contentText = normalizedText || (hasAttachments ? "Shared attachments." : undefined);
+  const contentJson = hasAttachments
+    ? JSON.stringify({
+        attachments: event.attachments,
+      })
+    : undefined;
+  return {
+    ...(contentText ? { contentText } : {}),
+    ...(contentJson ? { contentJson } : {}),
+  };
+}
+
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
 
@@ -32,26 +51,8 @@ export class RunOrchestrator {
   }
 
   async enqueueMessage(params: { event: InboundEvent; session: SessionRoute }): Promise<void> {
-    await this.queue.enqueue(params.session.sessionKey, async (signal) => {
-      await this.execute({
-        event: params.event,
-        session: params.session,
-        signal,
-      });
-    });
-  }
-
-  async stop(sessionKey: string): Promise<boolean> {
-    return this.queue.cancel(sessionKey);
-  }
-
-  private async execute(params: {
-    event: InboundEvent;
-    session: SessionRoute;
-    signal: AbortSignal;
-  }): Promise<void> {
-    const userText = params.event.text ?? params.event.caption;
-    if (!userText?.trim()) {
+    const userPayload = buildUserTranscriptPayload(params.event);
+    if (!userPayload.contentText) {
       return;
     }
 
@@ -69,7 +70,8 @@ export class RunOrchestrator {
     this.transcripts.add({
       sessionKey: params.session.sessionKey,
       role: "user",
-      contentText: userText,
+      contentText: userPayload.contentText,
+      contentJson: userPayload.contentJson,
       telegramMessageId: params.event.messageId,
       replyToTelegramMessageId: params.event.replyToMessageId,
     });
@@ -79,6 +81,33 @@ export class RunOrchestrator {
       modelRef: params.session.modelRef,
       profileId: params.session.profileId,
     });
+
+    void this.queue.enqueue(params.session.sessionKey, async (signal) => {
+      await this.execute({
+        event: params.event,
+        session: params.session,
+        runId: run.runId,
+        signal,
+      });
+    }).catch((error) => {
+      this.logger.error({ error, runId: run.runId }, "Queued run failed.");
+    });
+  }
+
+  async stop(sessionKey: string): Promise<boolean> {
+    return this.queue.cancel(sessionKey);
+  }
+
+  private async execute(params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    runId: string;
+    signal: AbortSignal;
+  }): Promise<void> {
+    const run = this.runs.get(params.runId);
+    if (!run) {
+      throw new Error(`Unknown queued run ${params.runId}.`);
+    }
     let placeholder = await this.outbox.start({
       runId: run.runId,
       chatId: params.event.chatId,
@@ -121,12 +150,22 @@ export class RunOrchestrator {
       });
       const finalText = (result.text || collector.getText()).trim();
       const visibleText = finalText || "No response generated.";
-      await this.outbox.finish(placeholder, visibleText);
+      const delivery = await this.outbox.finish(placeholder, visibleText);
       this.transcripts.add({
         sessionKey: params.session.sessionKey,
         runId: run.runId,
         role: "assistant",
         contentText: visibleText,
+        telegramMessageId: delivery.primaryMessageId,
+        contentJson:
+          result.thinking || delivery.continuationMessageIds.length > 0
+            ? JSON.stringify({
+                ...(result.thinking ? { thinking: result.thinking } : {}),
+                ...(delivery.continuationMessageIds.length > 0
+                  ? { continuationMessageIds: delivery.continuationMessageIds }
+                  : {}),
+              })
+            : undefined,
       });
       this.usageRecorder.record(run.runId, result.usage);
       this.runs.update(run.runId, {

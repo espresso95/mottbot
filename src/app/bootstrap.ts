@@ -4,6 +4,7 @@ import { SecretBox } from "../shared/crypto.js";
 import { createLogger } from "../shared/logger.js";
 import { DatabaseClient } from "../db/client.js";
 import { migrateDatabase } from "../db/migrate.js";
+import { HealthReporter } from "./health.js";
 import { AuthProfileStore } from "../codex/auth-store.js";
 import { importCodexCliAuthProfile } from "../codex/cli-auth-import.js";
 import { CodexTokenResolver } from "../codex/token-resolver.js";
@@ -18,6 +19,8 @@ import { RouteResolver } from "../telegram/route-resolver.js";
 import { RunOrchestrator } from "../runs/run-orchestrator.js";
 import { TelegramCommandRouter } from "../telegram/commands.js";
 import { TelegramBotServer } from "../telegram/bot.js";
+import { TelegramUpdateStore } from "../telegram/update-store.js";
+import { TelegramMessageStore } from "../telegram/message-store.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -39,12 +42,16 @@ export async function bootstrapApplication() {
   const runStore = new RunStore(database, systemClock);
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
   const transport = new CodexTransport(database, logger);
+  const updateStore = new TelegramUpdateStore(database, systemClock);
+  const messageStore = new TelegramMessageStore(database, systemClock);
+  const health = new HealthReporter(config, database, authProfiles, systemClock);
 
   const provisionalBot = new TelegramBotServer(
     config,
     systemClock,
     logger,
-    new AccessController(config, sessionStore),
+    updateStore,
+    new AccessController(config, sessionStore, messageStore),
     {} as never,
     new RouteResolver(config, sessionStore),
     {} as never,
@@ -56,7 +63,26 @@ export async function bootstrapApplication() {
     systemClock,
     logger,
     config.behavior.editThrottleMs,
+    messageStore,
   );
+  const recoveredRuns = runStore.recoverInterruptedRuns();
+  const recoveredOutboxes = outbox.recoverInterruptedRuns({
+    runs: recoveredRuns.map((run) => ({
+      runId: run.runId,
+      sessionKey: run.sessionKey,
+    })),
+  });
+  for (const recovered of recoveredOutboxes) {
+    if (!recovered.partialText || transcriptStore.hasRunMessage(recovered.runId, "assistant")) {
+      continue;
+    }
+    transcriptStore.add({
+      sessionKey: recovered.sessionKey,
+      runId: recovered.runId,
+      role: "assistant",
+      contentText: `[Recovered partial assistant output after restart]\n${recovered.partialText}`,
+    });
+  }
   const routeResolver = new RouteResolver(config, sessionStore);
   const orchestrator = new RunOrchestrator(
     config,
@@ -78,12 +104,14 @@ export async function bootstrapApplication() {
     authProfiles,
     tokenResolver,
     orchestrator,
+    health,
   );
   const bot = new TelegramBotServer(
     config,
     systemClock,
     logger,
-    new AccessController(config, sessionStore),
+    updateStore,
+    new AccessController(config, sessionStore, messageStore),
     commands,
     routeResolver,
     orchestrator,
@@ -95,6 +123,7 @@ export async function bootstrapApplication() {
     database,
     authProfiles,
     tokenResolver,
+    health,
     bot,
     async start() {
       await bot.start();

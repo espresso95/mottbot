@@ -6,10 +6,13 @@ import type { Clock } from "../../src/shared/clock.js";
 import { SecretBox } from "../../src/shared/crypto.js";
 import { createLogger } from "../../src/shared/logger.js";
 import type { InboundEvent } from "../../src/telegram/types.js";
+import { TelegramMessageStore } from "../../src/telegram/message-store.js";
+import { TelegramUpdateStore } from "../../src/telegram/update-store.js";
 import { AuthProfileStore } from "../../src/codex/auth-store.js";
 import { RunStore } from "../../src/runs/run-store.js";
 import { SessionStore } from "../../src/sessions/session-store.js";
 import { TranscriptStore } from "../../src/sessions/transcript-store.js";
+import { HealthReporter } from "../../src/app/health.js";
 import { createTempDir } from "./tmp.js";
 
 export class FakeClock implements Clock {
@@ -34,6 +37,13 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       polling: true,
       adminUserIds: ["admin-1"],
       allowedChatIds: [],
+      webhook: {
+        publicUrl: "https://example.com",
+        path: "/telegram/webhook",
+        host: "127.0.0.1",
+        port: 8080,
+        secretToken: "secret",
+      },
     },
     models: {
       default: "openai-codex/gpt-5.4",
@@ -64,7 +74,14 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
   return {
     ...base,
     ...overrides,
-    telegram: { ...base.telegram, ...overrides.telegram },
+    telegram: {
+      ...base.telegram,
+      ...overrides.telegram,
+      webhook: {
+        ...base.telegram.webhook,
+        ...overrides.telegram?.webhook,
+      },
+    },
     models: { ...base.models, ...overrides.models },
     auth: { ...base.auth, ...overrides.auth },
     storage: { ...base.storage, ...overrides.storage },
@@ -85,6 +102,8 @@ export function createStores() {
   const sessions = new SessionStore(database, clock);
   const transcripts = new TranscriptStore(database, clock);
   const runs = new RunStore(database, clock);
+  const messageStore = new TelegramMessageStore(database, clock);
+  const updateStore = new TelegramUpdateStore(database, clock);
   return {
     tempDir,
     config,
@@ -94,6 +113,9 @@ export function createStores() {
     sessions,
     transcripts,
     runs,
+    messageStore,
+    updateStore,
+    health: new HealthReporter(config, database, authProfiles, clock),
     logger: createLogger("silent"),
   };
 }

@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "health": "tsx src/index.ts health",
     "auth:login": "tsx src/index.ts auth login",
     "auth:import-cli": "tsx src/index.ts auth import-cli",
     "db:migrate": "tsx src/index.ts db migrate"

@@ -4,6 +4,7 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { Logger } from "../shared/logger.js";
 import { splitTelegramText } from "./formatting.js";
+import type { TelegramMessageStore } from "./message-store.js";
 
 type OutboxHandle = {
   outboxId: string;
@@ -15,6 +16,11 @@ type OutboxHandle = {
   lastEditAt: number;
 };
 
+type FinalizedOutbox = {
+  primaryMessageId: number;
+  continuationMessageIds: number[];
+};
+
 export class TelegramOutbox {
   constructor(
     private readonly api: Api,
@@ -22,6 +28,7 @@ export class TelegramOutbox {
     private readonly clock: Clock,
     private readonly logger: Logger,
     private readonly editThrottleMs: number,
+    private readonly messages: TelegramMessageStore,
   ) {}
 
   async start(params: {
@@ -63,6 +70,13 @@ export class TelegramOutbox {
         now,
         now,
       );
+    this.messages.record({
+      runId: handle.runId,
+      chatId: handle.chatId,
+      threadId: handle.threadId,
+      telegramMessageId: handle.messageId,
+      kind: "placeholder",
+    });
     return handle;
   }
 
@@ -91,59 +105,134 @@ export class TelegramOutbox {
     }
   }
 
-  async finish(handle: OutboxHandle, text: string): Promise<void> {
+  async finish(handle: OutboxHandle, text: string): Promise<FinalizedOutbox> {
     const chunks = splitTelegramText(text);
     const [first, ...rest] = chunks;
+    let primaryMessageId = handle.messageId;
+    const continuationMessageIds: number[] = [];
     if (first) {
       try {
-        await this.api.editMessageText(handle.chatId, handle.messageId, first);
+        await this.api.editMessageText(handle.chatId, primaryMessageId, first);
       } catch (error) {
         this.logger.warn({ error }, "Failed to finalize Telegram message by editing.");
-        await this.api.sendMessage(handle.chatId, first, {
+        const sent = await this.api.sendMessage(handle.chatId, first, {
           ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+        });
+        primaryMessageId = sent.message_id;
+        this.messages.record({
+          runId: handle.runId,
+          chatId: handle.chatId,
+          threadId: handle.threadId,
+          telegramMessageId: primaryMessageId,
+          kind: "primary",
         });
       }
     }
     for (const chunk of rest) {
-      await this.api.sendMessage(handle.chatId, chunk, {
+      const sent = await this.api.sendMessage(handle.chatId, chunk, {
         ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+      });
+      continuationMessageIds.push(sent.message_id);
+      this.messages.record({
+        runId: handle.runId,
+        chatId: handle.chatId,
+        threadId: handle.threadId,
+        telegramMessageId: sent.message_id,
+        kind: "continuation",
       });
     }
     this.touch(
       {
         ...handle,
+        messageId: primaryMessageId,
         lastText: text,
         lastEditAt: this.clock.now(),
       },
       "final",
     );
+    return {
+      primaryMessageId,
+      continuationMessageIds,
+    };
   }
 
-  async fail(handle: OutboxHandle, text: string): Promise<void> {
+  async fail(handle: OutboxHandle, text: string): Promise<{ primaryMessageId: number }> {
+    let primaryMessageId = handle.messageId;
     try {
-      await this.api.editMessageText(handle.chatId, handle.messageId, text);
+      await this.api.editMessageText(handle.chatId, primaryMessageId, text);
     } catch {
-      await this.api.sendMessage(handle.chatId, text, {
+      const sent = await this.api.sendMessage(handle.chatId, text, {
         ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+      });
+      primaryMessageId = sent.message_id;
+      this.messages.record({
+        runId: handle.runId,
+        chatId: handle.chatId,
+        threadId: handle.threadId,
+        telegramMessageId: primaryMessageId,
+        kind: "failure",
       });
     }
     this.touch(
       {
         ...handle,
+        messageId: primaryMessageId,
         lastText: text,
         lastEditAt: this.clock.now(),
       },
       "failed",
     );
+    return { primaryMessageId };
+  }
+
+  recoverInterruptedRuns(params: {
+    runs: Array<{ runId: string; sessionKey: string }>;
+  }): Array<{ runId: string; sessionKey: string; partialText?: string }> {
+    if (params.runs.length === 0) {
+      return [];
+    }
+    const runById = new Map(params.runs.map((run) => [run.runId, run]));
+    const placeholders = params.runs.map(() => "?").join(", ");
+    const rows = this.database.db
+      .prepare<unknown[], { run_id: string; last_rendered_text: string | null }>(
+        `select run_id, last_rendered_text
+         from outbox_messages
+         where run_id in (${placeholders})`,
+      )
+      .all(...params.runs.map((run) => run.runId));
+    this.database.db
+      .prepare(
+        `update outbox_messages
+         set state = 'failed', updated_at = ?
+         where state = 'active' and run_id in (${placeholders})`,
+      )
+      .run(this.clock.now(), ...params.runs.map((run) => run.runId));
+    return rows.flatMap((row) => {
+      const run = runById.get(row.run_id);
+      if (!run) {
+        return [];
+      }
+      const partialText =
+        row.last_rendered_text && row.last_rendered_text !== "Working..."
+          ? row.last_rendered_text
+          : undefined;
+      return [
+        {
+          runId: run.runId,
+          sessionKey: run.sessionKey,
+          ...(partialText ? { partialText } : {}),
+        },
+      ];
+    });
   }
 
   private touch(handle: OutboxHandle, state: "active" | "final" | "failed"): void {
     this.database.db
       .prepare(
         `update outbox_messages
-         set state = ?, last_rendered_text = ?, last_edit_at = ?, updated_at = ?
+         set telegram_message_id = ?, state = ?, last_rendered_text = ?, last_edit_at = ?, updated_at = ?
          where id = ?`,
       )
-      .run(state, handle.lastText, handle.lastEditAt, this.clock.now(), handle.outboxId);
+      .run(handle.messageId, state, handle.lastText, handle.lastEditAt, this.clock.now(), handle.outboxId);
   }
 }

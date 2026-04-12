@@ -10,6 +10,7 @@ import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { RouteResolver } from "./route-resolver.js";
 import { splitTelegramText } from "./formatting.js";
 import type { InboundEvent, ParsedCommand } from "./types.js";
+import type { HealthReporter } from "../app/health.js";
 
 function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
@@ -45,6 +46,7 @@ export class TelegramCommandRouter {
     private readonly authProfiles: AuthProfileStore,
     private readonly tokenResolver: CodexTokenResolver,
     private readonly orchestrator: RunOrchestrator,
+    private readonly health: HealthReporter,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -81,6 +83,10 @@ export class TelegramCommandRouter {
             `Usage: ${usageSummary}`,
           ].join("\n"),
         );
+        return true;
+      }
+      case "health": {
+        await sendReply(this.api, event, this.health.formatForText());
         return true;
       }
       case "model": {

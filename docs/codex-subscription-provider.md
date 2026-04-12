@@ -184,8 +184,9 @@ The transport accepts:
 In `auto` mode:
 
 1. prefer WebSocket
-2. if an early WebSocket-style failure occurs, retry as SSE
+2. if an early WebSocket-style failure occurs before progress is emitted, retry as SSE
 3. mark the session as degraded to SSE for 60 seconds
+4. keep using SSE during the degraded window
 
 The degradation cache is stored in the `transport_state` table.
 
@@ -208,6 +209,11 @@ Supported Pi AI stream event types used by the transport:
 - `error`
 
 If Pi AI returns a non-streaming result instead of an async iterable, the transport falls back to `completeSimple()`.
+
+Current behavior:
+
+- `onStart` is guaranteed to fire even for non-streaming completions
+- transport fallback is intentionally disabled once any stream progress has been emitted, to avoid duplicated output
 
 ## Usage Fetch
 

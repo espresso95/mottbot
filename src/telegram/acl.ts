@@ -1,4 +1,5 @@
 import type { AppConfig } from "../app/config.js";
+import type { TelegramMessageStore } from "./message-store.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { InboundEvent } from "./types.js";
 
@@ -10,6 +11,7 @@ export class AccessController {
   constructor(
     private readonly config: AppConfig,
     private readonly sessions: SessionStore,
+    private readonly messages: TelegramMessageStore,
   ) {}
 
   evaluate(event: InboundEvent): AccessDecision {
@@ -37,7 +39,14 @@ export class AccessController {
       return { allow: true, reason: "bound" };
     }
 
-    if (event.replyToMessageId) {
+    if (
+      typeof event.replyToMessageId === "number" &&
+      this.messages.hasMessage({
+        chatId: event.chatId,
+        threadId: event.threadId,
+        telegramMessageId: event.replyToMessageId,
+      })
+    ) {
       return { allow: true, reason: "reply" };
     }
 

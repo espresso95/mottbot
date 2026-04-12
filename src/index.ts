@@ -10,6 +10,7 @@ import { AuthProfileStore } from "./codex/auth-store.js";
 import { runCodexOAuthLogin } from "./codex/oauth-login.js";
 import { importCodexCliAuthProfile } from "./codex/cli-auth-import.js";
 import { installShutdown } from "./app/shutdown.js";
+import { HealthReporter } from "./app/health.js";
 
 async function runStart(): Promise<void> {
   const app = await bootstrapApplication();
@@ -60,6 +61,25 @@ async function runAuthImportCli(): Promise<void> {
   }
 }
 
+async function runHealth(): Promise<void> {
+  const config = loadConfig();
+  const database = new DatabaseClient(config.storage.sqlitePath);
+  try {
+    migrateDatabase(database);
+    const authStore = new AuthProfileStore(database, systemClock, new SecretBox(config.security.masterKey));
+    if (config.auth.preferCliImport) {
+      importCodexCliAuthProfile({
+        store: authStore,
+        profileId: config.auth.defaultProfile,
+      });
+    }
+    const health = new HealthReporter(config, database, authStore, systemClock);
+    process.stdout.write(`${health.formatForText()}\n`);
+  } finally {
+    database.close();
+  }
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -68,6 +88,7 @@ function printHelp(): void {
       "  mottbot auth login",
       "  mottbot auth import-cli",
       "  mottbot db migrate",
+      "  mottbot health",
     ].join("\n") + "\n",
   );
 }
@@ -93,6 +114,10 @@ async function main(): Promise<void> {
     const database = new DatabaseClient(config.storage.sqlitePath);
     migrateDatabase(database);
     database.close();
+    return;
+  }
+  if (group === "health") {
+    await runHealth();
     return;
   }
   printHelp();

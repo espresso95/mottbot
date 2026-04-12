@@ -8,7 +8,7 @@ Recommended posture:
 
 - one process
 - one SQLite file
-- polling mode
+- polling or webhook mode
 - private or admin-controlled chats first
 
 Do not treat the current implementation as a multi-instance bot service.
@@ -51,6 +51,12 @@ pnpm auth:login
 pnpm dev
 ```
 
+Webhook deployments additionally need:
+
+- `MOTTBOT_TELEGRAM_POLLING=false`
+- `MOTTBOT_TELEGRAM_WEBHOOK_URL`
+- optional webhook path, host, port, and secret token overrides
+
 ## CLI Entry Points
 
 The binary exposes these commands:
@@ -73,6 +79,7 @@ Equivalent `pnpm` scripts:
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
+- `pnpm health`
 
 ## Auth Operations
 
@@ -106,7 +113,7 @@ Operational advice:
 
 Current runtime:
 
-- polling only
+- polling or webhook mode
 - one message handler
 - one placeholder message per run
 - in-place edits during streaming
@@ -114,6 +121,7 @@ Current runtime:
 Admin controls are exposed through Telegram commands:
 
 - `/status`
+- `/health`
 - `/model`
 - `/profile`
 - `/fast`
@@ -137,7 +145,7 @@ Current behavior:
 
 Current limitation:
 
-- restart recovery for `starting` or `streaming` runs is not implemented yet
+- restart recovery is implemented for interrupted runs, but it does not currently re-notify Telegram chats after process restart
 
 ## Logging
 
@@ -170,10 +178,6 @@ Poor fit without more work:
 
 The most important operational gaps are:
 
-- webhook mode
-- durable Telegram update dedupe
-- crash recovery for interrupted runs
-- transcript summarization
-- attachment handling
-- health reporting beyond log inspection
+- native attachment handling
+- richer transcript summarization
 - migration discipline for future schema changes

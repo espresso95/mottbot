@@ -45,6 +45,7 @@ describe("TelegramCommandRouter", () => {
       stores.authProfiles,
       { resolve: vi.fn() } as any,
       { stop: vi.fn(async () => false) } as any,
+      stores.health,
     );
 
     const handled = await router.maybeHandle(
@@ -78,6 +79,7 @@ describe("TelegramCommandRouter", () => {
       stores.authProfiles,
       { resolve: vi.fn(async () => ({ accessToken: "access", apiKey: "access", profile: stores.authProfiles.get("openai-codex:default")! })) } as any,
       { stop: vi.fn(async () => false) } as any,
+      stores.health,
     );
 
     await router.maybeHandle(createInboundEvent({ text: "/status", isCommand: true }));
@@ -105,6 +107,7 @@ describe("TelegramCommandRouter", () => {
       stores.authProfiles,
       { resolve: vi.fn() } as any,
       orchestrator as any,
+      stores.health,
     );
 
     await router.maybeHandle(createInboundEvent({ text: "/stop", isCommand: true }));
@@ -137,6 +140,7 @@ describe("TelegramCommandRouter", () => {
       stores.authProfiles,
       { resolve: vi.fn() } as any,
       { stop: vi.fn(async () => false) } as any,
+      stores.health,
     );
 
     await router.maybeHandle(createInboundEvent({ text: "/profile", isCommand: true }));
@@ -191,6 +195,7 @@ describe("TelegramCommandRouter", () => {
       stores.authProfiles,
       { resolve: vi.fn() } as any,
       { stop: vi.fn(async () => false) } as any,
+      stores.health,
     );
 
     await router.maybeHandle(createInboundEvent({ text: "/profile does-not-exist", isCommand: true }));
@@ -200,6 +205,34 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Unknown profile does-not-exist"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles /health", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/health", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Status: ok"),
       expect.any(Object),
     );
   });

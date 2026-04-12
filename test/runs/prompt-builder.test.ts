@@ -19,4 +19,41 @@ describe("buildPrompt", () => {
       { role: "system", content: "rules", timestamp: 4 },
     ]);
   });
+
+  it("renders attachment metadata into user prompts", () => {
+    const prompt = buildPrompt({
+      history: [
+        {
+          id: "1",
+          sessionKey: "s",
+          role: "user",
+          contentText: "See attached",
+          contentJson: JSON.stringify({
+            attachments: [{ kind: "photo", fileId: "abc123" }],
+          }),
+          createdAt: 1,
+        },
+      ],
+    });
+    expect(prompt.messages[0]?.content).toContain("Attachments:");
+    expect(prompt.messages[0]?.content).toContain("photo");
+    expect(prompt.messages[0]?.content).toContain("abc123");
+  });
+
+  it("compacts older history into a summary message", () => {
+    const history = Array.from({ length: 30 }, (_, index) => ({
+      id: String(index + 1),
+      sessionKey: "s",
+      role: index % 2 === 0 ? "user" : "assistant",
+      contentText: `message ${index + 1}`,
+      createdAt: index + 1,
+    })) as any;
+    const prompt = buildPrompt({
+      history,
+      historyLimit: 4,
+    });
+    expect(prompt.messages[0]?.role).toBe("system");
+    expect(prompt.messages[0]?.content).toContain("Earlier conversation summary:");
+    expect(prompt.messages).toHaveLength(5);
+  });
 });

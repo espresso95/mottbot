@@ -62,7 +62,7 @@ Bootstraps the process.
 
 Owns Telegram-specific behavior.
 
-- `bot.ts`: long-lived `grammY` process, message handler registration, polling start/stop
+- `bot.ts`: long-lived `grammY` process, message handler registration, polling or webhook lifecycle
 - `update-normalizer.ts`: converts raw Telegram messages into stable `InboundEvent` records
 - `acl.ts`: decides if the bot should act on a message
 - `route-resolver.ts`: maps accepted events to a persistent session route
@@ -218,22 +218,24 @@ The code already includes some forward-looking schema such as `telegram_updates`
 Implemented now:
 
 - polling mode
+- webhook mode
 - message normalization
-- mention/reply/bound-command ACL
+- durable update dedupe using `telegram_updates`
+- mention/reply-to-bot/bound-command ACL
 - deterministic session routing
 - run persistence and transcript persistence
 - local OAuth login command
 - Codex CLI auth import and refresh write-back
 - WebSocket-first transport with SSE fallback
 - throttled Telegram outbox edits
+- restart recovery for `starting` and `streaming` runs
+- attachment-aware prompt construction and transcript compaction
+- basic health reporting
 
 Not yet implemented:
 
-- webhook mode
-- persisted update dedupe via `telegram_updates`
-- startup repair of `starting` and `streaming` runs
-- attachment-to-model input handling
-- transcript summarization or compaction
+- native file/media upload into model requests
+- richer summarization or learned compaction
 - multi-instance locks or distributed coordination
 
 ## Why This Is Similar To OpenClaw

@@ -93,4 +93,15 @@ export class TranscriptStore {
   clearSession(sessionKey: string): void {
     this.database.db.prepare("delete from messages where session_key = ?").run(sessionKey);
   }
+
+  hasRunMessage(runId: string, role?: TranscriptMessageRole): boolean {
+    const row = this.database.db
+      .prepare<unknown[], { id: string }>(
+        role
+          ? "select id from messages where run_id = ? and role = ? limit 1"
+          : "select id from messages where run_id = ? limit 1",
+      )
+      .get(...(role ? [runId, role] : [runId]));
+    return Boolean(row);
+  }
 }

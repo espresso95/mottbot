@@ -105,4 +105,56 @@ export class RunStore {
       );
     return next;
   }
+
+  countByStatuses(statuses: RunStatus[]): number {
+    if (statuses.length === 0) {
+      return 0;
+    }
+    const placeholders = statuses.map(() => "?").join(", ");
+    const row = this.database.db
+      .prepare<unknown[], { count: number }>(
+        `select count(*) as count from runs where status in (${placeholders})`,
+      )
+      .get(...statuses);
+    return row?.count ?? 0;
+  }
+
+  recoverInterruptedRuns(): RunRecord[] {
+    const rows = this.database.db
+      .prepare<unknown[], RunRow>(
+        "select * from runs where status in ('starting', 'streaming') order by created_at asc",
+      )
+      .all();
+    if (rows.length === 0) {
+      return [];
+    }
+    const now = this.clock.now();
+    const recovered = rows.map(mapRunRow);
+    const update = this.database.db.prepare(
+      `update runs
+       set status = ?, error_code = ?, error_message = ?, finished_at = ?, updated_at = ?
+       where run_id = ?`,
+    );
+    const transaction = this.database.db.transaction((items: RunRecord[]) => {
+      for (const item of items) {
+        update.run(
+          "failed",
+          "restart_recovery",
+          "Recovered as failed after process restart.",
+          now,
+          now,
+          item.runId,
+        );
+      }
+    });
+    transaction(recovered);
+    return recovered.map((item) => ({
+      ...item,
+      status: "failed",
+      errorCode: "restart_recovery",
+      errorMessage: "Recovered as failed after process restart.",
+      finishedAt: now,
+      updatedAt: now,
+    }));
+  }
 }

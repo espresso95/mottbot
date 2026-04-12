@@ -40,13 +40,19 @@ Implemented in this repo:
 - Codex CLI auth import
 - token refresh with per-profile locking
 - WebSocket-first streaming with SSE fallback
+- durable Telegram update dedupe
+- reply-to-bot gating in groups via persisted bot-message tracking
+- restart recovery for interrupted runs
+- attachment-aware prompt construction
+- transcript compaction via deterministic history summaries
+- webhook mode
+- health reporting via `/health` and `mottbot health`
 - unit and integration test suite with coverage reporting
 
 Planned hardening that is not yet implemented:
 
-- webhook mode
-- persisted Telegram update dedupe using `telegram_updates`
-- crash recovery for in-flight runs on restart
-- attachment ingestion into model prompts
-- transcript summarization and context compression
+- full binary/media attachment ingestion into model inputs
+- stronger restart reconciliation for in-progress Telegram deliveries
+- explicit bot-reply verification for continuation messages sent after long outputs
+- richer summarization beyond deterministic local compaction
 - multi-instance coordination

@@ -22,7 +22,11 @@ describe("loadConfig", () => {
     fs.writeFileSync(
       file,
       JSON.stringify({
-        telegram: { polling: false, adminUserIds: ["file-admin"] },
+        telegram: {
+          polling: false,
+          adminUserIds: ["file-admin"],
+          webhook: { publicUrl: "https://bot.example.com", port: 9000 },
+        },
         models: { default: "openai-codex/gpt-5.4-mini" },
         auth: { preferCliImport: false },
         storage: { sqlitePath: "./custom.sqlite" },
@@ -37,6 +41,8 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
     expect(config.telegram.adminUserIds).toEqual(["env-admin-1", "env-admin-2"]);
+    expect(config.telegram.webhook.publicUrl).toBe("https://bot.example.com");
+    expect(config.telegram.webhook.port).toBe(9000);
     expect(config.models.default).toBe("openai-codex/gpt-5.4-mini");
     expect(config.auth.preferCliImport).toBe(false);
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));

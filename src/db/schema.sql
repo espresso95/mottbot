@@ -72,6 +72,23 @@ create table if not exists telegram_updates (
   processed_at integer not null
 );
 
+create table if not exists telegram_bot_messages (
+  id text primary key,
+  run_id text,
+  session_key text,
+  chat_id text not null,
+  thread_id integer,
+  telegram_message_id integer not null,
+  message_kind text not null,
+  created_at integer not null,
+  unique(chat_id, thread_id, telegram_message_id),
+  foreign key (run_id) references runs(run_id),
+  foreign key (session_key) references session_routes(session_key)
+);
+
+create index if not exists idx_tg_bot_messages_lookup
+  on telegram_bot_messages(chat_id, thread_id, telegram_message_id);
+
 create table if not exists outbox_messages (
   id text primary key,
   run_id text not null,

@@ -31,17 +31,17 @@ pnpm test:coverage
 
 Verified locally on April 12, 2026:
 
-- `pnpm test`: 28 test files, 53 tests passing
-- `pnpm test:coverage`: 28 test files, 53 tests passing
+- `pnpm test`: 31 test files, 69 tests passing
+- `pnpm test:coverage`: 31 test files, 69 tests passing
 
 Coverage summary:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.3% |
-| Branches | 68.8% |
-| Functions | 92.05% |
-| Lines | 85.41% |
+| Statements | 86.33% |
+| Branches | 71.06% |
+| Functions | 91.04% |
+| Lines | 86.35% |
 
 ## Coverage Map
 
@@ -100,11 +100,13 @@ Primary tests:
 Covers:
 
 - update normalization
+- durable update dedupe
 - ACL decisions
 - route resolution
 - command handling
 - outbox start, update, finalize, and fail behavior
-- bot dispatch behavior
+- outbox recovery behavior
+- polling and webhook bot lifecycle behavior
 
 Primary tests:
 
@@ -124,6 +126,8 @@ Covers:
 - OAuth login behavior around prompts and scope normalization
 - token resolver refresh flow and lock behavior
 - transport fallback to SSE
+- degraded transport cache behavior
+- no fallback after partial stream progress
 - usage endpoint normalization
 
 Primary tests:
@@ -137,10 +141,17 @@ Primary tests:
 
 ## Important Behaviors Proven By Tests
 
-The current suite catches two subtle behaviors that matter in production:
+The current suite catches several subtle behaviors that matter in production:
 
 - cancelling a queued or running session does not leak an unhandled rejection from the queue tail
 - unbinding a previously bound DM session restores the correct route mode instead of incorrectly downgrading it to a group route
+- transport fallback does not rerun a request after partial stream progress
+- degraded SSE backoff remains active after a successful fallback
+- unknown profiles are rejected instead of poisoning future runs
+- interrupted runs are recovered as failed on restart
+- processed Telegram updates are deduplicated durably
+- webhook mode configures the local server and Telegram webhook registration correctly
+- interrupted outbox rows are marked failed and partial text is recoverable after restart
 
 ## Current Gaps
 
@@ -149,12 +160,11 @@ The suite is broad, but it does not yet prove everything that a hardened product
 Not fully covered today:
 
 - live Telegram polling against a real bot token
+- live Telegram webhook delivery against a public endpoint
 - real ChatGPT/Codex OAuth against an operator account
 - live subscription-backed model calls
-- startup crash recovery for interrupted runs
-- update dedupe persistence via `telegram_updates`
-- webhook mode, which is not implemented yet anyway
-- attachment ingestion into model prompts
+- full end-to-end crash recovery across process restart and fresh inbound traffic
+- native attachment ingestion into model prompts
 
 ## Why The Coverage Is Good Enough For The Current Repo
 
