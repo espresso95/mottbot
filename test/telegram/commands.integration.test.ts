@@ -168,4 +168,39 @@ describe("TelegramCommandRouter", () => {
       expect.any(Object),
     );
   });
+
+  it("rejects selecting an unknown profile", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.authProfiles.upsert({
+      profileId: "openai-codex:default",
+      source: "local_oauth",
+      accessToken: "access",
+      refreshToken: "refresh",
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/profile does-not-exist", isCommand: true }));
+
+    const session = stores.sessions.findByChat("chat-1");
+    expect(session?.profileId).toBe("openai-codex:default");
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Unknown profile does-not-exist"),
+      expect.any(Object),
+    );
+  });
 });

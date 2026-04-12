@@ -26,32 +26,38 @@ async function runAuthLogin(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.logging.level);
   const database = new DatabaseClient(config.storage.sqlitePath);
-  migrateDatabase(database);
-  const authStore = new AuthProfileStore(database, systemClock, new SecretBox(config.security.masterKey));
-  const profileId = await runCodexOAuthLogin({
-    config,
-    authStore,
-    logger,
-  });
-  logger.info({ profileId }, "Stored OpenAI Codex OAuth profile.");
-  database.close();
+  try {
+    migrateDatabase(database);
+    const authStore = new AuthProfileStore(database, systemClock, new SecretBox(config.security.masterKey));
+    const profileId = await runCodexOAuthLogin({
+      config,
+      authStore,
+      logger,
+    });
+    logger.info({ profileId }, "Stored OpenAI Codex OAuth profile.");
+  } finally {
+    database.close();
+  }
 }
 
 async function runAuthImportCli(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.logging.level);
   const database = new DatabaseClient(config.storage.sqlitePath);
-  migrateDatabase(database);
-  const authStore = new AuthProfileStore(database, systemClock, new SecretBox(config.security.masterKey));
-  const result = importCodexCliAuthProfile({
-    store: authStore,
-    profileId: config.auth.defaultProfile,
-  });
-  if (!result.imported) {
-    throw new Error("No Codex CLI auth.json with ChatGPT credentials was found.");
+  try {
+    migrateDatabase(database);
+    const authStore = new AuthProfileStore(database, systemClock, new SecretBox(config.security.masterKey));
+    const result = importCodexCliAuthProfile({
+      store: authStore,
+      profileId: config.auth.defaultProfile,
+    });
+    if (!result.imported) {
+      throw new Error("No Codex CLI auth.json with ChatGPT credentials was found.");
+    }
+    logger.info({ profileId: result.profileId }, "Imported Codex CLI auth profile.");
+  } finally {
+    database.close();
   }
-  logger.info({ profileId: result.profileId }, "Imported Codex CLI auth profile.");
-  database.close();
 }
 
 function printHelp(): void {

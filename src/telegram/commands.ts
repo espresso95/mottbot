@@ -104,8 +104,13 @@ export class TelegramCommandRouter {
           );
           return true;
         }
-        this.sessions.setProfileId(session.sessionKey, parsed.args[0]);
-        await sendReply(this.api, event, `Profile set to ${parsed.args[0]}.`);
+        const nextProfileId = parsed.args[0];
+        if (!this.authProfiles.get(nextProfileId)) {
+          await sendReply(this.api, event, `Unknown profile ${nextProfileId}.`);
+          return true;
+        }
+        this.sessions.setProfileId(session.sessionKey, nextProfileId);
+        await sendReply(this.api, event, `Profile set to ${nextProfileId}.`);
         return true;
       }
       case "fast": {

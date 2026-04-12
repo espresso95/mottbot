@@ -77,31 +77,54 @@ export class CodexTransport {
     const preferredTransport =
       params.transport === "auto" && degraded && degraded > Date.now() ? "sse" : params.transport;
     const requestIdentity = createId();
+    let sawProgress = false;
+    const wrappedParams: StreamParams = {
+      ...params,
+      onStart: async () => {
+        sawProgress = true;
+        await params.onStart?.();
+      },
+      onTextDelta: async (delta) => {
+        sawProgress = true;
+        await params.onTextDelta?.(delta);
+      },
+      onThinkingDelta: async (delta) => {
+        sawProgress = true;
+        await params.onThinkingDelta?.(delta);
+      },
+    };
     try {
-      return await this.runStream({
-        ...params,
-        transport: preferredTransport === "auto" ? "websocket" : preferredTransport,
+      const selectedTransport = preferredTransport === "auto" ? "websocket" : preferredTransport;
+      const result = await this.runStream({
+        ...wrappedParams,
+        transport: selectedTransport,
         requestIdentity,
       });
+      this.recordSuccessfulTransport(params.sessionKey, selectedTransport, degraded);
+      return result;
     } catch (error) {
       const message = getErrorMessage(error);
       const canFallback =
         params.transport === "auto" &&
         preferredTransport !== "sse" &&
+        !sawProgress &&
         /websocket|ws|socket/i.test(message);
       if (!canFallback) {
         throw error;
       }
       this.logger.warn({ sessionKey: params.sessionKey, error: message }, "WebSocket transport failed. Falling back to SSE.");
+      const degradedUntil = Date.now() + 60_000;
       this.writeTransportState(params.sessionKey, {
-        websocketDegradedUntil: Date.now() + 60_000,
+        websocketDegradedUntil: degradedUntil,
         lastTransport: "sse",
       });
-      return await this.runStream({
-        ...params,
+      const result = await this.runStream({
+        ...wrappedParams,
         transport: "sse",
         requestIdentity,
       });
+      this.recordSuccessfulTransport(params.sessionKey, "sse", degradedUntil);
+      return result;
     }
   }
 
@@ -134,15 +157,27 @@ export class CodexTransport {
     let thinking = "";
     let usage: Record<string, unknown> | undefined;
     let started = false;
+    const ensureStarted = async () => {
+      if (started) {
+        return;
+      }
+      started = true;
+      await params.onStart?.();
+    };
 
     const maybeStream = await piAi.streamSimple(model as never, context as never, options as never);
     if (isAsyncIterable(maybeStream)) {
       for await (const event of maybeStream) {
         if (!started && event && typeof event === "object") {
           const type = (event as { type?: unknown }).type;
-          if (type === "start" || type === "text_start") {
-            started = true;
-            await params.onStart?.();
+          if (
+            type === "start" ||
+            type === "text_start" ||
+            type === "text_delta" ||
+            type === "thinking_delta" ||
+            type === "done"
+          ) {
+            await ensureStarted();
           }
         }
         if (!event || typeof event !== "object") {
@@ -182,10 +217,6 @@ export class CodexTransport {
           throw new Error(errorMessage || "Codex stream failed.");
         }
       }
-      this.writeTransportState(params.sessionKey, {
-        websocketDegradedUntil: null,
-        lastTransport: params.transport,
-      });
       return {
         text,
         ...(thinking ? { thinking } : {}),
@@ -195,16 +226,13 @@ export class CodexTransport {
       };
     }
 
+    await ensureStarted();
     const completed = (await piAi.completeSimple(model as never, context as never, options as never)) as any;
     text = collectMessageText(completed?.message);
     usage =
       completed?.usage && typeof completed.usage === "object"
         ? (completed.usage as unknown as Record<string, unknown>)
         : undefined;
-    this.writeTransportState(params.sessionKey, {
-      websocketDegradedUntil: null,
-      lastTransport: params.transport,
-    });
     return {
       text,
       ...(usage ? { usage } : {}),
@@ -236,5 +264,21 @@ export class CodexTransport {
            updated_at = excluded.updated_at`,
       )
       .run(sessionKey, state.websocketDegradedUntil, state.lastTransport, Date.now());
+  }
+
+  private recordSuccessfulTransport(
+    sessionKey: string,
+    transport: "sse" | "websocket",
+    degradedUntil?: number,
+  ): void {
+    this.writeTransportState(sessionKey, {
+      websocketDegradedUntil:
+        transport === "websocket"
+          ? null
+          : typeof degradedUntil === "number" && degradedUntil > Date.now()
+            ? degradedUntil
+            : null,
+      lastTransport: transport,
+    });
   }
 }

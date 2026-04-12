@@ -110,6 +110,7 @@ describe("CodexTransport", () => {
       usage: { total: 1 },
     });
     const transport = new CodexTransport(stores.database, stores.logger);
+    const onStart = vi.fn(async () => undefined);
     const result = await transport.stream({
       sessionKey: "session-3",
       modelRef: "openai-codex/gpt-5.4",
@@ -120,8 +121,101 @@ describe("CodexTransport", () => {
         apiKey: "api",
       },
       messages: [{ role: "user", content: "hi", timestamp: 1 }],
+      onStart,
     });
     expect(result.text).toBe("completed");
     expect(completeSimple).toHaveBeenCalled();
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the degraded websocket window across successful sse retries", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    streamSimple
+      .mockRejectedValueOnce(new Error("websocket handshake failed"))
+      .mockResolvedValueOnce(
+        createEventStream([{ type: "done", message: { content: [{ type: "text", text: "fallback" }] } }]),
+      )
+      .mockResolvedValueOnce(
+        createEventStream([{ type: "done", message: { content: [{ type: "text", text: "cached" }] } }]),
+      );
+    const transport = new CodexTransport(stores.database, stores.logger);
+
+    await transport.stream({
+      sessionKey: "session-4",
+      modelRef: "openai-codex/gpt-5.4",
+      transport: "auto",
+      auth: {
+        profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+        accessToken: "access",
+        apiKey: "api",
+      },
+      messages: [{ role: "user", content: "hi", timestamp: 1 }],
+    });
+
+    const afterFallback = stores.database.db
+      .prepare("select websocket_degraded_until, last_transport from transport_state where session_key = ?")
+      .get("session-4") as { websocket_degraded_until: number | null; last_transport: string };
+    expect(afterFallback.last_transport).toBe("sse");
+    expect(afterFallback.websocket_degraded_until).toBeTypeOf("number");
+    expect(afterFallback.websocket_degraded_until).toBeGreaterThan(Date.now());
+
+    await transport.stream({
+      sessionKey: "session-4",
+      modelRef: "openai-codex/gpt-5.4",
+      transport: "auto",
+      auth: {
+        profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+        accessToken: "access",
+        apiKey: "api",
+      },
+      messages: [{ role: "user", content: "again", timestamp: 2 }],
+    });
+
+    const afterSecondAttempt = stores.database.db
+      .prepare("select websocket_degraded_until, last_transport from transport_state where session_key = ?")
+      .get("session-4") as { websocket_degraded_until: number | null; last_transport: string };
+    expect(afterSecondAttempt.last_transport).toBe("sse");
+    expect(afterSecondAttempt.websocket_degraded_until).toBe(afterFallback.websocket_degraded_until);
+  });
+
+  it("does not fall back after websocket progress has already started", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    streamSimple.mockResolvedValueOnce(
+      createEventStream([
+        { type: "start" },
+        { type: "text_delta", delta: "partial" },
+        { type: "error", error: { errorMessage: "websocket stream broke" } },
+      ]),
+    );
+    const transport = new CodexTransport(stores.database, stores.logger);
+    const deltas: string[] = [];
+
+    await expect(
+      transport.stream({
+        sessionKey: "session-5",
+        modelRef: "openai-codex/gpt-5.4",
+        transport: "auto",
+        auth: {
+          profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+          accessToken: "access",
+          apiKey: "api",
+        },
+        messages: [{ role: "user", content: "hi", timestamp: 1 }],
+        onTextDelta: async (delta) => {
+          deltas.push(delta);
+        },
+      }),
+    ).rejects.toThrow("websocket stream broke");
+
+    expect(deltas).toEqual(["partial"]);
+    expect(streamSimple).toHaveBeenCalledTimes(1);
   });
 });
