@@ -11,6 +11,7 @@ import { CodexTokenResolver } from "../codex/token-resolver.js";
 import { CodexTransport } from "../codex/transport.js";
 import { SessionStore } from "../sessions/session-store.js";
 import { TranscriptStore } from "../sessions/transcript-store.js";
+import { VectorMemoryStore } from "../sessions/vector-memory-store.js";
 import { SessionQueue } from "../sessions/queue.js";
 import { RunStore } from "../runs/run-store.js";
 import { TelegramOutbox } from "../telegram/outbox.js";
@@ -38,7 +39,8 @@ export async function bootstrapApplication() {
   }
 
   const sessionStore = new SessionStore(database, systemClock);
-  const transcriptStore = new TranscriptStore(database, systemClock);
+  const memoryStore = new VectorMemoryStore(database);
+  const transcriptStore = new TranscriptStore(database, systemClock, memoryStore);
   const queue = new SessionQueue();
   const runStore = new RunStore(database, systemClock);
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
@@ -95,6 +97,7 @@ export async function bootstrapApplication() {
     tokenResolver,
     transport,
     outbox,
+    memoryStore,
     logger,
   );
   const commands = new TelegramCommandRouter(

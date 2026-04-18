@@ -2,6 +2,7 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { TranscriptMessage, TranscriptMessageRole } from "./types.js";
+import type { VectorMemoryStore } from "./vector-memory-store.js";
 
 type MessageRow = {
   id: string;
@@ -35,6 +36,7 @@ export class TranscriptStore {
   constructor(
     private readonly database: DatabaseClient,
     private readonly clock: Clock,
+    private readonly memory?: VectorMemoryStore,
   ) {}
 
   add(params: {
@@ -78,6 +80,15 @@ export class TranscriptStore {
         message.contentJson ?? null,
         message.createdAt,
       );
+    if (message.contentText) {
+      this.memory?.indexMessage({
+        messageId: message.id,
+        sessionKey: message.sessionKey,
+        role: message.role,
+        contentText: message.contentText,
+        createdAt: message.createdAt,
+      });
+    }
     return message;
   }
 
@@ -92,6 +103,7 @@ export class TranscriptStore {
 
   clearSession(sessionKey: string): void {
     this.database.db.prepare("delete from messages where session_key = ?").run(sessionKey);
+    this.memory?.clearSession(sessionKey);
   }
 
   hasRunMessage(runId: string, role?: TranscriptMessageRole): boolean {

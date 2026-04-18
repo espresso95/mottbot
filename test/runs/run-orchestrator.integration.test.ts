@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
+import type { PromptMessage } from "../../src/runs/prompt-builder.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
@@ -53,6 +54,7 @@ describe("RunOrchestrator", () => {
       { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
       transport as any,
       outbox as any,
+      stores.memory,
       stores.logger,
     );
 
@@ -106,6 +108,7 @@ describe("RunOrchestrator", () => {
       { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
       { stream: vi.fn(async () => { throw new Error("boom"); }) } as any,
       outbox as any,
+      stores.memory,
       stores.logger,
     );
 
@@ -159,6 +162,7 @@ describe("RunOrchestrator", () => {
         }),
       } as any,
       outbox as any,
+      stores.memory,
       stores.logger,
     );
 
@@ -176,5 +180,62 @@ describe("RunOrchestrator", () => {
     const messages = stores.transcripts.listRecent(session.sessionKey);
     expect(messages[0]?.contentJson).toContain("photo-1");
     expect(messages[0]?.contentText).toBe("Shared attachments.");
+  });
+
+  it("adds recalled vector memory to prompt messages", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    stores.transcripts.add({
+      sessionKey: session.sessionKey,
+      role: "user",
+      contentText: "My favorite editor is neovim.",
+    });
+    const transport = {
+      stream: vi.fn(async ({ onStart, messages }) => {
+        await onStart?.();
+        const memoryMessage = messages.find(
+          (entry: PromptMessage) => entry.role === "system" && entry.content.includes("Relevant long-term memory:"),
+        );
+        expect(memoryMessage?.content).toContain("favorite editor is neovim");
+        return { text: "noted", transport: "sse", requestIdentity: "req-3" };
+      }),
+    };
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.memory,
+      stores.logger,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "What editor do I like?" }),
+      session,
+    });
+
+    await flushAsync();
+    expect(transport.stream).toHaveBeenCalledOnce();
   });
 });

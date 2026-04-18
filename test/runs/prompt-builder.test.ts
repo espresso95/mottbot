@@ -56,4 +56,22 @@ describe("buildPrompt", () => {
     expect(prompt.messages[0]?.content).toContain("Earlier conversation summary:");
     expect(prompt.messages).toHaveLength(5);
   });
+
+  it("injects recalled vector memory before transcript history", () => {
+    const prompt = buildPrompt({
+      history: [{ id: "1", sessionKey: "s", role: "user", contentText: "question", createdAt: 1 }],
+      recalledMemories: [
+        {
+          messageId: "m1",
+          role: "assistant",
+          contentText: "You prefer concise responses.",
+          score: 0.82,
+          createdAt: 10,
+        },
+      ],
+    });
+    expect(prompt.messages[0]?.role).toBe("system");
+    expect(prompt.messages[0]?.content).toContain("Relevant long-term memory:");
+    expect(prompt.messages[1]?.role).toBe("user");
+  });
 });

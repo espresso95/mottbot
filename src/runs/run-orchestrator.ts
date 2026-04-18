@@ -7,6 +7,7 @@ import type { SessionQueue } from "../sessions/queue.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
+import type { VectorMemoryStore } from "../sessions/vector-memory-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import { buildPrompt } from "./prompt-builder.js";
@@ -33,6 +34,15 @@ function buildUserTranscriptPayload(event: InboundEvent): {
   };
 }
 
+function buildMemoryQuery(event: InboundEvent): string {
+  const eventText = event.text ?? event.caption;
+  const normalized = eventText?.trim();
+  if (normalized) {
+    return normalized;
+  }
+  return event.attachments.length > 0 ? "Shared attachments." : "";
+}
+
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
 
@@ -45,6 +55,7 @@ export class RunOrchestrator {
     private readonly tokenResolver: CodexTokenResolver,
     private readonly transport: CodexTransport,
     private readonly outbox: TelegramOutbox,
+    private readonly memory: VectorMemoryStore,
     private readonly logger: Logger,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
@@ -123,9 +134,16 @@ export class RunOrchestrator {
       });
       const auth = await this.tokenResolver.resolve(params.session.profileId);
       const history = this.transcripts.listRecent(params.session.sessionKey, 30);
+      const recalledMemories = this.memory.search({
+        sessionKey: params.session.sessionKey,
+        query: buildMemoryQuery(params.event),
+        limit: 4,
+        excludeMessageIds: history.map((entry) => entry.id),
+      });
       const prompt = buildPrompt({
         history,
         systemPrompt: params.session.systemPrompt,
+        recalledMemories,
       });
       const collector = new StreamCollector();
       const result = await this.transport.stream({

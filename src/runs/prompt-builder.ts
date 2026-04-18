@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from "../sessions/types.js";
+import type { RecalledMemory } from "../sessions/vector-memory-store.js";
 
 export type PromptMessage = {
   role: "system" | "user" | "assistant";
@@ -91,12 +92,25 @@ export function buildPrompt(params: {
   history: TranscriptMessage[];
   systemPrompt?: string;
   historyLimit?: number;
+  recalledMemories?: RecalledMemory[];
 }): BuiltPrompt {
   const historyLimit = params.historyLimit ?? 24;
   const olderHistory =
     params.history.length > historyLimit ? params.history.slice(0, -historyLimit) : [];
   const trimmedHistory = params.history.slice(-historyLimit);
   const messages: PromptMessage[] = [];
+  if (params.recalledMemories && params.recalledMemories.length > 0) {
+    const lines = params.recalledMemories.map((memory) => `- ${memory.role}: ${condenseText(memory.contentText, 220)}`);
+    let memoryTimestamp = Number.POSITIVE_INFINITY;
+    for (const memory of params.recalledMemories) {
+      memoryTimestamp = Math.min(memoryTimestamp, memory.createdAt);
+    }
+    messages.push({
+      role: "system",
+      content: ["Relevant long-term memory:", ...lines].join("\n"),
+      timestamp: Number.isFinite(memoryTimestamp) ? memoryTimestamp : 0,
+    });
+  }
   const summary = buildSummary(olderHistory);
   if (summary) {
     messages.push({

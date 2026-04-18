@@ -33,8 +33,10 @@ describe("TranscriptStore", () => {
     expect(stores.transcripts.listRecent("s1")).toHaveLength(2);
     expect(stores.transcripts.listRecent("s1")[0]?.contentText).toBe("hello");
     expect(stores.transcripts.hasRunMessage("missing")).toBe(false);
+    expect(stores.memory.search({ sessionKey: "s1", query: "hello" })).toHaveLength(1);
 
     stores.transcripts.clearSession("s1");
     expect(stores.transcripts.listRecent("s1")).toEqual([]);
+    expect(stores.memory.search({ sessionKey: "s1", query: "hello" })).toEqual([]);
   });
 });

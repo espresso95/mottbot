@@ -77,6 +77,7 @@ Owns route identity and concurrency.
 - `session-key.ts`: deterministic session key generation
 - `session-store.ts`: persistent route config and mutable session settings
 - `transcript-store.ts`: transcript persistence
+- `vector-memory-store.ts`: SQLite-backed semantic memory index + recall for long-term context
 - `queue.ts`: strict one-run-at-a-time execution per session
 
 ### `src/runs/*`
@@ -231,6 +232,7 @@ Implemented now:
 - restart recovery for `starting` and `streaming` runs
 - mid-stream outbox rebind when Telegram edit calls fail
 - attachment-aware prompt construction and transcript compaction
+- vector-memory recall from older transcript turns
 - basic health reporting
 
 Not yet implemented:

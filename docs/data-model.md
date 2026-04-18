@@ -199,6 +199,21 @@ Notable fields:
 - `content_text`
 - `content_json`
 
+### `memory_vectors`
+
+Purpose:
+
+- SQLite-backed vector memory index for semantic long-term recall
+
+Notable fields:
+
+- `message_id`
+- `session_key`
+- `role`
+- `content_text`
+- `embedding_json`
+- `created_at`
+
 ### `runs`
 
 Purpose:
@@ -281,6 +296,7 @@ This is only used for auth profile storage. The Telegram bot token is read from 
 Current retention policy is simple:
 
 - transcripts are append-only until `/reset` or `/new`
+- vector memory rows are regenerated from transcript writes and deleted with `/reset` or `/new`
 - runs are never pruned automatically
 - auth profiles are updated in place
 - outbox rows are kept after completion
@@ -292,5 +308,5 @@ There is no automatic compaction or archival task yet.
 - no schema version history beyond bootstrap migration
 - no attachment blob storage
 - no durable queue state
-- no summarization state for long transcripts
+- no background compaction or ANN index for vector memory
 - no dedicated health state for auth profiles beyond refresh failures
