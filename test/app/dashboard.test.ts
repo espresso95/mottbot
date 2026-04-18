@@ -104,11 +104,18 @@ describe("DashboardServer", () => {
     return response;
   }
 
+  async function invokeRequest(req: any, res: any): Promise<void> {
+    requestHandler?.(req, res);
+    await new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 0);
+    });
+  }
+
   it("serves dashboard HTML", async () => {
     const { dashboard, database } = await createDashboard();
     await dashboard.start();
     const response = createResponseCapture();
-    await requestHandler?.(
+    await invokeRequest(
       {
         method: "GET",
         url: "/dashboard",
@@ -128,7 +135,7 @@ describe("DashboardServer", () => {
     const { dashboard, database } = await createDashboard({ authToken: "secret-token" });
     await dashboard.start();
     const response = createResponseCapture();
-    await requestHandler?.(
+    await invokeRequest(
       {
         method: "GET",
         url: "/api/dashboard/config",
@@ -153,7 +160,7 @@ describe("DashboardServer", () => {
       logging: { level: "debug" },
       telegram: { polling: false },
     });
-    await requestHandler?.(
+    await invokeRequest(
       {
         method: "POST",
         url: "/api/dashboard/config",
