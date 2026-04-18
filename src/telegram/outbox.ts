@@ -100,8 +100,30 @@ export class TelegramOutbox {
       this.touch(next, "active");
       return next;
     } catch (error) {
-      this.logger.warn({ error }, "Failed to edit Telegram message.");
-      return handle;
+      this.logger.warn({ error }, "Failed to edit Telegram message, sending continuation message.");
+      try {
+        const sent = await this.api.sendMessage(handle.chatId, nextText, {
+          ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+        });
+        const next = {
+          ...handle,
+          messageId: sent.message_id,
+          lastText: nextText,
+          lastEditAt: now,
+        };
+        this.messages.record({
+          runId: handle.runId,
+          chatId: handle.chatId,
+          threadId: handle.threadId,
+          telegramMessageId: sent.message_id,
+          kind: "continuation",
+        });
+        this.touch(next, "active");
+        return next;
+      } catch (sendError) {
+        this.logger.warn({ error: sendError }, "Failed to send continuation Telegram message.");
+        return handle;
+      }
     }
   }
 

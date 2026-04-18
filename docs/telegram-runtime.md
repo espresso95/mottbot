@@ -253,6 +253,7 @@ Prefer direct answers over padding.
 - edit only the first chunk in place
 - throttle edits using `behavior.editThrottleMs`
 - skip edits when the next rendered text is empty or unchanged
+- if an edit fails mid-stream, send a continuation message, rebind the active outbox handle, and continue streaming
 
 ### Finish
 
@@ -275,10 +276,6 @@ The runtime is optimized for Telegram's constraints:
 - edits are throttled to avoid flood control
 - long output is chunked before sending
 - the first message in a stream remains stable for better chat readability
-
-Current limitation:
-
-- if a mid-stream edit fails, the outbox logs a warning and keeps streaming against the old handle; it does not yet rebind to a fresh message during the active stream
 
 ## Runtime Gaps
 
