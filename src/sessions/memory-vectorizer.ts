@@ -29,7 +29,7 @@ export function createTextEmbedding(text: string): number[] {
   for (const token of tokens) {
     const hash = hashToken(token);
     const primaryIndex = hash % VECTOR_DIMENSIONS;
-    const secondaryIndex = ((hash >>> 9) ^ (hash >>> 19)) % VECTOR_DIMENSIONS;
+    const secondaryIndex = (((hash >>> 9) ^ (hash >>> 19)) >>> 0) % VECTOR_DIMENSIONS;
     const primarySign = (hash & 1) === 0 ? 1 : -1;
     const secondarySign = (hash & 2) === 0 ? 0.5 : -0.5;
     vector[primaryIndex] = (vector[primaryIndex] ?? 0) + primarySign;
