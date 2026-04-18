@@ -12,6 +12,7 @@ import { AuthProfileStore } from "../../src/codex/auth-store.js";
 import { RunStore } from "../../src/runs/run-store.js";
 import { SessionStore } from "../../src/sessions/session-store.js";
 import { TranscriptStore } from "../../src/sessions/transcript-store.js";
+import { VectorMemoryStore } from "../../src/sessions/vector-memory-store.js";
 import { HealthReporter } from "../../src/app/health.js";
 import { createTempDir } from "./tmp.js";
 
@@ -108,7 +109,8 @@ export function createStores() {
   migrateDatabase(database);
   const authProfiles = new AuthProfileStore(database, clock, new SecretBox(config.security.masterKey));
   const sessions = new SessionStore(database, clock);
-  const transcripts = new TranscriptStore(database, clock);
+  const memory = new VectorMemoryStore(database);
+  const transcripts = new TranscriptStore(database, clock, memory);
   const runs = new RunStore(database, clock);
   const messageStore = new TelegramMessageStore(database, clock);
   const updateStore = new TelegramUpdateStore(database, clock);
@@ -119,6 +121,7 @@ export function createStores() {
     database,
     authProfiles,
     sessions,
+    memory,
     transcripts,
     runs,
     messageStore,

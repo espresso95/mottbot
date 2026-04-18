@@ -14,6 +14,7 @@ Telegram-first Codex subscription bot scaffold that mirrors OpenClaw's `openai-c
 - Durable Telegram update dedupe and bot-reply tracking
 - Restart recovery for interrupted runs
 - Attachment-aware prompt construction and transcript compaction
+- SQLite-backed vector memory recall for long-running conversations
 - Streaming-ready run orchestration and Telegram outbox editing
 - Local dashboard for runtime health and file-backed configuration updates
 - CLI and Telegram health reporting

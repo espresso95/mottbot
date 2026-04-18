@@ -45,6 +45,20 @@ create table if not exists messages (
 
 create index if not exists idx_messages_session_created on messages(session_key, created_at);
 
+create table if not exists memory_vectors (
+  message_id text primary key,
+  session_key text not null,
+  role text not null,
+  content_text text not null,
+  embedding_json text not null,
+  created_at integer not null,
+  foreign key (message_id) references messages(id) on delete cascade,
+  foreign key (session_key) references session_routes(session_key) on delete cascade
+);
+
+create index if not exists idx_memory_vectors_session_created
+  on memory_vectors(session_key, created_at);
+
 create table if not exists runs (
   run_id text primary key,
   session_key text not null,
