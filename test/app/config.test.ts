@@ -30,6 +30,7 @@ describe("loadConfig", () => {
         models: { default: "openai-codex/gpt-5.4-mini" },
         auth: { preferCliImport: false },
         storage: { sqlitePath: "./custom.sqlite" },
+        dashboard: { enabled: false, port: 9091 },
       }),
     );
 
@@ -37,6 +38,7 @@ describe("loadConfig", () => {
     process.env.TELEGRAM_BOT_TOKEN = "bot-token";
     process.env.MOTTBOT_MASTER_KEY = "master";
     process.env.MOTTBOT_ADMIN_USER_IDS = "env-admin-1,env-admin-2";
+    process.env.MOTTBOT_DASHBOARD_HOST = "0.0.0.0";
 
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
@@ -46,5 +48,8 @@ describe("loadConfig", () => {
     expect(config.models.default).toBe("openai-codex/gpt-5.4-mini");
     expect(config.auth.preferCliImport).toBe(false);
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
+    expect(config.dashboard.enabled).toBe(false);
+    expect(config.dashboard.port).toBe(9091);
+    expect(config.dashboard.host).toBe("0.0.0.0");
   });
 });

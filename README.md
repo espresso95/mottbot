@@ -15,6 +15,7 @@ Telegram-first Codex subscription bot scaffold that mirrors OpenClaw's `openai-c
 - Restart recovery for interrupted runs
 - Attachment-aware prompt construction and transcript compaction
 - Streaming-ready run orchestration and Telegram outbox editing
+- Local dashboard for runtime health and file-backed configuration updates
 - CLI and Telegram health reporting
 
 ## Quick start
@@ -43,6 +44,12 @@ pnpm auth:login
 ```bash
 pnpm dev
 ```
+
+5. Open the dashboard:
+
+- `http://127.0.0.1:8787/dashboard` (defaults)
+- use `MOTTBOT_DASHBOARD_*` env vars to rebind/disable/auth-protect it
+- dashboard saves to `mottbot.config.json`; restart required after changes
 
 ## Commands
 

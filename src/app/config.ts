@@ -60,6 +60,16 @@ const rawConfigSchema = z.object({
       callbackPort: z.number().int().default(1455),
     })
     .default({}),
+  dashboard: z
+    .object({
+      enabled: z.boolean().default(true),
+      host: z.string().default("127.0.0.1"),
+      port: z.number().int().default(8787),
+      path: z.string().default("/dashboard"),
+      apiPath: z.string().default("/api/dashboard"),
+      authToken: z.string().optional(),
+    })
+    .default({}),
 });
 
 export type AppConfig = {
@@ -99,6 +109,14 @@ export type AppConfig = {
   oauth: {
     callbackHost: string;
     callbackPort: number;
+  };
+  dashboard: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    path: string;
+    apiPath: string;
+    authToken?: string;
   };
   security: {
     masterKey: string;
@@ -292,6 +310,43 @@ export function loadConfig(): AppConfig {
               : undefined)
           : Number(process.env.MOTTBOT_OAUTH_CALLBACK_PORT),
     },
+    dashboard: {
+      ...(fileObject.dashboard && typeof fileObject.dashboard === "object"
+        ? (fileObject.dashboard as object)
+        : {}),
+      enabled:
+        process.env.MOTTBOT_DASHBOARD_ENABLED === undefined
+          ? (fileObject.dashboard && typeof fileObject.dashboard === "object"
+              ? (fileObject.dashboard as any).enabled
+              : undefined)
+          : process.env.MOTTBOT_DASHBOARD_ENABLED !== "false",
+      host:
+        process.env.MOTTBOT_DASHBOARD_HOST ??
+        (fileObject.dashboard && typeof fileObject.dashboard === "object"
+          ? (fileObject.dashboard as any).host
+          : undefined),
+      port:
+        process.env.MOTTBOT_DASHBOARD_PORT === undefined
+          ? (fileObject.dashboard && typeof fileObject.dashboard === "object"
+              ? (fileObject.dashboard as any).port
+              : undefined)
+          : Number(process.env.MOTTBOT_DASHBOARD_PORT),
+      path:
+        process.env.MOTTBOT_DASHBOARD_PATH ??
+        (fileObject.dashboard && typeof fileObject.dashboard === "object"
+          ? (fileObject.dashboard as any).path
+          : undefined),
+      apiPath:
+        process.env.MOTTBOT_DASHBOARD_API_PATH ??
+        (fileObject.dashboard && typeof fileObject.dashboard === "object"
+          ? (fileObject.dashboard as any).apiPath
+          : undefined),
+      authToken:
+        process.env.MOTTBOT_DASHBOARD_AUTH_TOKEN ??
+        (fileObject.dashboard && typeof fileObject.dashboard === "object"
+          ? (fileObject.dashboard as any).authToken
+          : undefined),
+    },
   });
 
   const botToken = process.env[parsed.telegram.botTokenEnv]?.trim();
@@ -322,6 +377,7 @@ export function loadConfig(): AppConfig {
     behavior: parsed.behavior,
     logging: parsed.logging,
     oauth: parsed.oauth,
+    dashboard: parsed.dashboard,
     security: {
       masterKey,
     },
