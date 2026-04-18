@@ -101,10 +101,14 @@ export function buildPrompt(params: {
   const messages: PromptMessage[] = [];
   if (params.recalledMemories && params.recalledMemories.length > 0) {
     const lines = params.recalledMemories.map((memory) => `- ${memory.role}: ${condenseText(memory.contentText, 220)}`);
+    let memoryTimestamp = Number.POSITIVE_INFINITY;
+    for (const memory of params.recalledMemories) {
+      memoryTimestamp = Math.min(memoryTimestamp, memory.createdAt);
+    }
     messages.push({
       role: "system",
       content: ["Relevant long-term memory:", ...lines].join("\n"),
-      timestamp: params.recalledMemories[params.recalledMemories.length - 1]?.createdAt ?? 0,
+      timestamp: Number.isFinite(memoryTimestamp) ? memoryTimestamp : 0,
     });
   }
   const summary = buildSummary(olderHistory);

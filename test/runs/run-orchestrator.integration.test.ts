@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
+import type { PromptMessage } from "../../src/runs/prompt-builder.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
@@ -204,8 +205,7 @@ describe("RunOrchestrator", () => {
       stream: vi.fn(async ({ onStart, messages }) => {
         await onStart?.();
         const memoryMessage = messages.find(
-          (entry: { role: string; content: string }) =>
-            entry.role === "system" && entry.content.includes("Relevant long-term memory:"),
+          (entry: PromptMessage) => entry.role === "system" && entry.content.includes("Relevant long-term memory:"),
         );
         expect(memoryMessage?.content).toContain("favorite editor is neovim");
         return { text: "noted", transport: "sse", requestIdentity: "req-3" };

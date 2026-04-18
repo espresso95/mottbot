@@ -35,8 +35,8 @@ function buildUserTranscriptPayload(event: InboundEvent): {
 }
 
 function buildMemoryQuery(event: InboundEvent): string {
-  const visibleText = event.text ?? event.caption;
-  const normalized = visibleText?.trim();
+  const eventText = event.text ?? event.caption;
+  const normalized = eventText?.trim();
   if (normalized) {
     return normalized;
   }

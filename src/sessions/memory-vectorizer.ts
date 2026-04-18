@@ -32,8 +32,8 @@ export function createTextEmbedding(text: string): number[] {
     const secondaryIndex = ((hash >>> 9) ^ (hash >>> 19)) % VECTOR_DIMENSIONS;
     const primarySign = (hash & 1) === 0 ? 1 : -1;
     const secondarySign = (hash & 2) === 0 ? 0.5 : -0.5;
-    vector[primaryIndex] += primarySign;
-    vector[secondaryIndex] += secondarySign;
+    vector[primaryIndex] = (vector[primaryIndex] ?? 0) + primarySign;
+    vector[secondaryIndex] = (vector[secondaryIndex] ?? 0) + secondarySign;
   }
   let magnitude = 0;
   for (const value of vector) {
@@ -52,7 +52,9 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   }
   let score = 0;
   for (let index = 0; index < a.length; index += 1) {
-    score += a[index]! * b[index]!;
+    const aValue = a[index] ?? 0;
+    const bValue = b[index] ?? 0;
+    score += aValue * bValue;
   }
   return score;
 }
