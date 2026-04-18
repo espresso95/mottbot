@@ -129,11 +129,15 @@ export async function bootstrapApplication() {
     bot,
     dashboard,
     async start() {
-      await dashboard.start();
+      let dashboardStarted = false;
       try {
+        await dashboard.start();
+        dashboardStarted = true;
         await bot.start();
       } catch (error) {
-        await dashboard.stop();
+        if (dashboardStarted) {
+          await dashboard.stop();
+        }
         throw error;
       }
     },

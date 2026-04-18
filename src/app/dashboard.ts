@@ -53,13 +53,22 @@ export class DashboardServer {
     if (!this.config.dashboard.enabled || this.server) {
       return;
     }
-    this.server = createServer((req, res) => {
+    const server = createServer((req, res) => {
       void this.handleRequest(req, res);
     });
-    await new Promise<void>((resolve, reject) => {
-      this.server?.once("error", reject);
-      this.server?.listen(this.config.dashboard.port, this.config.dashboard.host, () => resolve());
-    });
+    this.server = server;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(this.config.dashboard.port, this.config.dashboard.host, () => resolve());
+      });
+    } catch (error) {
+      this.server = undefined;
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+      throw error;
+    }
     this.logger.info(
       {
         host: this.config.dashboard.host,
