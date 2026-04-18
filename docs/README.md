@@ -47,12 +47,12 @@ Implemented in this repo:
 - transcript compaction via deterministic history summaries
 - webhook mode
 - health reporting via `/health` and `mottbot health`
+- outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
 
 Planned hardening that is not yet implemented:
 
 - full binary/media attachment ingestion into model inputs
 - stronger restart reconciliation for in-progress Telegram deliveries
-- explicit bot-reply verification for continuation messages sent after long outputs
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

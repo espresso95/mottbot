@@ -229,6 +229,7 @@ Implemented now:
 - WebSocket-first transport with SSE fallback
 - throttled Telegram outbox edits
 - restart recovery for `starting` and `streaming` runs
+- mid-stream outbox rebind when Telegram edit calls fail
 - attachment-aware prompt construction and transcript compaction
 - basic health reporting
 

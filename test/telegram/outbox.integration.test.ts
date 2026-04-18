@@ -194,4 +194,52 @@ describe("TelegramOutbox", () => {
       .get(handle.outboxId) as { state: string };
     expect(row.state).toBe("failed");
   });
+
+  it("rebinds to a continuation message when mid-stream edits fail", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.sessions.ensure({
+      sessionKey: "s1",
+      chatId: "chat-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: "s1",
+      modelRef: "openai-codex/gpt-5.4",
+      profileId: "openai-codex:default",
+    });
+    let nextMessageId = 100;
+    const api = {
+      sendMessage: vi.fn(async () => ({ message_id: nextMessageId++ })),
+      editMessageText: vi.fn(async () => {
+        throw new Error("edit failed");
+      }),
+    };
+    const clock = stores.clock as FakeClock;
+    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    let handle = await outbox.start({
+      runId: run.runId,
+      chatId: "chat-1",
+      placeholderText: "Working...",
+    });
+    clock.advance(1);
+    handle = await outbox.update(handle, "Streaming update");
+
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(handle.messageId).toBe(101);
+    expect(stores.messageStore.hasMessage({ chatId: "chat-1", telegramMessageId: 101 })).toBe(true);
+    const row = stores.database.db
+      .prepare("select telegram_message_id, state, last_rendered_text from outbox_messages where id = ?")
+      .get(handle.outboxId) as { telegram_message_id: number; state: string; last_rendered_text: string };
+    expect(row).toEqual({
+      telegram_message_id: 101,
+      state: "active",
+      last_rendered_text: "Streaming update",
+    });
+  });
 });
