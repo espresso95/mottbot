@@ -49,7 +49,7 @@ describe("DashboardServer", () => {
     }
   });
 
-  async function createDashboard(options: { authToken?: string } = {}) {
+  async function createDashboard(options: { authToken?: string; host?: string } = {}) {
     const dir = createTempDir();
     dirs.push(dir);
     const configPath = path.join(dir, "mottbot.config.json");
@@ -59,7 +59,7 @@ describe("DashboardServer", () => {
       storage: { sqlitePath },
       dashboard: {
         enabled: true,
-        host: "127.0.0.1",
+        host: options.host ?? "127.0.0.1",
         port: 8787,
         path: "/dashboard",
         apiPath: "/api/dashboard",
@@ -79,14 +79,15 @@ describe("DashboardServer", () => {
       email: "ops@example.com",
     });
     const health = new HealthReporter(config, database, authProfiles, clock);
-    const dashboard = new DashboardServer(config, { info: vi.fn(), error: vi.fn() } as any, health, authProfiles);
-    return { dashboard, database, configPath };
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() } as any;
+    const dashboard = new DashboardServer(config, logger, health, authProfiles);
+    return { dashboard, database, configPath, logger };
   }
 
   function createResponseCapture() {
     let body = "";
     const headers = new Map<string, string>();
-    const response = {
+    return {
       statusCode: 0,
       setHeader: (name: string, value: string) => {
         headers.set(name.toLowerCase(), value);
@@ -101,7 +102,6 @@ describe("DashboardServer", () => {
         return headers;
       },
     };
-    return response;
   }
 
   async function invokeRequest(req: any, res: any): Promise<void> {
@@ -111,19 +111,24 @@ describe("DashboardServer", () => {
     });
   }
 
+  function createRequest(method: string, url: string, body?: string) {
+    return {
+      method,
+      url,
+      headers: { host: "127.0.0.1:8787", ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+      [Symbol.asyncIterator]: async function* () {
+        if (body !== undefined) {
+          yield Buffer.from(body);
+        }
+      },
+    };
+  }
+
   it("serves dashboard HTML", async () => {
     const { dashboard, database } = await createDashboard();
     await dashboard.start();
     const response = createResponseCapture();
-    await invokeRequest(
-      {
-        method: "GET",
-        url: "/dashboard",
-        headers: { host: "127.0.0.1:8787" },
-        [Symbol.asyncIterator]: async function* () {},
-      },
-      response,
-    );
+    await invokeRequest(createRequest("GET", "/dashboard"), response);
     expect(response.statusCode).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.body).toContain("Mottbot Dashboard");
@@ -131,21 +136,47 @@ describe("DashboardServer", () => {
     database.close();
   });
 
-  it("rejects unauthorized requests when auth token is set", async () => {
+  it("allows dashboard HTML while requiring token for API routes", async () => {
     const { dashboard, database } = await createDashboard({ authToken: "secret-token" });
     await dashboard.start();
-    const response = createResponseCapture();
-    await invokeRequest(
-      {
-        method: "GET",
-        url: "/api/dashboard/config",
-        headers: { host: "127.0.0.1:8787" },
-        [Symbol.asyncIterator]: async function* () {},
-      },
-      response,
-    );
-    expect(response.statusCode).toBe(401);
+
+    const htmlResponse = createResponseCapture();
+    await invokeRequest(createRequest("GET", "/dashboard"), htmlResponse);
+    expect(htmlResponse.statusCode).toBe(200);
+
+    const apiResponse = createResponseCapture();
+    await invokeRequest(createRequest("GET", "/api/dashboard/config"), apiResponse);
+    expect(apiResponse.statusCode).toBe(401);
+
     await dashboard.stop();
+    database.close();
+  });
+
+  it("rejects invalid JSON payloads", async () => {
+    const { dashboard, database } = await createDashboard();
+    await dashboard.start();
+    const response = createResponseCapture();
+    await invokeRequest(createRequest("POST", "/api/dashboard/config", "{invalid"), response);
+    expect(response.statusCode).toBe(400);
+    await dashboard.stop();
+    database.close();
+  });
+
+  it("rejects oversized payloads", async () => {
+    const { dashboard, database } = await createDashboard();
+    await dashboard.start();
+    const response = createResponseCapture();
+    await invokeRequest(createRequest("POST", "/api/dashboard/config", "x".repeat(1_000_001)), response);
+    expect(response.statusCode).toBe(413);
+    await dashboard.stop();
+    database.close();
+  });
+
+  it("refuses non-loopback binding without auth token", async () => {
+    const { dashboard, database } = await createDashboard({ host: "0.0.0.0" });
+    await expect(dashboard.start()).rejects.toThrow(
+      "Dashboard authToken is required when binding to a non-loopback interface.",
+    );
     database.close();
   });
 
@@ -160,17 +191,7 @@ describe("DashboardServer", () => {
       logging: { level: "debug" },
       telegram: { polling: false },
     });
-    await invokeRequest(
-      {
-        method: "POST",
-        url: "/api/dashboard/config",
-        headers: { host: "127.0.0.1:8787", "content-type": "application/json" },
-        [Symbol.asyncIterator]: async function* () {
-          yield Buffer.from(body);
-        },
-      },
-      response,
-    );
+    await invokeRequest(createRequest("POST", "/api/dashboard/config", body), response);
     expect(response.statusCode).toBe(200);
     const saved = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(saved.models.default).toBe("openai-codex/gpt-5.4-mini");

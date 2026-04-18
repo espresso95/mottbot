@@ -76,7 +76,7 @@ Environment overrides:
 
 Operational notes:
 
-- dashboard writes updates to `mottbot.config.json`
+- dashboard writes updates to the configured config path (default: `mottbot.config.json`, overridden by `MOTTBOT_CONFIG_PATH`)
 - environment variables still override file values
 - restart the process after saving config updates
 

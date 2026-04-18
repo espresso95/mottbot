@@ -39,6 +39,15 @@ const editableDashboardConfigSchema = z.object({
 
 type EditableDashboardConfig = z.infer<typeof editableDashboardConfigSchema>;
 
+class DashboardHttpError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export class DashboardServer {
   private server?: Server;
 
@@ -53,8 +62,22 @@ export class DashboardServer {
     if (!this.config.dashboard.enabled || this.server) {
       return;
     }
+    this.assertSecureDashboardBinding();
     const server = createServer((req, res) => {
-      void this.handleRequest(req, res);
+      void this.handleRequest(req, res).catch((error) => {
+        this.logger.error(
+          {
+            error,
+            method: req.method,
+            url: req.url,
+          },
+          "Dashboard request failed.",
+        );
+        if (!res.headersSent && !res.writableEnded) {
+          res.statusCode = 500;
+          res.end("Internal Server Error");
+        }
+      });
     });
     this.server = server;
     try {
@@ -97,15 +120,16 @@ export class DashboardServer {
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    if (!this.isAuthorized(req)) {
-      this.writeJson(res, 401, { error: "Unauthorized" });
-      return;
-    }
-
     const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     const { pathname } = requestUrl;
     const htmlPath = this.config.dashboard.path;
     const apiPath = this.config.dashboard.apiPath;
+    const isApiRequest = pathname.startsWith(`${apiPath}/`);
+
+    if (isApiRequest && !this.isAuthorized(req)) {
+      this.writeJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
 
     if (req.method === "GET" && pathname === htmlPath) {
       this.writeHtml(res, this.renderHtml());
@@ -120,15 +144,27 @@ export class DashboardServer {
       return;
     }
     if (req.method === "POST" && pathname === `${apiPath}/config`) {
-      const body = await this.readBody(req);
-      const parsed = editableDashboardConfigSchema.parse(JSON.parse(body));
-      const nextState = this.applyDashboardConfig(parsed);
-      this.writeJson(res, 200, {
-        ok: true,
-        restartRequired: true,
-        configPath: this.config.configPath,
-        state: nextState,
-      });
+      try {
+        const body = await this.readBody(req);
+        const parsed = editableDashboardConfigSchema.parse(JSON.parse(body));
+        const nextState = this.applyDashboardConfig(parsed);
+        this.writeJson(res, 200, {
+          ok: true,
+          restartRequired: true,
+          configPath: this.config.configPath,
+          state: nextState,
+        });
+      } catch (error) {
+        if (error instanceof DashboardHttpError && error.statusCode === 413) {
+          this.writeJson(res, 413, { error: "Payload too large" });
+          return;
+        }
+        if (error instanceof SyntaxError || error instanceof z.ZodError) {
+          this.writeJson(res, 400, { error: "Invalid request payload" });
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
@@ -149,6 +185,30 @@ export class DashboardServer {
       return true;
     }
     return false;
+  }
+
+  private isLoopbackHost(host: string | undefined): boolean {
+    if (!host) {
+      return false;
+    }
+    const normalizedHost = host.trim().toLowerCase();
+    return normalizedHost === "localhost" || normalizedHost === "127.0.0.1" || normalizedHost === "::1";
+  }
+
+  private assertSecureDashboardBinding(): void {
+    const authToken = this.config.dashboard.authToken?.trim();
+    if (authToken || this.isLoopbackHost(this.config.dashboard.host)) {
+      return;
+    }
+    this.logger.error(
+      {
+        host: this.config.dashboard.host,
+        port: this.config.dashboard.port,
+        path: this.config.dashboard.path,
+      },
+      "Refusing to start dashboard without authToken on a non-loopback interface.",
+    );
+    throw new Error("Dashboard authToken is required when binding to a non-loopback interface.");
   }
 
   private readDashboardState() {
@@ -230,20 +290,31 @@ export class DashboardServer {
     if (!raw.trim()) {
       return {};
     }
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") {
-      return {};
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        return {};
+      }
+      return parsed as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        this.logger.warn({ configPath: this.config.configPath }, "Dashboard config file contains invalid JSON.");
+        return {};
+      }
+      throw error;
     }
-    return parsed as Record<string, unknown>;
   }
 
   private async readBody(req: IncomingMessage): Promise<string> {
     const chunks: Buffer[] = [];
+    let totalSize = 0;
     for await (const chunk of req) {
-      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-      if (chunks.reduce((total, part) => total + part.length, 0) > 1_000_000) {
-        throw new Error("Request body too large.");
+      const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      totalSize += buffer.length;
+      if (totalSize > 1_000_000) {
+        throw new DashboardHttpError(413, "Payload too large");
       }
+      chunks.push(buffer);
     }
     return Buffer.concat(chunks).toString("utf8");
   }
@@ -308,11 +379,30 @@ export class DashboardServer {
   <pre id="profiles">Loading...</pre>
   <h2>Status</h2>
   <pre id="status">Idle</pre>
+  <fieldset>
+    <legend>API token (optional)</legend>
+    <label>Token <input type="password" id="apiToken" autocomplete="off" /></label>
+    <button type="button" id="saveToken">Save token</button>
+  </fieldset>
   <script>
+    function getAuthHeaders() {
+      const token = localStorage.getItem("mottbot.dashboard.token");
+      return token ? { "x-mottbot-dashboard-token": token } : {};
+    }
+    async function apiFetch(url, init = {}) {
+      const initHeaders = init.headers || {};
+      return fetch(url, {
+        ...init,
+        headers: {
+          ...initHeaders,
+          ...getAuthHeaders(),
+        },
+      });
+    }
     async function loadData() {
       const [configResponse, healthResponse] = await Promise.all([
-        fetch("${apiPath}/config"),
-        fetch("${apiPath}/health"),
+        apiFetch("${apiPath}/config"),
+        apiFetch("${apiPath}/health"),
       ]);
       const configPayload = await configResponse.json();
       const healthPayload = await healthResponse.json();
@@ -343,12 +433,19 @@ export class DashboardServer {
       };
       const response = await fetch("${apiPath}/config", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload),
       });
       const body = await response.json();
       document.getElementById("status").textContent = JSON.stringify(body, null, 2);
     });
+    document.getElementById("saveToken").addEventListener("click", () => {
+      const token = document.getElementById("apiToken").value || "";
+      localStorage.setItem("mottbot.dashboard.token", token);
+      document.getElementById("status").textContent = "Saved dashboard API token for this browser.";
+    });
+    const savedToken = localStorage.getItem("mottbot.dashboard.token") || "";
+    document.getElementById("apiToken").value = savedToken;
     loadData().catch((error) => {
       document.getElementById("status").textContent = String(error);
     });

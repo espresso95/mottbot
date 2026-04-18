@@ -49,7 +49,7 @@ pnpm dev
 
 - `http://127.0.0.1:8787/dashboard` (defaults)
 - use `MOTTBOT_DASHBOARD_*` env vars to rebind/disable/auth-protect it
-- dashboard saves to `mottbot.config.json`; restart required after changes
+- dashboard saves to the configured config path (default: `mottbot.config.json`); restart required after changes
 
 ## Commands
 
