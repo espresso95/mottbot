@@ -57,6 +57,7 @@ describe("bootstrapApplication", () => {
     process.env.MOTTBOT_CONFIG_PATH = configPath;
     process.env.TELEGRAM_BOT_TOKEN = "bot-token";
     process.env.MOTTBOT_MASTER_KEY = "master";
+    process.env.MOTTBOT_DASHBOARD_ENABLED = "false";
 
     const { bootstrapApplication } = await import("../../src/app/bootstrap.js");
     const app = await bootstrapApplication();

@@ -21,6 +21,7 @@ import { TelegramCommandRouter } from "../telegram/commands.js";
 import { TelegramBotServer } from "../telegram/bot.js";
 import { TelegramUpdateStore } from "../telegram/update-store.js";
 import { TelegramMessageStore } from "../telegram/message-store.js";
+import { DashboardServer } from "./dashboard.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -45,6 +46,7 @@ export async function bootstrapApplication() {
   const updateStore = new TelegramUpdateStore(database, systemClock);
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
+  const dashboard = new DashboardServer(config, logger, health, authProfiles);
 
   const provisionalBot = new TelegramBotServer(
     config,
@@ -125,11 +127,23 @@ export async function bootstrapApplication() {
     tokenResolver,
     health,
     bot,
+    dashboard,
     async start() {
-      await bot.start();
+      let dashboardStarted = false;
+      try {
+        await dashboard.start();
+        dashboardStarted = true;
+        await bot.start();
+      } catch (error) {
+        if (dashboardStarted) {
+          await dashboard.stop();
+        }
+        throw error;
+      }
     },
     async stop() {
       await bot.stop();
+      await dashboard.stop();
       database.close();
     },
   };

@@ -57,6 +57,29 @@ Webhook deployments additionally need:
 - `MOTTBOT_TELEGRAM_WEBHOOK_URL`
 - optional webhook path, host, port, and secret token overrides
 
+## Dashboard Operations
+
+The runtime can expose a local dashboard for health checks and easier file-backed configuration.
+
+Default endpoint:
+
+- `http://127.0.0.1:8787/dashboard`
+
+Environment overrides:
+
+- `MOTTBOT_DASHBOARD_ENABLED`
+- `MOTTBOT_DASHBOARD_HOST`
+- `MOTTBOT_DASHBOARD_PORT`
+- `MOTTBOT_DASHBOARD_PATH`
+- `MOTTBOT_DASHBOARD_API_PATH`
+- `MOTTBOT_DASHBOARD_AUTH_TOKEN`
+
+Operational notes:
+
+- dashboard writes updates to the configured config path (default: `mottbot.config.json`, overridden by `MOTTBOT_CONFIG_PATH`)
+- environment variables still override file values
+- restart the process after saving config updates
+
 ## CLI Entry Points
 
 The binary exposes these commands:

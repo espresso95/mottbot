@@ -67,6 +67,13 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       callbackHost: "127.0.0.1",
       callbackPort: 1455,
     },
+    dashboard: {
+      enabled: false,
+      host: "127.0.0.1",
+      port: 8787,
+      path: "/dashboard",
+      apiPath: "/api/dashboard",
+    },
     security: {
       masterKey: "test-master-key",
     },
@@ -88,6 +95,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     behavior: { ...base.behavior, ...overrides.behavior },
     logging: { ...base.logging, ...overrides.logging },
     oauth: { ...base.oauth, ...overrides.oauth },
+    dashboard: { ...base.dashboard, ...overrides.dashboard },
     security: { ...base.security, ...overrides.security },
   };
 }
