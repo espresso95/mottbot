@@ -381,11 +381,12 @@ export class DashboardServer {
   <pre id="status">Idle</pre>
   <fieldset>
     <legend>API token (optional)</legend>
-    <label for="apiToken">Token</label>
+    <label for="apiToken">Dashboard API token</label>
     <input type="password" id="apiToken" autocomplete="off" />
     <button type="button" id="saveToken">Save token</button>
   </fieldset>
   <script>
+    /** @returns {HTMLElement} */
     function byId(id) {
       const element = document.getElementById(id);
       if (!element) {
