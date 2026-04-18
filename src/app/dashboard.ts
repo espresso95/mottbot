@@ -381,10 +381,18 @@ export class DashboardServer {
   <pre id="status">Idle</pre>
   <fieldset>
     <legend>API token (optional)</legend>
-    <label>Token <input type="password" id="apiToken" autocomplete="off" /></label>
+    <label for="apiToken">Token</label>
+    <input type="password" id="apiToken" autocomplete="off" />
     <button type="button" id="saveToken">Save token</button>
   </fieldset>
   <script>
+    function byId(id) {
+      const element = document.getElementById(id);
+      if (!element) {
+        throw new Error("Missing dashboard element: " + id);
+      }
+      return element;
+    }
     function getAuthHeaders() {
       const token = localStorage.getItem("mottbot.dashboard.token");
       return token ? { "x-mottbot-dashboard-token": token } : {};
@@ -406,30 +414,30 @@ export class DashboardServer {
       ]);
       const configPayload = await configResponse.json();
       const healthPayload = await healthResponse.json();
-      document.getElementById("modelDefault").value = configPayload.state.models.default;
-      document.getElementById("defaultProfile").value = configPayload.state.auth.defaultProfile;
-      document.getElementById("preferCliImport").checked = !!configPayload.state.auth.preferCliImport;
-      document.getElementById("mentionOnly").checked = !!configPayload.state.behavior.respondInGroupsOnlyWhenMentioned;
-      document.getElementById("editThrottleMs").value = String(configPayload.state.behavior.editThrottleMs);
-      document.getElementById("polling").checked = !!configPayload.state.telegram.polling;
-      document.getElementById("logLevel").value = configPayload.state.logging.level;
-      document.getElementById("health").textContent = JSON.stringify(healthPayload, null, 2);
-      document.getElementById("profiles").textContent = JSON.stringify(configPayload.authProfiles, null, 2);
+      byId("modelDefault").value = configPayload.state.models.default;
+      byId("defaultProfile").value = configPayload.state.auth.defaultProfile;
+      byId("preferCliImport").checked = !!configPayload.state.auth.preferCliImport;
+      byId("mentionOnly").checked = !!configPayload.state.behavior.respondInGroupsOnlyWhenMentioned;
+      byId("editThrottleMs").value = String(configPayload.state.behavior.editThrottleMs);
+      byId("polling").checked = !!configPayload.state.telegram.polling;
+      byId("logLevel").value = configPayload.state.logging.level;
+      byId("health").textContent = JSON.stringify(healthPayload, null, 2);
+      byId("profiles").textContent = JSON.stringify(configPayload.authProfiles, null, 2);
     }
-    document.getElementById("configForm").addEventListener("submit", async (event) => {
+    byId("configForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const payload = {
-        models: { default: document.getElementById("modelDefault").value },
+        models: { default: byId("modelDefault").value },
         auth: {
-          defaultProfile: document.getElementById("defaultProfile").value,
-          preferCliImport: document.getElementById("preferCliImport").checked,
+          defaultProfile: byId("defaultProfile").value,
+          preferCliImport: byId("preferCliImport").checked,
         },
         behavior: {
-          respondInGroupsOnlyWhenMentioned: document.getElementById("mentionOnly").checked,
-          editThrottleMs: Number(document.getElementById("editThrottleMs").value),
+          respondInGroupsOnlyWhenMentioned: byId("mentionOnly").checked,
+          editThrottleMs: Number(byId("editThrottleMs").value),
         },
-        logging: { level: document.getElementById("logLevel").value },
-        telegram: { polling: document.getElementById("polling").checked },
+        logging: { level: byId("logLevel").value },
+        telegram: { polling: byId("polling").checked },
       };
       const response = await fetch("${apiPath}/config", {
         method: "POST",
@@ -437,17 +445,17 @@ export class DashboardServer {
         body: JSON.stringify(payload),
       });
       const body = await response.json();
-      document.getElementById("status").textContent = JSON.stringify(body, null, 2);
+      byId("status").textContent = JSON.stringify(body, null, 2);
     });
-    document.getElementById("saveToken").addEventListener("click", () => {
-      const token = document.getElementById("apiToken").value || "";
+    byId("saveToken").addEventListener("click", () => {
+      const token = byId("apiToken").value || "";
       localStorage.setItem("mottbot.dashboard.token", token);
-      document.getElementById("status").textContent = "Saved dashboard API token for this browser.";
+      byId("status").textContent = "Saved dashboard API token for this browser.";
     });
     const savedToken = localStorage.getItem("mottbot.dashboard.token") || "";
-    document.getElementById("apiToken").value = savedToken;
+    byId("apiToken").value = savedToken;
     loadData().catch((error) => {
-      document.getElementById("status").textContent = String(error);
+      byId("status").textContent = String(error);
     });
   </script>
 </body>
