@@ -103,15 +103,73 @@ Automated in this repo:
 - optional Telegram outbound `sendMessage`
 - migrations and local health counters
 - default auth profile presence
+- optional MTProto user-account smoke messages through `pnpm smoke:telegram-user`
 
 Manual by design:
 
-- inbound private messages
+- inbound private messages without the MTProto user smoke harness
 - group mention and reply gating
 - file uploads
 - `/stop` during a live model turn
 - webhook delivery from Telegram to a public endpoint
 - live Codex model behavior
+
+## Optional User-Account Smoke Harness
+
+The Telegram Bot API cannot send messages as a real user. For repeatable private-chat checks, the repo includes an operator-only MTProto harness:
+
+```bash
+pnpm smoke:telegram-user
+```
+
+It exits with `status: skipped` unless this guard is set:
+
+```bash
+export MOTTBOT_USER_SMOKE_ENABLED=true
+```
+
+Required Telegram user API credentials:
+
+```bash
+export TELEGRAM_API_ID=<api-id-from-my.telegram.org>
+export TELEGRAM_API_HASH=<api-hash-from-my.telegram.org>
+export MOTTBOT_LIVE_BOT_USERNAME=StartupMottBot
+```
+
+First login also needs the Telegram phone number and login code. You can provide them interactively, or through environment variables for one run:
+
+```bash
+export TELEGRAM_PHONE_NUMBER=+15555555555
+export TELEGRAM_LOGIN_CODE=12345
+export TELEGRAM_2FA_PASSWORD=optional-account-2fa-password
+```
+
+The harness stores a reusable MTProto string session at:
+
+```text
+./data/telegram-user-smoke.session
+```
+
+That session file is ignored by git and must be treated like account access. Do not commit it, paste it into chat, or reuse it outside this local test harness.
+
+Default behavior:
+
+- sends `Use your health snapshot tool and tell me the current status.` to the configured bot
+- waits up to 90 seconds for a non-placeholder bot reply that stays unchanged for 4 seconds
+- prints token-free JSON with the sent message ID and reply text
+
+Useful overrides:
+
+```bash
+export MOTTBOT_USER_SMOKE_MESSAGE="hello from the MTProto smoke test"
+export MOTTBOT_USER_SMOKE_TIMEOUT_MS=120000
+export MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS=2000
+export MOTTBOT_USER_SMOKE_STABLE_REPLY_MS=4000
+export MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY=true
+export MOTTBOT_USER_SMOKE_SESSION_PATH=./data/telegram-user-smoke.session
+```
+
+This harness is intentionally separate from the bot runtime. Use it only with your own Telegram account and controlled test bots.
 
 ## Polling Matrix
 

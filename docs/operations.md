@@ -143,6 +143,7 @@ Equivalent `pnpm` scripts:
 - `pnpm service status`
 - `pnpm run restart`
 - `pnpm smoke:preflight`
+- `pnpm smoke:telegram-user`
 
 ## Release Verification
 
@@ -171,6 +172,8 @@ corepack pnpm smoke:preflight
 ```
 
 No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
+
+`pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/`, and must not be used in CI.
 
 ## Persistent macOS Service
 

@@ -23,7 +23,8 @@
     "db:prune": "tsx src/index.ts db prune --dry-run",
     "service": "tsx src/index.ts service",
     "restart": "tsx src/index.ts restart",
-    "smoke:preflight": "tsx src/tools/live-smoke-preflight.ts"
+    "smoke:preflight": "tsx src/tools/live-smoke-preflight.ts",
+    "smoke:telegram-user": "tsx src/tools/live-telegram-user-smoke.ts"
   },
   "engines": {
     "node": ">=24"
@@ -35,6 +36,7 @@
     "grammy": "^1.38.3",
     "open": "^10.2.0",
     "pino": "^9.7.0",
+    "telegram": "^2.26.22",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -46,6 +48,11 @@
     "vitest": "^4.1.4"
   },
   "pnpm": {
+    "ignoredBuiltDependencies": [
+      "bufferutil",
+      "es5-ext",
+      "utf-8-validate"
+    ],
     "onlyBuiltDependencies": [
       "better-sqlite3"
     ]

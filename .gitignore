@@ -9,5 +9,6 @@ coverage
 mottbot.config.json
 *.sqlite
 *.sqlite-*
+*.session
 *.log
 .DS_Store

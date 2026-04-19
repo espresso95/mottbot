@@ -64,12 +64,20 @@ The CI gate runs on pushes to `main` and pull requests. It:
 
 The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight`.
 
+For private-chat live validation without manually typing in Telegram every time, use the optional MTProto harness:
+
+```bash
+pnpm smoke:telegram-user
+```
+
+It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session, and is intentionally excluded from CI and coverage.
+
 ## Verified Results
 
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 42 test files, 133 tests passing
+- `pnpm test`: 43 test files, 137 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -85,10 +93,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.53% |
-| Branches | 73.59% |
-| Functions | 90.43% |
-| Lines | 85.60% |
+| Statements | 85.65% |
+| Branches | 73.85% |
+| Functions | 90.56% |
+| Lines | 85.72% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

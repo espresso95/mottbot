@@ -19,7 +19,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - [Persistent Setup](../SETUP.md)
   Host-local macOS LaunchAgent setup, restart commands, logs, and Telegram polling conflict handling.
 - [Live Smoke Tests](./live-smoke-tests.md)
-  Guarded polling, webhook, Codex, attachment, and fault-injection checks for a real test bot environment.
+  Guarded polling, webhook, Codex, attachment, optional MTProto user-account, and fault-injection checks for a real test bot environment.
 - [Tool Use Design](./tool-use-design.md)
   Safety requirements and runtime behavior for read-only model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)

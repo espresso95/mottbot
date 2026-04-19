@@ -28,8 +28,8 @@ As of April 19, 2026:
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 42 test files and 133 tests.
-- `corepack pnpm test:coverage` passes with statements 85.53%, branches 73.59%, functions 90.43%, and lines 85.60%.
+- `corepack pnpm test` passes with 43 test files and 137 tests.
+- `corepack pnpm test:coverage` passes with statements 85.65%, branches 73.85%, functions 90.56%, and lines 85.72%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -39,7 +39,7 @@ Current known gaps:
 
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
-- Inbound live Telegram, OAuth, and Codex subscription-backed model calls are not fully automated.
+- Inbound private-chat Telegram validation can be driven by the optional MTProto user smoke harness, but group flows, file uploads, webhook delivery, OAuth, and live Codex behavior still require an operator-provided live environment.
 - Model-executed tools are limited to the enabled read-only health snapshot. Side-effecting tools are intentionally disabled.
 - Multi-instance coordination is intentionally out of scope for the current runtime posture.
 
