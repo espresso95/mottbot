@@ -6,7 +6,8 @@ import { createId } from "../shared/ids.js";
 import type { Logger } from "../shared/logger.js";
 
 export class ApplicationInstanceLease {
-  private readonly ownerId = `${os.hostname()}:${process.pid}:${createId()}`;
+  private readonly hostname = os.hostname();
+  private readonly ownerId = `${this.hostname}:${process.pid}:${createId()}`;
   private refreshTimer: NodeJS.Timeout | undefined;
 
   constructor(
@@ -56,7 +57,12 @@ export class ApplicationInstanceLease {
         "select owner_id, expires_at from app_instance_leases where lease_name = ?",
       )
       .get(this.options.leaseName);
-    if (row && row.owner_id !== this.ownerId && row.expires_at > now) {
+    if (
+      row &&
+      row.owner_id !== this.ownerId &&
+      row.expires_at > now &&
+      !this.isDeadLocalOwner(row.owner_id)
+    ) {
       throw new Error(
         `Another Mottbot instance owns lease ${this.options.leaseName} until ${new Date(row.expires_at).toISOString()}.`,
       );
@@ -71,6 +77,25 @@ export class ApplicationInstanceLease {
            updated_at = excluded.updated_at`,
       )
       .run(this.options.leaseName, this.ownerId, now + this.options.ttlMs, now);
+  }
+
+  private isDeadLocalOwner(ownerId: string): boolean {
+    const [host, rawPid] = ownerId.split(":", 2);
+    if (host !== this.hostname || !rawPid) {
+      return false;
+    }
+    const pid = Number(rawPid);
+    if (!Number.isInteger(pid) || pid < 1) {
+      return false;
+    }
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+      return code === "ESRCH";
+    }
   }
 
   private refresh(): void {

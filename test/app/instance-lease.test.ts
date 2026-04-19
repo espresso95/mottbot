@@ -1,3 +1,4 @@
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 import { ApplicationInstanceLease } from "../../src/app/instance-lease.js";
 import { createStores } from "../helpers/fakes.js";
@@ -52,6 +53,30 @@ describe("ApplicationInstanceLease", () => {
       expect(() => second.start()).not.toThrow();
       first.stop();
       second.stop();
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("allows takeover from a dead local owner before expiration", () => {
+    const stores = createStores();
+    try {
+      stores.database.db
+        .prepare(
+          `insert into app_instance_leases (lease_name, owner_id, expires_at, updated_at)
+           values (?, ?, ?, ?)`,
+        )
+        .run("bot", `${os.hostname()}:999999999:test-owner`, stores.clock.now() + 60_000, stores.clock.now());
+      const lease = new ApplicationInstanceLease(stores.database, stores.clock, stores.logger, {
+        leaseName: "bot",
+        enabled: true,
+        ttlMs: 60_000,
+        refreshMs: 30_000,
+      });
+
+      expect(() => lease.start()).not.toThrow();
+      lease.stop();
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);
