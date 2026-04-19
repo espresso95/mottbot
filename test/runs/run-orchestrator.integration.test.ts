@@ -7,6 +7,7 @@ import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { createRuntimeToolRegistry, ToolRegistry } from "../../src/tools/registry.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
+import { MemoryStore } from "../../src/sessions/memory-store.js";
 
 describe("RunOrchestrator", () => {
   const cleanup: Array<() => void> = [];
@@ -138,6 +139,68 @@ describe("RunOrchestrator", () => {
     expect(runRow.error_code).toBe("run_failed");
     expect(runRow.error_message).toContain("boom");
     expect(outbox.fail).toHaveBeenCalled();
+  });
+
+  it("updates automatic session memory summaries when enabled", async () => {
+    const stores = createStores({
+      memory: {
+        autoSummariesEnabled: true,
+        autoSummaryRecentMessages: 8,
+        autoSummaryMaxChars: 500,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        stream: vi.fn(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "Use pnpm for scripts.", transport: "sse", requestIdentity: "req-memory" };
+        }),
+      } as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memories,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "How should I run checks?" }),
+      session,
+    });
+    await flushAsync();
+
+    const summary = memories.list(session.sessionKey, 20, "auto_summary")[0];
+    expect(summary?.contentText).toContain("Automatic recent conversation summary");
+    expect(summary?.contentText).toContain("How should I run checks?");
+    expect(summary?.contentText).toContain("Use pnpm");
   });
 
   it("persists attachment metadata for user turns", async () => {
@@ -273,11 +336,11 @@ describe("RunOrchestrator", () => {
         .fn()
         .mockImplementationOnce(async ({ onStart, tools }) => {
           await onStart?.();
-          expect(tools).toEqual([
+          expect(tools).toEqual(expect.arrayContaining([
             expect.objectContaining({
               name: "mottbot_health_snapshot",
             }),
-          ]);
+          ]));
           return {
             text: "",
             transport: "sse",

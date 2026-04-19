@@ -91,6 +91,11 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       instanceLeaseTtlMs: 2 * 60 * 1000,
       instanceLeaseRefreshMs: 30_000,
     },
+    memory: {
+      autoSummariesEnabled: false,
+      autoSummaryRecentMessages: 12,
+      autoSummaryMaxChars: 1_000,
+    },
     security: {
       masterKey: "test-master-key",
     },
@@ -116,6 +121,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     dashboard: { ...base.dashboard, ...overrides.dashboard },
     tools: { ...base.tools, ...overrides.tools },
     runtime: { ...base.runtime, ...overrides.runtime },
+    memory: { ...base.memory, ...overrides.memory },
     security: { ...base.security, ...overrides.security },
   };
 }

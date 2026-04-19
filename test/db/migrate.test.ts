@@ -53,7 +53,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(2);
+    expect(countRows(database, "schema_migrations")).toBe(3);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -67,9 +67,10 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(2);
+    expect(migrations).toHaveLength(3);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
     expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
+    expect(migrations[2]).toMatchObject({ version: 3, name: "memory sources" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -129,7 +130,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(2);
+    expect(countRows(database, "schema_migrations")).toBe(3);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     expect(
@@ -188,6 +189,11 @@ describe("migrateDatabase", () => {
           .get(table),
       ).toEqual({ name: table });
     }
+    const memoryColumns = database.db
+      .prepare<unknown[], { name: string }>("pragma table_info(session_memories)")
+      .all()
+      .map((row) => row.name);
+    expect(memoryColumns).toContain("source");
   });
 
   it("fails clearly when an applied migration has a different checksum", () => {

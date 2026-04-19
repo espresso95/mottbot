@@ -179,7 +179,15 @@ The harness also accepts `MOTTBOT_USER_SMOKE_TARGET`, `MOTTBOT_USER_SMOKE_REPLY_
 
 ## Operator Tools
 
-Read-only tools are always deny-by-default and registry scoped. The initial enabled tool is `mottbot_health_snapshot`.
+Read-only tools are always deny-by-default and registry scoped. Enabled read-only tools:
+
+- `mottbot_health_snapshot`: token-free runtime counters
+- `mottbot_service_status`: local launchd service status
+- `mottbot_recent_runs`: recent run records from SQLite
+- `mottbot_recent_errors`: failed/cancelled runs plus recent stderr lines
+- `mottbot_recent_logs`: recent launchd stdout/stderr lines
+
+The diagnostics tools are read-only but admin-only, because logs and run records can contain operational context.
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
@@ -208,9 +216,21 @@ Useful commands:
 - `/tool status`
 - `/tool approve <tool-name> <reason>`
 - `/tool revoke <tool-name>`
+- `/runs [limit] [here]` lists recent runs for admins; add `here` to filter to the current session
+- `/debug [summary|service|runs|errors|logs|config]` shows admin diagnostics
 - `/remember <fact>` stores long-term memory for the current session
 - `/memory` lists current session memory
-- `/forget <memory-id-prefix|all>` removes memory
+- `/forget <memory-id-prefix|all|auto>` removes memory
+
+Optional automatic session summaries are deterministic and disabled by default:
+
+```bash
+MOTTBOT_AUTO_MEMORY_SUMMARIES=true
+MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES=12
+MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS=1000
+```
+
+Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`.
 
 ## Persistent macOS Service
 

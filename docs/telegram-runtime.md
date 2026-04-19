@@ -252,7 +252,8 @@ Important implementation detail:
 16. Move the run to `streaming` on stream start.
 17. Append text deltas to the collector and edit the placeholder message.
 18. Finalize the message, persist the assistant transcript entry, and record usage.
-19. Mark the run `completed` and the queue row `completed`.
+19. If enabled, update the deterministic automatic session summary.
+20. Mark the run `completed` and the queue row `completed`.
 
 ### Failure path
 
@@ -286,6 +287,7 @@ Current policy:
 - only the latest history window is sent to the model
 - tool messages are excluded from prompt construction
 - explicit session memories are injected as system context before recent transcript history
+- optional automatic summaries are stored as session memory only when `MOTTBOT_AUTO_MEMORY_SUMMARIES=true`
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text
 - native image inputs are appended only to the latest user message

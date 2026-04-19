@@ -4,6 +4,8 @@ import { ToolRegistry, type ToolDefinition } from "../../src/tools/registry.js";
 import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { FakeClock, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
+import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
+import { createOperatorDiagnosticToolHandlers } from "../../src/tools/operator-diagnostic-handlers.js";
 
 function readOnlyTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -42,6 +44,45 @@ describe("ToolExecutor", () => {
       expect(result.toolName).toBe("mottbot_health_snapshot");
       expect(result.contentText).toContain('"status"');
       expect(result.outputBytes).toBeGreaterThan(0);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("executes read-only operator diagnostic tools", async () => {
+    const stores = createStores();
+    try {
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      stores.runs.create({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        modelRef: "openai-codex/gpt-5.4",
+        profileId: "openai-codex:default",
+      });
+      const diagnostics = new OperatorDiagnostics(stores.config, stores.database, stores.clock);
+      const executor = new ToolExecutor(new ToolRegistry(), {
+        clock: stores.clock,
+        handlers: createOperatorDiagnosticToolHandlers(diagnostics),
+        adminUserIds: ["admin-1"],
+      });
+
+      const result = await executor.execute({
+        id: "call-runs",
+        name: "mottbot_recent_runs",
+        arguments: { limit: 1 },
+      }, {
+        requestedByUserId: "admin-1",
+      });
+
+      expect(result.isError).toBe(false);
+      expect(result.contentText).toContain("openai-codex/gpt-5.4");
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

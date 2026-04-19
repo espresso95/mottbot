@@ -15,6 +15,7 @@ import type { SessionRoute } from "../sessions/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
+import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
@@ -448,6 +449,7 @@ export class RunOrchestrator {
         telegramMessageId: delivery.primaryMessageId,
         contentJson: Object.keys(assistantEnvelope).length > 0 ? JSON.stringify(assistantEnvelope) : undefined,
       });
+      this.updateAutomaticMemorySummary(params.session.sessionKey);
       this.usageRecorder.record(run.runId, result.usage);
       this.runs.update(run.runId, {
         status: "completed",
@@ -486,6 +488,23 @@ export class RunOrchestrator {
         finishedAt: this.clock.now(),
       });
     }
+  }
+
+  private updateAutomaticMemorySummary(sessionKey: string): void {
+    if (!this.config.memory.autoSummariesEnabled || !this.memories) {
+      return;
+    }
+    const summary = buildAutomaticMemorySummary({
+      messages: this.transcripts.listRecent(sessionKey, this.config.memory.autoSummaryRecentMessages),
+      maxChars: this.config.memory.autoSummaryMaxChars,
+    });
+    if (!summary) {
+      return;
+    }
+    this.memories.upsertAutoSummary({
+      sessionKey,
+      contentText: summary,
+    });
   }
 
   private rebuildEvent(record: RunQueueRecord, session: SessionRoute): InboundEvent {

@@ -28,6 +28,7 @@ export type ToolDefinition = {
   maxOutputBytes: number;
   sideEffect: ToolSideEffect;
   enabled: boolean;
+  requiresAdmin?: boolean;
 };
 
 export type ToolRegistryOptions = {
@@ -78,6 +79,98 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     maxOutputBytes: 8_000,
     sideEffect: "read_only",
     enabled: true,
+  },
+  {
+    name: "mottbot_service_status",
+    description: "Read the local Mottbot launchd service status without changing it.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 8_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_recent_runs",
+    description: "List recent Mottbot run records from the local SQLite database.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 25,
+          description: "Maximum number of recent runs to return. Defaults to 10.",
+        },
+        sessionKey: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional session key filter.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 24_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_recent_errors",
+    description: "Read recent failed or cancelled runs and recent stderr log lines.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum number of failed runs and stderr lines to return. Defaults to 10.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 32_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_recent_logs",
+    description: "Read recent local Mottbot service log lines.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        stream: {
+          type: "string",
+          enum: ["stdout", "stderr", "both"],
+          description: "Which launchd log stream to read. Defaults to both.",
+        },
+        lines: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Number of lines per stream. Defaults to 40.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 48_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
   },
 ] as const;
 

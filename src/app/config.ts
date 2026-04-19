@@ -93,6 +93,13 @@ const rawConfigSchema = z.object({
       instanceLeaseRefreshMs: z.number().int().min(1_000).default(30_000),
     })
     .default({}),
+  memory: z
+    .object({
+      autoSummariesEnabled: z.boolean().default(false),
+      autoSummaryRecentMessages: z.number().int().min(4).max(40).default(12),
+      autoSummaryMaxChars: z.number().int().min(200).max(4_000).default(1_000),
+    })
+    .default({}),
 });
 
 export type AppConfig = {
@@ -157,6 +164,11 @@ export type AppConfig = {
     instanceLeaseEnabled: boolean;
     instanceLeaseTtlMs: number;
     instanceLeaseRefreshMs: number;
+  };
+  memory: {
+    autoSummariesEnabled: boolean;
+    autoSummaryRecentMessages: number;
+    autoSummaryMaxChars: number;
   };
   security: {
     masterKey: string;
@@ -463,6 +475,27 @@ export function loadConfig(): AppConfig {
               : undefined)
           : Number(process.env.MOTTBOT_INSTANCE_LEASE_REFRESH_MS),
     },
+    memory: {
+      ...(fileObject.memory && typeof fileObject.memory === "object" ? (fileObject.memory as object) : {}),
+      autoSummariesEnabled:
+        process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).autoSummariesEnabled
+              : undefined)
+          : process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES === "true",
+      autoSummaryRecentMessages:
+        process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).autoSummaryRecentMessages
+              : undefined)
+          : Number(process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES),
+      autoSummaryMaxChars:
+        process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).autoSummaryMaxChars
+              : undefined)
+          : Number(process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS),
+    },
   });
 
   const botToken = process.env[parsed.telegram.botTokenEnv]?.trim();
@@ -502,6 +535,7 @@ export function loadConfig(): AppConfig {
     dashboard: parsed.dashboard,
     tools: parsed.tools,
     runtime: parsed.runtime,
+    memory: parsed.memory,
     security: {
       masterKey,
     },

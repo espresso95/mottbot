@@ -41,6 +41,7 @@ export type ToolExecutorDependencies = {
   approvals?: ToolApprovalStore;
   restartService?: RestartServiceHandler;
   defaultRestartDelayMs?: number;
+  adminUserIds?: string[];
 };
 
 export type ToolExecutionOptions = {
@@ -95,6 +96,9 @@ export class ToolExecutor {
     try {
       const definition = this.registry.resolve(call.name, { allowSideEffects: true });
       const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
+      if (definition.requiresAdmin && !this.isAdmin(options.requestedByUserId)) {
+        return this.errorResult(call, startedAt, "admin_required", `Tool ${call.name} requires a configured admin user.`);
+      }
       const approval = this.evaluateApproval({
         definition,
         call,
@@ -125,6 +129,10 @@ export class ToolExecutor {
       const code = error instanceof ToolRegistryError ? error.code : "tool_failed";
       return this.errorResult(call, startedAt, code, getErrorMessage(error));
     }
+  }
+
+  private isAdmin(userId: string | undefined): boolean {
+    return Boolean(userId && this.deps.adminUserIds?.includes(userId));
   }
 
   private evaluateApproval(params: {

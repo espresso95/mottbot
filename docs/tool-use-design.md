@@ -23,6 +23,7 @@ Implemented:
 - persistent side-effect approval prompts, decisions, expiration, consumption, and audit records in `src/tools/approval.ts`
 - admin-only Telegram approval commands through `/tool approve`, `/tool revoke`, and `/tool status`
 - an opt-in delayed `mottbot_restart_service` process-control tool guarded by one-shot session-scoped approval
+- read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
 
 Not implemented:
 
@@ -63,6 +64,10 @@ Enabled read-only tools:
 | Tool | Side effect | Input schema | Purpose |
 | --- | --- | --- | --- |
 | `mottbot_health_snapshot` | `read_only` | empty object, no additional properties | Return a token-free runtime health snapshot. |
+| `mottbot_service_status` | `read_only` | empty object, no additional properties | Return local launchd service status. |
+| `mottbot_recent_runs` | `read_only` | optional `limit` and `sessionKey` | Return recent SQLite run records. |
+| `mottbot_recent_errors` | `read_only` | optional `limit` | Return failed/cancelled runs and recent stderr lines. |
+| `mottbot_recent_logs` | `read_only` | optional `stream` and `lines` | Return recent launchd stdout/stderr lines. |
 
 Disabled reserved tools:
 
@@ -76,6 +81,7 @@ Registry behavior:
 - disabled tool names are rejected
 - enabled tools with side effects are rejected at registry construction time unless the runtime explicitly opts into side-effect definitions
 - input payloads are validated against the declared JSON-schema subset before execution
+- operator diagnostics tools are marked admin-only even though they are read-only
 
 ## Runtime Behavior
 

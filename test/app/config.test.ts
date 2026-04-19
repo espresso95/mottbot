@@ -43,6 +43,9 @@ const configEnvKeys = [
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
   "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
+  "MOTTBOT_AUTO_MEMORY_SUMMARIES",
+  "MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES",
+  "MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS",
 ];
 
 describe("loadConfig", () => {
@@ -79,6 +82,7 @@ describe("loadConfig", () => {
         dashboard: { enabled: false, port: 9091 },
         tools: { approvalTtlMs: 10_000 },
         runtime: { instanceLeaseEnabled: false },
+        memory: { autoSummaryRecentMessages: 16 },
       }),
     );
 
@@ -90,6 +94,8 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_DASHBOARD_HOST = "0.0.0.0";
     process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS = "true";
     process.env.MOTTBOT_RESTART_TOOL_DELAY_MS = "30000";
+    process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
+    process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
 
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
@@ -111,5 +117,8 @@ describe("loadConfig", () => {
     expect(config.tools.approvalTtlMs).toBe(10_000);
     expect(config.tools.restartDelayMs).toBe(30_000);
     expect(config.runtime.instanceLeaseEnabled).toBe(false);
+    expect(config.memory.autoSummariesEnabled).toBe(true);
+    expect(config.memory.autoSummaryRecentMessages).toBe(16);
+    expect(config.memory.autoSummaryMaxChars).toBe(800);
   });
 });

@@ -66,7 +66,8 @@ Implemented in this repo:
 - GitHub Actions CI for install, native SQLite rebuild, typecheck, tests, coverage, build, package validation, and dirty-worktree guard
 - tool-use safety design documentation
 - deny-by-default tool registry, read-only health snapshot execution, and opt-in one-shot-approved restart tool execution
-- explicit session memory through `/remember`, `/memory`, and `/forget`
+- read-only operator diagnostics tools and admin `/runs` and `/debug` commands
+- explicit session memory through `/remember`, `/memory`, and `/forget`, plus optional deterministic automatic summaries
 - host-local instance lease to reduce accidental overlapping bot processes
 
 Planned hardening that is not yet implemented:
@@ -74,5 +75,5 @@ Planned hardening that is not yet implemented:
 - native non-image attachment ingestion into model inputs
 - fully automated webhook, group, and Codex live smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
-- model-generated memory or richer summarization beyond deterministic local compaction
+- model-generated memory beyond deterministic local summaries
 - distributed multi-instance coordination beyond the host-local lease

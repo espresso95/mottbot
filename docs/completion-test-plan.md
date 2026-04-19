@@ -21,8 +21,8 @@ As of April 19, 2026:
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
-- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes `mottbot_health_snapshot`, optionally exposes `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
-- Phase 10 has started with concrete scoped implementations: explicit session memory, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination and second-provider support remain backlog items.
+- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
+- Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
 
 ## Current Baseline
 
@@ -523,14 +523,15 @@ Deliverables:
 
 ### Task 10.2: Rich Long-Term Memory
 
-Status: started with explicit session memory.
+Status: complete for explicit memory and deterministic automatic summaries.
 
 Deliverables:
 
 - Add explicit session memory records managed by `/remember`, `/memory`, and `/forget`.
 - Include session memory in prompt construction as system context.
 - Add tests for memory storage, memory inclusion, and command behavior.
-- Evaluate model-generated summaries or structured memory records as a later enhancement.
+- Add optional deterministic automatic summaries behind `MOTTBOT_AUTO_MEMORY_SUMMARIES`.
+- Evaluate model-generated summaries as a later enhancement.
 - Add operator controls for clearing or inspecting memory.
 - Update prompt and data-model docs.
 

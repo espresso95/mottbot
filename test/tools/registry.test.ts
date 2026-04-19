@@ -40,17 +40,12 @@ describe("ToolRegistry", () => {
   it("exposes only enabled read-only model declarations by default", () => {
     const registry = createDefaultToolRegistry();
 
-    expect(registry.listModelDeclarations()).toEqual([
-      {
-        name: "mottbot_health_snapshot",
-        description: "Read a token-free Mottbot runtime health snapshot.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-          required: [],
-          additionalProperties: false,
-        },
-      },
+    expect(registry.listModelDeclarations().map((tool) => tool.name)).toEqual([
+      "mottbot_health_snapshot",
+      "mottbot_service_status",
+      "mottbot_recent_runs",
+      "mottbot_recent_errors",
+      "mottbot_recent_logs",
     ]);
   });
 

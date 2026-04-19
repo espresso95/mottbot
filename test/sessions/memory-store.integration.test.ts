@@ -26,6 +26,7 @@ describe("MemoryStore", () => {
       });
 
       expect(first.contentText).toBe("prefers concise answers");
+      expect(first.source).toBe("explicit");
       expect(memories.list("tg:dm:chat-1:user:user-1").map((memory) => memory.id)).toEqual([
         first.id,
         second.id,
@@ -34,6 +35,40 @@ describe("MemoryStore", () => {
       expect(memories.list("tg:dm:chat-1:user:user-1").map((memory) => memory.id)).toEqual([second.id]);
       expect(memories.clear("tg:dm:chat-1:user:user-1")).toBe(1);
       expect(memories.list("tg:dm:chat-1:user:user-1")).toEqual([]);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("upserts a single automatic summary per session", () => {
+    const stores = createStores();
+    try {
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const memories = new MemoryStore(stores.database, stores.clock);
+
+      const first = memories.upsertAutoSummary({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        contentText: "summary one",
+      });
+      stores.clock.advance(1_000);
+      const second = memories.upsertAutoSummary({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        contentText: "summary two",
+      });
+
+      expect(second.id).toBe(first.id);
+      expect(second.source).toBe("auto_summary");
+      expect(memories.list("tg:dm:chat-1:user:user-1", 20, "auto_summary")).toHaveLength(1);
+      expect(memories.list("tg:dm:chat-1:user:user-1")[0]?.contentText).toBe("summary two");
+      expect(memories.clear("tg:dm:chat-1:user:user-1", "auto_summary")).toBe(1);
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

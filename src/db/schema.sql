@@ -181,6 +181,7 @@ create index if not exists idx_tool_approval_audit_session_created
 create table if not exists session_memories (
   id text primary key,
   session_key text not null,
+  source text not null default 'explicit',
   content_text text not null,
   created_at integer not null,
   updated_at integer not null,
@@ -189,6 +190,9 @@ create table if not exists session_memories (
 
 create index if not exists idx_session_memories_session_created
   on session_memories(session_key, created_at);
+
+create index if not exists idx_session_memories_session_source
+  on session_memories(session_key, source, updated_at);
 
 create table if not exists app_instance_leases (
   lease_name text primary key,

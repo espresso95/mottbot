@@ -7,6 +7,7 @@ import { removeTempDir } from "../helpers/tmp.js";
 import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
+import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -371,6 +372,64 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Status: ok"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles admin diagnostics commands", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const diagnostics = new OperatorDiagnostics(stores.config, stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      diagnostics,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/runs here", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/debug config", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/debug service", fromUserId: "user-1", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Recent runs:"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Runtime config:"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only configured admins can inspect diagnostics.",
       expect.any(Object),
     );
   });

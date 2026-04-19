@@ -367,15 +367,16 @@ Notable fields:
 
 Purpose:
 
-- store explicit operator/user-provided long-term memory for a session
+- store explicit operator/user-provided long-term memory and optional deterministic automatic summaries for a session
 
 Notable fields:
 
 - `session_key`
+- `source`: `explicit` or `auto_summary`
 - `content_text`
 - timestamps
 
-The model sees session memory as system context before the recent transcript. Memory is changed only through `/remember`, `/memory`, and `/forget`.
+The model sees session memory as system context before the recent transcript. Explicit memory is changed through `/remember`, `/memory`, and `/forget`; automatic summaries are updated only when `MOTTBOT_AUTO_MEMORY_SUMMARIES=true` and can be cleared with `/forget auto`.
 
 ### `app_instance_leases`
 

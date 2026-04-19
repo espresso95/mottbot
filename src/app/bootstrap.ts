@@ -31,6 +31,8 @@ import { scheduleServiceRestart } from "../tools/process-control.js";
 import { MemoryStore } from "../sessions/memory-store.js";
 import { ApplicationInstanceLease } from "./instance-lease.js";
 import { codexModelCapabilities } from "../models/provider.js";
+import { OperatorDiagnostics } from "./diagnostics.js";
+import { createOperatorDiagnosticToolHandlers } from "../tools/operator-diagnostic-handlers.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -59,6 +61,7 @@ export async function bootstrapApplication() {
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
   const dashboard = new DashboardServer(config, logger, health, authProfiles);
+  const diagnostics = new OperatorDiagnostics(config, database, systemClock);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
     leaseName: "bot",
     enabled: config.runtime.instanceLeaseEnabled,
@@ -71,6 +74,8 @@ export async function bootstrapApplication() {
   const toolExecutor = new ToolExecutor(toolRegistry, {
     clock: systemClock,
     health,
+    handlers: createOperatorDiagnosticToolHandlers(diagnostics),
+    adminUserIds: config.telegram.adminUserIds,
     approvals: toolApprovalStore,
     defaultRestartDelayMs: config.tools.restartDelayMs,
     restartService: ({ reason, delayMs }) =>
@@ -155,6 +160,7 @@ export async function bootstrapApplication() {
     toolRegistry,
     toolApprovalStore,
     memoryStore,
+    diagnostics,
   );
   const bot = new TelegramBotServer(
     config,
@@ -174,6 +180,7 @@ export async function bootstrapApplication() {
     authProfiles,
     tokenResolver,
     health,
+    diagnostics,
     bot,
     dashboard,
     async start() {

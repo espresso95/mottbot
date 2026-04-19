@@ -17,6 +17,7 @@ import type { ToolApprovalStore } from "../tools/approval.js";
 import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
+import type { OperatorDiagnostics } from "../app/diagnostics.js";
 
 function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
@@ -90,6 +91,7 @@ export class TelegramCommandRouter {
     private readonly toolRegistry?: ToolRegistry,
     private readonly toolApprovals?: ToolApprovalStore,
     private readonly memories?: MemoryStore,
+    private readonly diagnostics?: OperatorDiagnostics,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -139,6 +141,14 @@ export class TelegramCommandRouter {
         await this.handleToolCommand(event, session, parsed.args);
         return true;
       }
+      case "runs": {
+        await this.handleRunsCommand(event, session, parsed.args);
+        return true;
+      }
+      case "debug": {
+        await this.handleDebugCommand(event, session, parsed.args);
+        return true;
+      }
       case "remember": {
         if (!this.memories) {
           await sendReply(this.api, event, "Memory is not available.");
@@ -167,7 +177,13 @@ export class TelegramCommandRouter {
           this.api,
           event,
           memories.length > 0
-            ? ["Session memory:", ...memories.map((memory) => `- ${memory.id.slice(0, 8)}: ${memory.contentText}`)].join("\n")
+            ? [
+                "Session memory:",
+                ...memories.map((memory) => {
+                  const label = memory.source === "auto_summary" ? "auto" : "explicit";
+                  return `- ${memory.id.slice(0, 8)} [${label}]: ${memory.contentText}`;
+                }),
+              ].join("\n")
             : "No session memory.",
         );
         return true;
@@ -185,6 +201,11 @@ export class TelegramCommandRouter {
         if (target === "all") {
           const removed = this.memories.clear(session.sessionKey);
           await sendReply(this.api, event, `Forgot ${removed} memories.`);
+          return true;
+        }
+        if (target === "auto") {
+          const removed = this.memories.clear(session.sessionKey, "auto_summary");
+          await sendReply(this.api, event, `Forgot ${removed} automatic summaries.`);
           return true;
         }
         const removed = this.memories.remove(session.sessionKey, target);
@@ -337,6 +358,97 @@ export class TelegramCommandRouter {
 
   private isAdmin(event: InboundEvent): boolean {
     return Boolean(event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId));
+  }
+
+  private async requireAdmin(event: InboundEvent, action: string): Promise<boolean> {
+    if (this.isAdmin(event)) {
+      return true;
+    }
+    await sendReply(this.api, event, `Only configured admins can ${action}.`);
+    return false;
+  }
+
+  private async handleRunsCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    if (!(await this.requireAdmin(event, "inspect runs"))) {
+      return;
+    }
+    if (!this.diagnostics) {
+      await sendReply(this.api, event, "Diagnostics are not available.");
+      return;
+    }
+    const limit = Number(args[0] ?? 10);
+    await sendReply(
+      this.api,
+      event,
+      this.diagnostics.recentRunsText({
+        limit: Number.isInteger(limit) ? limit : 10,
+        sessionKey: args.includes("here") ? session.sessionKey : undefined,
+      }),
+    );
+  }
+
+  private async handleDebugCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    if (!(await this.requireAdmin(event, "inspect diagnostics"))) {
+      return;
+    }
+    if (!this.diagnostics) {
+      await sendReply(this.api, event, "Diagnostics are not available.");
+      return;
+    }
+    const sub = args[0]?.toLowerCase() ?? "summary";
+    if (sub === "summary") {
+      await sendReply(
+        this.api,
+        event,
+        [
+          this.health.formatForText(),
+          "",
+          this.diagnostics.configText(),
+          "",
+          this.diagnostics.recentRunsText({ limit: 5, sessionKey: session.sessionKey }),
+        ].join("\n"),
+      );
+      return;
+    }
+    if (sub === "service") {
+      await sendReply(this.api, event, this.diagnostics.serviceStatus());
+      return;
+    }
+    if (sub === "runs") {
+      const limit = Number(args[1] ?? 10);
+      await sendReply(
+        this.api,
+        event,
+        this.diagnostics.recentRunsText({
+          limit: Number.isInteger(limit) ? limit : 10,
+          sessionKey: args.includes("here") ? session.sessionKey : undefined,
+        }),
+      );
+      return;
+    }
+    if (sub === "errors") {
+      const limit = Number(args[1] ?? 10);
+      await sendReply(this.api, event, this.diagnostics.recentErrorsText(Number.isInteger(limit) ? limit : 10));
+      return;
+    }
+    if (sub === "logs") {
+      const stream = args[1] === "stdout" || args[1] === "stderr" || args[1] === "both" ? args[1] : "both";
+      const rawLines = Number(stream === args[1] ? (args[2] ?? 40) : (args[1] ?? 40));
+      await sendReply(
+        this.api,
+        event,
+        this.diagnostics.recentLogsText({
+          stream,
+          lines: Number.isInteger(rawLines) ? rawLines : 40,
+        }),
+      );
+      return;
+    }
+    if (sub === "config") {
+      await sendReply(this.api, event, this.diagnostics.configText());
+      return;
+    }
+    await sendReply(this.api, event, "Usage: /debug [summary|service|runs [limit] [here]|errors [limit]|logs [stdout|stderr|both] [lines]|config]");
   }
 
   private async handleToolCommand(
