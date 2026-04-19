@@ -16,7 +16,7 @@ As of April 19, 2026:
 - Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
 - Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
 - Phase 5 is complete for local hardening: token refresh failure paths, CLI write-back failure behavior, provider model ref validation, usage timeout/error normalization, and `/status` usage degradation are covered by tests.
-- Phase 6 live validation is prepared with a guarded preflight command and runbook. The preflight validates Telegram `getMe`, optional outbound `sendMessage`, migrations, health counters, and auth profile presence. Inbound Telegram delivery and Codex live calls still require operator-provided test chats and a live integration environment.
+- Phase 6 live validation is prepared with guarded preflight and MTProto user-account smoke commands. The preflight validates Telegram `getMe`, optional outbound `sendMessage`, migrations, health counters, and auth profile presence. The MTProto harness can drive private-chat inbound checks from the CLI. Group flows, file uploads, webhook delivery, OAuth, and broader live Codex behavior still require an operator-provided live integration environment.
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
@@ -33,6 +33,7 @@ Verified locally on April 19, 2026:
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
+- `corepack pnpm smoke:telegram-user` passes in skipped mode by default and passed live against `StartupMottBot` after the persistent service was restarted.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
 Current known gaps:

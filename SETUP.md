@@ -93,6 +93,18 @@ Expected result:
 - `migrations` includes version `1`
 - `issues` is empty
 
+Optional private-chat smoke without manually typing in Telegram:
+
+```bash
+MOTTBOT_USER_SMOKE_ENABLED=true \
+TELEGRAM_API_ID=<api-id-from-my.telegram.org> \
+TELEGRAM_API_HASH=<api-hash-from-my.telegram.org> \
+MOTTBOT_LIVE_BOT_USERNAME=<bot-username-without-@> \
+corepack pnpm smoke:telegram-user
+```
+
+The first run logs in with your Telegram user account and stores an ignored session file under `data/`. Treat that session file like account access, do not commit it, and use this harness only with your own Telegram account and a controlled test bot.
+
 ## Install And Start The Persistent Service
 
 Install and start:
@@ -198,7 +210,8 @@ After the service is running:
 
 1. Send `/health` to the bot in a private Telegram chat.
 2. Send `hello` to verify a model-backed response.
-3. Run:
+3. Optionally run `corepack pnpm smoke:telegram-user` with the guarded MTProto environment above to verify inbound private-chat delivery from the CLI.
+4. Run:
 
 ```bash
 corepack pnpm health
