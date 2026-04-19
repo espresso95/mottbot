@@ -144,6 +144,34 @@ Equivalent `pnpm` scripts:
 - `pnpm run restart`
 - `pnpm smoke:preflight`
 
+## Release Verification
+
+The CI workflow in `.github/workflows/ci.yml` is the release-readiness gate for normal pull requests and pushes to `main`.
+
+CI checks:
+
+- dependency installation with the pinned pnpm version
+- native `better-sqlite3` rebuild
+- TypeScript check
+- unit and integration tests
+- coverage thresholds from `vitest.config.ts`
+- TypeScript build output
+- package metadata and built CLI health command
+- clean worktree after verification
+
+Local equivalent:
+
+```bash
+corepack pnpm check
+corepack pnpm test
+corepack pnpm test:coverage
+corepack pnpm build
+env TELEGRAM_BOT_TOKEN=local-check MOTTBOT_MASTER_KEY=local-check MOTTBOT_PREFER_CLI_IMPORT=false MOTTBOT_SQLITE_PATH=/tmp/mottbot-release-check.sqlite node dist/index.js health
+corepack pnpm smoke:preflight
+```
+
+No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
+
 ## Persistent macOS Service
 
 Use `SETUP.md` for the full host-local service runbook.

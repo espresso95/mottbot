@@ -20,6 +20,7 @@ As of April 19, 2026:
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
+- Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
 - Phase 9 is complete for the read-only v1 tool scope: a deny-by-default registry exposes `mottbot_health_snapshot`, Codex provider tool-call events are normalized, approved read-only tools execute with timeout/output/call limits, tool result metadata is persisted, Telegram shows concise tool status, and side-effect approval types are defined while side-effecting tools remain disabled.
 
 ## Current Baseline
@@ -30,6 +31,7 @@ Verified locally on April 19, 2026:
 - `corepack pnpm test` passes with 42 test files and 133 tests.
 - `corepack pnpm test:coverage` passes with statements 85.53%, branches 73.59%, functions 90.43%, and lines 85.60%.
 - `corepack pnpm build` passes.
+- `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
@@ -394,6 +396,8 @@ Deliverables:
 
 ### Task 8.1: Establish CI Verification
 
+Status: complete.
+
 Deliverables:
 
 - Add CI jobs for dependency install, TypeScript check, unit/integration tests, and coverage.
@@ -403,6 +407,8 @@ Deliverables:
 - Document required CI secrets only if live integration jobs are added.
 
 ### Task 8.2: Define Coverage Gates
+
+Status: complete.
 
 Deliverables:
 
@@ -414,6 +420,8 @@ Deliverables:
 
 ### Task 8.3: Build And Packaging Validation
 
+Status: complete.
+
 Deliverables:
 
 - Run `pnpm build` and verify emitted `dist/` output works with `pnpm start`.
@@ -423,6 +431,8 @@ Deliverables:
 - Document build and start commands.
 
 ### Task 8.4: Final Acceptance Run
+
+Status: complete for local and guarded preflight validation. Live inbound Telegram and live Codex validation still require operator-provided live environment values.
 
 Deliverables:
 

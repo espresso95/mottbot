@@ -48,6 +48,22 @@ Run the suite with coverage:
 pnpm test:coverage
 ```
 
+## CI Verification
+
+GitHub Actions workflow: `.github/workflows/ci.yml`.
+
+The CI gate runs on pushes to `main` and pull requests. It:
+
+- enables Corepack and uses the pinned `pnpm@10.33.0`
+- installs dependencies with `pnpm install --frozen-lockfile`
+- rebuilds the native `better-sqlite3` binding
+- runs `pnpm check`, `pnpm test`, `pnpm test:coverage`, and `pnpm build`
+- verifies `dist/index.js` exists, `package.json` remains private, and `bin.mottbot` points to `./dist/index.js`
+- runs the built CLI health command against a temporary SQLite database
+- fails if the worktree is dirty after verification
+
+The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight`.
+
 ## Verified Results
 
 Verified locally on April 19, 2026:
@@ -56,6 +72,7 @@ Verified locally on April 19, 2026:
 - `pnpm test`: 42 test files, 133 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
+- built CLI health check: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:

@@ -63,6 +63,7 @@ Implemented in this repo:
 - queued/active/stale outbox health counters and safer structured run logs
 - outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
+- GitHub Actions CI for install, native SQLite rebuild, typecheck, tests, coverage, build, package validation, and dirty-worktree guard
 - tool-use safety design documentation
 - deny-by-default tool registry and read-only health snapshot execution with disabled side-effect placeholders
 

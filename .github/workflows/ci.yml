@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TELEGRAM_BOT_TOKEN: ci-token
+      MOTTBOT_MASTER_KEY: ci-master-key
+      MOTTBOT_PREFER_CLI_IMPORT: "false"
+      MOTTBOT_SQLITE_PATH: ${{ runner.temp }}/mottbot-ci.sqlite
+      MOTTBOT_CONFIG_PATH: ${{ runner.temp }}/mottbot-ci.config.json
+      MOTTBOT_DASHBOARD_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native SQLite binding
+        run: pnpm rebuild better-sqlite3
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Coverage
+        run: pnpm test:coverage
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate package output
+        run: |
+          test -f dist/index.js
+          node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); if (pkg.private !== true || pkg.bin?.mottbot !== './dist/index.js') process.exit(1)"
+          node dist/index.js health
+
+      - name: Guard against dirty generated output
+        run: |
+          status="$(git status --short --untracked-files=all)"
+          if [ -n "$status" ]; then
+            echo "$status"
+            exit 1
+          fi

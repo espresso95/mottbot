@@ -236,6 +236,7 @@ Implemented now:
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
 - deny-by-default read-only tool registry and health snapshot execution
+- CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
 
 Not yet implemented:
 

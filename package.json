@@ -2,6 +2,7 @@
   "name": "mottbot",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "type": "module",
   "description": "Telegram-first Codex subscription bot for the subscription-backed openai-codex provider path.",
   "bin": {
@@ -43,5 +44,10 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^4.1.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
