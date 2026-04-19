@@ -12,7 +12,8 @@ describe("launchd service helpers", () => {
     expect(plist).toContain(`<string>${SERVICE_LABEL}</string>`);
     expect(plist).toContain("<key>KeepAlive</key>");
     expect(plist).toContain("<key>ThrottleInterval</key>");
-    expect(plist).toContain("corepack pnpm exec tsx src/index.ts start");
+    expect(plist).toContain("node_modules/tsx/dist/cli.mjs");
+    expect(plist).toContain("src/index.ts start");
     expect(plist).toContain("<string>/tmp/mottbot.out.log</string>");
     expect(plist).toContain("<string>/tmp/mottbot.err.log</string>");
   });

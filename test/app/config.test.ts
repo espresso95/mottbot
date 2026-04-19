@@ -4,6 +4,39 @@ import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/app/config.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 
+const configEnvKeys = [
+  "MOTTBOT_CONFIG_PATH",
+  "TELEGRAM_BOT_TOKEN",
+  "MOTTBOT_MASTER_KEY",
+  "MOTTBOT_ADMIN_USER_IDS",
+  "MOTTBOT_ALLOWED_CHAT_IDS",
+  "MOTTBOT_DEFAULT_MODEL",
+  "MOTTBOT_TRANSPORT",
+  "MOTTBOT_DEFAULT_PROFILE",
+  "MOTTBOT_PREFER_CLI_IMPORT",
+  "MOTTBOT_SQLITE_PATH",
+  "MOTTBOT_ATTACHMENT_CACHE_DIR",
+  "MOTTBOT_ATTACHMENT_MAX_FILE_BYTES",
+  "MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE",
+  "MOTTBOT_GROUP_MENTION_ONLY",
+  "MOTTBOT_EDIT_THROTTLE_MS",
+  "MOTTBOT_LOG_LEVEL",
+  "MOTTBOT_OAUTH_CALLBACK_HOST",
+  "MOTTBOT_OAUTH_CALLBACK_PORT",
+  "MOTTBOT_DASHBOARD_ENABLED",
+  "MOTTBOT_DASHBOARD_HOST",
+  "MOTTBOT_DASHBOARD_PORT",
+  "MOTTBOT_DASHBOARD_PATH",
+  "MOTTBOT_DASHBOARD_API_PATH",
+  "MOTTBOT_DASHBOARD_AUTH_TOKEN",
+  "MOTTBOT_TELEGRAM_POLLING",
+  "MOTTBOT_TELEGRAM_WEBHOOK_URL",
+  "MOTTBOT_TELEGRAM_WEBHOOK_PATH",
+  "MOTTBOT_TELEGRAM_WEBHOOK_HOST",
+  "MOTTBOT_TELEGRAM_WEBHOOK_PORT",
+  "MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN",
+];
+
 describe("loadConfig", () => {
   const previousEnv = { ...process.env };
   const dirs: string[] = [];
@@ -16,6 +49,9 @@ describe("loadConfig", () => {
   });
 
   it("loads config from file and env", () => {
+    for (const key of configEnvKeys) {
+      delete process.env[key];
+    }
     const dir = createTempDir();
     dirs.push(dir);
     const file = path.join(dir, "mottbot.config.json");

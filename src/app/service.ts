@@ -53,7 +53,8 @@ export function buildLaunchAgentPlist(params: {
   const label = params.label ?? SERVICE_LABEL;
   const paths = launchAgentPaths(label);
   const projectRoot = path.resolve(params.projectRoot);
-  const command = `cd ${shellQuote(projectRoot)} && corepack pnpm exec tsx src/index.ts start`;
+  const tsxCli = path.join(projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
+  const command = `cd ${shellQuote(projectRoot)} && ${shellQuote(process.execPath)} ${shellQuote(tsxCli)} src/index.ts start`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -147,17 +148,14 @@ export function stopLaunchAgent(): void {
 
 export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
   const paths = installLaunchAgent(projectRoot);
+  stopLaunchAgent();
   const bootstrap = runLaunchctl(["bootstrap", userDomain(), paths.plistPath]);
-  if (bootstrap.status !== 0 && !/Bootstrap failed: 5|already bootstrapped|Input\/output error/i.test(bootstrap.stderr)) {
+  if (bootstrap.status !== 0) {
     throw new Error(bootstrap.stderr.trim() || "launchctl bootstrap failed.");
   }
   const enable = runLaunchctl(["enable", serviceTarget()]);
   if (enable.status !== 0) {
     throw new Error(enable.stderr.trim() || "launchctl enable failed.");
-  }
-  const kickstart = runLaunchctl(["kickstart", "-k", serviceTarget()]);
-  if (kickstart.status !== 0) {
-    throw new Error(kickstart.stderr.trim() || "launchctl kickstart failed.");
   }
   return paths;
 }

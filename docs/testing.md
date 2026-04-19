@@ -66,10 +66,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.82% |
-| Branches | 71.77% |
+| Statements | 84.89% |
+| Branches | 71.55% |
 | Functions | 89.45% |
-| Lines | 84.89% |
+| Lines | 84.96% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

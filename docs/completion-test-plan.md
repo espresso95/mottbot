@@ -24,7 +24,7 @@ Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
 - `corepack pnpm test` passes with 37 test files and 96 tests.
-- `corepack pnpm test:coverage` passes with statements 84.82%, branches 71.77%, functions 89.45%, and lines 84.89%.
+- `corepack pnpm test:coverage` passes with statements 84.89%, branches 71.55%, functions 89.45%, and lines 84.96%.
 - `corepack pnpm build` passes.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.

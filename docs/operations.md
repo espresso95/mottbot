@@ -153,7 +153,7 @@ The supported persistent local setup is a macOS user LaunchAgent:
 - label: `ai.mottbot.bot`
 - plist: `~/Library/LaunchAgents/ai.mottbot.bot.plist`
 - logs: `~/Library/Logs/mottbot/`
-- command: `corepack pnpm exec tsx src/index.ts start`
+- command: absolute Node binary plus `node_modules/tsx/dist/cli.mjs src/index.ts start`
 
 Common commands:
 

@@ -36,8 +36,10 @@ Logs:
 Service command:
 
 ```bash
-cd /Users/mottbot/mottbot && corepack pnpm exec tsx src/index.ts start
+cd /Users/mottbot/mottbot && <absolute-node> node_modules/tsx/dist/cli.mjs src/index.ts start
 ```
+
+The generated plist stores the absolute Node binary path from the host that installed the service, so launchd does not depend on interactive shell PATH setup.
 
 ## One-Time Setup
 
