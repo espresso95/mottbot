@@ -19,8 +19,8 @@ jobs:
       TELEGRAM_BOT_TOKEN: ci-token
       MOTTBOT_MASTER_KEY: ci-master-key
       MOTTBOT_PREFER_CLI_IMPORT: "false"
-      MOTTBOT_SQLITE_PATH: ${{ runner.temp }}/mottbot-ci.sqlite
-      MOTTBOT_CONFIG_PATH: ${{ runner.temp }}/mottbot-ci.config.json
+      MOTTBOT_SQLITE_PATH: /tmp/mottbot-ci.sqlite
+      MOTTBOT_CONFIG_PATH: /tmp/mottbot-ci.config.json
       MOTTBOT_DASHBOARD_ENABLED: "false"
 
     steps:
