@@ -53,7 +53,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(1);
+    expect(countRows(database, "schema_migrations")).toBe(2);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -67,8 +67,9 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(1);
+    expect(migrations).toHaveLength(2);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
+    expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -128,7 +129,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(1);
+    expect(countRows(database, "schema_migrations")).toBe(2);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     expect(
@@ -167,6 +168,26 @@ describe("migrateDatabase", () => {
         expect.objectContaining({ from: "session_key", table: "session_routes" }),
       ]),
     );
+  });
+
+  it("creates operator tool, memory, and instance lease tables", () => {
+    const { database, tempDir } = createDatabase();
+    cleanup.push(() => {
+      database.close();
+      removeTempDir(tempDir);
+    });
+
+    migrateDatabase(database);
+
+    for (const table of ["tool_approvals", "tool_approval_audit", "session_memories", "app_instance_leases"]) {
+      expect(
+        database.db
+          .prepare<unknown[], NameRow>(
+            "select name from sqlite_master where type = 'table' and name = ?",
+          )
+          .get(table),
+      ).toEqual({ name: table });
+    }
   });
 
   it("fails clearly when an applied migration has a different checksum", () => {

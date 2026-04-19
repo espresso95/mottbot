@@ -81,6 +81,16 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       path: "/dashboard",
       apiPath: "/api/dashboard",
     },
+    tools: {
+      enableSideEffectTools: false,
+      approvalTtlMs: 5 * 60 * 1000,
+      restartDelayMs: 60_000,
+    },
+    runtime: {
+      instanceLeaseEnabled: true,
+      instanceLeaseTtlMs: 2 * 60 * 1000,
+      instanceLeaseRefreshMs: 30_000,
+    },
     security: {
       masterKey: "test-master-key",
     },
@@ -104,6 +114,8 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     logging: { ...base.logging, ...overrides.logging },
     oauth: { ...base.oauth, ...overrides.oauth },
     dashboard: { ...base.dashboard, ...overrides.dashboard },
+    tools: { ...base.tools, ...overrides.tools },
+    runtime: { ...base.runtime, ...overrides.runtime },
     security: { ...base.security, ...overrides.security },
   };
 }

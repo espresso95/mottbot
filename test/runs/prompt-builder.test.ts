@@ -70,4 +70,28 @@ describe("buildPrompt", () => {
     expect(prompt.messages[0]?.content).toContain("Earlier conversation summary:");
     expect(prompt.messages).toHaveLength(5);
   });
+
+  it("adds long-term session memory as system context", () => {
+    const prompt = buildPrompt({
+      memories: [
+        {
+          id: "mem-1",
+          sessionKey: "s",
+          contentText: "User prefers concise implementation notes.",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      history: [
+        { id: "1", sessionKey: "s", role: "user", contentText: "hi", createdAt: 2 },
+      ],
+    });
+
+    expect(prompt.messages[0]).toEqual({
+      role: "system",
+      content: "Long-term session memory:\n- User prefers concise implementation notes.",
+      timestamp: 1,
+    });
+    expect(prompt.messages[1]).toEqual({ role: "user", content: "hi", timestamp: 2 });
+  });
 });

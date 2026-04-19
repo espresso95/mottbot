@@ -30,6 +30,14 @@ export type ToolDefinition = {
   enabled: boolean;
 };
 
+export type ToolRegistryOptions = {
+  allowSideEffectDefinitions?: boolean;
+};
+
+export type ToolResolveOptions = {
+  allowSideEffects?: boolean;
+};
+
 export type ModelToolDeclaration = {
   name: string;
   description: string;
@@ -73,10 +81,10 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
 ] as const;
 
-export const DISABLED_SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_restart_service",
-    description: "Restart the local Mottbot service. Reserved until approval UX exists.",
+    description: "Restart the local Mottbot service after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -84,6 +92,12 @@ export const DISABLED_SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = 
           type: "string",
           minLength: 1,
           maxLength: 500,
+        },
+        delaySeconds: {
+          type: "integer",
+          minimum: 10,
+          maximum: 300,
+          description: "Optional delay before restart. Defaults to the configured safe delay.",
         },
       },
       required: ["reason"],
@@ -98,14 +112,14 @@ export const DISABLED_SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = 
 
 export const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   ...READ_ONLY_TOOL_DEFINITIONS,
-  ...DISABLED_SIDE_EFFECT_TOOL_DEFINITIONS,
+  ...SIDE_EFFECT_TOOL_DEFINITIONS,
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function assertValidDefinition(definition: ToolDefinition): void {
+function assertValidDefinition(definition: ToolDefinition, options: ToolRegistryOptions): void {
   if (!TOOL_NAME_PATTERN.test(definition.name)) {
     throw new ToolRegistryError(
       "invalid_definition",
@@ -134,7 +148,11 @@ function assertValidDefinition(definition: ToolDefinition): void {
       `Tool ${definition.name} max output must be between 1 and ${MAX_OUTPUT_BYTES} bytes.`,
     );
   }
-  if (definition.enabled && definition.sideEffect !== "read_only") {
+  if (
+    definition.enabled &&
+    definition.sideEffect !== "read_only" &&
+    options.allowSideEffectDefinitions !== true
+  ) {
     throw new ToolRegistryError(
       "side_effect_not_allowed",
       `Tool ${definition.name} has side effect ${definition.sideEffect} and must stay disabled.`,
@@ -227,9 +245,12 @@ function validateAgainstSchema(schema: ToolJsonSchema, value: unknown, path: str
 export class ToolRegistry {
   private readonly definitions = new Map<string, ToolDefinition>();
 
-  constructor(definitions: readonly ToolDefinition[] = DEFAULT_TOOL_DEFINITIONS) {
+  constructor(
+    definitions: readonly ToolDefinition[] = DEFAULT_TOOL_DEFINITIONS,
+    options: ToolRegistryOptions = {},
+  ) {
     for (const definition of definitions) {
-      assertValidDefinition(definition);
+      assertValidDefinition(definition, options);
       if (this.definitions.has(definition.name)) {
         throw new ToolRegistryError("invalid_definition", `Duplicate tool definition ${definition.name}.`);
       }
@@ -249,7 +270,7 @@ export class ToolRegistry {
     }));
   }
 
-  resolve(name: string): ToolDefinition {
+  resolve(name: string, options: ToolResolveOptions = {}): ToolDefinition {
     const definition = this.definitions.get(name);
     if (!definition) {
       throw new ToolRegistryError("unknown_tool", `Unknown tool ${name}.`);
@@ -257,7 +278,7 @@ export class ToolRegistry {
     if (!definition.enabled) {
       throw new ToolRegistryError("disabled_tool", `Tool ${name} is disabled.`);
     }
-    if (definition.sideEffect !== "read_only") {
+    if (definition.sideEffect !== "read_only" && options.allowSideEffects !== true) {
       throw new ToolRegistryError(
         "side_effect_not_allowed",
         `Tool ${name} has side effect ${definition.sideEffect} and cannot be executed.`,
@@ -266,8 +287,8 @@ export class ToolRegistry {
     return definition;
   }
 
-  validateInput(name: string, input: unknown): Record<string, unknown> {
-    const definition = this.resolve(name);
+  validateInput(name: string, input: unknown, options: ToolResolveOptions = {}): Record<string, unknown> {
+    const definition = this.resolve(name, options);
     const errors = validateAgainstSchema(definition.inputSchema, input, "$");
     if (errors.length > 0) {
       throw new ToolRegistryError("invalid_input", `Invalid input for ${name}: ${errors.join(" ")}`);
@@ -278,4 +299,17 @@ export class ToolRegistry {
 
 export function createDefaultToolRegistry(): ToolRegistry {
   return new ToolRegistry(DEFAULT_TOOL_DEFINITIONS);
+}
+
+export function createRuntimeToolRegistry(params: { enableSideEffectTools: boolean }): ToolRegistry {
+  const definitions = [
+    ...READ_ONLY_TOOL_DEFINITIONS,
+    ...SIDE_EFFECT_TOOL_DEFINITIONS.map((definition) => ({
+      ...definition,
+      enabled: params.enableSideEffectTools,
+    })),
+  ];
+  return new ToolRegistry(definitions, {
+    allowSideEffectDefinitions: params.enableSideEffectTools,
+  });
 }

@@ -17,6 +17,10 @@ type SmokeReply = {
   text: string;
 };
 
+type SentSmokeMessage = {
+  id: number;
+};
+
 function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -103,9 +107,62 @@ function messageText(message: Api.Message): string {
   return typeof message.message === "string" ? message.message.trim() : "";
 }
 
+function entityId(entity: unknown): string | undefined {
+  if (!entity || typeof entity !== "object" || !("id" in entity)) {
+    return undefined;
+  }
+  const id = (entity as { id?: unknown }).id;
+  return id === undefined || id === null ? undefined : String(id);
+}
+
+async function findLatestBotMessage(params: {
+  client: TelegramClient;
+  target: string;
+  botUserId?: string;
+}): Promise<number | undefined> {
+  const messages = await params.client.getMessages(params.target, { limit: 25 });
+  for (const message of messages) {
+    const text = messageText(message);
+    if (message.out || !text) {
+      continue;
+    }
+    if (params.botUserId && String(message.senderId) !== params.botUserId) {
+      continue;
+    }
+    return message.id;
+  }
+  return undefined;
+}
+
+async function sendSmokeMessage(params: {
+  client: TelegramClient;
+  config: TelegramUserSmokeConfig;
+  replyTo?: number;
+}): Promise<SentSmokeMessage> {
+  if (!params.config.filePath) {
+    return params.client.sendMessage(params.config.target, {
+      message: params.config.message,
+      ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+    });
+  }
+  if (!fs.existsSync(params.config.filePath)) {
+    throw new Error(`MOTTBOT_USER_SMOKE_FILE_PATH does not exist: ${params.config.filePath}`);
+  }
+  const sendFileParams: Parameters<TelegramClient["sendFile"]>[1] = {
+    file: params.config.filePath,
+    caption: params.config.message,
+    ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+  };
+  if (params.config.forceDocument) {
+    (sendFileParams as { forceDocument?: boolean }).forceDocument = true;
+  }
+  return params.client.sendFile(params.config.target, sendFileParams);
+}
+
 async function waitForReply(params: {
   client: TelegramClient;
-  botUsername: string;
+  botUserId?: string;
+  target: string;
   sentMessageId: number;
   timeoutMs: number;
   pollIntervalMs: number;
@@ -117,7 +174,7 @@ async function waitForReply(params: {
   let candidateSince = 0;
   while (Date.now() - startedAt <= params.timeoutMs) {
     const now = Date.now();
-    const messages = await params.client.getMessages(params.botUsername, {
+    const messages = await params.client.getMessages(params.target, {
       limit: 12,
       minId: params.sentMessageId,
     });
@@ -125,6 +182,9 @@ async function waitForReply(params: {
     for (const message of [...messages].sort((left, right) => left.id - right.id)) {
       const text = messageText(message);
       if (message.out || message.id <= params.sentMessageId || !text) {
+        continue;
+      }
+      if (params.botUserId && String(message.senderId) !== params.botUserId) {
         continue;
       }
       lastIncoming = {
@@ -174,13 +234,24 @@ async function main(): Promise<void> {
 
   const client = await startUserClient(liveConfig);
   try {
-    const sent = await client.sendMessage(liveConfig.botUsername, {
-      message: liveConfig.message,
+    const botUserId = entityId(await client.getEntity(liveConfig.botUsername));
+    const replyTo = liveConfig.replyToLatestBotMessage
+      ? await findLatestBotMessage({
+          client,
+          target: liveConfig.target,
+          botUserId,
+        })
+      : undefined;
+    const sent = await sendSmokeMessage({
+      client,
+      config: liveConfig,
+      replyTo,
     });
     const response = liveConfig.waitForReply
       ? await waitForReply({
           client,
-          botUsername: liveConfig.botUsername,
+          botUserId,
+          target: liveConfig.target,
           sentMessageId: sent.id,
           timeoutMs: liveConfig.timeoutMs,
           pollIntervalMs: liveConfig.pollIntervalMs,
@@ -191,7 +262,10 @@ async function main(): Promise<void> {
     printJson({
       status: response.reply ? "passed" : liveConfig.waitForReply ? "timeout" : "sent",
       botUsername: liveConfig.botUsername,
+      target: liveConfig.target,
       sentMessageId: sent.id,
+      ...(replyTo ? { replyToMessageId: replyTo } : {}),
+      ...(liveConfig.filePath ? { filePath: path.resolve(liveConfig.filePath) } : {}),
       ...(response.reply ? { reply: response.reply } : {}),
       ...(response.lastIncoming && !response.reply ? { lastIncoming: response.lastIncoming } : {}),
       waitForReply: liveConfig.waitForReply,

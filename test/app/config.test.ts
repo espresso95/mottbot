@@ -37,6 +37,12 @@ const configEnvKeys = [
   "MOTTBOT_TELEGRAM_WEBHOOK_HOST",
   "MOTTBOT_TELEGRAM_WEBHOOK_PORT",
   "MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN",
+  "MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS",
+  "MOTTBOT_TOOL_APPROVAL_TTL_MS",
+  "MOTTBOT_RESTART_TOOL_DELAY_MS",
+  "MOTTBOT_INSTANCE_LEASE_ENABLED",
+  "MOTTBOT_INSTANCE_LEASE_TTL_MS",
+  "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
 ];
 
 describe("loadConfig", () => {
@@ -71,6 +77,8 @@ describe("loadConfig", () => {
         attachments: { maxFileBytes: 1234, maxTotalBytes: 4321 },
         behavior: { maxInboundTextChars: 2000 },
         dashboard: { enabled: false, port: 9091 },
+        tools: { approvalTtlMs: 10_000 },
+        runtime: { instanceLeaseEnabled: false },
       }),
     );
 
@@ -80,6 +88,8 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_ADMIN_USER_IDS = "env-admin-1,env-admin-2";
     process.env.MOTTBOT_ATTACHMENT_CACHE_DIR = "./custom-attachments";
     process.env.MOTTBOT_DASHBOARD_HOST = "0.0.0.0";
+    process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS = "true";
+    process.env.MOTTBOT_RESTART_TOOL_DELAY_MS = "30000";
 
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
@@ -97,5 +107,9 @@ describe("loadConfig", () => {
     expect(config.dashboard.enabled).toBe(false);
     expect(config.dashboard.port).toBe(9091);
     expect(config.dashboard.host).toBe("0.0.0.0");
+    expect(config.tools.enableSideEffectTools).toBe(true);
+    expect(config.tools.approvalTtlMs).toBe(10_000);
+    expect(config.tools.restartDelayMs).toBe(30_000);
+    expect(config.runtime.instanceLeaseEnabled).toBe(false);
   });
 });

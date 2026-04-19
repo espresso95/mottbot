@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultToolRegistry,
+  createRuntimeToolRegistry,
   ToolRegistry,
   ToolRegistryError,
   type ToolDefinition,
@@ -80,6 +81,33 @@ describe("ToolRegistry", () => {
           }),
         ]),
     ).toThrow("must stay disabled");
+  });
+
+  it("can expose side-effecting tools only when explicitly configured", () => {
+    const registry = new ToolRegistry(
+      [
+        readOnlyTool({
+          sideEffect: "process_control",
+        }),
+      ],
+      { allowSideEffectDefinitions: true },
+    );
+
+    expect(registry.listModelDeclarations()).toEqual([
+      expect.objectContaining({ name: "lookup_value" }),
+    ]);
+    expect(() => registry.resolve("lookup_value")).toThrow("side effect process_control");
+    expect(registry.resolve("lookup_value", { allowSideEffects: true })).toMatchObject({
+      sideEffect: "process_control",
+    });
+  });
+
+  it("enables the reserved restart tool only through the runtime registry factory", () => {
+    const registry = createDefaultToolRegistry();
+    const runtimeRegistry = createRuntimeToolRegistry({ enableSideEffectTools: true });
+
+    expect(registry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
+    expect(runtimeRegistry.listModelDeclarations().map((tool) => tool.name)).toContain("mottbot_restart_service");
   });
 
   it("accepts disabled side-effecting tool definitions without exposing them", () => {

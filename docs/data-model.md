@@ -19,6 +19,10 @@ Configuration comes from three layers:
 - `MOTTBOT_ADMIN_USER_IDS`
 - `MOTTBOT_ALLOWED_CHAT_IDS`
 - `MOTTBOT_TELEGRAM_POLLING`
+- `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS`
+- `MOTTBOT_TOOL_APPROVAL_TTL_MS`
+- `MOTTBOT_RESTART_TOOL_DELAY_MS`
+- `MOTTBOT_INSTANCE_LEASE_ENABLED`
 - `MOTTBOT_DEFAULT_MODEL`
 - `MOTTBOT_TRANSPORT`
 - `MOTTBOT_DEFAULT_PROFILE`
@@ -64,6 +68,16 @@ Current defaults:
   "oauth": {
     "callbackHost": "127.0.0.1",
     "callbackPort": 1455
+  },
+  "tools": {
+    "enableSideEffectTools": false,
+    "approvalTtlMs": 300000,
+    "restartDelayMs": 60000
+  },
+  "runtime": {
+    "instanceLeaseEnabled": true,
+    "instanceLeaseTtlMs": 120000,
+    "instanceLeaseRefreshMs": 30000
   }
 }
 ```
@@ -316,6 +330,68 @@ Notable fields:
 - `websocket_degraded_until`
 - `last_transport`
 
+### `tool_approvals`
+
+Purpose:
+
+- store one-shot session-scoped approvals for side-effecting tools
+
+Notable fields:
+
+- `session_key`
+- `tool_name`
+- `approved_by_user_id`
+- `reason`
+- `approved_at`
+- `expires_at`
+- `consumed_at`
+
+### `tool_approval_audit`
+
+Purpose:
+
+- record every side-effecting tool decision before execution
+
+Notable fields:
+
+- `session_key`
+- `run_id`
+- `tool_name`
+- `side_effect`
+- `allowed`
+- `decision_code`
+- `approved_by_user_id`
+- `reason`
+
+### `session_memories`
+
+Purpose:
+
+- store explicit operator/user-provided long-term memory for a session
+
+Notable fields:
+
+- `session_key`
+- `content_text`
+- timestamps
+
+The model sees session memory as system context before the recent transcript. Memory is changed only through `/remember`, `/memory`, and `/forget`.
+
+### `app_instance_leases`
+
+Purpose:
+
+- prevent accidental overlapping bot instances against the same SQLite database
+
+Notable fields:
+
+- `lease_name`
+- `owner_id`
+- `expires_at`
+- `updated_at`
+
+This is a host-local safety lease. It is not a distributed multi-replica coordination system.
+
 ## Encryption At Rest
 
 `AuthProfileStore` encrypts access and refresh tokens with `SecretBox`.
@@ -344,6 +420,7 @@ Current retention policy is explicit but operator-driven:
 - old bot-message ACL rows can be pruned, which means replies to those old Telegram messages will no longer be accepted only by reply relationship
 - auth profiles are updated in place
 - session routes are not pruned by the retention helper
+- consumed or expired tool approvals and session memories are retained until explicit future cleanup support is added
 
 There is no automatic compaction or archival task yet. Operators should back up SQLite before destructive pruning.
 
@@ -365,7 +442,7 @@ Supported image attachments can also be downloaded into the local attachment cac
 ## Known Data-Model Gaps
 
 - no attachment blob storage or durable file-cache table
-- no distributed queue state for multi-replica deployments
-- no summarization state for long transcripts
+- no distributed queue state for multi-replica deployments beyond the host-local instance lease
+- no model-generated summarization state for long transcripts
 - no dedicated health state for auth profiles beyond refresh failures
 - no automated SQLite rollback mechanism beyond restoring an operator backup

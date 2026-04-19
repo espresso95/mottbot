@@ -4,6 +4,11 @@ import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
 import { ToolRegistry, ToolRegistryError, type ToolDefinition } from "./registry.js";
+import {
+  buildToolApprovalAuditRecord,
+  evaluateToolApproval,
+  type ToolApprovalStore,
+} from "./approval.js";
 
 export type ToolExecutionResult = {
   toolCallId: string;
@@ -15,6 +20,11 @@ export type ToolExecutionResult = {
   truncated: boolean;
   errorCode?: string;
 };
+
+export type RestartServiceHandler = (params: {
+  reason: string;
+  delayMs: number;
+}) => Promise<unknown> | unknown;
 
 export type ToolExecutionContext = {
   definition: ToolDefinition;
@@ -28,6 +38,16 @@ export type ToolExecutorDependencies = {
   clock: Clock;
   health?: HealthReporter;
   handlers?: Partial<Record<string, ToolHandler>>;
+  approvals?: ToolApprovalStore;
+  restartService?: RestartServiceHandler;
+  defaultRestartDelayMs?: number;
+};
+
+export type ToolExecutionOptions = {
+  signal?: AbortSignal;
+  sessionKey?: string;
+  runId?: string;
+  requestedByUserId?: string;
 };
 
 type TimedHandlerResult =
@@ -52,6 +72,17 @@ export class ToolExecutor {
     if (health) {
       this.handlers.set("mottbot_health_snapshot", () => health.snapshot());
     }
+    if (deps.restartService) {
+      this.handlers.set("mottbot_restart_service", ({ arguments: input }) => {
+        const reason = typeof input.reason === "string" ? input.reason : "operator requested restart";
+        const delaySeconds =
+          typeof input.delaySeconds === "number" ? input.delaySeconds : undefined;
+        return deps.restartService?.({
+          reason,
+          delayMs: delaySeconds ? delaySeconds * 1000 : (deps.defaultRestartDelayMs ?? 60_000),
+        });
+      });
+    }
     for (const [name, handler] of Object.entries(deps.handlers ?? {})) {
       if (handler) {
         this.handlers.set(name, handler);
@@ -59,11 +90,20 @@ export class ToolExecutor {
     }
   }
 
-  async execute(call: CodexToolCall, signal?: AbortSignal): Promise<ToolExecutionResult> {
+  async execute(call: CodexToolCall, options: ToolExecutionOptions = {}): Promise<ToolExecutionResult> {
     const startedAt = this.deps.clock.now();
     try {
-      const definition = this.registry.resolve(call.name);
-      const input = this.registry.validateInput(call.name, call.arguments);
+      const definition = this.registry.resolve(call.name, { allowSideEffects: true });
+      const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
+      const approval = this.evaluateApproval({
+        definition,
+        call,
+        startedAt,
+        options,
+      });
+      if (approval) {
+        return approval;
+      }
       const handler = this.handlers.get(call.name);
       if (!handler) {
         return this.errorResult(call, startedAt, "missing_handler", `No handler is registered for ${call.name}.`);
@@ -73,7 +113,7 @@ export class ToolExecutor {
           handler({
             definition,
             arguments: input,
-            signal,
+            signal: options.signal,
           }),
         definition.timeoutMs,
       );
@@ -85,6 +125,46 @@ export class ToolExecutor {
       const code = error instanceof ToolRegistryError ? error.code : "tool_failed";
       return this.errorResult(call, startedAt, code, getErrorMessage(error));
     }
+  }
+
+  private evaluateApproval(params: {
+    definition: ToolDefinition;
+    call: CodexToolCall;
+    startedAt: number;
+    options: ToolExecutionOptions;
+  }): ToolExecutionResult | undefined {
+    const definition = params.definition;
+    if (definition.sideEffect === "read_only") {
+      return undefined;
+    }
+    const now = this.deps.clock.now();
+    const activeApproval =
+      params.options.sessionKey && this.deps.approvals
+        ? this.deps.approvals.findActive({
+            sessionKey: params.options.sessionKey,
+            toolName: definition.name,
+            now,
+          })
+        : undefined;
+    const decision = evaluateToolApproval(definition, activeApproval, now);
+    this.deps.approvals?.recordAudit(
+      buildToolApprovalAuditRecord({
+        definition,
+        decision,
+        requestedAt: params.startedAt,
+        decidedAt: now,
+        approval: activeApproval,
+        sessionKey: params.options.sessionKey,
+        runId: params.options.runId,
+      }),
+    );
+    if (!decision.allowed) {
+      return this.errorResult(params.call, params.startedAt, decision.code, decision.message);
+    }
+    if (activeApproval) {
+      this.deps.approvals?.consume(activeApproval.id, now);
+    }
+    return undefined;
   }
 
   toToolResultMessage(result: ToolExecutionResult): ToolResultMessage {

@@ -1,3 +1,6 @@
+import type { DatabaseClient } from "../db/client.js";
+import type { Clock } from "../shared/clock.js";
+import { createId } from "../shared/ids.js";
 import type { ToolDefinition, ToolSideEffect } from "./registry.js";
 
 export type ToolApproval = {
@@ -6,6 +9,14 @@ export type ToolApproval = {
   reason: string;
   approvedAt: number;
   expiresAt: number;
+};
+
+export type StoredToolApproval = ToolApproval & {
+  id: string;
+  sessionKey: string;
+  consumedAt?: number;
+  createdAt: number;
+  updatedAt: number;
 };
 
 export type ToolApprovalDecision = {
@@ -22,6 +33,9 @@ export type ToolApprovalPrompt = {
 };
 
 export type ToolApprovalAuditRecord = {
+  id?: string;
+  sessionKey?: string;
+  runId?: string;
   toolName: string;
   sideEffect: ToolSideEffect;
   allowed: boolean;
@@ -30,6 +44,7 @@ export type ToolApprovalAuditRecord = {
   decidedAt: number;
   approvedByUserId?: string;
   reason?: string;
+  createdAt?: number;
 };
 
 const SIDE_EFFECT_LABELS: Record<Exclude<ToolSideEffect, "read_only">, string> = {
@@ -108,8 +123,12 @@ export function buildToolApprovalAuditRecord(params: {
   requestedAt: number;
   decidedAt: number;
   approval?: ToolApproval;
+  sessionKey?: string;
+  runId?: string;
 }): ToolApprovalAuditRecord {
   return {
+    ...(params.sessionKey ? { sessionKey: params.sessionKey } : {}),
+    ...(params.runId ? { runId: params.runId } : {}),
     toolName: params.definition.name,
     sideEffect: params.definition.sideEffect,
     allowed: params.decision.allowed,
@@ -119,4 +138,169 @@ export function buildToolApprovalAuditRecord(params: {
     ...(params.approval ? { approvedByUserId: params.approval.approvedByUserId } : {}),
     ...(params.approval?.reason ? { reason: params.approval.reason } : {}),
   };
+}
+
+type ToolApprovalRow = {
+  id: string;
+  session_key: string;
+  tool_name: string;
+  approved_by_user_id: string;
+  reason: string;
+  approved_at: number;
+  expires_at: number;
+  consumed_at: number | null;
+  created_at: number;
+  updated_at: number;
+};
+
+function mapApprovalRow(row: ToolApprovalRow | undefined): StoredToolApproval | undefined {
+  if (!row) {
+    return undefined;
+  }
+  return {
+    id: row.id,
+    sessionKey: row.session_key,
+    toolName: row.tool_name,
+    approvedByUserId: row.approved_by_user_id,
+    reason: row.reason,
+    approvedAt: row.approved_at,
+    expiresAt: row.expires_at,
+    ...(row.consumed_at !== null ? { consumedAt: row.consumed_at } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export class ToolApprovalStore {
+  constructor(
+    private readonly database: DatabaseClient,
+    private readonly clock: Clock,
+  ) {}
+
+  approve(params: {
+    sessionKey: string;
+    toolName: string;
+    approvedByUserId: string;
+    reason: string;
+    ttlMs: number;
+  }): StoredToolApproval {
+    const now = this.clock.now();
+    const approval: StoredToolApproval = {
+      id: createId(),
+      sessionKey: params.sessionKey,
+      toolName: params.toolName,
+      approvedByUserId: params.approvedByUserId,
+      reason: params.reason.trim() || "operator approved",
+      approvedAt: now,
+      expiresAt: now + params.ttlMs,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.database.db
+      .prepare(
+        `insert into tool_approvals (
+          id, session_key, tool_name, approved_by_user_id, reason, approved_at, expires_at, consumed_at, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, ?)`,
+      )
+      .run(
+        approval.id,
+        approval.sessionKey,
+        approval.toolName,
+        approval.approvedByUserId,
+        approval.reason,
+        approval.approvedAt,
+        approval.expiresAt,
+        approval.createdAt,
+        approval.updatedAt,
+      );
+    return approval;
+  }
+
+  findActive(params: { sessionKey: string; toolName: string; now?: number }): StoredToolApproval | undefined {
+    const now = params.now ?? this.clock.now();
+    const row = this.database.db
+      .prepare<unknown[], ToolApprovalRow>(
+        `select *
+         from tool_approvals
+         where session_key = ?
+           and tool_name = ?
+           and consumed_at is null
+           and expires_at > ?
+         order by expires_at desc
+         limit 1`,
+      )
+      .get(params.sessionKey, params.toolName, now);
+    return mapApprovalRow(row);
+  }
+
+  listActive(sessionKey: string, now = this.clock.now()): StoredToolApproval[] {
+    return this.database.db
+      .prepare<unknown[], ToolApprovalRow>(
+        `select *
+         from tool_approvals
+         where session_key = ?
+           and consumed_at is null
+           and expires_at > ?
+         order by expires_at asc`,
+      )
+      .all(sessionKey, now)
+      .map((row) => mapApprovalRow(row)!)
+      .filter(Boolean);
+  }
+
+  consume(id: string, now = this.clock.now()): boolean {
+    return (
+      this.database.db
+        .prepare(
+          `update tool_approvals
+           set consumed_at = ?, updated_at = ?
+           where id = ? and consumed_at is null`,
+        )
+        .run(now, now, id).changes > 0
+    );
+  }
+
+  revokeActive(params: { sessionKey: string; toolName: string; now?: number }): number {
+    const now = params.now ?? this.clock.now();
+    return this.database.db
+      .prepare(
+        `update tool_approvals
+         set consumed_at = ?, updated_at = ?
+         where session_key = ?
+           and tool_name = ?
+           and consumed_at is null
+           and expires_at > ?`,
+      )
+      .run(now, now, params.sessionKey, params.toolName, now).changes;
+  }
+
+  recordAudit(record: ToolApprovalAuditRecord): ToolApprovalAuditRecord {
+    const now = this.clock.now();
+    const id = record.id ?? createId();
+    this.database.db
+      .prepare(
+        `insert into tool_approval_audit (
+          id, session_key, run_id, tool_name, side_effect, allowed, decision_code, requested_at, decided_at, approved_by_user_id, reason, created_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        record.sessionKey ?? null,
+        record.runId ?? null,
+        record.toolName,
+        record.sideEffect,
+        record.allowed ? 1 : 0,
+        record.decisionCode,
+        record.requestedAt,
+        record.decidedAt,
+        record.approvedByUserId ?? null,
+        record.reason ?? null,
+        record.createdAt ?? now,
+      );
+    return {
+      ...record,
+      id,
+      createdAt: record.createdAt ?? now,
+    };
+  }
 }

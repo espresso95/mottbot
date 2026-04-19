@@ -77,7 +77,7 @@ It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELE
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 43 test files, 137 tests passing
+- `pnpm test`: 46 test files, 151 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -93,10 +93,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.65% |
-| Branches | 73.85% |
-| Functions | 90.56% |
-| Lines | 85.72% |
+| Statements | 84.73% |
+| Branches | 73.81% |
+| Functions | 90.93% |
+| Lines | 84.78% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

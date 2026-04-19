@@ -175,6 +175,43 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 `pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/`, and must not be used in CI.
 
+The harness also accepts `MOTTBOT_USER_SMOKE_TARGET`, `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE`, and `MOTTBOT_USER_SMOKE_FILE_PATH` for group, reply-gating, and attachment smoke checks.
+
+## Operator Tools
+
+Read-only tools are always deny-by-default and registry scoped. The initial enabled tool is `mottbot_health_snapshot`.
+
+Side-effecting tools are disabled unless the host explicitly sets:
+
+```bash
+MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
+```
+
+Current side-effecting tool:
+
+- `mottbot_restart_service`: schedules a delayed local launchd restart
+
+Approval flow:
+
+1. An admin approves a tool for the current session:
+
+   ```text
+   /tool approve mottbot_restart_service planned restart
+   ```
+
+2. The next matching model tool call in that session consumes the approval.
+3. The bot records an audit row in SQLite.
+4. The restart tool schedules a delayed service restart, using `MOTTBOT_RESTART_TOOL_DELAY_MS` or the tool input delay.
+
+Useful commands:
+
+- `/tool status`
+- `/tool approve <tool-name> <reason>`
+- `/tool revoke <tool-name>`
+- `/remember <fact>` stores long-term memory for the current session
+- `/memory` lists current session memory
+- `/forget <memory-id-prefix|all>` removes memory
+
 ## Persistent macOS Service
 
 Use `SETUP.md` for the full host-local service runbook.
@@ -301,7 +338,7 @@ Runtime controls:
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 
-Side-effecting tools such as service restart remain disabled. Do not enable local-write, network, process-control, or secret-adjacent tools without adding approval persistence, audit retention, and operator runbooks.
+Only the delayed service restart process-control tool has an approval-backed implementation. Do not add local-write, network, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
 
 ## Operator Safety Limits
 

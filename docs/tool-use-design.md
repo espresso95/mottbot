@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Mottbot can execute the initial read-only model tool set through the Codex provider boundary. The runtime remains deny-by-default: side-effecting tools are defined only as disabled placeholders until approval UX, audit persistence, and runbooks are implemented.
+Mottbot can execute the initial read-only model tool set through the Codex provider boundary. The runtime remains deny-by-default: side-effecting tools are exposed only when the host opts in, and execution requires a fresh session-scoped admin approval.
 
 ## Current State
 
@@ -12,20 +12,21 @@ Implemented:
 - prompts filter tool messages out of deterministic summaries
 - run orchestration already owns one model turn from queue claim through final Telegram delivery
 - a static deny-by-default tool registry exists in `src/tools/registry.ts`
-- the registry exposes only enabled read-only tool declarations
-- disabled side-effecting tool definitions are accepted but not exposed or resolvable
+- the registry exposes enabled read-only declarations by default
+- side-effecting tool definitions are accepted only behind explicit runtime opt-in
 - tool declarations sent to the model
 - provider-specific tool-call parsing in `src/codex/tool-calls.ts`
 - read-only tool execution in `src/tools/executor.ts`
 - provider-native tool result continuation inside the active model turn
 - tool call and result metadata persisted as `tool` transcript rows
 - Telegram status updates while tools are prepared, executed, completed, or failed
-- side-effect approval prompt, decision, expiration, and audit-record types in `src/tools/approval.ts`
+- persistent side-effect approval prompts, decisions, expiration, consumption, and audit records in `src/tools/approval.ts`
+- admin-only Telegram approval commands through `/tool approve`, `/tool revoke`, and `/tool status`
+- an opt-in delayed `mottbot_restart_service` process-control tool guarded by one-shot session-scoped approval
 
 Not implemented:
 
-- persistent approval storage for side-effecting tools
-- execution of local-write, network, process-control, or secret-adjacent tools
+- local-write, network, or secret-adjacent tools
 - arbitrary sandboxed plugin execution
 
 ## Safety Requirements
@@ -51,11 +52,11 @@ Keep ownership boundaries narrow:
 - `src/telegram/*` owns approval and result notifications
 - a new `src/tools/*` module owns tool definitions, validation, execution, and result normalization
 
-The first implementation supports read-only tools only. Side-effecting tools remain designed but disabled until approval UX and audit logging are complete.
+The default runtime supports read-only tools only. The first side-effecting implementation is an opt-in delayed service restart tool with admin approval and audit logging.
 
 ## Initial Tool Registry
 
-The current registry is sent to the model only for enabled read-only tools. The executor resolves every requested tool through the registry again before execution.
+The current registry is sent to the model only for enabled tools. The executor resolves every requested tool through the registry again before execution.
 
 Enabled read-only tools:
 
@@ -67,13 +68,13 @@ Disabled reserved tools:
 
 | Tool | Side effect | Status | Reason |
 | --- | --- | --- | --- |
-| `mottbot_restart_service` | `process_control` | disabled | Requires explicit operator approval UX and audit logging before use. |
+| `mottbot_restart_service` | `process_control` | opt-in | Exposed only when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
 
 Registry behavior:
 
 - unknown tool names are rejected
 - disabled tool names are rejected
-- enabled tools with side effects are rejected at registry construction time
+- enabled tools with side effects are rejected at registry construction time unless the runtime explicitly opts into side-effect definitions
 - input payloads are validated against the declared JSON-schema subset before execution
 
 ## Runtime Behavior
@@ -82,8 +83,10 @@ Registry behavior:
 - Streamed `toolcall_start`, `toolcall_delta`, and `toolcall_end` events are normalized in `src/codex/*`; malformed or incomplete events are ignored rather than executed.
 - `RunOrchestrator` allows up to three tool rounds and five tool calls per run.
 - `ToolExecutor` executes registry-approved read-only tools only, with per-tool timeout and output-size limits.
+- `ToolExecutor` executes side-effecting tools only when the runtime exposes them and a fresh matching approval exists for the same session.
 - Tool results are sent back to the provider as `toolResult` messages in the same active turn.
 - Persisted `tool` transcript rows contain tool name, call ID, arguments, elapsed time, byte count, truncation status, and error code when present. They do not store credentials or raw auth payloads.
+- Approval audit rows record the decision, tool, side-effect type, session, optional run, approver, and reason without credentials.
 - Historical prompt construction excludes persisted `tool` rows; tool results are replayed only in the active provider continuation where the call ID is valid.
 - Telegram shows short status updates such as `Preparing tool`, `Running tool`, and completion/failure state. The final assistant response remains model-authored.
 
@@ -135,14 +138,14 @@ Deliverables:
 
 ### Task T5: Design Side-Effect Approval
 
-Status: complete for design. Side-effecting execution remains disabled.
+Status: complete for the initial process-control scope.
 
 Deliverables:
 
 - Define approval prompts for local writes, network calls, and process-control tools.
 - Add expiration for pending approvals.
 - Add audit records for approved and denied calls.
-- Keep side-effecting tools disabled until approval tests and runbooks exist.
+- Keep side-effecting tools disabled by default unless the host opts in with `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
 
 ## Non-Goals For The First Tool Phase
 

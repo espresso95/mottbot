@@ -4,6 +4,9 @@ import { RouteResolver } from "../../src/telegram/route-resolver.js";
 import { fetchCodexUsage } from "../../src/codex/usage.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
+import { ToolApprovalStore } from "../../src/tools/approval.js";
+import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
+import { MemoryStore } from "../../src/sessions/memory-store.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -368,6 +371,104 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Status: ok"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles memory commands for the current session", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      memories,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/remember use pnpm", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/memory", isCommand: true }));
+    const memory = memories.list("tg:dm:chat-1:user:user-1")[0];
+    await router.maybeHandle(createInboundEvent({ text: `/forget ${memory?.id.slice(0, 8)}`, isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Remembered"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("use pnpm"),
+      expect.any(Object),
+    );
+    expect(memories.list("tg:dm:chat-1:user:user-1")).toEqual([]);
+  });
+
+  it("requires admin approval for side-effecting tools", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      approvals,
+    );
+
+    await router.maybeHandle(
+      createInboundEvent({
+        text: "/tool approve mottbot_restart_service planned restart",
+        fromUserId: "user-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        text: "/tool approve mottbot_restart_service planned restart",
+        fromUserId: "admin-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/tool status", fromUserId: "admin-1", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only configured admins can approve side-effecting tools.",
+      expect.any(Object),
+    );
+    expect(approvals.listActive("tg:dm:chat-1:user:admin-1")).toHaveLength(1);
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Active approvals"),
       expect.any(Object),
     );
   });

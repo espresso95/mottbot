@@ -79,6 +79,20 @@ const rawConfigSchema = z.object({
       authToken: z.string().optional(),
     })
     .default({}),
+  tools: z
+    .object({
+      enableSideEffectTools: z.boolean().default(false),
+      approvalTtlMs: z.number().int().min(1_000).default(5 * 60 * 1000),
+      restartDelayMs: z.number().int().min(1_000).default(60_000),
+    })
+    .default({}),
+  runtime: z
+    .object({
+      instanceLeaseEnabled: z.boolean().default(true),
+      instanceLeaseTtlMs: z.number().int().min(5_000).default(2 * 60 * 1000),
+      instanceLeaseRefreshMs: z.number().int().min(1_000).default(30_000),
+    })
+    .default({}),
 });
 
 export type AppConfig = {
@@ -133,6 +147,16 @@ export type AppConfig = {
     path: string;
     apiPath: string;
     authToken?: string;
+  };
+  tools: {
+    enableSideEffectTools: boolean;
+    approvalTtlMs: number;
+    restartDelayMs: number;
+  };
+  runtime: {
+    instanceLeaseEnabled: boolean;
+    instanceLeaseTtlMs: number;
+    instanceLeaseRefreshMs: number;
   };
   security: {
     masterKey: string;
@@ -397,6 +421,48 @@ export function loadConfig(): AppConfig {
           ? (fileObject.dashboard as any).authToken
           : undefined),
     },
+    tools: {
+      ...(fileObject.tools && typeof fileObject.tools === "object" ? (fileObject.tools as object) : {}),
+      enableSideEffectTools:
+        process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS === undefined
+          ? (fileObject.tools && typeof fileObject.tools === "object"
+              ? (fileObject.tools as any).enableSideEffectTools
+              : undefined)
+          : process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS === "true",
+      approvalTtlMs:
+        process.env.MOTTBOT_TOOL_APPROVAL_TTL_MS === undefined
+          ? (fileObject.tools && typeof fileObject.tools === "object"
+              ? (fileObject.tools as any).approvalTtlMs
+              : undefined)
+          : Number(process.env.MOTTBOT_TOOL_APPROVAL_TTL_MS),
+      restartDelayMs:
+        process.env.MOTTBOT_RESTART_TOOL_DELAY_MS === undefined
+          ? (fileObject.tools && typeof fileObject.tools === "object"
+              ? (fileObject.tools as any).restartDelayMs
+              : undefined)
+          : Number(process.env.MOTTBOT_RESTART_TOOL_DELAY_MS),
+    },
+    runtime: {
+      ...(fileObject.runtime && typeof fileObject.runtime === "object" ? (fileObject.runtime as object) : {}),
+      instanceLeaseEnabled:
+        process.env.MOTTBOT_INSTANCE_LEASE_ENABLED === undefined
+          ? (fileObject.runtime && typeof fileObject.runtime === "object"
+              ? (fileObject.runtime as any).instanceLeaseEnabled
+              : undefined)
+          : process.env.MOTTBOT_INSTANCE_LEASE_ENABLED !== "false",
+      instanceLeaseTtlMs:
+        process.env.MOTTBOT_INSTANCE_LEASE_TTL_MS === undefined
+          ? (fileObject.runtime && typeof fileObject.runtime === "object"
+              ? (fileObject.runtime as any).instanceLeaseTtlMs
+              : undefined)
+          : Number(process.env.MOTTBOT_INSTANCE_LEASE_TTL_MS),
+      instanceLeaseRefreshMs:
+        process.env.MOTTBOT_INSTANCE_LEASE_REFRESH_MS === undefined
+          ? (fileObject.runtime && typeof fileObject.runtime === "object"
+              ? (fileObject.runtime as any).instanceLeaseRefreshMs
+              : undefined)
+          : Number(process.env.MOTTBOT_INSTANCE_LEASE_REFRESH_MS),
+    },
   });
 
   const botToken = process.env[parsed.telegram.botTokenEnv]?.trim();
@@ -434,6 +500,8 @@ export function loadConfig(): AppConfig {
     logging: parsed.logging,
     oauth: parsed.oauth,
     dashboard: parsed.dashboard,
+    tools: parsed.tools,
+    runtime: parsed.runtime,
     security: {
       masterKey,
     },

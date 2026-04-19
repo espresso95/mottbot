@@ -162,6 +162,10 @@ Useful overrides:
 
 ```bash
 export MOTTBOT_USER_SMOKE_MESSAGE="hello from the MTProto smoke test"
+export MOTTBOT_USER_SMOKE_TARGET=StartupMottBot
+export MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=false
+export MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-image.png
+export MOTTBOT_USER_SMOKE_FORCE_DOCUMENT=false
 export MOTTBOT_USER_SMOKE_TIMEOUT_MS=120000
 export MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS=2000
 export MOTTBOT_USER_SMOKE_STABLE_REPLY_MS=4000
@@ -170,6 +174,15 @@ export MOTTBOT_USER_SMOKE_SESSION_PATH=./data/telegram-user-smoke.session
 ```
 
 This harness is intentionally separate from the bot runtime. Use it only with your own Telegram account and controlled test bots.
+
+The same harness can drive several previously manual private-chat and group checks:
+
+- private chat: leave `MOTTBOT_USER_SMOKE_TARGET` unset or set it to the bot username
+- group mention: set `MOTTBOT_USER_SMOKE_TARGET` to the group entity and include `@<bot username>` in `MOTTBOT_USER_SMOKE_MESSAGE`
+- reply-to-bot gating: set `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true`
+- file upload: set `MOTTBOT_USER_SMOKE_FILE_PATH` to a local image or document fixture
+
+Webhook delivery still requires a public HTTPS endpoint and Telegram webhook registration. The local harness can validate the conversation once webhook delivery is configured, but it cannot create the public endpoint.
 
 ## Polling Matrix
 

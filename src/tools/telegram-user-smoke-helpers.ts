@@ -2,7 +2,11 @@ export type TelegramUserSmokeConfig = {
   apiId: number;
   apiHash: string;
   botUsername: string;
+  target: string;
   message: string;
+  filePath?: string;
+  forceDocument: boolean;
+  replyToLatestBotMessage: boolean;
   sessionPath: string;
   timeoutMs: number;
   pollIntervalMs: number;
@@ -72,7 +76,15 @@ export function buildTelegramUserSmokeConfig(params: {
     apiId,
     apiHash,
     botUsername: normalizeBotUsername(params.env.MOTTBOT_LIVE_BOT_USERNAME ?? params.fallbackBotUsername),
+    target:
+      params.env.MOTTBOT_USER_SMOKE_TARGET?.trim() ||
+      normalizeBotUsername(params.env.MOTTBOT_LIVE_BOT_USERNAME ?? params.fallbackBotUsername),
     message: params.env.MOTTBOT_USER_SMOKE_MESSAGE?.trim() || DEFAULT_MESSAGE,
+    ...(params.env.MOTTBOT_USER_SMOKE_FILE_PATH?.trim()
+      ? { filePath: params.env.MOTTBOT_USER_SMOKE_FILE_PATH.trim() }
+      : {}),
+    forceDocument: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_FORCE_DOCUMENT", false),
+    replyToLatestBotMessage: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE", false),
     sessionPath: params.env.MOTTBOT_USER_SMOKE_SESSION_PATH?.trim() || DEFAULT_SESSION_PATH,
     timeoutMs: parsePositiveIntegerEnv(params.env, "MOTTBOT_USER_SMOKE_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
     pollIntervalMs: parsePositiveIntegerEnv(

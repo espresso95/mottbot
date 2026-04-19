@@ -16,20 +16,21 @@ As of April 19, 2026:
 - Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
 - Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
 - Phase 5 is complete for local hardening: token refresh failure paths, CLI write-back failure behavior, provider model ref validation, usage timeout/error normalization, and `/status` usage degradation are covered by tests.
-- Phase 6 live validation is prepared with guarded preflight and MTProto user-account smoke commands. The preflight validates Telegram `getMe`, optional outbound `sendMessage`, migrations, health counters, and auth profile presence. The MTProto harness can drive private-chat inbound checks from the CLI. Group flows, file uploads, webhook delivery, OAuth, and broader live Codex behavior still require an operator-provided live integration environment.
+- Phase 6 live validation is prepared with guarded preflight and MTProto user-account smoke commands. The preflight validates Telegram `getMe`, optional outbound `sendMessage`, migrations, health counters, and auth profile presence. The MTProto harness can drive private-chat, group-target, reply-gating, and file-upload checks from the CLI when the operator provides the target chat and fixtures. Webhook delivery, OAuth, and broader live Codex behavior still require an operator-provided live integration environment.
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
-- Phase 9 is complete for the read-only v1 tool scope: a deny-by-default registry exposes `mottbot_health_snapshot`, Codex provider tool-call events are normalized, approved read-only tools execute with timeout/output/call limits, tool result metadata is persisted, Telegram shows concise tool status, and side-effect approval types are defined while side-effecting tools remain disabled.
+- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes `mottbot_health_snapshot`, optionally exposes `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
+- Phase 10 has started with concrete scoped implementations: explicit session memory, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination and second-provider support remain backlog items.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 43 test files and 137 tests.
-- `corepack pnpm test:coverage` passes with statements 85.65%, branches 73.85%, functions 90.56%, and lines 85.72%.
+- `corepack pnpm test` passes with 46 test files and 151 tests.
+- `corepack pnpm test:coverage` passes with statements 84.73%, branches 73.81%, functions 90.93%, and lines 84.78%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -40,9 +41,9 @@ Current known gaps:
 
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
-- Inbound private-chat Telegram validation can be driven by the optional MTProto user smoke harness, but group flows, file uploads, webhook delivery, OAuth, and live Codex behavior still require an operator-provided live environment.
-- Model-executed tools are limited to the enabled read-only health snapshot. Side-effecting tools are intentionally disabled.
-- Multi-instance coordination is intentionally out of scope for the current runtime posture.
+- Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
+- Model-executed tools are limited to the health snapshot and the opt-in delayed restart tool. Other side-effect categories remain disabled.
+- Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
 
@@ -446,7 +447,7 @@ Deliverables:
 
 ## Phase 9: Tool Use Design And Safety
 
-Mottbot executes only registry-approved read-only model tools. Side-effecting tools remain disabled until approval persistence, runbooks, and side-effect tests are added.
+Mottbot executes registry-approved read-only model tools by default. The first side-effecting tool, `mottbot_restart_service`, is opt-in and requires one-shot admin approval, audit persistence, and a delayed execution guard.
 
 ### Task 9.1: Define Tool Registry
 
@@ -492,16 +493,16 @@ Deliverables:
 - Add clear failure messages for denied, timed-out, or invalid tool calls.
 - Add tests for user-visible tool-call states.
 
-### Task 9.5: Design Side-Effect Approval
+### Task 9.5: Implement Side-Effect Approval
 
-Status: complete for design. Side-effecting execution remains disabled.
+Status: complete for the initial process-control scope.
 
 Deliverables:
 
 - Define approval prompts for local writes, network calls, and process-control tools.
 - Add expiration for pending approvals.
 - Add audit records for approved and denied calls.
-- Keep side-effecting tools disabled until approval tests and runbooks exist.
+- Keep side-effecting tools disabled by default and expose the restart tool only when the host opts in.
 
 ## Phase 10: Post-V1 Backlog
 
@@ -509,9 +510,12 @@ These items are not required to complete the current single-host operator bot, b
 
 ### Task 10.1: Multi-Instance Coordination
 
+Status: started for host-local protection.
+
 Deliverables:
 
 - Document why SQLite plus in-memory queue is insufficient for multiple replicas.
+- Add a host-local `app_instance_leases` guard to prevent accidental overlapping bot processes.
 - Design distributed locking or external queue requirements.
 - Define how session serialization would work across processes.
 - Define migration and deployment changes needed for multi-instance operation.
@@ -519,19 +523,25 @@ Deliverables:
 
 ### Task 10.2: Rich Long-Term Memory
 
+Status: started with explicit session memory.
+
 Deliverables:
 
-- Evaluate model-generated summaries or structured memory records.
-- Define how summaries are stored and invalidated.
-- Add tests for memory inclusion and reset behavior.
+- Add explicit session memory records managed by `/remember`, `/memory`, and `/forget`.
+- Include session memory in prompt construction as system context.
+- Add tests for memory storage, memory inclusion, and command behavior.
+- Evaluate model-generated summaries or structured memory records as a later enhancement.
 - Add operator controls for clearing or inspecting memory.
 - Update prompt and data-model docs.
 
 ### Task 10.3: Provider Abstraction Beyond Codex
 
+Status: started with an orchestration boundary.
+
 Deliverables:
 
 - Define the smallest provider interface needed by `RunOrchestrator`.
+- Route `RunOrchestrator` through model token, transport, and capability interfaces while the current implementation remains Codex-backed.
 - Keep Telegram/session modules provider-agnostic.
 - Add tests proving provider swap does not affect Telegram routing.
 - Document supported providers and auth modes.

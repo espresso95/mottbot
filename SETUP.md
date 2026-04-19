@@ -70,6 +70,7 @@ MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE=4
 MOTTBOT_MAX_INBOUND_TEXT_CHARS=12000
 MOTTBOT_TELEGRAM_POLLING=true
 MOTTBOT_DASHBOARD_ENABLED=false
+MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false
 ```
 
 Do not commit `.env`, SQLite files, logs, or attachment cache data.
@@ -104,6 +105,14 @@ corepack pnpm smoke:telegram-user
 ```
 
 The first run logs in with your Telegram user account and stores an ignored session file under `data/`. Treat that session file like account access, do not commit it, and use this harness only with your own Telegram account and a controlled test bot.
+
+For group, reply-gating, or attachment smoke checks, add:
+
+```bash
+MOTTBOT_USER_SMOKE_TARGET=<group-or-bot-entity>
+MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true
+MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-file
+```
 
 ## Install And Start The Persistent Service
 
@@ -229,3 +238,4 @@ If `/health` works but model responses fail, inspect:
 - Keep `.env` permission-restricted with `chmod 600 .env`.
 - Keep `MOTTBOT_MASTER_KEY` stable for the same SQLite database. Changing it prevents decrypting existing auth profile tokens.
 - Do not run multiple polling instances with the same token.
+- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need operator-approved tools such as `mottbot_restart_service`.

@@ -174,12 +174,21 @@ Current policy:
 - `/stop`
 - `/bind [name]`
 - `/unbind`
+- `/remember <fact>`
+- `/memory`
+- `/forget <memory-id-prefix|all>`
 
 ### Auth commands
 
 - `/auth status`
 - `/auth import-cli`
 - `/auth login`
+
+### Tool approval commands
+
+- `/tool status`
+- `/tool approve <tool-name> <reason>`
+- `/tool revoke <tool-name>`
 
 ### Current command behavior
 
@@ -192,8 +201,10 @@ Current policy:
 - `/stop` aborts the active run for the session if one exists
 - `/bind` switches the existing route into `bound` mode after validating the binding name
 - `/unbind` restores the route mode based on the session key shape
+- `/remember`, `/memory`, and `/forget` manage explicit long-term memory for the current session
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
+- `/tool approve` and `/tool revoke` are admin-only controls for side-effecting tools
 
 ## Session Queue
 
@@ -253,16 +264,17 @@ If execution throws:
 
 ## Tool Calls
 
-When the model requests an enabled read-only tool, the run orchestrator:
+When the model requests an enabled tool, the run orchestrator:
 
 - shows short Telegram status edits while the tool is prepared and running
-- executes only registry-approved read-only tools
+- executes read-only tools directly and side-effecting tools only after a fresh one-shot session approval
 - enforces per-run tool-round and tool-call limits
 - persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads
+- persists side-effecting approval decisions in `tool_approval_audit`
 - sends the provider-native tool result back to Codex in the same active turn
 - finalizes Telegram with the model's answer after tool continuation
 
-Unknown, disabled, invalid, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled.
+Unknown, disabled, invalid, unapproved, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
 
 ## Prompt Building
 
@@ -273,6 +285,7 @@ Current policy:
 - default system prompt is short and Telegram-specific
 - only the latest history window is sent to the model
 - tool messages are excluded from prompt construction
+- explicit session memories are injected as system context before recent transcript history
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text
 - native image inputs are appended only to the latest user message

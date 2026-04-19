@@ -1,8 +1,12 @@
 import type { AppConfig } from "../app/config.js";
-import { supportsNativeImageInput } from "../codex/provider.js";
-import type { CodexTokenResolver } from "../codex/token-resolver.js";
-import type { CodexStreamResult, CodexTransport } from "../codex/transport.js";
 import type { CodexToolCall } from "../codex/tool-calls.js";
+import {
+  codexModelCapabilities,
+  type ModelCapabilities,
+  type ModelStreamResult,
+  type ModelTokenResolver,
+  type ModelTransport,
+} from "../models/provider.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
 import type { Logger } from "../shared/logger.js";
@@ -10,6 +14,7 @@ import type { SessionQueue } from "../sessions/queue.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
+import type { MemoryStore } from "../sessions/memory-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
@@ -111,8 +116,8 @@ export class RunOrchestrator {
     private readonly sessions: SessionStore,
     private readonly transcripts: TranscriptStore,
     private readonly runs: RunStore,
-    private readonly tokenResolver: CodexTokenResolver,
-    private readonly transport: CodexTransport,
+    private readonly tokenResolver: ModelTokenResolver,
+    private readonly transport: ModelTransport,
     private readonly outbox: TelegramOutbox,
     private readonly clock: Clock,
     private readonly logger: Logger,
@@ -120,6 +125,8 @@ export class RunOrchestrator {
     private readonly runQueue?: RunQueueStore,
     private readonly toolRegistry?: ToolRegistry,
     private readonly toolExecutor?: ToolExecutor,
+    private readonly memories?: MemoryStore,
+    private readonly modelCapabilities: ModelCapabilities = codexModelCapabilities,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -294,7 +301,7 @@ export class RunOrchestrator {
       const auth = await this.tokenResolver.resolve(params.session.profileId);
       attachmentPreparation = await this.attachments.prepare({
         attachments: params.event.attachments,
-        allowNativeImages: supportsNativeImageInput(params.session.modelRef),
+        allowNativeImages: this.modelCapabilities.supportsNativeImageInput(params.session.modelRef),
         signal: params.signal,
       });
       if (params.event.attachments.length > 0) {
@@ -308,6 +315,7 @@ export class RunOrchestrator {
       const prompt = buildPrompt({
         history,
         systemPrompt: params.session.systemPrompt,
+        memories: this.memories?.list(params.session.sessionKey),
       });
       const messages = appendNativeAttachmentsToLatestUserMessage({
         messages: prompt.messages,
@@ -319,7 +327,7 @@ export class RunOrchestrator {
         this.toolRegistry && this.toolExecutor ? this.toolRegistry.listModelDeclarations() : undefined;
       const extraContextMessages: ProviderMessage[] = [];
       const executedToolResults: ToolExecutionResult[] = [];
-      let result: CodexStreamResult | undefined;
+      let result: ModelStreamResult | undefined;
       let toolRounds = 0;
       let totalToolCalls = 0;
 
@@ -375,7 +383,12 @@ export class RunOrchestrator {
 
         for (const toolCall of toolCalls) {
           placeholder = await this.outbox.update(placeholder, toolRunningText(toolCall));
-          const execution = await this.toolExecutor.execute(toolCall, params.signal);
+          const execution = await this.toolExecutor.execute(toolCall, {
+            signal: params.signal,
+            sessionKey: params.session.sessionKey,
+            runId: run.runId,
+            requestedByUserId: params.event.fromUserId,
+          });
           executedToolResults.push(execution);
           this.transcripts.add({
             sessionKey: params.session.sessionKey,

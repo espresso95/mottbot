@@ -24,8 +24,13 @@ import { TelegramUpdateStore } from "../telegram/update-store.js";
 import { TelegramMessageStore } from "../telegram/message-store.js";
 import { TelegramAttachmentIngestor } from "../telegram/attachments.js";
 import { DashboardServer } from "./dashboard.js";
-import { createDefaultToolRegistry } from "../tools/registry.js";
+import { createRuntimeToolRegistry } from "../tools/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
+import { ToolApprovalStore } from "../tools/approval.js";
+import { scheduleServiceRestart } from "../tools/process-control.js";
+import { MemoryStore } from "../sessions/memory-store.js";
+import { ApplicationInstanceLease } from "./instance-lease.js";
+import { codexModelCapabilities } from "../models/provider.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -46,16 +51,33 @@ export async function bootstrapApplication() {
   const queue = new SessionQueue();
   const runStore = new RunStore(database, systemClock);
   const runQueueStore = new RunQueueStore(database, systemClock);
+  const memoryStore = new MemoryStore(database, systemClock);
+  const toolApprovalStore = new ToolApprovalStore(database, systemClock);
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
   const transport = new CodexTransport(database, logger);
   const updateStore = new TelegramUpdateStore(database, systemClock);
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
   const dashboard = new DashboardServer(config, logger, health, authProfiles);
-  const toolRegistry = createDefaultToolRegistry();
+  const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
+    leaseName: "bot",
+    enabled: config.runtime.instanceLeaseEnabled,
+    ttlMs: config.runtime.instanceLeaseTtlMs,
+    refreshMs: config.runtime.instanceLeaseRefreshMs,
+  });
+  const toolRegistry = createRuntimeToolRegistry({
+    enableSideEffectTools: config.tools.enableSideEffectTools,
+  });
   const toolExecutor = new ToolExecutor(toolRegistry, {
     clock: systemClock,
     health,
+    approvals: toolApprovalStore,
+    defaultRestartDelayMs: config.tools.restartDelayMs,
+    restartService: ({ reason, delayMs }) =>
+      scheduleServiceRestart({
+        reason,
+        delayMs,
+      }),
   });
 
   const provisionalBot = new TelegramBotServer(
@@ -116,6 +138,8 @@ export async function bootstrapApplication() {
     runQueueStore,
     toolRegistry,
     toolExecutor,
+    memoryStore,
+    codexModelCapabilities,
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
@@ -128,6 +152,9 @@ export async function bootstrapApplication() {
     tokenResolver,
     orchestrator,
     health,
+    toolRegistry,
+    toolApprovalStore,
+    memoryStore,
   );
   const bot = new TelegramBotServer(
     config,
@@ -151,7 +178,10 @@ export async function bootstrapApplication() {
     dashboard,
     async start() {
       let dashboardStarted = false;
+      let leaseStarted = false;
       try {
+        instanceLease.start();
+        leaseStarted = true;
         await dashboard.start();
         dashboardStarted = true;
         await bot.start();
@@ -159,12 +189,16 @@ export async function bootstrapApplication() {
         if (dashboardStarted) {
           await dashboard.stop();
         }
+        if (leaseStarted) {
+          instanceLease.stop();
+        }
         throw error;
       }
     },
     async stop() {
       await bot.stop();
       await dashboard.stop();
+      instanceLease.stop();
       database.close();
     },
   };

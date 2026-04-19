@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from "../sessions/types.js";
+import type { SessionMemory } from "../sessions/memory-store.js";
 
 export type PromptContentBlock =
   | { type: "text"; text: string }
@@ -125,16 +126,36 @@ function buildSummary(entries: TranscriptMessage[]): string | undefined {
     .join("\n");
 }
 
+function buildMemoryMessage(memories: SessionMemory[]): PromptMessage | undefined {
+  const visible = memories
+    .map((memory) => memory.contentText.trim())
+    .filter(Boolean)
+    .slice(-20);
+  if (visible.length === 0) {
+    return undefined;
+  }
+  return {
+    role: "system",
+    content: ["Long-term session memory:", ...visible.map((memory) => `- ${memory}`)].join("\n"),
+    timestamp: memories.at(-1)?.updatedAt ?? 0,
+  };
+}
+
 export function buildPrompt(params: {
   history: TranscriptMessage[];
   systemPrompt?: string;
   historyLimit?: number;
+  memories?: SessionMemory[];
 }): BuiltPrompt {
   const historyLimit = params.historyLimit ?? 24;
   const olderHistory =
     params.history.length > historyLimit ? params.history.slice(0, -historyLimit) : [];
   const trimmedHistory = params.history.slice(-historyLimit);
   const messages: PromptMessage[] = [];
+  const memoryMessage = buildMemoryMessage(params.memories ?? []);
+  if (memoryMessage) {
+    messages.push(memoryMessage);
+  }
   const summary = buildSummary(olderHistory);
   if (summary) {
     messages.push({

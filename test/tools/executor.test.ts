@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import { ToolRegistry, type ToolDefinition } from "../../src/tools/registry.js";
+import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { FakeClock, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -128,5 +129,83 @@ describe("ToolExecutor", () => {
     expect(result.isError).toBe(false);
     expect(result.truncated).toBe(true);
     expect(result.outputBytes).toBeLessThanOrEqual(8);
+  });
+
+  it("requires and consumes approval before executing side-effecting tools", async () => {
+    const stores = createStores();
+    try {
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const run = stores.runs.create({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        modelRef: "openai-codex/gpt-5.4",
+        profileId: "openai-codex:default",
+      });
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      const registry = new ToolRegistry(
+        [
+          readOnlyTool({
+            name: "mottbot_restart_service",
+            description: "Restart service.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                reason: { type: "string", minLength: 1, maxLength: 500 },
+              },
+              required: ["reason"],
+              additionalProperties: false,
+            },
+            sideEffect: "process_control",
+          }),
+        ],
+        { allowSideEffectDefinitions: true },
+      );
+      const restartService = vi.fn(() => ({ scheduled: true }));
+      const executor = new ToolExecutor(registry, {
+        clock: stores.clock,
+        approvals,
+        restartService,
+      });
+      const call = {
+        id: "call-6",
+        name: "mottbot_restart_service",
+        arguments: { reason: "operator requested" },
+      };
+
+      const denied = await executor.execute(call, {
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        runId: run.runId,
+      });
+      expect(denied.isError).toBe(true);
+      expect(denied.errorCode).toBe("approval_required");
+      expect(restartService).not.toHaveBeenCalled();
+
+      approvals.approve({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        toolName: "mottbot_restart_service",
+        approvedByUserId: "admin-1",
+        reason: "approved",
+        ttlMs: 60_000,
+      });
+      const approved = await executor.execute(call, {
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        runId: run.runId,
+      });
+      expect(approved.isError).toBe(false);
+      expect(restartService).toHaveBeenCalledWith({
+        reason: "operator requested",
+        delayMs: 60_000,
+      });
+      expect(approvals.listActive("tg:dm:chat-1:user:user-1")).toEqual([]);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
   });
 });

@@ -3,7 +3,8 @@ import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
 import { RunQueueStore } from "../../src/runs/run-queue-store.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolApprovalStore } from "../../src/tools/approval.js";
+import { createRuntimeToolRegistry, ToolRegistry } from "../../src/tools/registry.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -340,6 +341,128 @@ describe("RunOrchestrator", () => {
       "Running tool: mottbot_health_snapshot...",
     );
     expect(transport.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it("executes an approved side-effecting restart tool once", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    approvals.approve({
+      sessionKey: session.sessionKey,
+      toolName: "mottbot_restart_service",
+      approvedByUserId: "admin-1",
+      reason: "planned restart",
+      ttlMs: 60_000,
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const assistantToolMessage = {
+      role: "assistant" as const,
+      content: [
+        {
+          type: "toolCall" as const,
+          id: "call-restart",
+          name: "mottbot_restart_service",
+          arguments: { reason: "planned restart" },
+        },
+      ],
+      api: "openai-codex-responses" as const,
+      provider: "openai-codex" as const,
+      model: "gpt-5.4",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "toolUse" as const,
+      timestamp: stores.clock.now(),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async ({ onStart, tools }) => {
+          await onStart?.();
+          expect(tools.map((tool: any) => tool.name)).toContain("mottbot_restart_service");
+          return {
+            text: "",
+            transport: "sse",
+            requestIdentity: "req-restart-1",
+            toolCalls: [{ id: "call-restart", name: "mottbot_restart_service", arguments: { reason: "planned restart" } }],
+            assistantMessage: assistantToolMessage,
+            stopReason: "toolUse",
+          };
+        })
+        .mockImplementationOnce(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "Restart scheduled.", transport: "sse", requestIdentity: "req-restart-2" };
+        }),
+    };
+    const restartService = vi.fn(() => ({ scheduled: true }));
+    const registry = createRuntimeToolRegistry({ enableSideEffectTools: true });
+    const executor = new ToolExecutor(registry, {
+      clock: stores.clock,
+      approvals,
+      restartService,
+    });
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      registry,
+      executor,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ fromUserId: "admin-1", text: "Restart after this response" }),
+      session,
+    });
+    await flushAsync();
+
+    expect(restartService).toHaveBeenCalledWith({ reason: "planned restart", delayMs: 60_000 });
+    expect(approvals.listActive(session.sessionKey)).toEqual([]);
+    expect(
+      stores.database.db
+        .prepare("select count(*) as count from tool_approval_audit where decision_code = 'approved'")
+        .get(),
+    ).toEqual({ count: 1 });
+    expect(stores.transcripts.listRecent(session.sessionKey).map((message) => message.role)).toEqual([
+      "user",
+      "tool",
+      "assistant",
+    ]);
   });
 
   it("recovers durable queued runs after restart", async () => {

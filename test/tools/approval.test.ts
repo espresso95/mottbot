@@ -4,9 +4,12 @@ import {
   buildToolApprovalPrompt,
   evaluateToolApproval,
   requiresToolApproval,
+  ToolApprovalStore,
   type ToolApproval,
 } from "../../src/tools/approval.js";
 import type { ToolDefinition } from "../../src/tools/registry.js";
+import { createStores } from "../helpers/fakes.js";
+import { removeTempDir } from "../helpers/tmp.js";
 
 function tool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -104,5 +107,69 @@ describe("tool approval design", () => {
       approvedByUserId: "8323483502",
       reason: "operator requested restart",
     });
+  });
+
+  it("persists active approvals, consumption, revocation, and audit records", () => {
+    const stores = createStores();
+    try {
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const store = new ToolApprovalStore(stores.database, stores.clock);
+      const approval = store.approve({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        toolName: "mottbot_restart_service",
+        approvedByUserId: "8323483502",
+        reason: "test restart",
+        ttlMs: 60_000,
+      });
+
+      expect(store.findActive({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+      })).toMatchObject({ id: approval.id });
+      expect(store.listActive(approval.sessionKey)).toHaveLength(1);
+      store.recordAudit({
+        toolName: approval.toolName,
+        sideEffect: "process_control",
+        allowed: true,
+        decisionCode: "approved",
+        requestedAt: stores.clock.now(),
+        decidedAt: stores.clock.now(),
+        sessionKey: approval.sessionKey,
+        approvedByUserId: approval.approvedByUserId,
+        reason: approval.reason,
+      });
+      expect(
+        stores.database.db
+          .prepare("select count(*) as count from tool_approval_audit")
+          .get(),
+      ).toEqual({ count: 1 });
+      expect(store.consume(approval.id)).toBe(true);
+      expect(store.findActive({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+      })).toBeUndefined();
+
+      store.approve({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+        approvedByUserId: "8323483502",
+        reason: "second",
+        ttlMs: 60_000,
+      });
+      expect(store.revokeActive({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+      })).toBe(1);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
   });
 });

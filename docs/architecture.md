@@ -235,15 +235,17 @@ Implemented now:
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
-- deny-by-default read-only tool registry and health snapshot execution
+- deny-by-default tool registry, health snapshot execution, and opt-in approved restart tool execution
+- explicit session memory
+- host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
 
 Not yet implemented:
 
 - native model input support for non-image file/media types
-- side-effecting model-executed tool execution
-- richer summarization or learned compaction
-- multi-instance locks or distributed coordination
+- side-effecting local-write, network, or secret-adjacent model-executed tools
+- model-generated summarization or learned compaction
+- distributed multi-instance locks or replica coordination
 
 ## Provider Boundary Rationale
 

@@ -65,13 +65,14 @@ Implemented in this repo:
 - unit and integration test suite with coverage reporting
 - GitHub Actions CI for install, native SQLite rebuild, typecheck, tests, coverage, build, package validation, and dirty-worktree guard
 - tool-use safety design documentation
-- deny-by-default tool registry and read-only health snapshot execution with disabled side-effect placeholders
+- deny-by-default tool registry, read-only health snapshot execution, and opt-in one-shot-approved restart tool execution
+- explicit session memory through `/remember`, `/memory`, and `/forget`
+- host-local instance lease to reduce accidental overlapping bot processes
 
 Planned hardening that is not yet implemented:
 
 - native non-image attachment ingestion into model inputs
-- fully automated inbound live Telegram and Codex smoke tests
-- side-effecting model-executed tools with approval persistence
+- fully automated webhook, group, and Codex live smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
-- richer summarization beyond deterministic local compaction
-- multi-instance coordination
+- model-generated memory or richer summarization beyond deterministic local compaction
+- distributed multi-instance coordination beyond the host-local lease
