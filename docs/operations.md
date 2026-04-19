@@ -160,11 +160,30 @@ Retention safety rules:
 
 - `queued`, `starting`, and `streaming` runs are never pruned
 - `active` outbox rows are never pruned
+- `queued` and `claimed` queue rows are retained
+- completed and failed queue rows can be pruned by age
 - terminal runs are pruned only after old child outbox, bot-message, and transcript rows are safe to remove
 - processed Telegram update IDs are pruned by `processed_at`, which means very old duplicate updates can be accepted again
 - session routes and auth profiles are not pruned by this command
 
 Back up the SQLite file before running destructive pruning on a production host.
+
+## Attachment Operations
+
+Attachment settings:
+
+- `attachments.cacheDir` or `MOTTBOT_ATTACHMENT_CACHE_DIR`
+- `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
+
+Runtime behavior:
+
+- supported images are downloaded from Telegram only when the selected model accepts image input
+- downloaded bytes are converted into native image blocks for the model request
+- non-image attachments are preserved as text metadata
+- cache files are deleted after model request construction or failure cleanup
+
+Keep the attachment cache under `data/` or another ignored local path. Do not point it at a committed directory.
 
 ## Auth Operations
 
@@ -240,10 +259,13 @@ Current behavior:
 - active run cancellation marks the run `cancelled`
 - WebSocket transport failures can fall back to SSE automatically
 - outbox finalize or fail paths send a fresh message if editing the placeholder fails
+- queued runs accepted before a restart are resumed when session and transcript context still exist
+- unrecoverable queued runs are marked failed and the chat is notified when possible
+- interrupted `starting` and `streaming` runs are still marked failed on restart
 
 Current limitation:
 
-- restart recovery is implemented for interrupted runs, but it does not currently re-notify Telegram chats after process restart
+- durable queue recovery is single-process only and is not safe for active multi-replica execution
 
 ## Logging
 
@@ -257,6 +279,7 @@ Useful log events today:
 - transport fallback warnings
 - run execution failures
 - Telegram edit failures
+- attachment download or cleanup failures
 
 ## Deployment Guidance
 
@@ -276,6 +299,5 @@ Poor fit without more work:
 
 The most important operational gaps are:
 
-- native attachment handling
 - richer transcript summarization
 - migration discipline for future schema changes

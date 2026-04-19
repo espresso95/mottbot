@@ -43,6 +43,13 @@ const rawConfigSchema = z.object({
       sqlitePath: z.string().default("./data/mottbot.sqlite"),
     })
     .default({}),
+  attachments: z
+    .object({
+      cacheDir: z.string().default("./data/attachments"),
+      maxFileBytes: z.number().int().min(1).default(20 * 1024 * 1024),
+      maxPerMessage: z.number().int().min(0).max(10).default(4),
+    })
+    .default({}),
   behavior: z
     .object({
       respondInGroupsOnlyWhenMentioned: z.boolean().default(true),
@@ -98,6 +105,11 @@ export type AppConfig = {
   };
   storage: {
     sqlitePath: string;
+  };
+  attachments: {
+    cacheDir: string;
+    maxFileBytes: number;
+    maxPerMessage: number;
   };
   behavior: {
     respondInGroupsOnlyWhenMentioned: boolean;
@@ -271,6 +283,28 @@ export function loadConfig(): AppConfig {
           ? (fileObject.storage as any).sqlitePath
           : undefined),
     },
+    attachments: {
+      ...(fileObject.attachments && typeof fileObject.attachments === "object"
+        ? (fileObject.attachments as object)
+        : {}),
+      cacheDir:
+        process.env.MOTTBOT_ATTACHMENT_CACHE_DIR ??
+        (fileObject.attachments && typeof fileObject.attachments === "object"
+          ? (fileObject.attachments as any).cacheDir
+          : undefined),
+      maxFileBytes:
+        process.env.MOTTBOT_ATTACHMENT_MAX_FILE_BYTES === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).maxFileBytes
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_MAX_FILE_BYTES),
+      maxPerMessage:
+        process.env.MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).maxPerMessage
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE),
+    },
     behavior: {
       ...(fileObject.behavior && typeof fileObject.behavior === "object"
         ? (fileObject.behavior as object)
@@ -373,6 +407,11 @@ export function loadConfig(): AppConfig {
     auth: parsed.auth,
     storage: {
       sqlitePath: path.resolve(parsed.storage.sqlitePath),
+    },
+    attachments: {
+      cacheDir: path.resolve(parsed.attachments.cacheDir),
+      maxFileBytes: parsed.attachments.maxFileBytes,
+      maxPerMessage: parsed.attachments.maxPerMessage,
     },
     behavior: parsed.behavior,
     logging: parsed.logging,

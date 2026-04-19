@@ -46,7 +46,8 @@ Implemented in this repo:
 - durable Telegram update dedupe
 - reply-to-bot gating in groups via persisted bot-message tracking
 - restart recovery for interrupted runs
-- attachment-aware prompt construction
+- durable queued-run recovery after restart
+- native image attachment ingestion and attachment-aware prompt construction
 - transcript compaction via deterministic history summaries
 - webhook mode
 - health reporting via `/health` and `mottbot health`
@@ -55,7 +56,7 @@ Implemented in this repo:
 
 Planned hardening that is not yet implemented:
 
-- full binary/media attachment ingestion into model inputs
+- native non-image attachment ingestion into model inputs
 - stronger restart reconciliation for in-progress Telegram deliveries
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

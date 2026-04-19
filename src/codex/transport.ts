@@ -2,16 +2,11 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Logger } from "../shared/logger.js";
 import { getErrorMessage } from "../shared/errors.js";
 import { createId } from "../shared/ids.js";
+import type { PromptMessage } from "../runs/prompt-builder.js";
 import { resolveCodexModel } from "./provider.js";
 import type { CodexResolvedAuth } from "./types.js";
 
 export type TransportMode = "auto" | "sse" | "websocket";
-
-type PromptMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-  timestamp: number;
-};
 
 type StreamParams = {
   sessionKey: string;

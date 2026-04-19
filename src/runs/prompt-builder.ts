@@ -1,8 +1,12 @@
 import type { TranscriptMessage } from "../sessions/types.js";
 
+export type PromptContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
 export type PromptMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | PromptContentBlock[];
   timestamp: number;
 };
 

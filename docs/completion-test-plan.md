@@ -12,21 +12,21 @@ As of April 19, 2026:
 
 - Phase 0 is complete.
 - Phase 1 is complete for the documented runtime hardening scope: deterministic run timestamps, command authorization, command input validation, and operator-driven retention pruning.
-- Phase 2 has started with richer Telegram attachment metadata normalization and transcript/prompt metadata rendering.
+- Phase 2 is complete for the single-host scope: Telegram image attachments are downloaded safely, converted into native model image inputs when supported, represented as text metadata otherwise, and cleaned from the local cache after request construction.
+- Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 33 test files and 81 tests.
+- `corepack pnpm test` passes with 35 test files and 89 tests.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
 Current known gaps:
 
-- Telegram attachments are recorded as metadata only; files are not downloaded or sent as native model inputs.
-- The per-session execution queue is in memory only.
-- Restart recovery marks interrupted runs failed but does not resume queued work or notify Telegram after restart.
+- Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
+- Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Database migrations are schema-bootstrap only, not versioned.
 - Live Telegram, OAuth, and Codex subscription-backed model calls are not covered by automated tests.
 - Multi-instance coordination is intentionally out of scope for the current runtime posture.

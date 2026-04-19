@@ -23,9 +23,9 @@ OPENAI_CODEX_API = "openai-codex-responses"
 
 Current built-in model refs:
 
-- `openai-codex/gpt-5.4`
-- `openai-codex/gpt-5.4-mini`
-- `openai-codex/gpt-5.3-codex-spark`
+- `openai-codex/gpt-5.4`: text and image input
+- `openai-codex/gpt-5.4-mini`: text and image input
+- `openai-codex/gpt-5.3-codex-spark`: text input
 
 The provider catalog also records:
 

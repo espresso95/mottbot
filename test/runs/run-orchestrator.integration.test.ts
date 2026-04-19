@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
+import { RunQueueStore } from "../../src/runs/run-queue-store.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
@@ -156,6 +157,28 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
+    const attachmentIngestor = {
+      prepare: vi.fn(async () => ({
+        transcriptAttachments: [
+          {
+            kind: "photo",
+            fileId: "photo-1",
+            mimeType: "image/png",
+            ingestionStatus: "native_input",
+          },
+        ],
+        nativeInputs: [{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }],
+        cachePaths: ["/tmp/not-leaked.png"],
+      })),
+      cleanup: vi.fn(async () => undefined),
+    };
+    const transport = {
+      stream: vi.fn(async ({ messages, onStart }) => {
+        await onStart?.();
+        expect(JSON.stringify(messages)).not.toContain("/tmp/not-leaked.png");
+        return { text: "noted", transport: "sse", requestIdentity: "req-2" };
+      }),
+    };
     const orchestrator = new RunOrchestrator(
       stores.config,
       new SessionQueue(),
@@ -163,15 +186,11 @@ describe("RunOrchestrator", () => {
       stores.transcripts,
       stores.runs,
       { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
-      {
-        stream: vi.fn(async ({ onStart }) => {
-          await onStart?.();
-          return { text: "noted", transport: "sse", requestIdentity: "req-2" };
-        }),
-      } as any,
+      transport as any,
       outbox as any,
       stores.clock,
       stores.logger,
+      attachmentIngestor as any,
     );
 
     await orchestrator.enqueueMessage({
@@ -187,6 +206,86 @@ describe("RunOrchestrator", () => {
 
     const messages = stores.transcripts.listRecent(session.sessionKey);
     expect(messages[0]?.contentJson).toContain("photo-1");
+    expect(messages[0]?.contentJson).toContain("native_input");
     expect(messages[0]?.contentText).toBe("Shared attachments.");
+    const streamMessages = transport.stream.mock.calls[0]?.[0].messages;
+    const lastUserMessage = streamMessages?.findLast((message: any) => message.role === "user");
+    expect(lastUserMessage?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }),
+      ]),
+    );
+    expect(attachmentIngestor.prepare).toHaveBeenCalledWith(
+      expect.objectContaining({ allowNativeImages: true }),
+    );
+    expect(attachmentIngestor.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers durable queued runs after restart", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    stores.transcripts.add({
+      sessionKey: session.sessionKey,
+      runId: run.runId,
+      role: "user",
+      contentText: "resume me",
+      telegramMessageId: 42,
+    });
+    const durableQueue = new RunQueueStore(stores.database, stores.clock);
+    durableQueue.create({
+      runId: run.runId,
+      sessionKey: session.sessionKey,
+      event: createInboundEvent({ text: "resume me", messageId: 42 }),
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 100, chatId: "chat-1", runId: run.runId, lastText: "Working...", lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 100, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 100 })),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        stream: vi.fn(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "resumed", transport: "sse", requestIdentity: "req-recovered" };
+        }),
+      } as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      durableQueue,
+    );
+
+    expect(orchestrator.recoverQueuedRuns()).toEqual({ resumed: 1, failed: 0 });
+    await flushAsync();
+
+    expect(outbox.start).toHaveBeenCalledWith(expect.objectContaining({
+      placeholderText: "Resuming queued request after restart...",
+    }));
+    expect(stores.runs.get(run.runId)).toMatchObject({ status: "completed" });
+    expect(durableQueue.get(run.runId)).toMatchObject({ state: "completed", attempts: 1 });
   });
 });

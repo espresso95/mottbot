@@ -56,6 +56,11 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     storage: {
       sqlitePath: path.join(tempDir, "mottbot.sqlite"),
     },
+    attachments: {
+      cacheDir: path.join(tempDir, "attachments"),
+      maxFileBytes: 20 * 1024 * 1024,
+      maxPerMessage: 4,
+    },
     behavior: {
       respondInGroupsOnlyWhenMentioned: true,
       editThrottleMs: 750,
@@ -92,6 +97,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     models: { ...base.models, ...overrides.models },
     auth: { ...base.auth, ...overrides.auth },
     storage: { ...base.storage, ...overrides.storage },
+    attachments: { ...base.attachments, ...overrides.attachments },
     behavior: { ...base.behavior, ...overrides.behavior },
     logging: { ...base.logging, ...overrides.logging },
     oauth: { ...base.oauth, ...overrides.oauth },

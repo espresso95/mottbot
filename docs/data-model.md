@@ -216,6 +216,35 @@ Notable fields:
 - `error_message`
 - `usage_json`
 
+### `run_queue`
+
+Purpose:
+
+- durable restart metadata for accepted but not-yet-completed runs
+
+Notable fields:
+
+- `run_id`
+- `session_key`
+- `chat_id`
+- `thread_id`
+- `message_id`
+- `reply_to_message_id`
+- `event_json`
+- `state`
+- `attempts`
+- `claimed_at`
+- `lease_expires_at`
+
+Current states used:
+
+- `queued`
+- `claimed`
+- `completed`
+- `failed`
+
+The queue table is still scoped to a single process. Leases prevent duplicate restart claims in the supported local runtime; they are not a distributed lock for multiple replicas.
+
 ### `telegram_updates`
 
 Purpose:
@@ -285,6 +314,7 @@ Current retention policy is explicit but operator-driven:
 - terminal runs can be pruned by age with `mottbot db prune`
 - queued, starting, and streaming runs are retained for recovery
 - active outbox rows are retained
+- completed and failed queue rows can be pruned by age
 - processed Telegram update IDs can be pruned by age
 - old bot-message ACL rows can be pruned, which means replies to those old Telegram messages will no longer be accepted only by reply relationship
 - auth profiles are updated in place
@@ -294,7 +324,7 @@ There is no automatic compaction or archival task yet. Operators should back up 
 
 ## Attachment Metadata
 
-Telegram attachment files are still metadata-only. The event and transcript metadata can carry:
+The event and transcript metadata can carry:
 
 - attachment kind
 - Telegram `file_id` and `file_unique_id`
@@ -303,13 +333,14 @@ Telegram attachment files are still metadata-only. The event and transcript meta
 - byte size
 - image dimensions
 - audio or video duration
+- ingestion status and reason
 
-Raw file bytes and local cache paths are not stored in SQLite yet.
+Supported image attachments can also be downloaded into the local attachment cache and converted into base64 model input blocks. Raw file bytes and local cache paths are not stored in SQLite.
 
 ## Known Data-Model Gaps
 
 - no schema version history beyond bootstrap migration
-- no attachment blob storage or file-cache table
-- no durable queue state
+- no attachment blob storage or durable file-cache table
+- no distributed queue state for multi-replica deployments
 - no summarization state for long transcripts
 - no dedicated health state for auth profiles beyond refresh failures

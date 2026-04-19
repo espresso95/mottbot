@@ -15,6 +15,7 @@ export type OperationalRetentionResult = {
   messages: number;
   telegramBotMessages: number;
   outboxMessages: number;
+  runQueue: number;
   runs: number;
 };
 
@@ -133,6 +134,11 @@ export function pruneOperationalData(params: {
         ...terminalRunParams,
       ],
     },
+    runQueue: {
+      sql: `updated_at < ? and state in ('completed', 'failed')
+        or run_id in (${terminalRunIdsSql})`,
+      params: [params.cutoffs.terminalRunsBefore, ...terminalRunParams],
+    },
     runs: {
       sql: `run_id in (${terminalRunIdsSql})`,
       params: terminalRunParams,
@@ -149,6 +155,7 @@ export function pruneOperationalData(params: {
       where.telegramBotMessages.params,
     ),
     outboxMessages: count(params.database, "outbox_messages", where.outboxMessages.sql, where.outboxMessages.params),
+    runQueue: count(params.database, "run_queue", where.runQueue.sql, where.runQueue.params),
     runs: count(params.database, "runs", where.runs.sql, where.runs.params),
   };
 
@@ -180,12 +187,14 @@ export function pruneOperationalData(params: {
       where.outboxMessages.sql,
       where.outboxMessages.params,
     );
+    const runQueue = remove(params.database, "run_queue", where.runQueue.sql, where.runQueue.params);
     const runs = remove(params.database, "runs", where.runs.sql, where.runs.params);
     return {
       telegramUpdates,
       messages,
       telegramBotMessages,
       outboxMessages,
+      runQueue,
       runs,
     };
   })();

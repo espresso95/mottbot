@@ -65,6 +65,28 @@ create table if not exists runs (
 
 create index if not exists idx_runs_session_created on runs(session_key, created_at);
 
+create table if not exists run_queue (
+  run_id text primary key,
+  session_key text not null,
+  chat_id text not null,
+  thread_id integer,
+  message_id integer not null,
+  reply_to_message_id integer,
+  event_json text,
+  state text not null,
+  attempts integer not null default 0,
+  claimed_at integer,
+  lease_expires_at integer,
+  error_message text,
+  created_at integer not null,
+  updated_at integer not null,
+  foreign key (run_id) references runs(run_id) on delete cascade,
+  foreign key (session_key) references session_routes(session_key)
+);
+
+create index if not exists idx_run_queue_state_updated on run_queue(state, updated_at);
+create index if not exists idx_run_queue_session_state on run_queue(session_key, state);
+
 create table if not exists telegram_updates (
   update_id integer primary key,
   chat_id text,

@@ -4,6 +4,7 @@ import {
   OPENAI_CODEX_BASE_URL,
   isKnownCodexModelRef,
   resolveCodexModel,
+  supportsNativeImageInput,
 } from "../../src/codex/provider.js";
 
 describe("resolveCodexModel", () => {
@@ -24,5 +25,10 @@ describe("resolveCodexModel", () => {
   it("identifies supported command-selectable model refs", () => {
     expect(isKnownCodexModelRef("openai-codex/gpt-5.4-mini")).toBe(true);
     expect(isKnownCodexModelRef("openai-codex/not-a-model")).toBe(false);
+  });
+
+  it("identifies native image input support", () => {
+    expect(supportsNativeImageInput("openai-codex/gpt-5.4")).toBe(true);
+    expect(supportsNativeImageInput("openai-codex/gpt-5.3-codex-spark")).toBe(false);
   });
 });

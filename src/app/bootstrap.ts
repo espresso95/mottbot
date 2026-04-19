@@ -17,10 +17,12 @@ import { TelegramOutbox } from "../telegram/outbox.js";
 import { AccessController } from "../telegram/acl.js";
 import { RouteResolver } from "../telegram/route-resolver.js";
 import { RunOrchestrator } from "../runs/run-orchestrator.js";
+import { RunQueueStore } from "../runs/run-queue-store.js";
 import { TelegramCommandRouter } from "../telegram/commands.js";
 import { TelegramBotServer } from "../telegram/bot.js";
 import { TelegramUpdateStore } from "../telegram/update-store.js";
 import { TelegramMessageStore } from "../telegram/message-store.js";
+import { TelegramAttachmentIngestor } from "../telegram/attachments.js";
 import { DashboardServer } from "./dashboard.js";
 
 export async function bootstrapApplication() {
@@ -41,6 +43,7 @@ export async function bootstrapApplication() {
   const transcriptStore = new TranscriptStore(database, systemClock);
   const queue = new SessionQueue();
   const runStore = new RunStore(database, systemClock);
+  const runQueueStore = new RunQueueStore(database, systemClock);
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
   const transport = new CodexTransport(database, logger);
   const updateStore = new TelegramUpdateStore(database, systemClock);
@@ -67,7 +70,12 @@ export async function bootstrapApplication() {
     config.behavior.editThrottleMs,
     messageStore,
   );
+  const attachmentIngestor = new TelegramAttachmentIngestor(provisionalBot.api, config);
   const recoveredRuns = runStore.recoverInterruptedRuns();
+  runQueueStore.failRuns(
+    recoveredRuns.map((run) => run.runId),
+    "Recovered as failed after process restart.",
+  );
   const recoveredOutboxes = outbox.recoverInterruptedRuns({
     runs: recoveredRuns.map((run) => ({
       runId: run.runId,
@@ -97,7 +105,10 @@ export async function bootstrapApplication() {
     outbox,
     systemClock,
     logger,
+    attachmentIngestor,
+    runQueueStore,
   );
+  orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
     provisionalBot.api,
     config,

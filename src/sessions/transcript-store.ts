@@ -94,6 +94,12 @@ export class TranscriptStore {
     this.database.db.prepare("delete from messages where session_key = ?").run(sessionKey);
   }
 
+  updateRunMessageContentJson(runId: string, role: TranscriptMessageRole, contentJson?: string): void {
+    this.database.db
+      .prepare("update messages set content_json = ? where run_id = ? and role = ?")
+      .run(contentJson ?? null, runId, role);
+  }
+
   hasRunMessage(runId: string, role?: TranscriptMessageRole): boolean {
     const row = this.database.db
       .prepare<unknown[], { id: string }>(

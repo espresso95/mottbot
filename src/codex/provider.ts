@@ -34,6 +34,10 @@ export function isKnownCodexModelRef(modelRef: string): modelRef is (typeof KNOW
   return (KNOWN_CODEX_MODEL_REFS as readonly string[]).includes(modelRef);
 }
 
+export function supportsNativeImageInput(modelRef: string): boolean {
+  return resolveCodexModel(modelRef, "sse").input.includes("image");
+}
+
 export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
   const [, modelId = "gpt-5.4"] = modelRef.split("/");
   if (modelId === "gpt-5.4-mini") {

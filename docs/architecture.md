@@ -84,6 +84,7 @@ Owns route identity and concurrency.
 Owns one model turn from start to finish.
 
 - `run-orchestrator.ts`: top-level execution workflow
+- `run-queue-store.ts`: durable queued-run metadata and single-process claim state
 - `run-store.ts`: persisted run state
 - `prompt-builder.ts`: rolling prompt construction from transcript history
 - `stream-collector.ts`: accumulates streamed text and thinking deltas
@@ -192,7 +193,7 @@ All long-lived state lives in sessions, transcripts, runs, auth profiles, and tr
 
 ### 2. Sessions are the concurrency boundary
 
-`SessionQueue` serializes work per `session_key`. This prevents overlapping turns from corrupting transcript ordering or producing interleaved Telegram edits.
+`SessionQueue` serializes work per `session_key`. `run_queue` persists accepted queued work so a restarted process can resume runs that never reached `starting`.
 
 ### 3. Provider logic is isolated
 
@@ -229,13 +230,14 @@ Implemented now:
 - WebSocket-first transport with SSE fallback
 - throttled Telegram outbox edits
 - restart recovery for `starting` and `streaming` runs
+- durable recovery for accepted queued runs
 - mid-stream outbox rebind when Telegram edit calls fail
-- attachment-aware prompt construction and transcript compaction
+- native image attachment input, attachment-aware prompt construction, and transcript compaction
 - basic health reporting
 
 Not yet implemented:
 
-- native file/media upload into model requests
+- native model input support for non-image file/media types
 - richer summarization or learned compaction
 - multi-instance locks or distributed coordination
 

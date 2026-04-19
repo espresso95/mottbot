@@ -51,7 +51,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 33 test files, 81 tests passing
+- `pnpm test`: 35 test files, 89 tests passing
 - `pnpm test:coverage`: passes
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
@@ -64,10 +64,17 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.94% |
-| Branches | 72.47% |
-| Functions | 90.37% |
-| Lines | 86.00% |
+| Statements | 84.78% |
+| Branches | 71.99% |
+| Functions | 89.28% |
+| Lines | 84.86% |
+
+Coverage thresholds are enforced in `vitest.config.ts`:
+
+- statements: 84%
+- branches: 70%
+- functions: 88%
+- lines: 84%
 
 ## Coverage Map
 
@@ -178,6 +185,8 @@ The current suite catches several subtle behaviors that matter in production:
 - non-admin group commands and disallowed-chat commands are rejected before route creation
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
+- supported image attachments are downloaded, converted into native model image inputs, and cleaned from the local cache
+- durable queue rows prevent duplicate active claims and allow queued runs to resume after restart
 - interrupted runs are recovered as failed on restart
 - processed Telegram updates are deduplicated durably
 - webhook mode configures the local server and Telegram webhook registration correctly
@@ -194,7 +203,7 @@ Not fully covered today:
 - real ChatGPT/Codex OAuth against an operator account
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
-- native attachment ingestion into model prompts
+- native model input support for non-image attachment types
 
 ## Why The Coverage Is Good Enough For The Current Repo
 

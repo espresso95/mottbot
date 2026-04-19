@@ -56,11 +56,15 @@ Current behavior:
 - attachments are recorded on the event and persisted into transcript metadata
 - stored metadata can include file name, MIME type, size, dimensions, duration, and Telegram file IDs
 - prompts render attachment summaries as text context and strip directory-like prefixes from file names
+- image attachments are downloaded through Telegram `getFile` when the selected model supports native image input
+- downloaded image bytes are converted into base64 image blocks for the model request
+- unsupported attachment kinds and MIME types remain text metadata
+- cached attachment files are deleted after model request construction or failure cleanup
 
 Current limitation:
 
-- attachment files are not downloaded into the local cache yet
-- attachments are not yet uploaded or passed as native binary/image inputs to the model
+- non-image documents, audio, video, stickers, and animations are not passed as native model inputs
+- media-group coalescing is not implemented
 
 ## Access Control
 
@@ -181,19 +185,21 @@ Current policy:
 
 ## Session Queue
 
-`SessionQueue` is the primary concurrency guard.
+`SessionQueue` is the primary in-process concurrency guard.
 
 Behavior:
 
 - one active task per `session_key`
 - later tasks chain behind the current tail
 - cancellation aborts only the active task
-- queue state is in memory, not persisted
+- accepted run queue metadata is persisted in `run_queue`
+- execution claims use a single-process lease to avoid duplicate execution after restart
 
 Current behavior:
 
 - accepted updates are persisted into transcript and `runs` before the queued execution phase starts
-- the queue only owns execution, not ingress durability
+- the in-memory queue owns execution ordering, while `run_queue` owns restart recovery metadata
+- queued runs are resumed on restart when their session route and user transcript record still exist
 
 Important implementation detail:
 
@@ -207,19 +213,22 @@ Important implementation detail:
 
 1. Ignore empty text and caption-only empty events.
 2. Ensure the session route exists in the database.
-3. Persist the user message to the transcript.
-4. Create a `runs` row in `queued` state.
-5. Return control to ingress so the accepted update can be marked processed.
-6. Send a placeholder Telegram message through the outbox.
-7. Move the run to `starting`.
-8. Resolve auth for the selected profile.
-9. Load recent transcript history.
-10. Build the model prompt.
-11. Start streaming through `CodexTransport`.
-12. Move the run to `streaming` on stream start.
-13. Append text deltas to the collector and edit the placeholder message.
-14. Finalize the message, persist the assistant transcript entry, and record usage.
-15. Mark the run `completed`.
+3. Create a `runs` row in `queued` state.
+4. Persist the user message to the transcript with the run ID.
+5. Persist a `run_queue` row with the inbound context needed for restart recovery.
+6. Return control to ingress so the accepted update can be marked processed.
+7. Claim the queued run for execution.
+8. Send a placeholder Telegram message through the outbox.
+9. Move the run to `starting`.
+10. Resolve auth for the selected profile.
+11. Load recent transcript history.
+12. Download supported image attachments and convert them into native model input blocks.
+13. Build the model prompt.
+14. Start streaming through `CodexTransport`.
+15. Move the run to `streaming` on stream start.
+16. Append text deltas to the collector and edit the placeholder message.
+17. Finalize the message, persist the assistant transcript entry, and record usage.
+18. Mark the run `completed` and the queue row `completed`.
 
 ### Failure path
 
@@ -240,6 +249,8 @@ Current policy:
 - tool messages are excluded from prompt construction
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text
+- native image inputs are appended only to the latest user message
+- cached attachment paths and raw bytes are never rendered into user-visible Telegram output
 
 Default system prompt:
 
@@ -294,5 +305,5 @@ The runtime is optimized for Telegram's constraints:
 The Telegram runtime intentionally leaves several hardening items for later:
 
 - no media group coalescing
-- no native attachment upload or rehydration into model inputs
-- no persisted execution queue recovery on restart beyond interrupted-run reconciliation
+- no native model input support for non-image attachment types
+- no multi-process or multi-replica queue ownership
