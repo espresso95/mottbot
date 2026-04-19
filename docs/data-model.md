@@ -279,19 +279,37 @@ This is only used for auth profile storage. The Telegram bot token is read from 
 
 ## Data Retention
 
-Current retention policy is simple:
+Current retention policy is explicit but operator-driven:
 
-- transcripts are append-only until `/reset` or `/new`
-- runs are never pruned automatically
+- transcripts are append-only until `/reset`, `/new`, or `mottbot db prune`
+- terminal runs can be pruned by age with `mottbot db prune`
+- queued, starting, and streaming runs are retained for recovery
+- active outbox rows are retained
+- processed Telegram update IDs can be pruned by age
+- old bot-message ACL rows can be pruned, which means replies to those old Telegram messages will no longer be accepted only by reply relationship
 - auth profiles are updated in place
-- outbox rows are kept after completion
+- session routes are not pruned by the retention helper
 
-There is no automatic compaction or archival task yet.
+There is no automatic compaction or archival task yet. Operators should back up SQLite before destructive pruning.
+
+## Attachment Metadata
+
+Telegram attachment files are still metadata-only. The event and transcript metadata can carry:
+
+- attachment kind
+- Telegram `file_id` and `file_unique_id`
+- file name
+- MIME type
+- byte size
+- image dimensions
+- audio or video duration
+
+Raw file bytes and local cache paths are not stored in SQLite yet.
 
 ## Known Data-Model Gaps
 
 - no schema version history beyond bootstrap migration
-- no attachment blob storage
+- no attachment blob storage or file-cache table
 - no durable queue state
 - no summarization state for long transcripts
 - no dedicated health state for auth profiles beyond refresh failures

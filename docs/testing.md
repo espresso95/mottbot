@@ -51,7 +51,8 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 32 test files, 79 tests passing
+- `pnpm test`: 33 test files, 81 tests passing
+- `pnpm test:coverage`: passes
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 
@@ -59,14 +60,14 @@ The mocked OAuth login test intentionally prints a normalized authorization URL 
 https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_access+model.request+api.responses.write
 ```
 
-Last recorded coverage run on April 12, 2026:
+Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 86.33% |
-| Branches | 71.06% |
-| Functions | 91.04% |
-| Lines | 86.35% |
+| Statements | 85.94% |
+| Branches | 72.47% |
+| Functions | 90.37% |
+| Lines | 86.00% |
 
 ## Coverage Map
 
@@ -175,6 +176,8 @@ The current suite catches several subtle behaviors that matter in production:
 - unknown profiles are rejected instead of poisoning future runs
 - unknown model refs and unsafe command arguments are rejected before mutating session settings
 - non-admin group commands and disallowed-chat commands are rejected before route creation
+- retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
+- Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
 - interrupted runs are recovered as failed on restart
 - processed Telegram updates are deduplicated durably
 - webhook mode configures the local server and Telegram webhook registration correctly

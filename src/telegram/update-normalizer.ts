@@ -27,9 +27,24 @@ function collectEntities(message: Record<string, unknown>): NormalizedEntity[] {
 function collectAttachments(message: Record<string, unknown>): NormalizedAttachment[] {
   const attachments: NormalizedAttachment[] = [];
   const push = (kind: NormalizedAttachment["kind"], value: unknown) => {
-    if (value && typeof value === "object" && "file_id" in value && typeof value.file_id === "string") {
-      attachments.push({ kind, fileId: value.file_id });
+    if (!value || typeof value !== "object") {
+      return;
     }
+    const record = value as Record<string, unknown>;
+    if (typeof record.file_id !== "string") {
+      return;
+    }
+    attachments.push({
+      kind,
+      fileId: record.file_id,
+      ...(typeof record.file_unique_id === "string" ? { fileUniqueId: record.file_unique_id } : {}),
+      ...(typeof record.file_name === "string" ? { fileName: record.file_name } : {}),
+      ...(typeof record.mime_type === "string" ? { mimeType: record.mime_type } : {}),
+      ...(typeof record.file_size === "number" ? { fileSize: record.file_size } : {}),
+      ...(typeof record.width === "number" ? { width: record.width } : {}),
+      ...(typeof record.height === "number" ? { height: record.height } : {}),
+      ...(typeof record.duration === "number" ? { duration: record.duration } : {}),
+    });
   };
 
   if (Array.isArray(message.photo) && message.photo.length > 0) {

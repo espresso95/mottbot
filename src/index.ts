@@ -6,6 +6,7 @@ import { createLogger } from "./shared/logger.js";
 import { SecretBox } from "./shared/crypto.js";
 import { DatabaseClient } from "./db/client.js";
 import { migrateDatabase } from "./db/migrate.js";
+import { buildOperationalRetentionCutoffs, pruneOperationalData } from "./db/retention.js";
 import { AuthProfileStore } from "./codex/auth-store.js";
 import { runCodexOAuthLogin } from "./codex/oauth-login.js";
 import { importCodexCliAuthProfile } from "./codex/cli-auth-import.js";
@@ -80,6 +81,43 @@ async function runHealth(): Promise<void> {
   }
 }
 
+function readPositiveIntFlag(args: string[], name: string, fallback: number): number {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return fallback;
+  }
+  const raw = args[index + 1];
+  const parsed = raw ? Number(raw) : Number.NaN;
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be followed by a positive integer.`);
+  }
+  return parsed;
+}
+
+async function runDbPrune(args: string[]): Promise<void> {
+  const config = loadConfig();
+  const database = new DatabaseClient(config.storage.sqlitePath);
+  try {
+    migrateDatabase(database);
+    const olderThanDays = readPositiveIntFlag(args, "--older-than-days", 30);
+    const dryRun = !args.includes("--yes") || args.includes("--dry-run");
+    const result = pruneOperationalData({
+      database,
+      cutoffs: buildOperationalRetentionCutoffs({
+        now: systemClock.now(),
+        olderThanDays,
+      }),
+      dryRun,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (dryRun) {
+      process.stdout.write("Dry run only. Re-run with --yes to delete matching rows.\n");
+    }
+  } finally {
+    database.close();
+  }
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -88,6 +126,7 @@ function printHelp(): void {
       "  mottbot auth login",
       "  mottbot auth import-cli",
       "  mottbot db migrate",
+      "  mottbot db prune [--older-than-days 30] [--dry-run|--yes]",
       "  mottbot health",
     ].join("\n") + "\n",
   );
@@ -95,7 +134,7 @@ function printHelp(): void {
 
 async function main(): Promise<void> {
   const [, , ...args] = process.argv;
-  const [group = "start", subcommand] = args;
+  const [group = "start", subcommand, ...rest] = args;
 
   if (group === "start") {
     await runStart();
@@ -114,6 +153,10 @@ async function main(): Promise<void> {
     const database = new DatabaseClient(config.storage.sqlitePath);
     migrateDatabase(database);
     database.close();
+    return;
+  }
+  if (group === "db" && subcommand === "prune") {
+    await runDbPrune(rest);
     return;
   }
   if (group === "health") {

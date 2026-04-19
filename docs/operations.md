@@ -123,6 +123,7 @@ mottbot start
 mottbot auth login
 mottbot auth import-cli
 mottbot db migrate
+mottbot db prune --older-than-days 30 --dry-run
 ```
 
 Equivalent `pnpm` scripts:
@@ -136,7 +137,34 @@ Equivalent `pnpm` scripts:
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
+- `pnpm db:prune`
 - `pnpm health`
+
+## Data Retention Operations
+
+`mottbot db prune` removes old operational rows without touching auth profiles or session routes.
+
+Default behavior is a dry run:
+
+```bash
+pnpm db:prune
+```
+
+To delete rows older than a chosen age:
+
+```bash
+tsx src/index.ts db prune --older-than-days 30 --yes
+```
+
+Retention safety rules:
+
+- `queued`, `starting`, and `streaming` runs are never pruned
+- `active` outbox rows are never pruned
+- terminal runs are pruned only after old child outbox, bot-message, and transcript rows are safe to remove
+- processed Telegram update IDs are pruned by `processed_at`, which means very old duplicate updates can be accepted again
+- session routes and auth profiles are not pruned by this command
+
+Back up the SQLite file before running destructive pruning on a production host.
 
 ## Auth Operations
 

@@ -22,6 +22,12 @@ type TranscriptEnvelope = {
   attachments?: Array<{
     kind?: string;
     fileId?: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+    width?: number;
+    height?: number;
+    duration?: number;
   }>;
 };
 
@@ -45,6 +51,34 @@ function condenseText(text: string, limit = 160): string {
   return `${condensed.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
 }
 
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function sanitizeFileName(value: string): string {
+  return value.split(/[\\/]/).at(-1)?.replace(/\s+/g, " ").trim() || "unnamed";
+}
+
+function renderAttachmentMetadata(attachment: NonNullable<TranscriptEnvelope["attachments"]>[number]): string {
+  const details = [
+    typeof attachment.fileName === "string" ? `name: ${sanitizeFileName(attachment.fileName)}` : undefined,
+    typeof attachment.mimeType === "string" ? `mime: ${attachment.mimeType}` : undefined,
+    typeof attachment.fileSize === "number" ? `size: ${formatBytes(attachment.fileSize)}` : undefined,
+    typeof attachment.width === "number" && typeof attachment.height === "number"
+      ? `dimensions: ${attachment.width}x${attachment.height}`
+      : undefined,
+    typeof attachment.duration === "number" ? `duration: ${attachment.duration}s` : undefined,
+    typeof attachment.fileId === "string" ? `Telegram file id: ${attachment.fileId}` : undefined,
+  ].filter(Boolean);
+  return `- ${attachment.kind}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
+}
+
 function renderTranscriptContent(entry: TranscriptMessage): string {
   const parts: string[] = [];
   if (entry.contentText?.trim()) {
@@ -57,7 +91,7 @@ function renderTranscriptContent(entry: TranscriptMessage): string {
     parts.push(
       [
         "Attachments:",
-        ...attachments.map((attachment) => `- ${attachment.kind} (Telegram file id: ${attachment.fileId})`),
+        ...attachments.map(renderAttachmentMetadata),
       ].join("\n"),
     );
   }

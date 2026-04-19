@@ -38,6 +38,52 @@ describe("normalizeUpdate", () => {
     expect(event?.entities).toEqual([{ type: "mention", offset: 6, length: 8 }]);
   });
 
+  it("normalizes Telegram attachment metadata without file bytes", () => {
+    const event = normalizeUpdate({
+      clock: new FakeClock(123),
+      botUsername: "mottbot",
+      ctx: {
+        update: { update_id: 11 },
+        message: {
+          message_id: 23,
+          caption: "inspect this",
+          chat: { id: 42, type: "private" },
+          from: { id: 77 },
+          photo: [
+            { file_id: "small-photo", file_unique_id: "small", width: 90, height: 90, file_size: 1000 },
+            { file_id: "large-photo", file_unique_id: "large", width: 1280, height: 720, file_size: 250000 },
+          ],
+          document: {
+            file_id: "doc-1",
+            file_unique_id: "doc-unique",
+            file_name: "report.pdf",
+            mime_type: "application/pdf",
+            file_size: 4096,
+          },
+        },
+      } as any,
+    });
+
+    expect(event?.attachments).toEqual([
+      {
+        kind: "photo",
+        fileId: "large-photo",
+        fileUniqueId: "large",
+        width: 1280,
+        height: 720,
+        fileSize: 250000,
+      },
+      {
+        kind: "document",
+        fileId: "doc-1",
+        fileUniqueId: "doc-unique",
+        fileName: "report.pdf",
+        mimeType: "application/pdf",
+        fileSize: 4096,
+      },
+    ]);
+  });
+
   it("returns null when no message is present", () => {
     expect(
       normalizeUpdate({

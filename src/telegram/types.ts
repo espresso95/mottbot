@@ -8,6 +8,13 @@ export type NormalizedEntity = {
 export type NormalizedAttachment = {
   kind: "photo" | "document" | "audio" | "voice" | "video" | "sticker" | "animation" | "other";
   fileId: string;
+  fileUniqueId?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  duration?: number;
 };
 
 export type InboundEvent = {

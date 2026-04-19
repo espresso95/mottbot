@@ -6,12 +6,20 @@ This document breaks the remaining work for Mottbot into implementation and veri
 
 The goal is to move the project from a working local scaffold into a hardened single-host operator bot with complete attachment handling, durable run recovery, disciplined migrations, live integration validation, and production-ready operational documentation.
 
+## Implementation Status
+
+As of April 19, 2026:
+
+- Phase 0 is complete.
+- Phase 1 is complete for the documented runtime hardening scope: deterministic run timestamps, command authorization, command input validation, and operator-driven retention pruning.
+- Phase 2 has started with richer Telegram attachment metadata normalization and transcript/prompt metadata rendering.
+
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 32 test files and 76 tests.
+- `corepack pnpm test` passes with 33 test files and 81 tests.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
 Current known gaps:
@@ -448,4 +456,3 @@ Deliverables:
 - Add tests proving provider swap does not affect Telegram routing.
 - Document supported providers and auth modes.
 - Avoid adding this until there is a real second provider requirement.
-

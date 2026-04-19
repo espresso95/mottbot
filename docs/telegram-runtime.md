@@ -35,7 +35,7 @@ Current behavior:
 - accepts only Telegram message updates
 - captures `text` or `caption` as visible text
 - extracts entities from `entities` or `caption_entities`
-- extracts a single representative file ID for supported attachment kinds
+- extracts a single representative file ID and Telegram metadata for supported attachment kinds
 - records processed update IDs durably after successful acceptance
 - detects bot mention by username substring match
 - flags commands when the visible text begins with `/`
@@ -54,10 +54,12 @@ Supported attachment kinds:
 Current behavior:
 
 - attachments are recorded on the event and persisted into transcript metadata
-- prompts render attachment summaries as text context
+- stored metadata can include file name, MIME type, size, dimensions, duration, and Telegram file IDs
+- prompts render attachment summaries as text context and strip directory-like prefixes from file names
 
 Current limitation:
 
+- attachment files are not downloaded into the local cache yet
 - attachments are not yet uploaded or passed as native binary/image inputs to the model
 
 ## Access Control

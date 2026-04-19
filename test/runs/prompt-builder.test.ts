@@ -29,7 +29,17 @@ describe("buildPrompt", () => {
           role: "user",
           contentText: "See attached",
           contentJson: JSON.stringify({
-            attachments: [{ kind: "photo", fileId: "abc123" }],
+            attachments: [
+              {
+                kind: "photo",
+                fileId: "abc123",
+                fileName: "/tmp/not-exposed.png",
+                mimeType: "image/png",
+                fileSize: 4096,
+                width: 640,
+                height: 480,
+              },
+            ],
           }),
           createdAt: 1,
         },
@@ -38,6 +48,10 @@ describe("buildPrompt", () => {
     expect(prompt.messages[0]?.content).toContain("Attachments:");
     expect(prompt.messages[0]?.content).toContain("photo");
     expect(prompt.messages[0]?.content).toContain("abc123");
+    expect(prompt.messages[0]?.content).toContain("not-exposed.png");
+    expect(prompt.messages[0]?.content).toContain("image/png");
+    expect(prompt.messages[0]?.content).toContain("640x480");
+    expect(prompt.messages[0]?.content).not.toContain("/tmp/");
   });
 
   it("compacts older history into a summary message", () => {

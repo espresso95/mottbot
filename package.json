@@ -18,7 +18,8 @@
     "health": "tsx src/index.ts health",
     "auth:login": "tsx src/index.ts auth login",
     "auth:import-cli": "tsx src/index.ts auth import-cli",
-    "db:migrate": "tsx src/index.ts db migrate"
+    "db:migrate": "tsx src/index.ts db migrate",
+    "db:prune": "tsx src/index.ts db prune --dry-run"
   },
   "engines": {
     "node": ">=24"
