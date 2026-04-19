@@ -140,6 +140,15 @@ describe("TelegramCommandRouter", () => {
         isCommand: true,
       }),
     );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "allowed-chat",
+        chatType: "group",
+        text: "/help",
+        fromUserId: "user-1",
+        isCommand: true,
+      }),
+    );
 
     expect(stores.sessions.findByChat("chat-1")).toBeUndefined();
     expect(stores.sessions.findByChat("allowed-chat")).toBeUndefined();
@@ -374,6 +383,103 @@ describe("TelegramCommandRouter", () => {
       expect.stringContaining("Status: ok"),
       expect.any(Object),
     );
+  });
+
+  it("handles caller-aware help for admins and non-admin users", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const diagnostics = new OperatorDiagnostics(stores.config, stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      approvals,
+      memories,
+      diagnostics,
+    );
+
+    await router.maybeHandle(
+      createInboundEvent({ text: "/help@StartupMottBot", fromUserId: "admin-1", isCommand: true }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/help", fromUserId: "user-1", isCommand: true }));
+
+    const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    const adminHelp = replies[0] ?? "";
+    const nonAdminHelp = replies[1] ?? "";
+    const nonAdminToolSection = nonAdminHelp.split("Model-exposed tools for this caller:")[1] ?? "";
+
+    expect(adminHelp).toContain("Admin diagnostics");
+    expect(adminHelp).toContain("/debug summary|service|runs|errors|logs|config");
+    expect(adminHelp).toContain("/tool approve <tool-name> <reason>");
+    expect(adminHelp).toContain("mottbot_recent_runs");
+    expect(adminHelp).toContain("mottbot_restart_service");
+    expect(adminHelp).toContain("/remember <fact>");
+
+    expect(nonAdminHelp).toContain("Mottbot help");
+    expect(nonAdminHelp).toContain("/status");
+    expect(nonAdminHelp).not.toContain("Admin diagnostics");
+    expect(nonAdminHelp).not.toContain("/tool approve <tool-name> <reason>");
+    expect(nonAdminToolSection).toContain("mottbot_health_snapshot");
+    expect(nonAdminToolSection).not.toContain("mottbot_recent_runs");
+    expect(nonAdminToolSection).not.toContain("mottbot_restart_service");
+  });
+
+  it("shows tool help through /tool help and /tools", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      new ToolApprovalStore(stores.database, stores.clock),
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/tool help", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/tools", fromUserId: "user-1", isCommand: true }));
+
+    const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    expect(replies[0]).toContain("Tool help");
+    expect(replies[0]).toContain("/tool approve <tool-name> <reason>");
+    expect(replies[0]).toContain("mottbot_restart_service");
+    expect(replies[1]).toContain("Tool help");
+    expect(replies[1]).toContain("Approvals are admin-only.");
+    expect(replies[1]).not.toContain("mottbot_restart_service");
   });
 
   it("handles admin diagnostics commands", async () => {

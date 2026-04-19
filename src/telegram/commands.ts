@@ -64,6 +64,13 @@ function formatUsageSummary(usage: CodexUsageSnapshot): string {
   ].join("; ");
 }
 
+function formatCommandSection(title: string, commands: string[]): string | undefined {
+  if (commands.length === 0) {
+    return undefined;
+  }
+  return [title, ...commands.map((command) => `- ${command}`)].join("\n");
+}
+
 async function sendReply(
   api: Api,
   event: InboundEvent,
@@ -106,6 +113,10 @@ export class TelegramCommandRouter {
     const session = this.routes.resolve(event);
 
     switch (parsed.command) {
+      case "help": {
+        await sendReply(this.api, event, this.formatHelp(event, session));
+        return true;
+      }
       case "status": {
         const authCount = this.authProfiles.list().length;
         let usageSummary = "Usage unavailable";
@@ -139,6 +150,10 @@ export class TelegramCommandRouter {
       }
       case "tool": {
         await this.handleToolCommand(event, session, parsed.args);
+        return true;
+      }
+      case "tools": {
+        await this.handleToolCommand(event, session, parsed.args.length > 0 ? parsed.args : ["help"]);
         return true;
       }
       case "runs": {
@@ -368,6 +383,68 @@ export class TelegramCommandRouter {
     return false;
   }
 
+  private formatHelp(event: InboundEvent, session: SessionRoute): string {
+    const isAdmin = this.isAdmin(event);
+    const sections = [
+      [
+        "Mottbot help",
+        `Session: ${session.sessionKey}`,
+        `Model: ${session.modelRef}`,
+        `Profile: ${session.profileId}`,
+      ].join("\n"),
+      formatCommandSection("Session", [
+        "/status - show session, model, profile, and usage",
+        "/health - show runtime health",
+        "/model <provider/model> - change this session model",
+        "/profile [profile-id] - list or select auth profile",
+        "/fast on|off - toggle priority service tier",
+        "/new or /reset - clear this session transcript",
+        "/stop - cancel the active run for this session",
+        "/bind [name] - keep replies always on for this chat or topic",
+        "/unbind - restore default route behavior",
+      ]),
+      this.memories
+        ? formatCommandSection("Memory", [
+            "/remember <fact> - store memory for this session",
+            "/memory - list session memory",
+            "/forget <memory-id-prefix|all|auto> - remove memory",
+          ])
+        : undefined,
+      this.toolRegistry && this.toolApprovals
+        ? formatCommandSection("Tools", [
+            "/tool status - show model-exposed tools and approvals",
+            "/tool help or /tools - show tool command help",
+            ...(isAdmin
+              ? [
+                  "/tool approve <tool-name> <reason> - approve one side-effecting call",
+                  "/tool revoke <tool-name> - revoke active approval",
+                ]
+              : []),
+          ])
+        : undefined,
+      formatCommandSection("Auth", [
+        "/auth status - list configured auth profiles",
+        "/auth login - show host-local OAuth command",
+        "/auth import-cli - import Codex CLI credentials on this host",
+      ]),
+      isAdmin && this.diagnostics
+        ? formatCommandSection("Admin diagnostics", [
+            "/runs [limit] [here] - list recent runs",
+            "/debug summary|service|runs|errors|logs|config - inspect diagnostics",
+          ])
+        : undefined,
+      this.toolRegistry
+        ? [
+            "Model-exposed tools for this caller:",
+            ...this.toolRegistry
+              .listModelDeclarations({ includeAdminTools: isAdmin })
+              .map((tool) => `- ${tool.name}`),
+          ].join("\n")
+        : undefined,
+    ].filter((section): section is string => Boolean(section));
+    return sections.join("\n\n");
+  }
+
   private async handleRunsCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
     if (!(await this.requireAdmin(event, "inspect runs"))) {
       return;
@@ -461,6 +538,10 @@ export class TelegramCommandRouter {
       await sendReply(this.api, event, "Tool approvals are not available.");
       return;
     }
+    if (sub === "help") {
+      await sendReply(this.api, event, this.formatToolHelp(event, session));
+      return;
+    }
     if (!sub || sub === "status") {
       const tools = this.toolRegistry.listEnabled();
       const exposedTools = this.toolRegistry.listModelDeclarations({
@@ -547,5 +628,37 @@ export class TelegramCommandRouter {
       return;
     }
     await sendReply(this.api, event, "Usage: /tool status | /tool approve <tool-name> <reason> | /tool revoke <tool-name>");
+  }
+
+  private formatToolHelp(event: InboundEvent, session: SessionRoute): string {
+    const isAdmin = this.isAdmin(event);
+    const exposedTools = this.toolRegistry?.listModelDeclarations({ includeAdminTools: isAdmin }) ?? [];
+    const approvals = this.toolApprovals?.listActive(session.sessionKey) ?? [];
+    const commands = [
+      "/tool status - show model-exposed tools, enabled host tools, and active approvals",
+      "/tool help or /tools - show this help",
+      ...(isAdmin
+        ? [
+            "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session",
+            "/tool revoke <tool-name> - revoke active approvals for this session",
+          ]
+        : ["Approvals are admin-only."]),
+    ];
+    return [
+      "Tool help",
+      "",
+      formatCommandSection("Commands", commands),
+      "",
+      exposedTools.length > 0
+        ? `Model-exposed tools for this caller:\n${exposedTools.map((tool) => `- ${tool.name}`).join("\n")}`
+        : "No model-exposed tools for this caller.",
+      "",
+      `Side-effect tools: ${this.config.tools.enableSideEffectTools ? "enabled" : "disabled"}`,
+      approvals.length > 0
+        ? `Active approvals:\n${approvals
+            .map((approval) => `- ${approval.toolName}, expires ${new Date(approval.expiresAt).toISOString()}`)
+            .join("\n")}`
+        : "No active approvals.",
+    ].join("\n");
   }
 }

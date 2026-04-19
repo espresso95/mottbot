@@ -23,14 +23,15 @@ As of April 19, 2026:
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
 - Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
+- Phase 11 is started: `/help`, `/tool help`, and `/tools` now provide caller-aware command and tool discovery. Progress message refinement remains open.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 47 test files and 159 tests.
-- `corepack pnpm test:coverage` passes with statements 84.46%, branches 72.86%, functions 91.07%, and lines 84.49%.
+- `corepack pnpm test` passes with 47 test files and 161 tests.
+- `corepack pnpm test:coverage` passes with statements 84.53%, branches 72.83%, functions 91.00%, and lines 84.56%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -562,6 +563,8 @@ Dependencies and ordering:
 
 ### Task 11.1: Add Caller-Aware Help
 
+Status: complete for the current command surface.
+
 Deliverables:
 
 - Add `/help` output that changes by caller permission, chat type, and enabled feature set.
@@ -572,6 +575,8 @@ Deliverables:
 
 ### Task 11.2: Improve Tool Discovery
 
+Status: complete for `/tool status`, `/tool help`, and `/tools`.
+
 Deliverables:
 
 - Keep `/tool status` focused on model-exposed tools, enabled host tools, and active approvals.
@@ -580,6 +585,8 @@ Deliverables:
 - Add tests for side-effect tools disabled, side-effect tools enabled for admin, and non-admin visibility.
 
 ### Task 11.3: Refine User-Facing Progress Messages
+
+Status: pending.
 
 Deliverables:
 

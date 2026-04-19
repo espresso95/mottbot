@@ -164,6 +164,7 @@ Current policy:
 
 ### Session and runtime commands
 
+- `/help`
 - `/status`
 - `/health`
 - `/model <provider/model>`
@@ -187,11 +188,14 @@ Current policy:
 ### Tool approval commands
 
 - `/tool status`
+- `/tool help`
+- `/tools`
 - `/tool approve <tool-name> <reason>`
 - `/tool revoke <tool-name>`
 
 ### Current command behavior
 
+- `/help` returns caller-aware command discovery based on admin status and enabled runtime features
 - `/status` includes session key, model, profile, fast mode, profile count, and usage when available
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
@@ -204,6 +208,8 @@ Current policy:
 - `/remember`, `/memory`, and `/forget` manage explicit long-term memory for the current session
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
+- `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
+- `/tool help` and `/tools` explain tool commands for the current caller
 - `/tool approve` and `/tool revoke` are admin-only controls for side-effecting tools
 
 ## Session Queue
