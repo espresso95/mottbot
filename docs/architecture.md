@@ -235,11 +235,12 @@ Implemented now:
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
+- deny-by-default tool registry definitions
 
 Not yet implemented:
 
 - native model input support for non-image file/media types
-- model-executed tools
+- provider tool-call parsing and model-executed tool execution
 - richer summarization or learned compaction
 - multi-instance locks or distributed coordination
 

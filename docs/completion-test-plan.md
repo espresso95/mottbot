@@ -20,15 +20,16 @@ As of April 19, 2026:
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
-- A tool-use design phase is documented, but model-executed tools are intentionally not enabled yet.
+- Phase 9.1 is complete: a deny-by-default tool registry defines enabled read-only tool declarations, rejects unknown and disabled tools, validates input payloads, and keeps side-effecting tools disabled.
+- Later tool-use phases are documented, but model-executed tools are intentionally not enabled yet.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 38 test files and 111 tests.
-- `corepack pnpm test:coverage` passes with statements 85.54%, branches 73.05%, functions 90.00%, and lines 85.56%.
+- `corepack pnpm test` passes with 39 test files and 117 tests.
+- `corepack pnpm test:coverage` passes with statements 85.07%, branches 72.86%, functions 89.57%, and lines 85.17%.
 - `corepack pnpm build` passes.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
@@ -438,6 +439,8 @@ Deliverables:
 Mottbot does not currently execute model-requested tools. This phase must be completed before enabling tools in real chats.
 
 ### Task 9.1: Define Tool Registry
+
+Status: complete.
 
 Deliverables:
 

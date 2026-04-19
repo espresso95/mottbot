@@ -13,6 +13,9 @@ Implemented:
 - transcript roles include a reserved `tool` value
 - prompts filter tool messages out of deterministic summaries
 - run orchestration already owns one model turn from queue claim through final Telegram delivery
+- a static deny-by-default tool registry exists in `src/tools/registry.ts`
+- the registry exposes only enabled read-only tool declarations
+- disabled side-effecting tool definitions are accepted but not exposed or resolvable
 
 Not implemented:
 
@@ -49,9 +52,34 @@ Keep ownership boundaries narrow:
 
 The first implementation should support read-only tools only. Side-effecting tools should remain designed but disabled until approval UX and audit logging are complete.
 
+## Initial Tool Registry
+
+The current registry is definition-only. It is not sent to the model and does not execute tools yet.
+
+Enabled read-only tools:
+
+| Tool | Side effect | Input schema | Purpose |
+| --- | --- | --- | --- |
+| `mottbot_health_snapshot` | `read_only` | empty object, no additional properties | Reserved health snapshot read for a future executor. |
+
+Disabled reserved tools:
+
+| Tool | Side effect | Status | Reason |
+| --- | --- | --- | --- |
+| `mottbot_restart_service` | `process_control` | disabled | Requires explicit operator approval UX and audit logging before use. |
+
+Registry behavior:
+
+- unknown tool names are rejected
+- disabled tool names are rejected
+- enabled tools with side effects are rejected at registry construction time
+- input payloads are validated against the declared JSON-schema subset before future execution
+
 ## Phase: Tool Use Design And Safety
 
 ### Task T1: Define Tool Registry
+
+Status: complete.
 
 Deliverables:
 

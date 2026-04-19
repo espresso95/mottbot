@@ -11,6 +11,7 @@ The test suite is organized around the system boundaries that matter operational
 - transport fallback behavior
 - Telegram command and outbox behavior
 - full run orchestration across queue, storage, transport, and rendering
+- deny-by-default tool registry behavior
 
 The current stack uses Vitest with V8 coverage.
 
@@ -52,7 +53,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 38 test files, 111 tests passing
+- `pnpm test`: 39 test files, 117 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
@@ -67,10 +68,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.54% |
-| Branches | 73.05% |
-| Functions | 90.00% |
-| Lines | 85.56% |
+| Statements | 85.07% |
+| Branches | 72.86% |
+| Functions | 89.57% |
+| Lines | 85.17% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -207,6 +208,8 @@ The current suite catches several subtle behaviors that matter in production:
 - failed refreshes preserve existing credentials
 - failed CLI auth write-back preserves refreshed encrypted database credentials
 - usage timeouts and sparse usage payloads normalize into safe status behavior
+- the tool registry exposes only enabled read-only declarations
+- unknown tools, disabled tools, side-effecting enabled tools, and invalid tool inputs are rejected
 - non-admin group commands and disallowed-chat commands are rejected before route creation
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes

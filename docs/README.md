@@ -64,12 +64,13 @@ Implemented in this repo:
 - outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
 - tool-use safety design documentation
+- deny-by-default tool registry with one enabled read-only declaration and disabled side-effect placeholders
 
 Planned hardening that is not yet implemented:
 
 - native non-image attachment ingestion into model inputs
 - fully automated inbound live Telegram and Codex smoke tests
-- model-executed tools
+- provider tool-call parsing and model-executed tool calls
 - stronger restart reconciliation for in-progress Telegram deliveries
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

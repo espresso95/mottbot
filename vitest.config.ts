@@ -10,7 +10,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/**/*.ts"],
-      exclude: ["src/index.ts", "src/tools/**", "src/app/service.ts"],
+      exclude: ["src/index.ts", "src/tools/live-smoke-preflight.ts", "src/app/service.ts"],
       thresholds: {
         statements: 84,
         branches: 70,
