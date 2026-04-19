@@ -8,18 +8,18 @@ This file is the original design brief that drove the scaffold. It is still usef
 
 ## Objective
 
-Build a Telegram bot that uses the same OpenAI Codex subscription path that OpenClaw uses:
+Build a Telegram bot that uses the subscription-backed OpenAI Codex path:
 
 - authenticate with ChatGPT/Codex OAuth, or reuse an existing Codex CLI login
 - resolve models under a dedicated `openai-codex/*` provider
 - send model traffic to the Codex backend rather than the standard OpenAI API-key path
 - stream results back into Telegram with stable session history and per-session serialization
 
-This design is intentionally Telegram-first. It keeps the critical ideas from OpenClaw and drops the generic multi-channel framework.
+This design is intentionally Telegram-first. It keeps the runtime focused and avoids a generic multi-channel framework.
 
 ## Explicit Constraints
 
-- The bot must support the same subscription-backed route OpenClaw uses, not just the standard OpenAI API.
+- The bot must support the subscription-backed route, not just the standard OpenAI API.
 - The implementation should prefer existing Codex runtime/auth behavior from `@mariozechner/pi-ai` instead of re-implementing undocumented protocol details.
 - The system is initially single-instance and host-local.
 - SQLite is the primary store.
@@ -39,12 +39,12 @@ The bot is a long-lived local service with five major responsibilities:
 1. Receive Telegram updates and normalize them.
 2. Decide whether the bot should answer and which session/profile should handle the turn.
 3. Serialize execution per session.
-4. Execute Codex-backed model runs using the OpenClaw-style `openai-codex` path.
+4. Execute Codex-backed model runs using the subscription-backed `openai-codex` path.
 5. Stream partial and final output back to Telegram.
 
 ## Core Decision
 
-Do not directly reproduce OpenClaw's provider behavior from scratch.
+Do not directly reproduce unsupported provider behavior from scratch.
 
 Instead:
 
@@ -221,7 +221,7 @@ Behavior:
 - support cancellation of the currently active run
 - support queue replacement for commands like `/reset` or `/stop`
 
-This is a direct carryover from the strongest part of OpenClaw's design.
+This is a key runtime rule for keeping Telegram sessions predictable.
 
 ### 6. `runs/run-orchestrator.ts`
 
@@ -248,7 +248,7 @@ Run states:
 
 ### 7. `codex/provider.ts`
 
-Exposes the OpenClaw-style model provider interface inside this app.
+Exposes the subscription-backed model provider interface inside this app.
 
 Provider ID:
 
@@ -827,4 +827,4 @@ Language and stack:
 - `better-sqlite3`
 - `@mariozechner/pi-ai`
 
-This is the closest practical way to reproduce OpenClaw's behavior while keeping the new app small enough to maintain.
+This is the closest practical way to keep subscription-backed Codex behavior isolated while keeping the app small enough to maintain.

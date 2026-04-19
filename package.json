@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Telegram-first Codex subscription bot inspired by OpenClaw's openai-codex provider path.",
+  "description": "Telegram-first Codex subscription bot for the subscription-backed openai-codex provider path.",
   "bin": {
     "mottbot": "./dist/index.js"
   },

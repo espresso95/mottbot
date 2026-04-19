@@ -5,7 +5,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 ## Doc Map
 
 - [Architecture](./architecture.md)
-  Overall system shape, module boundaries, startup flow, and the key design decisions copied from OpenClaw.
+  Overall system shape, module boundaries, startup flow, and key host-local runtime decisions.
 - [Telegram Runtime](./telegram-runtime.md)
   Ingress normalization, ACL rules, routing, commands, queueing, run execution, and Telegram rendering behavior.
 - [Codex Subscription Provider](./codex-subscription-provider.md)
@@ -28,7 +28,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 ## How To Read This Set
 
 - Start with `architecture.md` if you want the system in one pass.
-- Read `codex-subscription-provider.md` if your main interest is the OpenClaw-style subscription path.
+- Read `codex-subscription-provider.md` if your main interest is the subscription-backed Codex path.
 - Read `telegram-runtime.md` and `data-model.md` if you want to reproduce the runtime behavior in another codebase.
 - Read `testing.md` and `operations.md` if you want to ship or extend this repo.
 - Read `completion-test-plan.md` if you want the remaining work broken into implementation and test phases.
@@ -42,7 +42,7 @@ Implemented in this repo:
 - ACL and route resolution
 - per-session run serialization
 - SQLite-backed session, transcript, run, outbox, and auth storage
-- OpenClaw-style `openai-codex` provider boundary
+- Subscription-backed `openai-codex` provider boundary
 - local OAuth login command
 - Codex CLI auth import
 - token refresh with per-profile locking

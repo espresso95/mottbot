@@ -2,18 +2,18 @@
 
 ## Purpose
 
-Mottbot is a Telegram-first control plane for Codex subscription-backed model runs. The system copies the strongest part of OpenClaw's design:
+Mottbot is a Telegram-first control plane for Codex subscription-backed model runs. The system centers on a narrow runtime shape:
 
 - keep the model provider boundary separate from chat transport
 - serialize work per session
 - persist sessions, transcripts, and runs locally
 - treat Telegram as a thin ingress and rendering layer around a longer-lived agent runtime
 
-It does not copy OpenClaw's wider plugin and multi-channel framework. This repo is intentionally narrow.
+The repo is intentionally narrow and does not include a generic plugin or multi-channel framework.
 
 ## Goals
 
-- use the same `openai-codex` subscription path shape that OpenClaw uses
+- use the `openai-codex` subscription-backed provider path
 - support local OAuth login or Codex CLI auth reuse
 - keep one stable session per Telegram route
 - stream partial output back into Telegram by editing a placeholder message
@@ -92,7 +92,7 @@ Owns one model turn from start to finish.
 
 ### `src/codex/*`
 
-Owns the OpenClaw-style subscription-backed provider boundary.
+Owns the subscription-backed provider boundary.
 
 - `provider.ts`: model catalog and provider constants
 - `auth-store.ts`: encrypted auth profile storage
@@ -241,16 +241,16 @@ Not yet implemented:
 - richer summarization or learned compaction
 - multi-instance locks or distributed coordination
 
-## Why This Is Similar To OpenClaw
+## Provider Boundary Rationale
 
-The repo copies OpenClaw at the architectural seam that matters:
+The repo keeps the Codex integration narrow:
 
 - separate `openai-codex` provider identity
 - ChatGPT/Codex OAuth or CLI credential reuse
 - model traffic routed through the Codex backend path
 - per-session serialized execution
 
-It intentionally does not copy:
+It intentionally does not include:
 
 - generic plugin loading
 - multi-surface app control plane

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repo intentionally separates the subscription-backed Codex integration from the rest of the Telegram bot. The goal is to mirror the OpenClaw approach:
+This repo intentionally separates the subscription-backed Codex integration from the rest of the Telegram bot. The goal is to keep the provider boundary narrow:
 
 - dedicated provider ID: `openai-codex`
 - local OAuth login or Codex CLI auth reuse
@@ -253,7 +253,7 @@ Operational assumption:
 
 ## Caveats
 
-This provider path is intentionally modeled after OpenClaw, but it is not the normal public API integration path.
+This provider path is intentionally isolated because it is not the normal public API integration path.
 
 Operational implications:
 

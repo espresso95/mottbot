@@ -1,13 +1,13 @@
 # Mottbot
 
-Telegram-first Codex subscription bot scaffold that mirrors OpenClaw's `openai-codex` provider shape.
+Telegram-first Codex subscription bot scaffold for the subscription-backed `openai-codex` provider shape.
 
 ## What this repo implements
 
 - Telegram polling bot via `grammY`
 - Optional webhook mode with local HTTP listener and Telegram webhook registration
 - SQLite-backed session, run, outbox, and auth profile storage
-- OpenClaw-style `openai-codex` provider boundary
+- Subscription-backed `openai-codex` provider boundary
 - ChatGPT/Codex OAuth bootstrap command
 - Codex CLI auth reuse from `$CODEX_HOME/auth.json` or `~/.codex/auth.json`
 - Per-session run serialization

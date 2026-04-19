@@ -6,7 +6,7 @@
 - Keep the repo clean of generated output. Do not commit `coverage/`, `dist/`, `data/`, local `.env` variants, or SQLite database files.
 - Preserve the existing module boundaries:
   - `src/telegram/*` owns Telegram ingress, commands, ACL, routing, and outbox behavior.
-  - `src/codex/*` owns the OpenClaw-style `openai-codex` subscription path, auth, transport, and usage logic.
+  - `src/codex/*` owns the subscription-backed `openai-codex` path, auth, transport, and usage logic.
   - `src/sessions/*` owns session identity, persistence, and queueing.
   - `src/runs/*` owns prompt building, orchestration, and run persistence.
 - Keep TypeScript code ESM-friendly and strongly typed. Avoid `any` in production code unless it is required at an external library boundary and isolated to a small surface.
