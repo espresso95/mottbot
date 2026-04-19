@@ -114,6 +114,9 @@ describe("ToolRegistry", () => {
     expect(runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toContain(
       "mottbot_restart_service",
     );
+    expect(runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toContain(
+      "mottbot_telegram_react",
+    );
   });
 
   it("accepts disabled side-effecting tool definitions without exposing them", () => {

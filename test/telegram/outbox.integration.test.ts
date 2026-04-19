@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RUN_STATUS_TEXT, formatToolRunningStatus } from "../../src/shared/run-status.js";
 import { TelegramOutbox } from "../../src/telegram/outbox.js";
 import { FakeClock, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
@@ -40,7 +41,7 @@ describe("TelegramOutbox", () => {
     let handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
-      placeholderText: "Working...",
+      placeholderText: RUN_STATUS_TEXT.starting,
     });
     clock.advance(1);
     handle = await outbox.update(handle, "Hello world");
@@ -90,7 +91,7 @@ describe("TelegramOutbox", () => {
     const handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
-      placeholderText: "Working...",
+      placeholderText: RUN_STATUS_TEXT.starting,
     });
     const delivery = await outbox.fail(handle, "Boom");
     expect(api.sendMessage).toHaveBeenCalledTimes(2);
@@ -131,7 +132,7 @@ describe("TelegramOutbox", () => {
     const handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
-      placeholderText: "Working...",
+      placeholderText: RUN_STATUS_TEXT.starting,
     });
 
     const longText = `${"A".repeat(3900)} ${"B".repeat(300)}`;
@@ -173,7 +174,7 @@ describe("TelegramOutbox", () => {
     let handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
-      placeholderText: "Working...",
+      placeholderText: RUN_STATUS_TEXT.starting,
     });
     clock.advance(1);
     handle = await outbox.update(handle, "Partial output");
@@ -193,6 +194,50 @@ describe("TelegramOutbox", () => {
       .prepare("select state from outbox_messages where id = ?")
       .get(handle.outboxId) as { state: string };
     expect(row.state).toBe("failed");
+  });
+
+  it("does not recover transient status text as partial assistant output", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.sessions.ensure({
+      sessionKey: "s1",
+      chatId: "chat-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: "s1",
+      modelRef: "openai-codex/gpt-5.4",
+      profileId: "openai-codex:default",
+    });
+    const clock = stores.clock as FakeClock;
+    const api = {
+      sendMessage: vi.fn(async () => ({ message_id: 100 })),
+      editMessageText: vi.fn(async () => undefined),
+    };
+    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    let handle = await outbox.start({
+      runId: run.runId,
+      chatId: "chat-1",
+      placeholderText: RUN_STATUS_TEXT.starting,
+    });
+    clock.advance(1);
+    handle = await outbox.update(handle, formatToolRunningStatus("mottbot_health_snapshot"));
+
+    const recovered = outbox.recoverInterruptedRuns({
+      runs: [{ runId: run.runId, sessionKey: "s1" }],
+    });
+
+    expect(recovered).toEqual([
+      {
+        runId: run.runId,
+        sessionKey: "s1",
+      },
+    ]);
   });
 
   it("rebinds to a continuation message when mid-stream edits fail", async () => {
@@ -225,7 +270,7 @@ describe("TelegramOutbox", () => {
     let handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
-      placeholderText: "Working...",
+      placeholderText: RUN_STATUS_TEXT.starting,
     });
     clock.advance(1);
     handle = await outbox.update(handle, "Streaming update");

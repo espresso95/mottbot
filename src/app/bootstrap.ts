@@ -23,6 +23,7 @@ import { TelegramBotServer } from "../telegram/bot.js";
 import { TelegramUpdateStore } from "../telegram/update-store.js";
 import { TelegramMessageStore } from "../telegram/message-store.js";
 import { TelegramAttachmentIngestor } from "../telegram/attachments.js";
+import { TelegramReactionService } from "../telegram/reactions.js";
 import { DashboardServer } from "./dashboard.js";
 import { createRuntimeToolRegistry } from "../tools/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -33,6 +34,7 @@ import { ApplicationInstanceLease } from "./instance-lease.js";
 import { codexModelCapabilities } from "../models/provider.js";
 import { OperatorDiagnostics } from "./diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../tools/operator-diagnostic-handlers.js";
+import { createTelegramReactionToolHandlers } from "../tools/telegram-reaction-handlers.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -68,13 +70,28 @@ export async function bootstrapApplication() {
     ttlMs: config.runtime.instanceLeaseTtlMs,
     refreshMs: config.runtime.instanceLeaseRefreshMs,
   });
+  const routeResolver = new RouteResolver(config, sessionStore);
+  const provisionalBot = new TelegramBotServer(
+    config,
+    systemClock,
+    logger,
+    updateStore,
+    new AccessController(config, sessionStore, messageStore),
+    {} as never,
+    routeResolver,
+    {} as never,
+  );
+  const reactions = new TelegramReactionService(provisionalBot.api);
   const toolRegistry = createRuntimeToolRegistry({
     enableSideEffectTools: config.tools.enableSideEffectTools,
   });
   const toolExecutor = new ToolExecutor(toolRegistry, {
     clock: systemClock,
     health,
-    handlers: createOperatorDiagnosticToolHandlers(diagnostics),
+    handlers: {
+      ...createOperatorDiagnosticToolHandlers(diagnostics),
+      ...createTelegramReactionToolHandlers(reactions),
+    },
     adminUserIds: config.telegram.adminUserIds,
     approvals: toolApprovalStore,
     defaultRestartDelayMs: config.tools.restartDelayMs,
@@ -84,17 +101,6 @@ export async function bootstrapApplication() {
         delayMs,
       }),
   });
-
-  const provisionalBot = new TelegramBotServer(
-    config,
-    systemClock,
-    logger,
-    updateStore,
-    new AccessController(config, sessionStore, messageStore),
-    {} as never,
-    new RouteResolver(config, sessionStore),
-    {} as never,
-  );
 
   const outbox = new TelegramOutbox(
     provisionalBot.api,
@@ -127,7 +133,6 @@ export async function bootstrapApplication() {
       contentText: `[Recovered partial assistant output after restart]\n${recovered.partialText}`,
     });
   }
-  const routeResolver = new RouteResolver(config, sessionStore);
   const orchestrator = new RunOrchestrator(
     config,
     queue,
@@ -145,6 +150,7 @@ export async function bootstrapApplication() {
     toolExecutor,
     memoryStore,
     codexModelCapabilities,
+    reactions,
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
@@ -171,6 +177,9 @@ export async function bootstrapApplication() {
     commands,
     routeResolver,
     orchestrator,
+    reactions,
+    transcriptStore,
+    messageStore,
   );
 
   return {

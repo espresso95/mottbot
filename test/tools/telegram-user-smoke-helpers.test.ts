@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  RUN_STATUS_TEXT,
+  formatToolCompletedStatus,
+  formatToolPreparingStatus,
+  formatToolRunningStatus,
+} from "../../src/shared/run-status.js";
+import {
   buildTelegramUserSmokeConfig,
   isTransientBotStatus,
   normalizeBotUsername,
@@ -52,10 +58,18 @@ describe("telegram user smoke helpers", () => {
   });
 
   it("identifies transient bot status messages", () => {
+    expect(isTransientBotStatus(RUN_STATUS_TEXT.starting)).toBe(true);
+    expect(isTransientBotStatus(RUN_STATUS_TEXT.resumingAfterRestart)).toBe(true);
+    expect(isTransientBotStatus(RUN_STATUS_TEXT.unableToResumeAfterRestart)).toBe(true);
     expect(isTransientBotStatus("Working...")).toBe(true);
-    expect(isTransientBotStatus("Preparing tool: mottbot_health_snapshot...")).toBe(true);
-    expect(isTransientBotStatus("Running tool: mottbot_health_snapshot...")).toBe(true);
-    expect(isTransientBotStatus("Tool mottbot_health_snapshot completed. Continuing...")).toBe(true);
+    expect(isTransientBotStatus("Resuming queued request after restart...")).toBe(true);
+    expect(isTransientBotStatus("Unable to resume queued request after restart.")).toBe(true);
+    expect(isTransientBotStatus(formatToolPreparingStatus("mottbot_health_snapshot"))).toBe(true);
+    expect(isTransientBotStatus(formatToolRunningStatus("mottbot_health_snapshot"))).toBe(true);
+    expect(
+      isTransientBotStatus(formatToolCompletedStatus({ toolName: "mottbot_health_snapshot", isError: false })),
+    ).toBe(true);
+    expect(isTransientBotStatus(formatToolCompletedStatus({ toolName: "mottbot_shell", isError: true }))).toBe(true);
     expect(isTransientBotStatus("Health is ok.")).toBe(false);
   });
 });

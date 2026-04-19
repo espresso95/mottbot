@@ -206,6 +206,42 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     enabled: false,
     requiresAdmin: true,
   },
+  {
+    name: "mottbot_telegram_react",
+    description: "Add or clear a Telegram emoji reaction after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        chatId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Telegram chat ID or username target.",
+        },
+        messageId: {
+          type: "integer",
+          minimum: 1,
+          description: "Telegram message ID to react to.",
+        },
+        emoji: {
+          type: "string",
+          maxLength: 32,
+          description: "Unicode emoji to set. Use an empty string to clear the bot's reaction.",
+        },
+        isBig: {
+          type: "boolean",
+          description: "Optional Telegram large-reaction animation flag.",
+        },
+      },
+      required: ["chatId", "messageId", "emoji"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 8_000,
+    sideEffect: "network",
+    enabled: false,
+    requiresAdmin: true,
+  },
 ] as const;
 
 export const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [

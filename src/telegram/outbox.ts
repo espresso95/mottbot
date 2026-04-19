@@ -3,6 +3,7 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { Logger } from "../shared/logger.js";
+import { isTransientRunStatus } from "../shared/run-status.js";
 import { splitTelegramText } from "./formatting.js";
 import type { TelegramMessageStore } from "./message-store.js";
 
@@ -235,9 +236,7 @@ export class TelegramOutbox {
         return [];
       }
       const partialText =
-        row.last_rendered_text && row.last_rendered_text !== "Working..."
-          ? row.last_rendered_text
-          : undefined;
+        row.last_rendered_text && !isTransientRunStatus(row.last_rendered_text) ? row.last_rendered_text : undefined;
       return [
         {
           runId: run.runId,

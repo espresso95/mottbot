@@ -7,6 +7,7 @@ import { fileExists } from "../shared/fs.js";
 dotenv.config();
 
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
+const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -22,6 +23,14 @@ const rawConfigSchema = z.object({
           host: z.string().default("0.0.0.0"),
           port: z.number().int().default(8080),
           secretToken: z.string().optional(),
+        })
+        .default({}),
+      reactions: z
+        .object({
+          enabled: z.boolean().default(true),
+          ackEmoji: z.string().max(32).default("\u{1F440}"),
+          removeAckAfterReply: z.boolean().default(false),
+          notifications: telegramReactionNotificationsSchema.default("own"),
         })
         .default({}),
     })
@@ -116,6 +125,12 @@ export type AppConfig = {
       host: string;
       port: number;
       secretToken?: string;
+    };
+    reactions: {
+      enabled: boolean;
+      ackEmoji: string;
+      removeAckAfterReply: boolean;
+      notifications: z.infer<typeof telegramReactionNotificationsSchema>;
     };
   };
   models: {
@@ -285,6 +300,50 @@ export function loadConfig(): AppConfig {
           (fileObject.telegram as any).webhook &&
           typeof (fileObject.telegram as any).webhook === "object"
             ? (fileObject.telegram as any).webhook.secretToken
+            : undefined),
+      },
+      reactions: {
+        ...(
+          fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).reactions &&
+          typeof (fileObject.telegram as any).reactions === "object"
+            ? ((fileObject.telegram as any).reactions as object)
+            : {}
+        ),
+        enabled:
+          process.env.MOTTBOT_TELEGRAM_REACTIONS_ENABLED === undefined
+            ? (fileObject.telegram &&
+              typeof fileObject.telegram === "object" &&
+              (fileObject.telegram as any).reactions &&
+              typeof (fileObject.telegram as any).reactions === "object"
+                ? (fileObject.telegram as any).reactions.enabled
+                : undefined)
+            : process.env.MOTTBOT_TELEGRAM_REACTIONS_ENABLED !== "false",
+        ackEmoji:
+          process.env.MOTTBOT_TELEGRAM_ACK_REACTION ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).reactions &&
+          typeof (fileObject.telegram as any).reactions === "object"
+            ? (fileObject.telegram as any).reactions.ackEmoji
+            : undefined),
+        removeAckAfterReply:
+          process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY === undefined
+            ? (fileObject.telegram &&
+              typeof fileObject.telegram === "object" &&
+              (fileObject.telegram as any).reactions &&
+              typeof (fileObject.telegram as any).reactions === "object"
+                ? (fileObject.telegram as any).reactions.removeAckAfterReply
+                : undefined)
+            : process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY === "true",
+        notifications:
+          process.env.MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS ??
+          (fileObject.telegram &&
+          typeof fileObject.telegram === "object" &&
+          (fileObject.telegram as any).reactions &&
+          typeof (fileObject.telegram as any).reactions === "object"
+            ? (fileObject.telegram as any).reactions.notifications
             : undefined),
       },
     },
@@ -517,6 +576,7 @@ export function loadConfig(): AppConfig {
       adminUserIds: parsed.telegram.adminUserIds,
       allowedChatIds: parsed.telegram.allowedChatIds,
       webhook: parsed.telegram.webhook,
+      reactions: parsed.telegram.reactions,
     },
     models: parsed.models,
     auth: parsed.auth,

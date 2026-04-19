@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { RUN_STATUS_TEXT } from "../../src/shared/run-status.js";
 import { createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -55,7 +56,7 @@ describe("HealthReporter", () => {
         null,
         100,
         "active",
-        "Working...",
+        RUN_STATUS_TEXT.starting,
         stores.clock.now() - 10 * 60 * 1000,
         stores.clock.now() - 10 * 60 * 1000,
         stores.clock.now() - 10 * 60 * 1000,

@@ -37,6 +37,10 @@ const configEnvKeys = [
   "MOTTBOT_TELEGRAM_WEBHOOK_HOST",
   "MOTTBOT_TELEGRAM_WEBHOOK_PORT",
   "MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN",
+  "MOTTBOT_TELEGRAM_REACTIONS_ENABLED",
+  "MOTTBOT_TELEGRAM_ACK_REACTION",
+  "MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY",
+  "MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS",
   "MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS",
   "MOTTBOT_TOOL_APPROVAL_TTL_MS",
   "MOTTBOT_RESTART_TOOL_DELAY_MS",
@@ -73,6 +77,7 @@ describe("loadConfig", () => {
           polling: false,
           adminUserIds: ["file-admin"],
           webhook: { publicUrl: "https://bot.example.com", port: 9000 },
+          reactions: { notifications: "all" },
         },
         models: { default: "openai-codex/gpt-5.4-mini" },
         auth: { preferCliImport: false },
@@ -96,12 +101,18 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_RESTART_TOOL_DELAY_MS = "30000";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
+    process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
+    process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY = "true";
 
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
     expect(config.telegram.adminUserIds).toEqual(["env-admin-1", "env-admin-2"]);
     expect(config.telegram.webhook.publicUrl).toBe("https://bot.example.com");
     expect(config.telegram.webhook.port).toBe(9000);
+    expect(config.telegram.reactions.enabled).toBe(true);
+    expect(config.telegram.reactions.ackEmoji).toBe("\u{2705}");
+    expect(config.telegram.reactions.removeAckAfterReply).toBe(true);
+    expect(config.telegram.reactions.notifications).toBe("all");
     expect(config.models.default).toBe("openai-codex/gpt-5.4-mini");
     expect(config.auth.preferCliImport).toBe(false);
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));

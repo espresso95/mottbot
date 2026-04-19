@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { ToolExecutor } from "../../src/tools/executor.js";
-import { ToolRegistry, type ToolDefinition } from "../../src/tools/registry.js";
+import { createRuntimeToolRegistry, ToolRegistry, type ToolDefinition } from "../../src/tools/registry.js";
 import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { FakeClock, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../../src/tools/operator-diagnostic-handlers.js";
+import { createTelegramReactionToolHandlers } from "../../src/tools/telegram-reaction-handlers.js";
 
 function readOnlyTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -244,6 +245,70 @@ describe("ToolExecutor", () => {
         delayMs: 60_000,
       });
       expect(approvals.listActive("tg:dm:chat-1:user:user-1")).toEqual([]);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("executes the approved Telegram reaction tool for admins", async () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:admin-1",
+        chatId: "chat-1",
+        userId: "admin-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const run = stores.runs.create({
+        sessionKey: session.sessionKey,
+        modelRef: session.modelRef,
+        profileId: session.profileId,
+      });
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      approvals.approve({
+        sessionKey: session.sessionKey,
+        toolName: "mottbot_telegram_react",
+        approvedByUserId: "admin-1",
+        reason: "operator approved reaction",
+        ttlMs: 60_000,
+      });
+      const reactions = {
+        setEmojiReaction: vi.fn(async () => true),
+      };
+      const executor = new ToolExecutor(createRuntimeToolRegistry({ enableSideEffectTools: true }), {
+        clock: stores.clock,
+        approvals,
+        adminUserIds: ["admin-1"],
+        handlers: createTelegramReactionToolHandlers(reactions as any),
+      });
+
+      const result = await executor.execute(
+        {
+          id: "call-react",
+          name: "mottbot_telegram_react",
+          arguments: {
+            chatId: "chat-1",
+            messageId: 42,
+            emoji: "\u{1F44D}",
+          },
+        },
+        {
+          sessionKey: session.sessionKey,
+          runId: run.runId,
+          requestedByUserId: "admin-1",
+        },
+      );
+
+      expect(result.isError).toBe(false);
+      expect(reactions.setEmojiReaction).toHaveBeenCalledWith({
+        chatId: "chat-1",
+        messageId: 42,
+        emoji: "\u{1F44D}",
+        isBig: false,
+      });
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

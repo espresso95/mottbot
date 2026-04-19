@@ -51,4 +51,19 @@ export class TelegramMessageStore {
       .get(params.chatId, params.threadId ?? null, params.telegramMessageId);
     return Boolean(row);
   }
+
+  hasMessageInChat(params: {
+    chatId: string;
+    telegramMessageId: number;
+  }): boolean {
+    const row = this.database.db
+      .prepare<unknown[], { telegram_message_id: number }>(
+        `select telegram_message_id
+         from telegram_bot_messages
+         where chat_id = ? and telegram_message_id = ?
+         limit 1`,
+      )
+      .get(params.chatId, params.telegramMessageId);
+    return Boolean(row);
+  }
 }

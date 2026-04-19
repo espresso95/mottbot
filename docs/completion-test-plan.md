@@ -23,15 +23,16 @@ As of April 19, 2026:
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
 - Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
-- Phase 11 is started: `/help`, `/tool help`, and `/tools` now provide caller-aware command and tool discovery. Progress message refinement remains open.
+- Phase 11 is complete for command discovery and conversation UX: `/help`, `/tool help`, `/tools`, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
+- Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 47 test files and 161 tests.
-- `corepack pnpm test:coverage` passes with statements 84.53%, branches 72.83%, functions 91.00%, and lines 84.56%.
+- `corepack pnpm test` passes with 49 test files and 170 tests.
+- `corepack pnpm test:coverage` passes with statements 84.64%, branches 72.90%, functions 91.45%, and lines 84.65%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -586,14 +587,25 @@ Deliverables:
 
 ### Task 11.3: Refine User-Facing Progress Messages
 
-Status: pending.
+Status: complete for run placeholders, tool status messages, smoke filtering, and interrupted-run recovery.
 
 Deliverables:
 
-- Review placeholder, tool-running, completion, failure, and retry messages for clarity.
-- Keep status edits concise enough for Telegram but specific enough for operators.
-- Add tests for user-visible text where behavior is stable.
-- Document any intentionally transient status messages used by the live smoke harness.
+- Centralized placeholder, tool-running, completion, failure, and recovery messages in a shared helper.
+- Replaced the generic initial placeholder with `Starting run...`.
+- Standardized restart recovery status as `Resuming queued run after restart...`.
+- Kept tool status edits concise enough for Telegram and stable enough for smoke tests.
+- Preserved backward compatibility for older in-flight transient text such as `Working...`.
+- Prevented interrupted-run recovery from treating transient statuses as partial assistant output.
+- Added tests for status formatting, live-smoke transient detection, orchestrator recovery placeholders, and outbox recovery filtering.
+- Documented intentionally transient status messages in `docs/telegram-runtime.md` and `docs/tool-use-design.md`.
+
+Validation:
+
+- `pnpm vitest run test/shared/run-status.test.ts test/tools/telegram-user-smoke-helpers.test.ts test/runs/run-orchestrator.integration.test.ts test/telegram/outbox.integration.test.ts test/app/health.test.ts`
+- `pnpm check`
+- `pnpm test`
+- `pnpm test:coverage`
 
 Edge cases to cover:
 
@@ -619,7 +631,93 @@ Verification:
 - `corepack pnpm test`
 - Live `/help` and `/tool status` checks for admin and non-admin callers
 
-## Phase 12: General File Understanding
+## Phase 12: Telegram Reactions
+
+This phase adds the highest-value OpenClaw-style Telegram affordance before broader Telegram UI actions: emoji reactions as status acknowledgement, context signals, and an approved model tool.
+
+Dependencies and ordering:
+
+- Do this after Phase 11 so reaction commands and tool visibility are discoverable.
+- Keep reaction sends isolated to `src/telegram/*` and the side-effect tool handler; do not spread Bot API details into model orchestration.
+- Treat model-initiated reactions as side effects requiring admin visibility and one-shot approval.
+
+### Task 12.1: Add Reaction Configuration
+
+Status: complete.
+
+Deliverables:
+
+- Add `telegram.reactions.enabled`.
+- Add `telegram.reactions.ackEmoji`.
+- Add `telegram.reactions.removeAckAfterReply`.
+- Add `telegram.reactions.notifications` with `off`, `own`, and `all`.
+- Add matching environment overrides.
+- Update test config helpers and config parsing tests.
+
+### Task 12.2: Add Ack Reactions
+
+Status: complete.
+
+Deliverables:
+
+- Add a typed Telegram reaction service around `setMessageReaction`.
+- Send the configured acknowledgement reaction only after a message passes command, safety, and ACL checks and is about to enter model handling.
+- Keep ack failures non-fatal and token-free in logs.
+- Optionally clear the bot reaction after successful or failed run completion when configured.
+
+### Task 12.3: Add Reaction Notifications
+
+Status: complete.
+
+Deliverables:
+
+- Register `message_reaction` handlers and include `message_reaction` in webhook `allowed_updates` when notification ingestion is enabled.
+- Normalize added and removed emoji reactions into internal reaction events.
+- Support `own` mode by accepting reactions only on known bot-authored messages.
+- Support `all` mode for allowed chats.
+- Persist reaction notifications as `system` transcript entries so the next model turn can see them as context.
+- Document the Telegram limitation that reaction updates do not carry topic thread IDs.
+
+### Task 12.4: Add Approved Reaction Tool
+
+Status: complete.
+
+Deliverables:
+
+- Add `mottbot_telegram_react` as an admin-only side-effecting model tool.
+- Require the existing one-shot approval flow before the tool can add or clear a reaction.
+- Validate chat ID, message ID, emoji, and optional large-reaction flag.
+- Return a bounded JSON tool result without logging credentials or raw auth data.
+
+Edge cases covered:
+
+- Empty emoji clears the bot reaction.
+- Ack reaction API failures do not prevent the model run from starting.
+- Reaction update duplicates are processed through durable update dedupe.
+- `own` notification mode ignores reactions on messages not sent by the bot.
+- Webhook mode requests `message_reaction` updates only when reaction notifications are enabled.
+- Reaction cleanup after reply is opt-in because Telegram clears the bot's reactions on that message.
+
+Required testing:
+
+- Unit tests for reaction service send/clear behavior.
+- Unit tests for reaction update normalization and notification formatting.
+- Integration tests for ack reaction sends on accepted model-bound messages.
+- Integration tests for `message_reaction` ingestion and `own` filtering.
+- Integration tests for webhook `allowed_updates` registration.
+- Tool tests for approved admin reaction calls, approval consumption, and Bot API handler arguments.
+- Full `pnpm check`, `pnpm test`, `pnpm test:coverage`, and `pnpm build`.
+- Live Telegram smoke that sends a normal message and verifies the bot still completes after ack reaction handling.
+
+Verification:
+
+- `corepack pnpm vitest run test/app/config.test.ts test/telegram/reactions.test.ts test/telegram/bot.test.ts test/tools/registry.test.ts test/tools/executor.test.ts test/runs/run-orchestrator.integration.test.ts`
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- `corepack pnpm build`
+
+## Phase 13: General File Understanding
 
 This phase expands attachment support beyond images and metadata while keeping raw files out of committed and long-lived storage.
 
@@ -628,7 +726,7 @@ Dependencies and ordering:
 - Do this before repository tools, because the same extraction, truncation, and prompt-rendering patterns should be reused for local files later.
 - Do not add write-capable file operations in this phase.
 
-### Task 12.1: Add Text And Markdown File Ingestion
+### Task 13.1: Add Text And Markdown File Ingestion
 
 Deliverables:
 
@@ -638,7 +736,7 @@ Deliverables:
 - Persist metadata and extraction summary without storing raw file contents in SQLite.
 - Add tests for UTF-8 text, Markdown, oversized files, and unsupported encodings.
 
-### Task 12.2: Add PDF Text Extraction
+### Task 13.2: Add PDF Text Extraction
 
 Deliverables:
 
@@ -648,7 +746,7 @@ Deliverables:
 - Add tests using small fixture PDFs and failure fixtures.
 - Document the extraction limitations.
 
-### Task 12.3: Add Code And CSV Summaries
+### Task 13.3: Add Code And CSV Summaries
 
 Deliverables:
 
@@ -657,7 +755,7 @@ Deliverables:
 - Avoid loading large files fully into memory when streaming or chunking is available.
 - Add tests for code files, CSV headers, long rows, and truncation behavior.
 
-### Task 12.4: Add File-Oriented Commands
+### Task 13.4: Add File-Oriented Commands
 
 Deliverables:
 
@@ -694,16 +792,16 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live smoke tests with a text file, PDF fixture, code file, CSV, and image
 
-## Phase 13: Tool Permission Model V2
+## Phase 14: Tool Permission Model V2
 
 This phase strengthens the approval layer before adding broader tools.
 
 Dependencies and ordering:
 
-- Complete this before Phase 14 repository tools if any new tool might read outside existing runtime diagnostics.
-- Complete this before Phase 19 write-capable tools; approval previews and audit inspection are prerequisites for writes.
+- Complete this before Phase 15 repository tools if any new tool might read outside existing runtime diagnostics.
+- Complete this before Phase 20 write-capable tools; approval previews and audit inspection are prerequisites for writes.
 
-### Task 13.1: Add Per-Tool Policy
+### Task 14.1: Add Per-Tool Policy
 
 Deliverables:
 
@@ -712,7 +810,7 @@ Deliverables:
 - Preserve deny-by-default behavior when policy is absent.
 - Add tests for policy parsing, policy defaults, and denied execution.
 
-### Task 13.2: Add Approval Previews
+### Task 14.2: Add Approval Previews
 
 Deliverables:
 
@@ -721,7 +819,7 @@ Deliverables:
 - Avoid including secrets or raw auth payloads in previews.
 - Add tests for preview rendering and preview omission of sensitive fields.
 
-### Task 13.3: Add Tool Audit Inspection
+### Task 14.3: Add Tool Audit Inspection
 
 Deliverables:
 
@@ -756,16 +854,16 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live approval/revoke/status test in a private admin chat
 
-## Phase 14: Read-Only Local Repository Tools
+## Phase 15: Read-Only Local Repository Tools
 
 This phase gives the model safe visibility into the local project without write access.
 
 Dependencies and ordering:
 
-- Requires Phase 13 policy controls.
+- Requires Phase 14 policy controls.
 - Should precede GitHub read integration so local source inspection and git summaries are stable before remote context is added.
 
-### Task 14.1: Define Repository Read Scope
+### Task 15.1: Define Repository Read Scope
 
 Deliverables:
 
@@ -774,7 +872,7 @@ Deliverables:
 - Resolve paths safely and reject traversal outside approved roots.
 - Add tests for allowed files, denied files, symlinks, traversal, and generated-output paths.
 
-### Task 14.2: Add File Search And Read Tools
+### Task 15.2: Add File Search And Read Tools
 
 Deliverables:
 
@@ -783,7 +881,7 @@ Deliverables:
 - Return structured results with path, line numbers, truncation, and match counts.
 - Add tests for successful search, no matches, binary files, and timeout behavior.
 
-### Task 14.3: Add Git Read Tools
+### Task 15.3: Add Git Read Tools
 
 Deliverables:
 
@@ -817,16 +915,16 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live admin prompt asking for local repo status and a bounded file search
 
-## Phase 15: GitHub Read Integration
+## Phase 16: GitHub Read Integration
 
 This phase adds GitHub awareness without write permissions.
 
 Dependencies and ordering:
 
-- Requires Phase 13 policy controls.
-- Prefer after Phase 14 so local and remote repository views can share output shaping and permission conventions.
+- Requires Phase 14 policy controls.
+- Prefer after Phase 15 so local and remote repository views can share output shaping and permission conventions.
 
-### Task 15.1: Add GitHub Configuration And Auth Boundaries
+### Task 16.1: Add GitHub Configuration And Auth Boundaries
 
 Deliverables:
 
@@ -835,7 +933,7 @@ Deliverables:
 - Keep GitHub credentials out of logs, Telegram output, and transcripts.
 - Add tests for missing auth, unavailable CLI/API, and configured repository resolution.
 
-### Task 15.2: Add Read-Only GitHub Tools
+### Task 16.2: Add Read-Only GitHub Tools
 
 Deliverables:
 
@@ -844,7 +942,7 @@ Deliverables:
 - Add tests for mocked API responses and failure shapes.
 - Document rate-limit behavior and fallback messages.
 
-### Task 15.3: Add Telegram Commands For GitHub Status
+### Task 16.3: Add Telegram Commands For GitHub Status
 
 Deliverables:
 
@@ -877,7 +975,7 @@ Verification:
 - Mocked GitHub integration tests
 - Optional live read-only validation against the configured repository
 
-## Phase 16: Operator Dashboard V2
+## Phase 17: Operator Dashboard V2
 
 This phase turns the existing dashboard into the operational control panel.
 
@@ -886,7 +984,7 @@ Dependencies and ordering:
 - Can start after Phase 11, but dashboard tool and memory panels should track the policy/memory state available at the time.
 - Do not expose dashboard beyond loopback until auth, CSRF posture, and secret redaction are re-reviewed.
 
-### Task 16.1: Add Runtime Panels
+### Task 17.1: Add Runtime Panels
 
 Deliverables:
 
@@ -895,7 +993,7 @@ Deliverables:
 - Keep secrets and raw prompts out of dashboard output by default.
 - Add API tests for each panel endpoint.
 
-### Task 16.2: Add Tool And Memory Panels
+### Task 17.2: Add Tool And Memory Panels
 
 Deliverables:
 
@@ -904,7 +1002,7 @@ Deliverables:
 - Validate all dashboard mutations server-side.
 - Add tests for auth, validation, and redaction.
 
-### Task 16.3: Add Safe Service Controls
+### Task 17.3: Add Safe Service Controls
 
 Deliverables:
 
@@ -938,16 +1036,16 @@ Verification:
 - Dashboard endpoint tests
 - Manual local dashboard smoke test
 
-## Phase 17: Model-Assisted Memory
+## Phase 18: Model-Assisted Memory
 
 This phase upgrades memory from deterministic summaries to model-assisted recall with review controls.
 
 Dependencies and ordering:
 
 - Best after Phase 11 so memory review commands are discoverable.
-- Best after Phase 13 if memory extraction or review uses tools or policy decisions.
+- Best after Phase 14 if memory extraction or review uses tools or policy decisions.
 
-### Task 17.1: Add Memory Candidate Extraction
+### Task 18.1: Add Memory Candidate Extraction
 
 Deliverables:
 
@@ -956,7 +1054,7 @@ Deliverables:
 - Include reason, source message IDs, sensitivity class, and proposed scope.
 - Add tests with mocked model outputs and malformed candidate payloads.
 
-### Task 17.2: Add Memory Review Workflow
+### Task 18.2: Add Memory Review Workflow
 
 Deliverables:
 
@@ -964,7 +1062,7 @@ Deliverables:
 - Require explicit user/admin approval before storing sensitive or long-lived facts.
 - Add tests for candidate lifecycle and permission boundaries.
 
-### Task 17.3: Add Memory Scopes
+### Task 18.3: Add Memory Scopes
 
 Deliverables:
 
@@ -999,7 +1097,7 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live memory review smoke test
 
-## Phase 18: Backup, Log Rotation, And Recovery Hardening
+## Phase 19: Backup, Log Rotation, And Recovery Hardening
 
 This phase turns operational hygiene into repeatable commands.
 
@@ -1008,7 +1106,7 @@ Dependencies and ordering:
 - Can be implemented at any time, but should happen before the bot stores more high-value memories, files, or role policy.
 - Backup commands must remain local and avoid Telegram-triggered destructive behavior unless a later approved write policy explicitly allows it.
 
-### Task 18.1: Add Backup Command
+### Task 19.1: Add Backup Command
 
 Deliverables:
 
@@ -1017,7 +1115,7 @@ Deliverables:
 - Add integrity checks for backup files.
 - Add tests using a temporary SQLite database.
 
-### Task 18.2: Add Restore Runbook And Dry Run
+### Task 19.2: Add Restore Runbook And Dry Run
 
 Deliverables:
 
@@ -1025,7 +1123,7 @@ Deliverables:
 - Add a dry-run restore validator if practical.
 - Add tests for validator behavior.
 
-### Task 18.3: Add Log Rotation Policy
+### Task 19.3: Add Log Rotation Policy
 
 Deliverables:
 
@@ -1059,17 +1157,17 @@ Verification:
 - Backup/restore dry-run test on a temporary database
 - Manual log-rotation smoke test
 
-## Phase 19: Write-Capable Approved Tools
+## Phase 20: Write-Capable Approved Tools
 
 This phase adds useful side effects only after policy and audit controls are ready.
 
 Dependencies and ordering:
 
-- Requires Phase 13.
-- GitHub write tools should wait for Phase 15.
+- Requires Phase 14.
+- GitHub write tools should wait for Phase 16.
 - Telegram-send and local-write tools should start with disposable or explicitly approved targets only.
 
-### Task 19.1: Define Write Tool Classes
+### Task 20.1: Define Write Tool Classes
 
 Deliverables:
 
@@ -1078,7 +1176,7 @@ Deliverables:
 - Keep write tools disabled by default.
 - Add registry tests for each side-effect class.
 
-### Task 19.2: Add Low-Risk Write Tools
+### Task 20.2: Add Low-Risk Write Tools
 
 Deliverables:
 
@@ -1087,7 +1185,7 @@ Deliverables:
 - Add rollback or manual cleanup guidance where possible.
 - Add integration tests for approval, execution, denial, and audit persistence.
 
-### Task 19.3: Add GitHub Write Tools Later
+### Task 20.3: Add GitHub Write Tools Later
 
 Deliverables:
 
@@ -1121,16 +1219,16 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live test only against disposable targets
 
-## Phase 20: Multi-User Roles And Chat Governance
+## Phase 21: Multi-User Roles And Chat Governance
 
 This phase makes the bot safe for more than one trusted operator.
 
 Dependencies and ordering:
 
 - Should happen before broad non-owner rollout.
-- Cost controls in Phase 21 should build on these role and chat policies.
+- Cost controls in Phase 22 should build on these role and chat policies.
 
-### Task 20.1: Add Role Model
+### Task 21.1: Add Role Model
 
 Deliverables:
 
@@ -1139,7 +1237,7 @@ Deliverables:
 - Add migration and store APIs if roles become persistent.
 - Add tests for role lookup and defaults.
 
-### Task 20.2: Add Per-Chat Policy
+### Task 21.2: Add Per-Chat Policy
 
 Deliverables:
 
@@ -1147,7 +1245,7 @@ Deliverables:
 - Keep current single-owner behavior as the default.
 - Add tests for private chat, group, topic, and allowed-chat interactions.
 
-### Task 20.3: Add Invite And Audit Workflows
+### Task 21.3: Add Invite And Audit Workflows
 
 Deliverables:
 
@@ -1180,16 +1278,16 @@ Verification:
 - Permission matrix tests across roles and chat types
 - Live validation with at least one non-owner test user
 
-## Phase 21: Model And Cost Controls
+## Phase 22: Model And Cost Controls
 
 This phase bounds usage as the bot becomes more capable and multi-user.
 
 Dependencies and ordering:
 
-- Should follow Phase 20 so budgets and model policy can be assigned by role and chat.
+- Should follow Phase 21 so budgets and model policy can be assigned by role and chat.
 - Should not depend on provider usage data being complete; local counters must degrade gracefully.
 
-### Task 21.1: Add Usage Budgets
+### Task 22.1: Add Usage Budgets
 
 Deliverables:
 
@@ -1198,7 +1296,7 @@ Deliverables:
 - Add warning thresholds and user-facing denial messages.
 - Add tests for cap enforcement and reset windows.
 
-### Task 21.2: Add Model Policy
+### Task 22.2: Add Model Policy
 
 Deliverables:
 
@@ -1206,7 +1304,7 @@ Deliverables:
 - Add default cheap-mode or fast-mode policy for non-admin users if desired.
 - Add tests for denied model changes and fallback defaults.
 
-### Task 21.3: Add Operator Reporting
+### Task 22.3: Add Operator Reporting
 
 Deliverables:
 

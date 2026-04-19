@@ -9,8 +9,16 @@ import { normalizeUpdate } from "./update-normalizer.js";
 import type { RouteResolver } from "./route-resolver.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { TelegramUpdateStore } from "./update-store.js";
+import type { TranscriptStore } from "../sessions/transcript-store.js";
+import type { TelegramMessageStore } from "./message-store.js";
 import { splitTelegramText } from "./formatting.js";
 import { validateInboundSafety } from "./safety.js";
+import {
+  formatReactionNotification,
+  normalizeReactionUpdate,
+  type NormalizedReactionEvent,
+  type TelegramReactionService,
+} from "./reactions.js";
 
 const POLLING_CONFLICT_RETRY_MS = 30_000;
 
@@ -43,6 +51,9 @@ export class TelegramBotServer {
     private readonly commands: TelegramCommandRouter,
     private readonly routes: RouteResolver,
     private readonly orchestrator: RunOrchestrator,
+    private readonly reactions?: TelegramReactionService,
+    private readonly transcripts?: TranscriptStore,
+    private readonly messages?: TelegramMessageStore,
   ) {
     this.bot = new Bot<Context>(config.telegram.botToken);
   }
@@ -63,6 +74,11 @@ export class TelegramBotServer {
     this.bot.on("message", async (ctx) => {
       await this.handleMessage(ctx);
     });
+    if (this.acceptsReactionUpdates()) {
+      this.bot.on("message_reaction", async (ctx) => {
+        await this.handleReaction(ctx);
+      });
+    }
 
     if (this.config.telegram.polling) {
       await this.bot.api.deleteWebhook({
@@ -183,6 +199,7 @@ export class TelegramBotServer {
         return;
       }
       const session = this.routes.resolve(event);
+      await this.trySendAckReaction(event);
       await this.orchestrator.enqueueMessage({
         event,
         session,
@@ -198,6 +215,110 @@ export class TelegramBotServer {
       } else {
         this.updates.release(event.updateId);
       }
+    }
+  }
+
+  private async handleReaction(ctx: Context): Promise<void> {
+    const event = normalizeReactionUpdate({
+      ctx,
+      clock: this.clock,
+    });
+    if (!event) {
+      return;
+    }
+    const begin = this.updates.begin(event.updateId);
+    if (!begin.accepted) {
+      this.logger.debug({ reason: begin.reason, updateId: event.updateId }, "Telegram reaction update ignored.");
+      return;
+    }
+    let processed = false;
+    try {
+      if (!this.shouldRecordReaction(event)) {
+        processed = true;
+        return;
+      }
+      const session = this.routes.resolve({
+        updateId: event.updateId,
+        chatId: event.chatId,
+        chatType: event.chatType,
+        messageId: event.messageId,
+        ...(event.fromUserId ? { fromUserId: event.fromUserId } : {}),
+        ...(event.fromUsername ? { fromUsername: event.fromUsername } : {}),
+        entities: [],
+        attachments: [],
+        mentionsBot: false,
+        isCommand: false,
+        arrivedAt: event.arrivedAt,
+      });
+      this.transcripts?.add({
+        sessionKey: session.sessionKey,
+        role: "system",
+        telegramMessageId: event.messageId,
+        contentText: formatReactionNotification(event),
+        contentJson: JSON.stringify({ telegramReaction: event }),
+      });
+      processed = true;
+    } finally {
+      if (processed) {
+        this.updates.markProcessed({
+          updateId: event.updateId,
+          chatId: event.chatId,
+          messageId: event.messageId,
+        });
+      } else {
+        this.updates.release(event.updateId);
+      }
+    }
+  }
+
+  private acceptsReactionUpdates(): boolean {
+    return (
+      this.config.telegram.reactions.enabled &&
+      this.config.telegram.reactions.notifications !== "off" &&
+      Boolean(this.transcripts && this.messages)
+    );
+  }
+
+  private shouldRecordReaction(event: NormalizedReactionEvent): boolean {
+    if (!this.acceptsReactionUpdates()) {
+      return false;
+    }
+    if (event.addedEmojis.length === 0 && event.removedEmojis.length === 0) {
+      return false;
+    }
+    if (
+      this.config.telegram.allowedChatIds.length > 0 &&
+      !this.config.telegram.allowedChatIds.includes(event.chatId)
+    ) {
+      return false;
+    }
+    if (this.config.telegram.reactions.notifications === "all") {
+      return true;
+    }
+    return Boolean(
+      this.messages?.hasMessageInChat({
+        chatId: event.chatId,
+        telegramMessageId: event.messageId,
+      }),
+    );
+  }
+
+  private async trySendAckReaction(event: {
+    chatId: string;
+    messageId: number;
+  }): Promise<void> {
+    const ackEmoji = this.config.telegram.reactions.ackEmoji.trim();
+    if (!this.config.telegram.reactions.enabled || !ackEmoji || !this.reactions) {
+      return;
+    }
+    try {
+      await this.reactions.setEmojiReaction({
+        chatId: event.chatId,
+        messageId: event.messageId,
+        emoji: ackEmoji,
+      });
+    } catch (error) {
+      this.logger.warn({ error }, "Failed to send Telegram ack reaction.");
     }
   }
 
@@ -247,7 +368,7 @@ export class TelegramBotServer {
     });
     await this.bot.api.setWebhook(new URL(path, publicUrl).toString(), {
       secret_token: secretToken,
-      allowed_updates: ["message"],
+      allowed_updates: this.acceptsReactionUpdates() ? ["message", "message_reaction"] : ["message"],
     });
   }
 }

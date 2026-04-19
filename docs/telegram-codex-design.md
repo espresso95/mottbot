@@ -799,10 +799,11 @@ Detailed deliverables, edge cases, and required tests for these phases live in `
 Ordering constraints:
 
 - Phase 11 should happen before additional user-facing capabilities so discovery does not lag implementation.
-- Phase 13 must happen before broad repository tools or any write-capable tool.
-- Phase 14 should precede Phase 15 so local repository inspection patterns are established before remote GitHub context.
-- Phase 20 should precede Phase 21 so model and cost policy can attach to roles and chat governance.
-- Phase 19 should not begin until the approval preview, policy, and audit requirements from Phase 13 are complete.
+- Phase 12 should precede broader Telegram UI/action tools so reaction policy, update routing, and side-effect approval patterns are established first.
+- Phase 14 must happen before broad repository tools or any write-capable tool.
+- Phase 15 should precede Phase 16 so local repository inspection patterns are established before remote GitHub context.
+- Phase 21 should precede Phase 22 so model and cost policy can attach to roles and chat governance.
+- Phase 20 should not begin until the approval preview, policy, and audit requirements from Phase 14 are complete.
 
 ### Phase 11: command discovery and conversation UX
 
@@ -819,7 +820,23 @@ Primary user-facing additions:
 - `/tool help` or a shorter `/tools`
 - improved status text for long runs, tool calls, denials, and recoverable failures
 
-### Phase 12: general file understanding
+### Phase 12: Telegram reactions
+
+Design intent:
+
+- add OpenClaw-style reaction acknowledgement without replacing text status messages
+- ingest meaningful user reactions as lightweight session context
+- keep model-initiated reactions behind the existing side-effect approval workflow
+- preserve safe behavior in groups and topics despite Telegram reaction updates lacking topic thread IDs
+
+Primary user-facing additions:
+
+- configurable processing acknowledgement reaction
+- optional acknowledgement reaction cleanup after replies
+- reaction notifications in the next model turn
+- approved `mottbot_telegram_react` model tool for admins
+
+### Phase 13: general file understanding
 
 Design intent:
 
@@ -834,7 +851,7 @@ Primary user-facing additions:
 - file extraction failure messages that explain size, type, encryption, or parsing limits
 - `/files` or equivalent session attachment inspection
 
-### Phase 13: tool permission model v2
+### Phase 14: tool permission model v2
 
 Design intent:
 
@@ -852,7 +869,7 @@ Core policy dimensions:
 - dry-run support
 - output and timeout limits
 
-### Phase 14: read-only local repository tools
+### Phase 15: read-only local repository tools
 
 Design intent:
 
@@ -868,7 +885,7 @@ Initial tools:
 - search text
 - summarize git status, branch, recent commits, and diffs
 
-### Phase 15: GitHub read integration
+### Phase 16: GitHub read integration
 
 Design intent:
 
@@ -883,7 +900,7 @@ Initial surfaces:
 - admin commands for concise repository and CI status
 - mocked tests by default, optional live read-only validation
 
-### Phase 16: operator dashboard v2
+### Phase 17: operator dashboard v2
 
 Design intent:
 
@@ -900,7 +917,7 @@ Primary panels:
 - memory inspection/editing
 - safe service controls
 
-### Phase 17: model-assisted memory
+### Phase 18: model-assisted memory
 
 Design intent:
 
@@ -915,7 +932,7 @@ Primary user-facing additions:
 - accept/reject/edit/pin/archive commands
 - scoped memory rendering in prompts
 
-### Phase 18: backup, log rotation, and recovery hardening
+### Phase 19: backup, log rotation, and recovery hardening
 
 Design intent:
 
@@ -931,7 +948,7 @@ Primary surfaces:
 - log archive/truncate workflow
 - updated setup and operations runbooks
 
-### Phase 19: write-capable approved tools
+### Phase 20: write-capable approved tools
 
 Design intent:
 
@@ -946,7 +963,7 @@ Initial low-risk writes:
 - send a Telegram message to an approved chat
 - later, create GitHub issues or draft PR/comment content
 
-### Phase 20: multi-user roles and chat governance
+### Phase 21: multi-user roles and chat governance
 
 Design intent:
 
@@ -962,7 +979,7 @@ Primary user-facing additions:
 - per-chat policy inspection
 - permission matrix tests across chat types
 
-### Phase 21: model and cost controls
+### Phase 22: model and cost controls
 
 Design intent:
 

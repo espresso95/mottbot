@@ -95,7 +95,8 @@ Registry behavior:
 - Persisted `tool` transcript rows contain tool name, call ID, arguments, elapsed time, byte count, truncation status, and error code when present. They do not store credentials or raw auth payloads.
 - Approval audit rows record the decision, tool, side-effect type, session, optional run, approver, and reason without credentials.
 - Historical prompt construction excludes persisted `tool` rows; tool results are replayed only in the active provider continuation where the call ID is valid.
-- Telegram shows short status updates such as `Preparing tool`, `Running tool`, and completion/failure state. The final assistant response remains model-authored.
+- Telegram shows short status updates such as `Preparing tool: <name>...`, `Running tool: <name>...`, and `Tool <name> completed. Continuing...` or `Tool <name> failed. Continuing...`. The final assistant response remains model-authored, and smoke tests treat these messages as transient.
+- Telegram reactions use the same side-effect policy as other Telegram actions: acknowledgement reactions are runtime-owned, while model-initiated `mottbot_telegram_react` calls are admin-only and require one-shot approval.
 
 ## Phase: Tool Use Design And Safety
 

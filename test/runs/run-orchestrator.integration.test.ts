@@ -5,6 +5,7 @@ import { SessionQueue } from "../../src/sessions/queue.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { createRuntimeToolRegistry, ToolRegistry } from "../../src/tools/registry.js";
+import { RUN_STATUS_TEXT, formatToolRunningStatus } from "../../src/shared/run-status.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
@@ -36,7 +37,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -92,6 +93,72 @@ describe("RunOrchestrator", () => {
     expect(outbox.finish).toHaveBeenCalled();
   });
 
+  it("removes the Telegram ack reaction after a successful reply when configured", async () => {
+    const stores = createStores({
+      telegram: {
+        reactions: {
+          enabled: true,
+          ackEmoji: "\u{1F440}",
+          removeAckAfterReply: true,
+          notifications: "own",
+        },
+      } as any,
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const reactions = {
+      clearReaction: vi.fn(async () => true),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        stream: vi.fn(async () => ({ text: "done", transport: "sse", requestIdentity: "req-ack" })),
+      } as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      reactions as any,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Build it", chatId: "chat-1", messageId: 42 }),
+      session,
+    });
+    await flushAsync();
+
+    expect(reactions.clearReaction).toHaveBeenCalledWith({
+      chatId: "chat-1",
+      messageId: 42,
+    });
+  });
+
   it("marks failed runs and sends failure output", async () => {
     const stores = createStores();
     cleanup.push(() => {
@@ -107,7 +174,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle) => handle),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -163,7 +230,7 @@ describe("RunOrchestrator", () => {
     });
     const memories = new MemoryStore(stores.database, stores.clock);
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -218,7 +285,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -302,7 +369,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -397,7 +464,7 @@ describe("RunOrchestrator", () => {
     expect(messages[2]?.contentJson).toContain('"tools"');
     expect(outbox.update).toHaveBeenCalledWith(
       expect.anything(),
-      "Running tool: mottbot_health_snapshot...",
+      formatToolRunningStatus("mottbot_health_snapshot"),
     );
     expect(transport.stream).toHaveBeenCalledTimes(2);
   });
@@ -431,7 +498,7 @@ describe("RunOrchestrator", () => {
       ttlMs: 60_000,
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -560,7 +627,7 @@ describe("RunOrchestrator", () => {
       event: createInboundEvent({ text: "resume me", messageId: 42 }),
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 100, chatId: "chat-1", runId: run.runId, lastText: "Working...", lastEditAt: 1 })),
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 100, chatId: "chat-1", runId: run.runId, lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 100, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 100 })),
@@ -589,7 +656,7 @@ describe("RunOrchestrator", () => {
     await flushAsync();
 
     expect(outbox.start).toHaveBeenCalledWith(expect.objectContaining({
-      placeholderText: "Resuming queued request after restart...",
+      placeholderText: RUN_STATUS_TEXT.resumingAfterRestart,
     }));
     expect(stores.runs.get(run.runId)).toMatchObject({ status: "completed" });
     expect(durableQueue.get(run.runId)).toMatchObject({ state: "completed", attempts: 1 });

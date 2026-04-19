@@ -1,3 +1,5 @@
+import { isTransientRunStatus } from "../shared/run-status.js";
+
 export type TelegramUserSmokeConfig = {
   apiId: number;
   apiHash: string;
@@ -102,12 +104,5 @@ export function buildTelegramUserSmokeConfig(params: {
 }
 
 export function isTransientBotStatus(text: string): boolean {
-  const trimmed = text.trim();
-  return (
-    trimmed === "Working..." ||
-    trimmed === "Resuming queued request after restart..." ||
-    /^Preparing tool: .+\.\.\.$/.test(trimmed) ||
-    /^Running tool: .+\.\.\.$/.test(trimmed) ||
-    /^Tool .+ (completed|failed)\. Continuing\.\.\.$/.test(trimmed)
-  );
+  return isTransientRunStatus(text);
 }

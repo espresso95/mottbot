@@ -69,12 +69,22 @@ MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES=31457280
 MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE=4
 MOTTBOT_MAX_INBOUND_TEXT_CHARS=12000
 MOTTBOT_TELEGRAM_POLLING=true
+MOTTBOT_TELEGRAM_REACTIONS_ENABLED=true
+MOTTBOT_TELEGRAM_ACK_REACTION=👀
+MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY=false
+MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own
 MOTTBOT_DASHBOARD_ENABLED=false
 MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false
 MOTTBOT_AUTO_MEMORY_SUMMARIES=false
 ```
 
 Do not commit `.env`, SQLite files, logs, or attachment cache data.
+
+Reaction settings:
+
+- `MOTTBOT_TELEGRAM_ACK_REACTION` is sent after a message is accepted for model handling.
+- `MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own` records reactions only on bot-authored messages; use `all` only for trusted chats.
+- `MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY=true` clears the bot's reaction on the triggering message after the run finishes.
 
 Import Codex CLI auth into the configured SQLite database:
 

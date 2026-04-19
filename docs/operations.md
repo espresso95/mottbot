@@ -198,6 +198,7 @@ MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
 Current side-effecting tool:
 
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
+- `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
 
 Approval flow:
 

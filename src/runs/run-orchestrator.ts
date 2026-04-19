@@ -10,6 +10,13 @@ import {
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
 import type { Logger } from "../shared/logger.js";
+import {
+  RUN_STATUS_TEXT,
+  formatRunFailedStatus,
+  formatToolCompletedStatus,
+  formatToolPreparingStatus,
+  formatToolRunningStatus,
+} from "../shared/run-status.js";
 import type { SessionQueue } from "../sessions/queue.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
@@ -18,6 +25,7 @@ import type { MemoryStore } from "../sessions/memory-store.js";
 import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
+import type { TelegramReactionService } from "../telegram/reactions.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import {
   NoopAttachmentIngestor,
@@ -65,17 +73,6 @@ function transcriptAttachmentsFromEvent(event: InboundEvent): TranscriptAttachme
     ...attachment,
     ingestionStatus: "metadata_only",
   }));
-}
-
-function toolRunningText(call: CodexToolCall): string {
-  return `Running tool: ${call.name}...`;
-}
-
-function toolCompletedText(result: ToolExecutionResult): string {
-  if (result.isError) {
-    return `Tool ${result.toolName} failed. Continuing...`;
-  }
-  return `Tool ${result.toolName} completed. Continuing...`;
 }
 
 function toolTranscriptText(result: ToolExecutionResult): string {
@@ -128,6 +125,7 @@ export class RunOrchestrator {
     private readonly toolExecutor?: ToolExecutor,
     private readonly memories?: MemoryStore,
     private readonly modelCapabilities: ModelCapabilities = codexModelCapabilities,
+    private readonly reactions?: TelegramReactionService,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -234,7 +232,7 @@ export class RunOrchestrator {
         event: params.event,
         session: params.session,
         runId: params.runId,
-        placeholderText: params.recovered ? "Resuming queued request after restart..." : "Working...",
+        placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
         signal,
       });
       const finalRun = this.runs.get(params.runId);
@@ -361,7 +359,7 @@ export class RunOrchestrator {
           },
           onToolCallStart: async (toolCall) => {
             if (toolCall.name) {
-              placeholder = await this.outbox.update(placeholder, `Preparing tool: ${toolCall.name}...`);
+              placeholder = await this.outbox.update(placeholder, formatToolPreparingStatus(toolCall.name));
             }
           },
         });
@@ -388,7 +386,7 @@ export class RunOrchestrator {
         toolRounds += 1;
 
         for (const toolCall of toolCalls) {
-          placeholder = await this.outbox.update(placeholder, toolRunningText(toolCall));
+          placeholder = await this.outbox.update(placeholder, formatToolRunningStatus(toolCall.name));
           const execution = await this.toolExecutor.execute(toolCall, {
             signal: params.signal,
             sessionKey: params.session.sessionKey,
@@ -404,7 +402,10 @@ export class RunOrchestrator {
             contentJson: toolTranscriptJson(toolCall, execution),
           });
           extraContextMessages.push(this.toolExecutor.toToolResultMessage(execution));
-          placeholder = await this.outbox.update(placeholder, toolCompletedText(execution));
+          placeholder = await this.outbox.update(
+            placeholder,
+            formatToolCompletedStatus({ toolName: execution.toolName, isError: execution.isError }),
+          );
           this.logger.info(
             {
               runId: run.runId,
@@ -462,6 +463,7 @@ export class RunOrchestrator {
         requestIdentity: result.requestIdentity,
         finishedAt: this.clock.now(),
       });
+      await this.removeAckReactionAfterReply(params.event);
       this.logger.info(
         {
           runId: run.runId,
@@ -485,7 +487,8 @@ export class RunOrchestrator {
         },
         "Run execution failed.",
       );
-      await this.outbox.fail(placeholder, `Run failed: ${message}`);
+      await this.outbox.fail(placeholder, formatRunFailedStatus(message));
+      await this.removeAckReactionAfterReply(params.event);
       this.runs.update(run.runId, {
         status: params.signal.aborted ? "cancelled" : "failed",
         errorCode,
@@ -510,6 +513,26 @@ export class RunOrchestrator {
       sessionKey,
       contentText: summary,
     });
+  }
+
+  private async removeAckReactionAfterReply(event: InboundEvent): Promise<void> {
+    const ackEmoji = this.config.telegram.reactions.ackEmoji.trim();
+    if (
+      !this.reactions ||
+      !this.config.telegram.reactions.enabled ||
+      !this.config.telegram.reactions.removeAckAfterReply ||
+      !ackEmoji
+    ) {
+      return;
+    }
+    try {
+      await this.reactions.clearReaction({
+        chatId: event.chatId,
+        messageId: event.messageId,
+      });
+    } catch (error) {
+      this.logger.warn({ error }, "Failed to remove Telegram ack reaction.");
+    }
   }
 
   private rebuildEvent(record: RunQueueRecord, session: SessionRoute): InboundEvent {
@@ -564,10 +587,10 @@ export class RunOrchestrator {
         chatId: record.chatId,
         threadId: record.threadId,
         replyToMessageId: record.messageId,
-        placeholderText: "Unable to resume queued request after restart.",
+        placeholderText: RUN_STATUS_TEXT.unableToResumeAfterRestart,
       })
       .then(async (handle) => {
-        await this.outbox.fail(handle, `Run failed: ${message}`);
+        await this.outbox.fail(handle, formatRunFailedStatus(message));
       })
       .catch((error) => {
         this.logger.warn({ error, runId: record.runId }, "Failed to notify chat about unrecoverable queued run.");

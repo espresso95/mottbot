@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FakeClock, createInboundEvent, createTestConfig } from "../helpers/fakes.js";
+import { FakeClock, createInboundEvent, createStores, createTestConfig } from "../helpers/fakes.js";
+import { removeTempDir } from "../helpers/tmp.js";
 
 const handlers = new Map<string, (ctx: any) => Promise<void>>();
 let requestHandler: ((req: any, res: any) => void) | undefined;
@@ -8,6 +9,7 @@ const botApi = {
   deleteWebhook: vi.fn(async () => true),
   setWebhook: vi.fn(async () => true),
   sendMessage: vi.fn(async () => true),
+  setMessageReaction: vi.fn(async () => true),
 };
 const botStart = vi.fn(async () => undefined);
 const botStop = vi.fn(async () => undefined);
@@ -61,6 +63,7 @@ describe("TelegramBotServer", () => {
 
   it("starts and routes accepted messages to the orchestrator", async () => {
     const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const { TelegramReactionService } = await import("../../src/telegram/reactions.js");
     const commands = { maybeHandle: vi.fn(async () => false) };
     const access = { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) };
     const session = { sessionKey: "s1" };
@@ -75,6 +78,7 @@ describe("TelegramBotServer", () => {
       commands as any,
       routes as any,
       orchestrator as any,
+      new TelegramReactionService(botApi as any),
     );
     await server.start();
     await handlers.get("message")?.({
@@ -91,12 +95,126 @@ describe("TelegramBotServer", () => {
     expect(commands.maybeHandle).toHaveBeenCalled();
     expect(access.evaluate).toHaveBeenCalled();
     expect(routes.resolve).toHaveBeenCalled();
+    expect(botApi.setMessageReaction).toHaveBeenCalledWith("1", 42, [
+      { type: "emoji", emoji: "\u{1F440}" },
+    ], {});
     expect(orchestrator.enqueueMessage).toHaveBeenCalledWith({
       event: expect.objectContaining(createInboundEvent({ chatId: "1", fromUserId: "2", fromUsername: "user", messageId: 42, updateId: 1, text: "hello" })),
       session,
     });
     await server.stop();
     expect(botStop).toHaveBeenCalled();
+  });
+
+  it("records allowed Telegram reaction updates as system context", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const { TelegramReactionService } = await import("../../src/telegram/reactions.js");
+    const stores = createStores({
+      telegram: {
+        reactions: {
+          enabled: true,
+          ackEmoji: "\u{1F440}",
+          removeAckAfterReply: false,
+          notifications: "all",
+        },
+      } as any,
+    });
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:1:user:2",
+        chatId: "1",
+        userId: "2",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const server = new TelegramBotServer(
+        stores.config,
+        stores.clock,
+        stores.logger,
+        stores.updateStore,
+        { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+        { maybeHandle: vi.fn(async () => false) } as any,
+        { resolve: vi.fn(() => session) } as any,
+        { enqueueMessage: vi.fn(async () => undefined) } as any,
+        new TelegramReactionService(botApi as any),
+        stores.transcripts,
+        stores.messageStore,
+      );
+      await server.start();
+      await handlers.get("message_reaction")?.({
+        update: {
+          update_id: 99,
+          message_reaction: {
+            chat: { id: 1, type: "private" },
+            message_id: 42,
+            user: { id: 2, username: "user" },
+            old_reaction: [],
+            new_reaction: [{ type: "emoji", emoji: "\u{1F44D}" }],
+          },
+        },
+      });
+
+      expect(stores.transcripts.listRecent(session.sessionKey)).toEqual([
+        expect.objectContaining({
+          role: "system",
+          telegramMessageId: 42,
+          contentText: "Telegram reaction added \u{1F44D} by @user on msg 42.",
+        }),
+      ]);
+      expect(stores.updateStore.begin(99)).toEqual({ accepted: false, reason: "processed" });
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("ignores own-scope reaction updates for messages the bot did not send", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const { TelegramReactionService } = await import("../../src/telegram/reactions.js");
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:1:user:2",
+        chatId: "1",
+        userId: "2",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const server = new TelegramBotServer(
+        stores.config,
+        stores.clock,
+        stores.logger,
+        stores.updateStore,
+        { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+        { maybeHandle: vi.fn(async () => false) } as any,
+        { resolve: vi.fn(() => session) } as any,
+        { enqueueMessage: vi.fn(async () => undefined) } as any,
+        new TelegramReactionService(botApi as any),
+        stores.transcripts,
+        stores.messageStore,
+      );
+      await server.start();
+      await handlers.get("message_reaction")?.({
+        update: {
+          update_id: 100,
+          message_reaction: {
+            chat: { id: 1, type: "private" },
+            message_id: 42,
+            user: { id: 2, username: "user" },
+            old_reaction: [],
+            new_reaction: [{ type: "emoji", emoji: "\u{1F44D}" }],
+          },
+        },
+      });
+
+      expect(stores.transcripts.listRecent(session.sessionKey)).toEqual([]);
+      expect(stores.updateStore.begin(100)).toEqual({ accepted: false, reason: "processed" });
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
   });
 
   it("backs off and retries when Telegram reports another active poller", async () => {
@@ -115,6 +233,9 @@ describe("TelegramBotServer", () => {
       { maybeHandle: vi.fn(async () => false) } as any,
       { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
       { enqueueMessage: vi.fn(async () => undefined) } as any,
+      undefined,
+      {} as any,
+      {} as any,
     );
 
     const startPromise = server.start();
@@ -379,6 +500,9 @@ describe("TelegramBotServer", () => {
       { maybeHandle: vi.fn(async () => false) } as any,
       { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
       { enqueueMessage: vi.fn(async () => undefined) } as any,
+      undefined,
+      {} as any,
+      {} as any,
     );
     await server.start();
 
@@ -387,7 +511,7 @@ describe("TelegramBotServer", () => {
     expect(serverListen).toHaveBeenCalledWith(9090, "127.0.0.1", expect.any(Function));
     expect(botApi.setWebhook).toHaveBeenCalledWith("https://example.com/telegram/webhook", {
       secret_token: "secret",
-      allowed_updates: ["message"],
+      allowed_updates: ["message", "message_reaction"],
     });
     expect(requestHandler).toBeTypeOf("function");
 

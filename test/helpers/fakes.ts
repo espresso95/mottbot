@@ -44,6 +44,12 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
         port: 8080,
         secretToken: "secret",
       },
+      reactions: {
+        enabled: true,
+        ackEmoji: "\u{1F440}",
+        removeAckAfterReply: false,
+        notifications: "own",
+      },
     },
     models: {
       default: "openai-codex/gpt-5.4",
@@ -109,6 +115,10 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       webhook: {
         ...base.telegram.webhook,
         ...overrides.telegram?.webhook,
+      },
+      reactions: {
+        ...base.telegram.reactions,
+        ...overrides.telegram?.reactions,
       },
     },
     models: { ...base.models, ...overrides.models },

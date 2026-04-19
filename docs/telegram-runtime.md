@@ -32,7 +32,7 @@ type InboundEvent = {
 
 Current behavior:
 
-- accepts only Telegram message updates
+- accepts Telegram message updates and, when reaction notifications are enabled, Telegram `message_reaction` updates
 - captures `text` or `caption` as visible text
 - extracts entities from `entities` or `caption_entities`
 - extracts a single representative file ID and Telegram metadata for supported attachment kinds
@@ -41,6 +41,40 @@ Current behavior:
 - detects bot mention by username substring match
 - flags commands when the visible text begins with `/`
 - carries topic thread ID through `message_thread_id`
+
+## Telegram Reactions
+
+Mottbot supports Telegram emoji reactions in three separate paths:
+
+- acknowledgement reactions while an accepted message is being processed
+- reaction notifications that become `system` transcript context for the next model turn
+- an approved admin-only model tool for adding or clearing a bot reaction
+
+Configuration:
+
+- `telegram.reactions.enabled` or `MOTTBOT_TELEGRAM_REACTIONS_ENABLED`
+- `telegram.reactions.ackEmoji` or `MOTTBOT_TELEGRAM_ACK_REACTION`
+- `telegram.reactions.removeAckAfterReply` or `MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY`
+- `telegram.reactions.notifications` or `MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS` with `off`, `own`, or `all`
+
+Ack behavior:
+
+- the bot sends the configured acknowledgement reaction only after command handling, safety checks, and ACL checks pass
+- ack reaction failures are logged as warnings and do not block the model run
+- when `removeAckAfterReply` is enabled, Mottbot clears the bot's reaction on the triggering message after success or failure
+
+Notification behavior:
+
+- webhook mode requests `message_reaction` updates when notifications are enabled
+- `own` records reactions only on known bot-authored messages
+- `all` records reactions from allowed chats
+- reaction notifications are stored as `system` transcript messages, not as standalone user turns
+- Telegram reaction updates do not include forum topic thread IDs, so group reactions route to the group-level session
+
+Approved reaction tool:
+
+- `mottbot_telegram_react` adds a Unicode emoji reaction or clears the bot reaction with an empty emoji
+- it is admin-only, side-effecting, and requires the existing one-shot `/tool approve` flow before execution
 
 ## Safety Limits
 
@@ -314,7 +348,7 @@ Prefer direct answers over padding.
 
 ### Start
 
-- send one placeholder message, currently `Working...`
+- send one placeholder message, currently `Starting run...`
 - store its Telegram message ID in `outbox_messages`
 
 ### Streaming updates
@@ -324,6 +358,8 @@ Prefer direct answers over padding.
 - throttle edits using `behavior.editThrottleMs`
 - skip edits when the next rendered text is empty or unchanged
 - if an edit fails mid-stream, send a continuation message, rebind the active outbox handle, and continue streaming
+- transient status updates are intentionally terse and stable: `Starting run...`, `Resuming queued run after restart...`, `Preparing tool: <name>...`, `Running tool: <name>...`, and `Tool <name> completed. Continuing...` or `Tool <name> failed. Continuing...`
+- recovery ignores these transient statuses when deciding whether an interrupted run had partial assistant text worth preserving
 
 ### Finish
 
