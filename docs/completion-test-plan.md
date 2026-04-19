@@ -29,20 +29,23 @@ As of April 19, 2026:
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 46 test files and 151 tests.
-- `corepack pnpm test:coverage` passes with statements 84.73%, branches 73.81%, functions 90.93%, and lines 84.78%.
+- `corepack pnpm test` passes with 47 test files and 159 tests.
+- `corepack pnpm test:coverage` passes with statements 84.46%, branches 72.86%, functions 91.07%, and lines 84.49%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - `corepack pnpm smoke:telegram-user` passes in skipped mode by default and passed live against `StartupMottBot` after the persistent service was restarted.
+- `NODE_OPTIONS=--trace-deprecation corepack pnpm health` passes without the previous transitive `punycode` warning.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
 Current known gaps:
 
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
+- Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
 - Model-executed tools are limited to the health snapshot, admin diagnostics, and the admin-only opt-in delayed restart tool. Other side-effect categories remain disabled.
+- There are no local repository, GitHub, write-capable, or model-cost governance tools yet.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -547,3 +550,685 @@ Deliverables:
 - Add tests proving provider swap does not affect Telegram routing.
 - Document supported providers and auth modes.
 - Avoid adding this until there is a real second provider requirement.
+
+## Phase 11: Command Discovery And Conversation UX
+
+This phase makes the bot self-documenting in Telegram before adding more powerful capabilities.
+
+Dependencies and ordering:
+
+- Do this before adding new file, repository, GitHub, or write-capable tools so new capabilities have a discoverable command surface from the start.
+- Keep command output generated from the same capability and policy state used by the runtime; avoid hand-maintained help text that can drift.
+
+### Task 11.1: Add Caller-Aware Help
+
+Deliverables:
+
+- Add `/help` output that changes by caller permission, chat type, and enabled feature set.
+- Include model/session commands, memory commands, diagnostic commands, and tool commands in separate sections.
+- Hide admin-only commands from non-admin users.
+- Add tests for admin private chat, non-admin private chat, and non-admin group behavior.
+- Update `docs/telegram-runtime.md` and `docs/operations.md`.
+
+### Task 11.2: Improve Tool Discovery
+
+Deliverables:
+
+- Keep `/tool status` focused on model-exposed tools, enabled host tools, and active approvals.
+- Add `/tools` or `/tool help` as a shorter command discovery surface if `/tool status` becomes too dense.
+- Document the difference between enabled host tools and model-exposed tools.
+- Add tests for side-effect tools disabled, side-effect tools enabled for admin, and non-admin visibility.
+
+### Task 11.3: Refine User-Facing Progress Messages
+
+Deliverables:
+
+- Review placeholder, tool-running, completion, failure, and retry messages for clarity.
+- Keep status edits concise enough for Telegram but specific enough for operators.
+- Add tests for user-visible text where behavior is stable.
+- Document any intentionally transient status messages used by the live smoke harness.
+
+Edge cases to cover:
+
+- Commands with `@BotUsername` suffixes in private chats, groups, supergroups, and topics.
+- Non-admin commands in groups, allowed private chats, disallowed private chats, and bound routes.
+- Feature-disabled states: no diagnostics, no tool registry, side-effect tools disabled, no memory store, no auth profiles.
+- Long help output that must be split into multiple Telegram messages without losing section context.
+- Unknown commands that should fall through to model handling versus command-looking input that should be rejected.
+- Bot restart or polling retry while a command is in progress.
+
+Required testing:
+
+- Unit tests for command parsing, command alias handling, and help-section filtering.
+- Integration tests for admin private, admin group/topic, non-admin private, non-admin group, allowed-chat, and disallowed-chat command behavior.
+- Integration tests that `/help`, `/tool status`, and `/tool help` reflect enabled/disabled feature state.
+- Telegram formatting tests for chunked help output near Telegram message length limits.
+- Live admin and temporary non-admin checks for `/help` and `/tool status`.
+- Live group/topic smoke test for command suffix handling and non-admin denial behavior.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Live `/help` and `/tool status` checks for admin and non-admin callers
+
+## Phase 12: General File Understanding
+
+This phase expands attachment support beyond images and metadata while keeping raw files out of committed and long-lived storage.
+
+Dependencies and ordering:
+
+- Do this before repository tools, because the same extraction, truncation, and prompt-rendering patterns should be reused for local files later.
+- Do not add write-capable file operations in this phase.
+
+### Task 12.1: Add Text And Markdown File Ingestion
+
+Deliverables:
+
+- Detect Telegram text-like documents by MIME type, extension, and safe byte inspection.
+- Enforce per-file and total text extraction limits.
+- Convert extracted text into prompt-safe attachment context.
+- Persist metadata and extraction summary without storing raw file contents in SQLite.
+- Add tests for UTF-8 text, Markdown, oversized files, and unsupported encodings.
+
+### Task 12.2: Add PDF Text Extraction
+
+Deliverables:
+
+- Choose a maintained PDF text extraction library compatible with the current Node version.
+- Extract bounded text from PDFs without executing embedded content.
+- Return a clear Telegram message when a PDF is encrypted, scanned, too large, or unreadable.
+- Add tests using small fixture PDFs and failure fixtures.
+- Document the extraction limitations.
+
+### Task 12.3: Add Code And CSV Summaries
+
+Deliverables:
+
+- Recognize common code file extensions and preserve filename/language metadata.
+- Recognize CSV/TSV files and include bounded table previews.
+- Avoid loading large files fully into memory when streaming or chunking is available.
+- Add tests for code files, CSV headers, long rows, and truncation behavior.
+
+### Task 12.4: Add File-Oriented Commands
+
+Deliverables:
+
+- Add `/files` or equivalent to list recent attachment metadata for the current session.
+- Add a way to forget or clear retained attachment metadata without touching unrelated transcripts.
+- Add retention-pruning integration with attachment metadata.
+- Update data-model and operations docs.
+
+Edge cases to cover:
+
+- Telegram documents with missing filename, missing MIME type, misleading extension, or incorrect size metadata.
+- Files that exceed metadata size limits before download and files that exceed byte limits during download.
+- UTF-8 with BOM, invalid UTF-8, very long lines, null bytes, binary files with text-like extensions, and compressed files.
+- PDFs that are encrypted, image-only/scanned, malformed, huge, password-protected, or contain no extractable text.
+- CSV/TSV files with quoted newlines, very wide rows, missing headers, inconsistent columns, and formula-like cells.
+- Multiple attachments in one message where some succeed and some fail.
+- Cleanup after successful prompt construction, cleanup after model failure, cleanup after Telegram download failure, and missing cache files.
+- User-visible output must not include local cache paths, raw file bytes, or internal Telegram file URLs.
+
+Required testing:
+
+- Unit tests for MIME/extension classification and byte-limit enforcement.
+- Unit tests with fixtures for UTF-8 text, Markdown, invalid encoding, binary masquerading as text, CSV, TSV, code files, and representative PDFs.
+- Integration tests for Telegram attachment metadata through transcript persistence and prompt rendering.
+- Cleanup tests for success, failure, partial failure, reset, and retention pruning.
+- Safety tests proving local file paths, raw bytes, and Telegram file URLs are not exposed in Telegram replies or transcript text.
+- Load tests with max attachment count, max total size, and truncation boundaries.
+- Live smoke tests with text, Markdown, PDF, code, CSV, unsupported binary, mixed attachments, and image messages.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- Live smoke tests with a text file, PDF fixture, code file, CSV, and image
+
+## Phase 13: Tool Permission Model V2
+
+This phase strengthens the approval layer before adding broader tools.
+
+Dependencies and ordering:
+
+- Complete this before Phase 14 repository tools if any new tool might read outside existing runtime diagnostics.
+- Complete this before Phase 19 write-capable tools; approval previews and audit inspection are prerequisites for writes.
+
+### Task 13.1: Add Per-Tool Policy
+
+Deliverables:
+
+- Define a policy shape for each tool: allowed roles, allowed chats, required approval, dry-run availability, and maximum output.
+- Keep policy loading in app/config or a dedicated tool policy module.
+- Preserve deny-by-default behavior when policy is absent.
+- Add tests for policy parsing, policy defaults, and denied execution.
+
+### Task 13.2: Add Approval Previews
+
+Deliverables:
+
+- Generate a human-readable approval preview before any side-effecting tool can execute.
+- Include target resource, action, bounded arguments, and expected side effect.
+- Avoid including secrets or raw auth payloads in previews.
+- Add tests for preview rendering and preview omission of sensitive fields.
+
+### Task 13.3: Add Tool Audit Inspection
+
+Deliverables:
+
+- Add admin command output for recent tool approvals and tool audit decisions.
+- Add filters by session, tool name, and decision code.
+- Keep audit output bounded and token-free.
+- Add tests for successful, denied, expired, and consumed approval records.
+
+Edge cases to cover:
+
+- Missing policy, malformed policy, policy that names unknown tools, and policy that enables disabled tools.
+- Admin-only tools requested by non-admin callers through model tool calls and Telegram commands.
+- Approval race conditions: double approval, revoke during execution, expired approval, consumed approval reused, and concurrent runs in the same session.
+- Approval mismatch by tool name, session key, side-effect class, target resource, or bounded arguments.
+- Policy changes while approvals are active.
+- Audit output containing long arguments, potentially sensitive argument names, or large tool outputs.
+- Dry-run tools that return previews but must not execute side effects.
+
+Required testing:
+
+- Unit tests for policy parsing, defaults, deny-by-default behavior, and config-file/env precedence.
+- Unit tests for approval preview rendering and sensitive-field redaction.
+- Integration tests for registry declaration filtering by role, chat, and side-effect class.
+- Integration tests for approval lifecycle: requested, approved, denied, expired, revoked, consumed, and replay-denied.
+- Database tests for audit persistence, query filters, retention, and migration compatibility.
+- Live admin approval/revoke/status test and live non-admin denial test.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- Live approval/revoke/status test in a private admin chat
+
+## Phase 14: Read-Only Local Repository Tools
+
+This phase gives the model safe visibility into the local project without write access.
+
+Dependencies and ordering:
+
+- Requires Phase 13 policy controls.
+- Should precede GitHub read integration so local source inspection and git summaries are stable before remote context is added.
+
+### Task 14.1: Define Repository Read Scope
+
+Deliverables:
+
+- Add config for approved repository roots and ignored paths.
+- Deny access to `.env`, SQLite files, auth files, session files, logs, and generated output by default.
+- Resolve paths safely and reject traversal outside approved roots.
+- Add tests for allowed files, denied files, symlinks, traversal, and generated-output paths.
+
+### Task 14.2: Add File Search And Read Tools
+
+Deliverables:
+
+- Add read-only tools for listing files, reading bounded file slices, and searching with `rg`.
+- Enforce byte, line, and timeout limits.
+- Return structured results with path, line numbers, truncation, and match counts.
+- Add tests for successful search, no matches, binary files, and timeout behavior.
+
+### Task 14.3: Add Git Read Tools
+
+Deliverables:
+
+- Add read-only tools for status, recent commits, branch name, diff summary, and selected file diff.
+- Sanitize output and avoid leaking ignored or untracked secret file contents.
+- Add tests with a temporary git repository fixture.
+- Document which git commands are used and why they are read-only.
+
+Edge cases to cover:
+
+- Path traversal with `..`, absolute paths, URL-encoded paths, symlinks, hard links, nested repos, and case-insensitive path collisions on macOS.
+- Denied files: `.env`, auth files, Telegram user session files, SQLite files, WAL/SHM files, logs, `data/`, `dist/`, `coverage/`, and ignored generated output.
+- Huge files, binary files, files with invalid UTF-8, long lines, and files changed or deleted between listing and reading.
+- `rg` unavailable, `rg` timeout, no matches, too many matches, and matches in denied paths.
+- Git repository absent, detached HEAD, unborn branch, dirty worktree, submodules, large diffs, binary diffs, renamed files, and untracked ignored files.
+- Tool outputs that could leak secret-looking strings from tracked files; decide whether to redact or rely on approved roots and denied paths.
+
+Required testing:
+
+- Unit tests for approved-root resolution, denied-path matching, symlink handling, traversal rejection, and generated-output rejection.
+- Unit tests for output truncation by bytes, lines, match count, and timeout.
+- Integration tests using temporary repositories for clean, dirty, detached, no-git, submodule, rename, binary-diff, and large-diff states.
+- Tool executor tests proving repository tools stay read-only and respect policy.
+- Regression tests proving secret-adjacent files are denied even when explicitly requested by the model.
+- Live admin prompt asking for repo status, bounded file read, search with matches, and search with no matches.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- Live admin prompt asking for local repo status and a bounded file search
+
+## Phase 15: GitHub Read Integration
+
+This phase adds GitHub awareness without write permissions.
+
+Dependencies and ordering:
+
+- Requires Phase 13 policy controls.
+- Prefer after Phase 14 so local and remote repository views can share output shaping and permission conventions.
+
+### Task 15.1: Add GitHub Configuration And Auth Boundaries
+
+Deliverables:
+
+- Decide whether the integration uses GitHub CLI, GitHub app connector, or a token-backed API path.
+- Document required permissions and token storage.
+- Keep GitHub credentials out of logs, Telegram output, and transcripts.
+- Add tests for missing auth, unavailable CLI/API, and configured repository resolution.
+
+### Task 15.2: Add Read-Only GitHub Tools
+
+Deliverables:
+
+- Add tools for repository metadata, open PRs, recent issues, CI status, and recent workflow failures.
+- Keep output bounded and link-rich.
+- Add tests for mocked API responses and failure shapes.
+- Document rate-limit behavior and fallback messages.
+
+### Task 15.3: Add Telegram Commands For GitHub Status
+
+Deliverables:
+
+- Add admin commands for concise repository and CI status.
+- Avoid making GitHub command behavior depend on model tool use.
+- Add tests for command output and missing integration configuration.
+
+Edge cases to cover:
+
+- Missing auth, expired auth, insufficient scopes, inaccessible repository, renamed repository, archived repository, forked repository, and private repository access denial.
+- API rate limits, abuse limits, network timeouts, GitHub downtime, malformed API responses, and pagination.
+- CI with multiple workflow runs, cancelled runs, skipped jobs, reruns, matrix failures, and checks from multiple providers.
+- Pull requests from forks, draft PRs, merge conflicts, deleted branches, and huge diffs that must stay summarized.
+- GitHub data containing secrets or user-generated content that should be bounded before sending to Telegram.
+- Connector/CLI mismatch if both GitHub CLI and app integration are available.
+
+Required testing:
+
+- Unit tests for GitHub config parsing and repository identifier normalization.
+- Mocked API/client tests for auth failure, missing repository, rate limit, pagination, empty results, and malformed responses.
+- Tool tests for PR list, issue list, CI status, workflow failure summary, and repository metadata outputs.
+- Telegram command integration tests for configured, unconfigured, and auth-failed states.
+- Redaction tests ensuring tokens, auth headers, and raw API payloads are never logged or persisted.
+- Optional live read-only validation against the configured repository, including one CI-status request.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Mocked GitHub integration tests
+- Optional live read-only validation against the configured repository
+
+## Phase 16: Operator Dashboard V2
+
+This phase turns the existing dashboard into the operational control panel.
+
+Dependencies and ordering:
+
+- Can start after Phase 11, but dashboard tool and memory panels should track the policy/memory state available at the time.
+- Do not expose dashboard beyond loopback until auth, CSRF posture, and secret redaction are re-reviewed.
+
+### Task 16.1: Add Runtime Panels
+
+Deliverables:
+
+- Show health counters, service state, current process ID, active runs, queued runs, and stale outbox counters.
+- Show recent runs, recent errors, and recent log excerpts with bounded output.
+- Keep secrets and raw prompts out of dashboard output by default.
+- Add API tests for each panel endpoint.
+
+### Task 16.2: Add Tool And Memory Panels
+
+Deliverables:
+
+- Show enabled tools, model-exposed tools by role, active approvals, and recent audit decisions.
+- Show session memory with edit/delete controls behind dashboard auth.
+- Validate all dashboard mutations server-side.
+- Add tests for auth, validation, and redaction.
+
+### Task 16.3: Add Safe Service Controls
+
+Deliverables:
+
+- Add restart, health refresh, and log refresh controls.
+- Require dashboard auth token and loopback binding unless explicitly configured otherwise.
+- Add confirmation for process-control actions.
+- Add tests for authorized and unauthorized dashboard actions.
+
+Edge cases to cover:
+
+- Dashboard disabled, missing auth token, non-loopback bind without auth token, wrong auth token, and stale browser tabs after config changes.
+- Concurrent dashboard mutations, service restart while dashboard request is active, and database locked errors.
+- Large logs, log files missing after rotation, unreadable logs, and old archive files.
+- Sessions or runs deleted by retention while dashboard is rendering.
+- Memory entries or tool arguments containing long text, Markdown, HTML-like text, or secret-looking values.
+- Browser refresh during restart and partial API failures where some panels load and others fail.
+
+Required testing:
+
+- API tests for every new dashboard endpoint with authorized, unauthorized, disabled, and validation-failed requests.
+- Redaction tests for config, logs, memory, tool arguments, and run summaries.
+- Concurrency tests for simultaneous config writes or restart requests where practical.
+- Snapshot or DOM-level tests for panel rendering if the dashboard grows enough to justify them.
+- Manual loopback dashboard smoke test for health, logs, approvals, memory, and restart confirmation.
+- Non-loopback config test proving auth-token guard remains enforced.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Dashboard endpoint tests
+- Manual local dashboard smoke test
+
+## Phase 17: Model-Assisted Memory
+
+This phase upgrades memory from deterministic summaries to model-assisted recall with review controls.
+
+Dependencies and ordering:
+
+- Best after Phase 11 so memory review commands are discoverable.
+- Best after Phase 13 if memory extraction or review uses tools or policy decisions.
+
+### Task 17.1: Add Memory Candidate Extraction
+
+Deliverables:
+
+- Ask the model to propose memory candidates after eligible conversations.
+- Store candidates separately from accepted memories.
+- Include reason, source message IDs, sensitivity class, and proposed scope.
+- Add tests with mocked model outputs and malformed candidate payloads.
+
+### Task 17.2: Add Memory Review Workflow
+
+Deliverables:
+
+- Add Telegram commands to review, accept, reject, edit, pin, archive, and clear memory candidates.
+- Require explicit user/admin approval before storing sensitive or long-lived facts.
+- Add tests for candidate lifecycle and permission boundaries.
+
+### Task 17.3: Add Memory Scopes
+
+Deliverables:
+
+- Support personal, chat, group, and project memory scopes.
+- Define precedence and prompt rendering order.
+- Add migration and data-model docs for scoped memories.
+- Add tests for prompt inclusion and isolation across sessions.
+
+Edge cases to cover:
+
+- Model proposes false, sensitive, private, stale, contradictory, duplicate, or overly broad memories.
+- Prompt injection attempts that ask the bot to store secrets or ignore review policy.
+- Memories from group chats that should not leak into private chats or other groups.
+- User deletes or edits a memory while a run is building its prompt.
+- Automatic summaries conflict with explicit pinned memories.
+- Very long memory candidates, non-English text, code snippets, and personally identifying information.
+- Memory review commands from non-admin users in group chats and from users who are not the memory owner.
+
+Required testing:
+
+- Unit tests for candidate schema validation, deduplication, sensitivity classification, scope resolution, and prompt ordering.
+- Mocked model tests for malformed JSON, empty candidates, duplicate candidates, and adversarial candidate text.
+- Store/migration tests for candidate lifecycle, accepted memory, archived memory, pinned memory, and scoped memory isolation.
+- Command integration tests for review, accept, reject, edit, pin, archive, forget, and permission denial.
+- Prompt-builder tests proving the right memories appear for personal, chat, group, and project scopes.
+- Live smoke test for candidate review in a private admin chat and a group isolation test.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- Live memory review smoke test
+
+## Phase 18: Backup, Log Rotation, And Recovery Hardening
+
+This phase turns operational hygiene into repeatable commands.
+
+Dependencies and ordering:
+
+- Can be implemented at any time, but should happen before the bot stores more high-value memories, files, or role policy.
+- Backup commands must remain local and avoid Telegram-triggered destructive behavior unless a later approved write policy explicitly allows it.
+
+### Task 18.1: Add Backup Command
+
+Deliverables:
+
+- Add a CLI command that creates a timestamped backup of SQLite, WAL/SHM files when present, config, and non-secret operational metadata.
+- Exclude `.env` by default unless explicitly requested with a warning.
+- Add integrity checks for backup files.
+- Add tests using a temporary SQLite database.
+
+### Task 18.2: Add Restore Runbook And Dry Run
+
+Deliverables:
+
+- Document restore steps for launchd downtime, file placement, permissions, and migration checks.
+- Add a dry-run restore validator if practical.
+- Add tests for validator behavior.
+
+### Task 18.3: Add Log Rotation Policy
+
+Deliverables:
+
+- Add CLI or service guidance for log archive, truncation, and retention.
+- Keep log rotation separate from committed output.
+- Add health or diagnostic visibility into log file size.
+- Update `SETUP.md` and `docs/operations.md`.
+
+Edge cases to cover:
+
+- SQLite database in WAL mode, active writer during backup, missing WAL/SHM files, locked database, corrupted database, and insufficient disk space.
+- Backup destination already exists, backup directory missing, permission errors, cross-device moves, and interrupted backup.
+- `.env` excluded by default, explicitly included only with warning, and never printed.
+- Restore onto an existing database, wrong file permissions, wrong owner, mismatched master key, and pending migrations after restore.
+- Logs missing, huge, unreadable, rotated externally, or symlinked.
+- Launchd service running during restore when it should be stopped.
+
+Required testing:
+
+- Unit tests for backup path generation, inclusion/exclusion rules, and retention pruning.
+- Integration tests against temporary SQLite databases with WAL/SHM files.
+- Failure tests for locked database, unwritable destination, missing files, and interrupted archive creation where practical.
+- Restore validator tests for good backup, missing files, wrong permissions, and migration-needed states.
+- Log rotation tests for archive naming, truncation, missing logs, large logs, and retention cleanup.
+- Manual runbook smoke test: stop service, backup, validate backup, restart service, and confirm health.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Backup/restore dry-run test on a temporary database
+- Manual log-rotation smoke test
+
+## Phase 19: Write-Capable Approved Tools
+
+This phase adds useful side effects only after policy and audit controls are ready.
+
+Dependencies and ordering:
+
+- Requires Phase 13.
+- GitHub write tools should wait for Phase 15.
+- Telegram-send and local-write tools should start with disposable or explicitly approved targets only.
+
+### Task 19.1: Define Write Tool Classes
+
+Deliverables:
+
+- Separate local-write, network-write, Telegram-send, GitHub-write, and process-control tool classes.
+- Require policy, approval preview, audit record, and bounded output for every write-capable tool.
+- Keep write tools disabled by default.
+- Add registry tests for each side-effect class.
+
+### Task 19.2: Add Low-Risk Write Tools
+
+Deliverables:
+
+- Start with tightly scoped operations such as creating draft notes in an approved local directory or sending a message to an approved Telegram chat.
+- Require explicit approval with target preview.
+- Add rollback or manual cleanup guidance where possible.
+- Add integration tests for approval, execution, denial, and audit persistence.
+
+### Task 19.3: Add GitHub Write Tools Later
+
+Deliverables:
+
+- Add issue creation, draft PR description creation, and comment drafting only after read-only GitHub integration is stable.
+- Keep all writes admin-only and approval-gated.
+- Add tests with mocked API clients and no live writes by default.
+- Document live-write validation procedure.
+
+Edge cases to cover:
+
+- Approval preview differs from final execution arguments, target changes after approval, approval expires mid-run, and duplicate model tool calls.
+- Write target unavailable, permission denied, file already exists, race with existing file, network timeout, partial write, and idempotency retry.
+- Telegram send target not approved, blocked bot, deleted chat, topic unavailable, or message too long.
+- GitHub issue/PR/comment creation against wrong repo, archived repo, fork permissions, rate limit, duplicate submit, and API validation error.
+- User cancels or revokes approval while execution is queued.
+- Tool output includes created resource links but not raw request bodies or credentials.
+
+Required testing:
+
+- Unit tests for write policy, preview generation, idempotency keys, and argument/target matching.
+- Integration tests for approval, execute, deny, revoke, expire, duplicate-call, and audit persistence.
+- Mocked file-write tests for create-only, overwrite-denied, path traversal, permission error, and cleanup guidance.
+- Mocked Telegram-send tests for approved target, unapproved target, too-long message, and Telegram API failure.
+- Mocked GitHub-write tests for issue creation, comment drafting, validation error, rate limit, and auth failure.
+- Live tests only against disposable local directories, disposable Telegram chats, and disposable GitHub test repositories.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- Live test only against disposable targets
+
+## Phase 20: Multi-User Roles And Chat Governance
+
+This phase makes the bot safe for more than one trusted operator.
+
+Dependencies and ordering:
+
+- Should happen before broad non-owner rollout.
+- Cost controls in Phase 21 should build on these role and chat policies.
+
+### Task 20.1: Add Role Model
+
+Deliverables:
+
+- Define owner, admin, trusted user, and normal user roles.
+- Decide whether roles live in config, SQLite, or both.
+- Add migration and store APIs if roles become persistent.
+- Add tests for role lookup and defaults.
+
+### Task 20.2: Add Per-Chat Policy
+
+Deliverables:
+
+- Configure allowed models, tools, memory scopes, attachment limits, and command permissions per chat or session.
+- Keep current single-owner behavior as the default.
+- Add tests for private chat, group, topic, and allowed-chat interactions.
+
+### Task 20.3: Add Invite And Audit Workflows
+
+Deliverables:
+
+- Add admin commands to list users, grant roles, revoke roles, and inspect recent user actions.
+- Add audit records for role changes.
+- Add tests for unauthorized role changes and audit output.
+
+Edge cases to cover:
+
+- User has no Telegram username, username changes, numeric user ID reused only as string, and forwarded messages where sender identity differs.
+- Owner accidentally revokes own owner role, last owner removal, duplicate grants, stale role cache, and role changes during active runs.
+- Group admins who are not bot admins, topic-specific policy, bound route policy, and allowed-chat policy conflicts.
+- User leaves group, bot is removed from group, chat migrates to supergroup, and Telegram chat ID changes.
+- Policy conflict between global role, per-chat policy, per-session model, and tool policy.
+- Audit output requested by non-admin or by a user whose role was just revoked.
+
+Required testing:
+
+- Unit tests for role resolution, config/database precedence, last-owner protection, and policy merge order.
+- Migration/store tests for persistent role and chat-policy tables if added.
+- Command tests for grant, revoke, list, inspect, unauthorized changes, duplicate changes, and audit output.
+- Permission matrix tests across owner, admin, trusted user, normal user, unknown user, private chat, group, supergroup, topic, and allowed/disallowed chat.
+- Run orchestration tests proving role changes affect new runs without corrupting active runs.
+- Live validation with at least one non-owner Telegram user and one group/topic environment.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Permission matrix tests across roles and chat types
+- Live validation with at least one non-owner test user
+
+## Phase 21: Model And Cost Controls
+
+This phase bounds usage as the bot becomes more capable and multi-user.
+
+Dependencies and ordering:
+
+- Should follow Phase 20 so budgets and model policy can be assigned by role and chat.
+- Should not depend on provider usage data being complete; local counters must degrade gracefully.
+
+### Task 21.1: Add Usage Budgets
+
+Deliverables:
+
+- Track usage by session, chat, user, model, and time window where provider data allows it.
+- Add configurable daily or monthly run caps.
+- Add warning thresholds and user-facing denial messages.
+- Add tests for cap enforcement and reset windows.
+
+### Task 21.2: Add Model Policy
+
+Deliverables:
+
+- Configure allowed models by role and chat.
+- Add default cheap-mode or fast-mode policy for non-admin users if desired.
+- Add tests for denied model changes and fallback defaults.
+
+### Task 21.3: Add Operator Reporting
+
+Deliverables:
+
+- Add `/usage` or dashboard reporting for recent model usage, failures, and approximate cost where available.
+- Keep account IDs and tokens out of output.
+- Add tests for missing usage provider data and partial data.
+
+Edge cases to cover:
+
+- Provider usage unavailable, delayed, partial, reset time missing, multiple usage windows, and transport reports usage differently.
+- Runs that fail before model request, fail after stream starts, are cancelled, or execute tools without final text.
+- Budget reset across time zones, daylight saving changes, clock skew, and process restart.
+- Multiple users share one chat, one user uses multiple chats, and one session changes model mid-window.
+- Non-admin attempts to select expensive models or bypass caps with `/model`, `/fast`, retries, attachments, or group routes.
+- Reporting output too long for Telegram and dashboard charts with sparse or missing data.
+
+Required testing:
+
+- Unit tests for usage aggregation, budget windows, reset calculations, and local fallback counters.
+- Store tests for persisted usage by run, user, chat, session, model, and time window.
+- Command tests for `/usage`, budget warnings, cap denial, model-policy denial, and admin override if supported.
+- Integration tests for completed, failed, cancelled, tool-using, attachment-using, and retried runs.
+- Time-control tests for reset boundaries, daylight saving transitions, and process restart.
+- Mocked provider tests for missing, partial, delayed, and malformed usage data.
+- Optional live smoke test for usage reporting after a real model run.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- Mocked usage-window tests
+- Optional live usage reporting smoke test

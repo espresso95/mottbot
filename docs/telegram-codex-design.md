@@ -790,6 +790,194 @@ Metrics:
 - transport degradation cache
 - structured metrics
 
+## Future Implementation Roadmap
+
+The implementation is now past the original five-phase scaffold. Future work should be sequenced as capability layers so the bot remains useful without weakening operator safety.
+
+Detailed deliverables, edge cases, and required tests for these phases live in `docs/completion-test-plan.md`. This design section is intentionally higher level; do not treat it as a substitute for the phase test matrix.
+
+Ordering constraints:
+
+- Phase 11 should happen before additional user-facing capabilities so discovery does not lag implementation.
+- Phase 13 must happen before broad repository tools or any write-capable tool.
+- Phase 14 should precede Phase 15 so local repository inspection patterns are established before remote GitHub context.
+- Phase 20 should precede Phase 21 so model and cost policy can attach to roles and chat governance.
+- Phase 19 should not begin until the approval preview, policy, and audit requirements from Phase 13 are complete.
+
+### Phase 11: command discovery and conversation UX
+
+Design intent:
+
+- make Telegram the primary command discovery surface
+- show caller-specific help based on role, chat type, and enabled features
+- explain the difference between enabled tools and model-exposed tools
+- keep progress and tool-status messages concise and stable enough for smoke tests
+
+Primary user-facing additions:
+
+- `/help`
+- `/tool help` or a shorter `/tools`
+- improved status text for long runs, tool calls, denials, and recoverable failures
+
+### Phase 12: general file understanding
+
+Design intent:
+
+- move beyond image-only native attachment support
+- extract bounded text from text, Markdown, PDF, code, CSV, and TSV attachments
+- keep raw file bytes out of SQLite and committed paths
+- preserve clear metadata and truncation markers in transcripts
+
+Primary user-facing additions:
+
+- summaries of uploaded documents
+- file extraction failure messages that explain size, type, encryption, or parsing limits
+- `/files` or equivalent session attachment inspection
+
+### Phase 13: tool permission model v2
+
+Design intent:
+
+- add policy before adding powerful tools
+- make every side effect explain itself before approval
+- audit every approve, deny, expire, consume, and execute decision
+- keep deny-by-default behavior for missing policy
+
+Core policy dimensions:
+
+- role
+- chat/session
+- side-effect class
+- approval requirement
+- dry-run support
+- output and timeout limits
+
+### Phase 14: read-only local repository tools
+
+Design intent:
+
+- let the model inspect approved local repositories without write access
+- default-deny secrets, auth files, SQLite files, logs, generated output, and ignored paths
+- use structured path resolution rather than string path checks
+- prefer `rg` and bounded file slices for fast, controlled inspection
+
+Initial tools:
+
+- list approved files
+- read bounded file ranges
+- search text
+- summarize git status, branch, recent commits, and diffs
+
+### Phase 15: GitHub read integration
+
+Design intent:
+
+- add GitHub context without write permissions first
+- support repository, pull request, issue, and CI status inspection
+- keep GitHub credentials out of logs, Telegram replies, and transcripts
+- make missing auth or rate-limit behavior clear to the operator
+
+Initial surfaces:
+
+- read-only model tools
+- admin commands for concise repository and CI status
+- mocked tests by default, optional live read-only validation
+
+### Phase 16: operator dashboard v2
+
+Design intent:
+
+- turn the dashboard into the local control panel
+- expose health, runs, errors, logs, tools, approvals, and memory behind dashboard auth
+- keep loopback-only posture unless explicitly configured otherwise
+- validate all dashboard mutations server-side
+
+Primary panels:
+
+- runtime health
+- recent runs and errors
+- tool exposure and approvals
+- memory inspection/editing
+- safe service controls
+
+### Phase 17: model-assisted memory
+
+Design intent:
+
+- upgrade from deterministic summaries to reviewed model-proposed memories
+- keep sensitive or long-lived facts out of memory until approved
+- support personal, chat, group, and project scopes
+- store memory candidates separately from accepted memories
+
+Primary user-facing additions:
+
+- memory candidate review
+- accept/reject/edit/pin/archive commands
+- scoped memory rendering in prompts
+
+### Phase 18: backup, log rotation, and recovery hardening
+
+Design intent:
+
+- make local operations repeatable instead of manual
+- back up SQLite and associated WAL/SHM files correctly
+- archive and rotate launchd logs without committing generated output
+- document restore and migration checks before operators need them
+
+Primary surfaces:
+
+- backup CLI command
+- restore dry-run validator if practical
+- log archive/truncate workflow
+- updated setup and operations runbooks
+
+### Phase 19: write-capable approved tools
+
+Design intent:
+
+- add side effects only after policy, preview, and audit controls are in place
+- keep all write tools disabled by default
+- require explicit approval with a target-specific preview
+- validate writes against disposable targets before real operator use
+
+Initial low-risk writes:
+
+- write a draft note in an approved local directory
+- send a Telegram message to an approved chat
+- later, create GitHub issues or draft PR/comment content
+
+### Phase 20: multi-user roles and chat governance
+
+Design intent:
+
+- move from single-owner operation to controlled multi-user operation
+- define owner, admin, trusted user, and normal user roles
+- add per-chat policy for models, tools, memory scopes, and attachment limits
+- audit role and policy changes
+
+Primary user-facing additions:
+
+- user/role listing
+- grant and revoke commands
+- per-chat policy inspection
+- permission matrix tests across chat types
+
+### Phase 21: model and cost controls
+
+Design intent:
+
+- bound usage as the bot becomes more capable and multi-user
+- track usage by session, chat, user, model, and time window where provider data allows it
+- add role- and chat-specific model policy
+- expose operator reporting without leaking account IDs or credentials
+
+Primary user-facing additions:
+
+- `/usage`
+- budget warnings
+- run-cap denial messages
+- role-aware model defaults
+
 ## Operational Guidance
 
 Recommended deployment:
