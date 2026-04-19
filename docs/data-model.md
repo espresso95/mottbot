@@ -24,6 +24,9 @@ Configuration comes from three layers:
 - `MOTTBOT_DEFAULT_PROFILE`
 - `MOTTBOT_PREFER_CLI_IMPORT`
 - `MOTTBOT_SQLITE_PATH`
+- `MOTTBOT_ATTACHMENT_CACHE_DIR`
+- `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
 - `MOTTBOT_GROUP_MENTION_ONLY`
 - `MOTTBOT_EDIT_THROTTLE_MS`
 - `MOTTBOT_LOG_LEVEL`
@@ -150,6 +153,26 @@ queued -> starting -> streaming -> cancelled
 ## SQLite Schema
 
 SQLite runs in WAL mode and acts as the system of record.
+
+### `schema_migrations`
+
+Purpose:
+
+- record ordered database migrations that have been applied to the SQLite file
+- reject startup if an already-applied migration file has been modified
+
+Notable fields:
+
+- `version`
+- `name`
+- `checksum`
+- `applied_at`
+
+Current migration behavior:
+
+- `0001_initial.sql` is the baseline schema migration
+- migrations are idempotent and can be run repeatedly with `mottbot db migrate`
+- existing unversioned databases that already have current tables are bootstrapped into the ledger without dropping rows
 
 ### `auth_profiles`
 
@@ -339,8 +362,8 @@ Supported image attachments can also be downloaded into the local attachment cac
 
 ## Known Data-Model Gaps
 
-- no schema version history beyond bootstrap migration
 - no attachment blob storage or durable file-cache table
 - no distributed queue state for multi-replica deployments
 - no summarization state for long transcripts
 - no dedicated health state for auth profiles beyond refresh failures
+- no automated SQLite rollback mechanism beyond restoring an operator backup

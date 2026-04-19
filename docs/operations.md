@@ -139,6 +139,42 @@ Equivalent `pnpm` scripts:
 - `pnpm db:migrate`
 - `pnpm db:prune`
 - `pnpm health`
+- `pnpm smoke:preflight`
+
+## Migration Operations
+
+`mottbot db migrate` applies ordered SQL migrations and records them in `schema_migrations`.
+
+Current behavior:
+
+- `0001_initial.sql` is the baseline schema migration
+- migrations are idempotent and safe to run repeatedly
+- an existing migration row with a different checksum stops startup instead of continuing with an unknown schema state
+- unversioned databases that already have the current tables are bootstrapped into the migration ledger without dropping rows
+
+Backup before migration:
+
+1. Stop the bot process.
+2. Copy the configured SQLite file from `MOTTBOT_SQLITE_PATH` or `storage.sqlitePath`.
+3. Also copy the WAL sidecar files when present:
+
+```text
+mottbot.sqlite
+mottbot.sqlite-wal
+mottbot.sqlite-shm
+```
+
+4. Store the backup outside the repo and outside ignored runtime directories that may be cleaned.
+5. Run `pnpm db:migrate`.
+6. Start the bot and run `pnpm health`.
+
+Rollback expectation:
+
+- stop the bot
+- restore the database file and matching `-wal` and `-shm` files from the same backup point
+- start the bot again
+
+Do not hand-edit rows in `schema_migrations`. If a checksum mismatch appears, treat it as a migration-file integrity problem and inspect the local diff before retrying.
 
 ## Data Retention Operations
 
@@ -182,8 +218,30 @@ Runtime behavior:
 - downloaded bytes are converted into native image blocks for the model request
 - non-image attachments are preserved as text metadata
 - cache files are deleted after model request construction or failure cleanup
+- current Pi AI payload support used by the repo exposes text and image blocks only, so PDFs, office files, audio, video, stickers, and animations are not passed as native model inputs
 
 Keep the attachment cache under `data/` or another ignored local path. Do not point it at a committed directory.
+
+## Live Smoke Operations
+
+Use `docs/live-smoke-tests.md` for external integration validation.
+
+Local preflight:
+
+```bash
+pnpm smoke:preflight
+```
+
+By default the command prints `status: skipped`. It validates a configured live environment only when `MOTTBOT_LIVE_SMOKE_ENABLED=true` is set.
+
+Preflight checks:
+
+- configuration and required secrets can be loaded
+- SQLite migrations apply cleanly
+- the default auth profile is present
+- admin IDs are configured
+- webhook mode has a public URL when polling is disabled
+- health counters and migration versions can be read without printing tokens
 
 ## Auth Operations
 

@@ -14,20 +14,24 @@ As of April 19, 2026:
 - Phase 1 is complete for the documented runtime hardening scope: deterministic run timestamps, command authorization, command input validation, and operator-driven retention pruning.
 - Phase 2 is complete for the single-host scope: Telegram image attachments are downloaded safely, converted into native model image inputs when supported, represented as text metadata otherwise, and cleaned from the local cache after request construction.
 - Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
+- Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
+- Phase 6 live validation is prepared with a guarded preflight command and runbook. Actual Telegram and Codex live calls still require operator-provided test bot credentials, Codex auth, and a live integration environment.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 35 test files and 89 tests.
+- `corepack pnpm test` passes with 36 test files and 93 tests.
+- `corepack pnpm test:coverage` passes with statements 84.88%, branches 72.01%, functions 89.23%, and lines 84.95%.
+- `corepack pnpm build` passes.
+- `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
 
 Current known gaps:
 
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
-- Database migrations are schema-bootstrap only, not versioned.
 - Live Telegram, OAuth, and Codex subscription-backed model calls are not covered by automated tests.
 - Multi-instance coordination is intentionally out of scope for the current runtime posture.
 

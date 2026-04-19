@@ -196,6 +196,7 @@ Before sending the request:
 
 - if `fastMode` is enabled, `service_tier` defaults to `priority`
 - text verbosity defaults to `medium` unless already provided
+- the current request shape uses text blocks and image blocks; generic file, PDF, audio, and video blocks are not emitted because the local Pi AI provider surface does not document those input block types
 
 ### Stream event handling
 

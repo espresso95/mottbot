@@ -16,6 +16,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Unit and integration test coverage, verified results, and current gaps.
 - [Operations](./operations.md)
   Local setup, auth bootstrap, operator commands, deployment posture, and hardening backlog.
+- [Live Smoke Tests](./live-smoke-tests.md)
+  Guarded polling, webhook, Codex, attachment, and fault-injection checks for a real test bot environment.
 - [Completion And Test Plan](./completion-test-plan.md)
   Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
 - [Single-File Design Brief](./telegram-codex-design.md)
@@ -47,6 +49,7 @@ Implemented in this repo:
 - reply-to-bot gating in groups via persisted bot-message tracking
 - restart recovery for interrupted runs
 - durable queued-run recovery after restart
+- versioned SQLite migration tracking
 - native image attachment ingestion and attachment-aware prompt construction
 - transcript compaction via deterministic history summaries
 - webhook mode
@@ -57,6 +60,7 @@ Implemented in this repo:
 Planned hardening that is not yet implemented:
 
 - native non-image attachment ingestion into model inputs
+- fully automated live Telegram and Codex smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

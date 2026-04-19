@@ -1,10 +1,3 @@
-create table if not exists schema_migrations (
-  version integer primary key,
-  name text not null,
-  checksum text not null,
-  applied_at integer not null
-);
-
 create table if not exists auth_profiles (
   profile_id text primary key,
   provider text not null,
