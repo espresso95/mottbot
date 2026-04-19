@@ -80,6 +80,11 @@ Enabled read-only tools:
 | `mottbot_git_branch` | `read_only` | optional `root` | Read the current branch or detached commit. |
 | `mottbot_git_recent_commits` | `read_only` | optional `root` and `limit` | Read recent commit summaries. |
 | `mottbot_git_diff` | `read_only` | optional `root`, `path`, and `maxBytes` | Read diff stat/summary or a bounded selected-file diff. |
+| `mottbot_github_repo` | `read_only` | optional `repository` | Read GitHub repository metadata through the host GitHub CLI. |
+| `mottbot_github_open_prs` | `read_only` | optional `repository` and `limit` | Read open pull request summaries. |
+| `mottbot_github_recent_issues` | `read_only` | optional `repository` and `limit` | Read recent open issue summaries. |
+| `mottbot_github_ci_status` | `read_only` | optional `repository` and `limit` | Read recent GitHub Actions workflow runs. |
+| `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit` | Read recent failed workflow runs. |
 
 Disabled reserved tools:
 
@@ -125,6 +130,31 @@ Path safety rules:
 - file reads reject binary-looking files and return bounded line/byte slices
 - search prefers `rg --json --fixed-strings` and falls back to bounded Node search when `rg` is unavailable
 - git status filters denied paths before returning output
+
+## GitHub Read Scope
+
+GitHub tools use the host GitHub CLI as the auth boundary. Operators authenticate with `gh auth login`; Mottbot does not persist GitHub tokens or accept token values in config.
+
+Configuration:
+
+```json
+{
+  "defaultRepository": "owner/name",
+  "command": "gh",
+  "commandTimeoutMs": 10000,
+  "maxItems": 10,
+  "maxOutputBytes": 80000
+}
+```
+
+Safety rules:
+
+- GitHub tools are admin-only read-only tools.
+- Repository identifiers must be `owner/name`.
+- When no repository is provided, the service uses `MOTTBOT_GITHUB_REPOSITORY` or infers from local `origin`.
+- Pull request, issue, and workflow lists are bounded by `maxItems`.
+- CLI errors and GitHub response strings are sanitized for token-looking values before returning to Telegram or the model.
+- Rate limits, missing auth, and inaccessible repositories surface as bounded tool errors rather than raw API payloads.
 
 ## Tool Policy
 

@@ -8,6 +8,7 @@ import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
+import type { GithubReadOperations } from "../../src/tools/github-read.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -234,6 +235,260 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Usage: Usage unavailable"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles admin GitHub status commands without model tool use", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const github: GithubReadOperations = {
+      repository: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        url: "https://github.com/espresso95/mottbot",
+        description: "",
+        defaultBranch: "main",
+        isPrivate: false,
+        isArchived: false,
+        isFork: false,
+      })),
+      openPullRequests: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        pullRequests: [{ number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false }],
+        truncated: false,
+      })),
+      recentIssues: vi.fn(async () => ({ repository: "espresso95/mottbot", issues: [], truncated: false })),
+      ciStatus: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        runs: [
+          {
+            databaseId: 10,
+            workflowName: "ci",
+            displayTitle: "Build",
+            status: "completed",
+            conclusion: "failure",
+            url: "https://github.com/espresso95/mottbot/actions/runs/10",
+          },
+        ],
+        truncated: false,
+      })),
+      recentWorkflowFailures: vi.fn(async () => ({ repository: "espresso95/mottbot", runs: [], truncated: false })),
+    };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      github,
+    );
+
+    const handled = await router.maybeHandle(
+      createInboundEvent({ text: "/github status 2 espresso95/mottbot", fromUserId: "admin-1", isCommand: true }),
+    );
+
+    expect(handled).toBe(true);
+    expect(github.repository).toHaveBeenCalledWith({ repository: "espresso95/mottbot" });
+    expect(github.openPullRequests).toHaveBeenCalledWith({ repository: "espresso95/mottbot", limit: 2 });
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Latest CI: ci completed/failure"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles GitHub command subcommands and errors", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const github: GithubReadOperations = {
+      repository: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        url: "https://github.com/espresso95/mottbot",
+        description: "test repo",
+        defaultBranch: "main",
+        isPrivate: false,
+        isArchived: false,
+        isFork: false,
+      })),
+      openPullRequests: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        pullRequests: [{ number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false }],
+        truncated: false,
+      })),
+      recentIssues: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        issues: [{ number: 5, title: "Fix issue", url: "https://github.com/espresso95/mottbot/issues/5", labels: ["bug"] }],
+        truncated: false,
+      })),
+      ciStatus: vi.fn(async () => ({
+        repository: "espresso95/mottbot",
+        runs: [
+          {
+            databaseId: 10,
+            workflowName: "ci",
+            displayTitle: "Build",
+            status: "completed",
+            conclusion: "success",
+            url: "https://github.com/espresso95/mottbot/actions/runs/10",
+          },
+        ],
+        truncated: false,
+      })),
+      recentWorkflowFailures: vi.fn(async () => ({ repository: "espresso95/mottbot", runs: [], truncated: false })),
+    };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      github,
+    );
+
+    for (const text of [
+      "/github help",
+      "/github repo",
+      "/github prs 1",
+      "/github issues",
+      "/github runs",
+      "/github failures",
+      "/github unknown",
+    ]) {
+      await router.maybeHandle(createInboundEvent({ text, fromUserId: "admin-1", isCommand: true }));
+    }
+
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("GitHub commands"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("GitHub repository"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Open pull requests"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Open issues"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Recent workflow runs"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Recent failed workflow runs"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Latest CI"), expect.any(Object));
+  });
+
+  it("reports unavailable GitHub integration and GitHub read errors", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const unavailableRouter = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+    await unavailableRouter.maybeHandle(
+      createInboundEvent({ text: "/github status", fromUserId: "admin-1", isCommand: true }),
+    );
+
+    const errorRouter = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        repository: vi.fn(async () => {
+          throw new Error("gh auth failed");
+        }),
+        openPullRequests: vi.fn(),
+        recentIssues: vi.fn(),
+        ciStatus: vi.fn(),
+        recentWorkflowFailures: vi.fn(),
+      } as unknown as GithubReadOperations,
+    );
+    await errorRouter.maybeHandle(
+      createInboundEvent({ text: "/github repo", fromUserId: "admin-1", isCommand: true }),
+    );
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "GitHub integration is not available.",
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "gh auth failed", expect.any(Object));
+  });
+
+  it("denies GitHub commands for non-admin callers", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const github = {
+      repository: vi.fn(),
+    } as unknown as GithubReadOperations;
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      github,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/github status", isCommand: true }));
+
+    expect(github.repository).not.toHaveBeenCalled();
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only configured admins can inspect GitHub.",
       expect.any(Object),
     );
   });

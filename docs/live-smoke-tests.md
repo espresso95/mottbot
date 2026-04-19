@@ -150,7 +150,7 @@ The harness stores a reusable MTProto string session at:
 ./data/telegram-user-smoke.session
 ```
 
-That session file is ignored by git and must be treated like account access. Do not commit it, paste it into chat, or reuse it outside this local test harness.
+That session file is ignored by git and must be treated like account access. It is optional local smoke-test state, not production bot data. Delete it when you no longer need CLI-driven Telegram validation, but expect the next smoke run to require Telegram login again. Do not commit it, paste it into chat, or reuse it outside this local test harness.
 
 Default behavior:
 

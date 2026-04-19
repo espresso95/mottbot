@@ -72,6 +72,7 @@ Implemented in this repo:
 - deny-by-default tool registry, read-only health snapshot execution, and opt-in one-shot-approved restart tool execution
 - read-only operator diagnostics tools and admin `/runs` and `/debug` commands
 - admin-only read-only local repository and git inspection tools
+- admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
 - explicit session memory through `/remember`, `/memory`, and `/forget`, plus optional deterministic automatic summaries
 - host-local instance lease to reduce accidental overlapping bot processes
 

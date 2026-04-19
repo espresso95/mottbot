@@ -412,6 +412,140 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     enabled: true,
     requiresAdmin: true,
   },
+  {
+    name: "mottbot_github_repo",
+    description: "Read GitHub repository metadata through the host GitHub CLI.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 24_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_open_prs",
+    description: "Read open GitHub pull requests through the host GitHub CLI.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum pull requests to return. Defaults to host config.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 64_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_recent_issues",
+    description: "Read recent open GitHub issues through the host GitHub CLI.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum issues to return. Defaults to host config.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 64_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_ci_status",
+    description: "Read recent GitHub Actions workflow runs through the host GitHub CLI.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum workflow runs to return. Defaults to host config.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 96_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_workflow_failures",
+    description: "Read recent failed GitHub Actions workflow runs through the host GitHub CLI.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum failed workflow runs to return. Defaults to host config.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 96_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
 ] as const;
 
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [

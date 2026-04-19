@@ -28,14 +28,15 @@ As of April 19, 2026:
 - Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
 - Phase 14 is complete for the tool permission model: every enabled tool has a runtime policy, model-exposed declarations are filtered by caller role and chat, side-effecting tool calls generate sanitized approval previews and request fingerprints, approvals bind to the latest pending request when available, and admins can inspect bounded tool audit records with `/tool audit`.
 - Phase 15 is complete for read-only local repository tools: approved roots, default denied paths, safe realpath resolution, bounded file listing/reading/search, and bounded git status/branch/commit/diff tools are implemented behind admin-only read-only tool declarations.
+- Phase 16 is complete for read-only GitHub integration: the host GitHub CLI is the auth boundary, admin-only model tools expose bounded repository/PR/issue/CI summaries, and `/github` commands provide concise operator status without requiring model tool use.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 53 test files and 200 tests.
-- `corepack pnpm test:coverage` passes with statements 84.36%, branches 73.55%, functions 92.37%, and lines 84.30%.
+- `corepack pnpm test` passes with 55 test files and 211 tests.
+- `corepack pnpm test:coverage` passes with statements 84.83%, branches 73.59%, functions 92.78%, and lines 84.76%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -49,8 +50,8 @@ Current known gaps:
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
-- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, and the admin-only opt-in delayed restart and Telegram reaction tools. Other side-effect categories remain disabled.
-- There are no GitHub, write-capable, or model-cost governance tools yet.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and the admin-only opt-in delayed restart and Telegram reaction tools. Other side-effect categories remain disabled.
+- There are no GitHub write-capable or model-cost governance tools yet.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -986,6 +987,12 @@ Deliverables:
 - Keep GitHub credentials out of logs, Telegram output, and transcripts.
 - Add tests for missing auth, unavailable CLI/API, and configured repository resolution.
 
+Implemented notes:
+
+- The runtime uses host `gh` auth; Mottbot stores no GitHub tokens.
+- The default repository comes from `MOTTBOT_GITHUB_REPOSITORY` or local `origin`.
+- CLI errors and GitHub response strings are sanitized before returning.
+
 ### Task 16.2: Add Read-Only GitHub Tools
 
 Deliverables:
@@ -995,6 +1002,11 @@ Deliverables:
 - Add tests for mocked API responses and failure shapes.
 - Document rate-limit behavior and fallback messages.
 
+Implemented notes:
+
+- Admin-only read tools cover repository metadata, open pull requests, recent issues, CI status, and failed workflows.
+- Outputs are structured, bounded, link-rich, and covered by mocked command-runner tests.
+
 ### Task 16.3: Add Telegram Commands For GitHub Status
 
 Deliverables:
@@ -1002,6 +1014,10 @@ Deliverables:
 - Add admin commands for concise repository and CI status.
 - Avoid making GitHub command behavior depend on model tool use.
 - Add tests for command output and missing integration configuration.
+
+Implemented notes:
+
+- `/github` and `/gh` expose the same read service directly for admins.
 
 Edge cases to cover:
 

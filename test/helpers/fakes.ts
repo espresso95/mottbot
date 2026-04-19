@@ -106,6 +106,12 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
         maxSearchBytes: 80_000,
         commandTimeoutMs: 5_000,
       },
+      github: {
+        command: "gh",
+        commandTimeoutMs: 10_000,
+        maxItems: 10,
+        maxOutputBytes: 80_000,
+      },
     },
     runtime: {
       instanceLeaseEnabled: true,

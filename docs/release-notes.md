@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Read-Only GitHub Integration
+
+- Added admin-only GitHub read tools backed by the host GitHub CLI.
+- Added bounded repository metadata, open pull request, open issue, CI run, and failed workflow summaries.
+- Added `/github` and `/gh` admin commands for direct repository, pull request, issue, run, and failure status.
+- Added `tools.github` config and `MOTTBOT_GITHUB_*` environment variables.
+- Kept GitHub auth in `gh`; Mottbot does not store GitHub tokens.
+
+Operator checklist:
+
+- Run `gh auth login` on the host account that runs the service.
+- Optionally set `MOTTBOT_GITHUB_REPOSITORY=owner/name`; otherwise confirm local `origin` points at GitHub.
+- Use `/github status` from an admin chat to verify metadata, open work, and latest CI.
+- Use `/github failures` after pushes to inspect recent failed workflow runs.
+
 ### Read-Only Local Repository Tools
 
 - Added admin-only model tools for approved local repository inspection.

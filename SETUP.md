@@ -87,10 +87,19 @@ MOTTBOT_REPOSITORY_MAX_READ_BYTES=40000
 MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES=100
 MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
 MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
+MOTTBOT_GITHUB_REPOSITORY=
+MOTTBOT_GITHUB_COMMAND=gh
+MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000
+MOTTBOT_GITHUB_MAX_ITEMS=10
+MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
 MOTTBOT_AUTO_MEMORY_SUMMARIES=false
 ```
 
-Do not commit `.env`, SQLite files, logs, or attachment cache data.
+Local state:
+
+- `MOTTBOT_SQLITE_PATH` is the bot's runtime database, not test data. Keep it under an ignored directory such as `data/` so chats, sessions, runs, auth profiles, and queues survive restarts without being committed.
+- `MOTTBOT_ATTACHMENT_CACHE_DIR` is runtime cache storage for downloaded Telegram attachments. Keep it ignored as well.
+- `dist/`, `coverage/`, SQLite files, logs, and Telegram session files are generated local artifacts and must not be committed.
 
 Reaction settings:
 
@@ -129,6 +138,16 @@ Repository tool settings:
 - default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files
 - repository tools are admin-only and read-only; they can list files, read bounded text slices, search literal text, and inspect git status/branch/commits/diffs
 
+GitHub read settings:
+
+- install and authenticate the GitHub CLI with `gh auth login`; Mottbot does not store GitHub tokens
+- `MOTTBOT_GITHUB_REPOSITORY=` can pin a default `owner/name`; when empty, Mottbot infers the repository from local `origin`
+- `MOTTBOT_GITHUB_COMMAND=gh` points to the host GitHub CLI command
+- `MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000` bounds each CLI read
+- `MOTTBOT_GITHUB_MAX_ITEMS=10` caps pull request, issue, and workflow result counts
+- `MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000` caps GitHub tool output
+- admin Telegram commands: `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, and `/github failures`
+
 Import Codex CLI auth into the configured SQLite database:
 
 ```bash
@@ -158,7 +177,7 @@ MOTTBOT_LIVE_BOT_USERNAME=<bot-username-without-@> \
 corepack pnpm smoke:telegram-user
 ```
 
-The first run logs in with your Telegram user account and stores an ignored session file under `data/`. Treat that session file like account access, do not commit it, and use this harness only with your own Telegram account and a controlled test bot.
+The first run logs in with your Telegram user account and stores an ignored session file under `data/`. This file is optional and only supports the local smoke harness; the production bot does not need it. Treat it like account access, do not commit it, and use this harness only with your own Telegram account and a controlled test bot.
 
 For group, reply-gating, or attachment smoke checks, add:
 

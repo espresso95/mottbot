@@ -328,7 +328,7 @@ If execution throws:
 When the model requests an enabled tool, the run orchestrator:
 
 - shows short Telegram status edits while the tool is prepared and running
-- executes read-only tools directly after registry and policy checks, including admin-only repository tools scoped to approved roots
+- executes read-only tools directly after registry and policy checks, including admin-only repository tools scoped to approved roots and admin-only GitHub tools backed by the host `gh` CLI
 - executes side-effecting tools only after a fresh one-shot session approval unless policy configures dry-run behavior
 - enforces per-run tool-round and tool-call limits
 - persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads

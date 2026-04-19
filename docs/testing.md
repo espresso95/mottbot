@@ -70,14 +70,14 @@ For private-chat live validation without manually typing in Telegram every time,
 pnpm smoke:telegram-user
 ```
 
-It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session, and is intentionally excluded from CI and coverage.
+It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
 
 ## Verified Results
 
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 53 test files, 200 tests passing
+- `pnpm test`: 55 test files, 211 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -93,10 +93,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.36% |
-| Branches | 73.55% |
-| Functions | 92.37% |
-| Lines | 84.30% |
+| Statements | 84.83% |
+| Branches | 73.59% |
+| Functions | 92.78% |
+| Lines | 84.76% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

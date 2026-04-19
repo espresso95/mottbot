@@ -26,6 +26,15 @@ const repositoryToolConfigSchema = z
     commandTimeoutMs: z.number().int().min(100).max(30_000).default(5_000),
   })
   .default({});
+const githubToolConfigSchema = z
+  .object({
+    defaultRepository: z.string().optional(),
+    command: z.string().min(1).default("gh"),
+    commandTimeoutMs: z.number().int().min(100).max(30_000).default(10_000),
+    maxItems: z.number().int().min(1).max(50).default(10),
+    maxOutputBytes: z.number().int().min(1).max(500_000).default(80_000),
+  })
+  .default({});
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -118,6 +127,7 @@ const rawConfigSchema = z.object({
       restartDelayMs: z.number().int().min(1_000).default(60_000),
       policies: z.record(toolPolicyConfigSchema).default({}),
       repository: repositoryToolConfigSchema,
+      github: githubToolConfigSchema,
     })
     .default({}),
   runtime: z
@@ -206,6 +216,7 @@ export type AppConfig = {
     restartDelayMs: number;
     policies: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
     repository: z.infer<typeof repositoryToolConfigSchema>;
+    github: z.infer<typeof githubToolConfigSchema>;
   };
   runtime: {
     instanceLeaseEnabled: boolean;
@@ -271,6 +282,7 @@ export function loadConfig(): AppConfig {
     typeof fileConfig === "object" && fileConfig ? (fileConfig as Record<string, unknown>) : {};
   const fileTools = asRecord(fileObject.tools);
   const fileRepositoryTools = asRecord(fileTools?.repository);
+  const fileGithubTools = asRecord(fileTools?.github);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
     telegram: {
@@ -623,6 +635,29 @@ export function loadConfig(): AppConfig {
           process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS === undefined
             ? fileRepositoryTools?.commandTimeoutMs
             : Number(process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS),
+      },
+      github: {
+        ...(fileGithubTools ?? {}),
+        defaultRepository:
+          process.env.MOTTBOT_GITHUB_REPOSITORY !== undefined
+            ? process.env.MOTTBOT_GITHUB_REPOSITORY.trim() || undefined
+            : fileGithubTools?.defaultRepository,
+        command:
+          process.env.MOTTBOT_GITHUB_COMMAND !== undefined
+            ? process.env.MOTTBOT_GITHUB_COMMAND.trim() || undefined
+            : fileGithubTools?.command,
+        commandTimeoutMs:
+          process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS === undefined
+            ? fileGithubTools?.commandTimeoutMs
+            : Number(process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS),
+        maxItems:
+          process.env.MOTTBOT_GITHUB_MAX_ITEMS === undefined
+            ? fileGithubTools?.maxItems
+            : Number(process.env.MOTTBOT_GITHUB_MAX_ITEMS),
+        maxOutputBytes:
+          process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES === undefined
+            ? fileGithubTools?.maxOutputBytes
+            : Number(process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES),
       },
     },
     runtime: {

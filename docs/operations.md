@@ -74,8 +74,8 @@ Required items:
 - a strong local `MOTTBOT_MASTER_KEY`
 - the operator's Telegram user ID in `MOTTBOT_ADMIN_USER_IDS`
 - optional test chat IDs in `MOTTBOT_ALLOWED_CHAT_IDS`
-- a development SQLite path such as `./data/mottbot.sqlite`
-- a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite`
+- a runtime SQLite path such as `./data/mottbot.sqlite`
+- a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite` when validating without touching runtime data
 - a Codex auth source, either `$CODEX_HOME/auth.json` for CLI import or local OAuth through `pnpm auth:login`
 - webhook public URL and secret token values when testing webhook mode
 
@@ -173,7 +173,7 @@ corepack pnpm smoke:preflight
 
 No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
 
-`pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/`, and must not be used in CI.
+`pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
 
 The harness also accepts `MOTTBOT_USER_SMOKE_TARGET`, `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE`, and `MOTTBOT_USER_SMOKE_FILE_PATH` for group, reply-gating, and attachment smoke checks.
 
@@ -193,8 +193,13 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_git_branch`: current branch or detached commit
 - `mottbot_git_recent_commits`: recent commit summaries
 - `mottbot_git_diff`: diff stat/summary or bounded selected-file diff
+- `mottbot_github_repo`: GitHub repository metadata through `gh`
+- `mottbot_github_open_prs`: open pull request summaries
+- `mottbot_github_recent_issues`: recent open issue summaries
+- `mottbot_github_ci_status`: recent GitHub Actions workflow runs
+- `mottbot_github_workflow_failures`: recent failed workflow runs
 
-The diagnostics, repository, and git tools are read-only but admin-only, because logs, run records, source files, and diffs can contain operational context.
+The diagnostics, repository, git, and GitHub tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, and CI output can contain operational context.
 
 Repository tools are scoped by:
 
@@ -208,6 +213,18 @@ MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
 ```
 
 Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
+
+GitHub tools use the host GitHub CLI. Authenticate once with `gh auth login`; Mottbot does not store GitHub tokens. Public repositories need ordinary read access; private repositories and workflow inspection require the host `gh` account to have repository and Actions read permissions.
+
+```bash
+MOTTBOT_GITHUB_REPOSITORY=
+MOTTBOT_GITHUB_COMMAND=gh
+MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000
+MOTTBOT_GITHUB_MAX_ITEMS=10
+MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
+```
+
+When `MOTTBOT_GITHUB_REPOSITORY` is empty, Mottbot infers the default repository from local `origin`. Use `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, or `/github failures` from an admin Telegram chat for direct read-only status.
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
@@ -406,6 +423,7 @@ Current tool set:
 - `mottbot_health_snapshot`: returns a token-free runtime health snapshot
 - `mottbot_service_status`, `mottbot_recent_runs`, `mottbot_recent_errors`, and `mottbot_recent_logs`: admin-only operator diagnostics
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
+- `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
 - `mottbot_restart_service` and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and approval by default
 
 Runtime controls:
@@ -415,6 +433,7 @@ Runtime controls:
 - each tool definition has a timeout and output-size limit
 - each run is limited to three tool rounds and five tool calls
 - repository tools resolve real paths, reject traversal/symlink escapes, deny secret and generated paths by default, and return bounded output
+- GitHub tools require host `gh` auth, accept only `owner/name` repository identifiers, and return bounded sanitized summaries
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 

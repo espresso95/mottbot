@@ -56,6 +56,11 @@ const configEnvKeys = [
   "MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES",
   "MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES",
   "MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS",
+  "MOTTBOT_GITHUB_REPOSITORY",
+  "MOTTBOT_GITHUB_COMMAND",
+  "MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS",
+  "MOTTBOT_GITHUB_MAX_ITEMS",
+  "MOTTBOT_GITHUB_MAX_OUTPUT_BYTES",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
   "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
@@ -121,6 +126,13 @@ describe("loadConfig", () => {
             maxSearchBytes: 3333,
             commandTimeoutMs: 4444,
           },
+          github: {
+            defaultRepository: "file-owner/file-repo",
+            command: "file-gh",
+            commandTimeoutMs: 5555,
+            maxItems: 6,
+            maxOutputBytes: 7777,
+          },
         },
         runtime: { instanceLeaseEnabled: false },
         memory: { autoSummaryRecentMessages: 16 },
@@ -149,6 +161,11 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES = "33";
     process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES = "4444";
     process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS = "5555";
+    process.env.MOTTBOT_GITHUB_REPOSITORY = "env-owner/env-repo";
+    process.env.MOTTBOT_GITHUB_COMMAND = "env-gh";
+    process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS = "6666";
+    process.env.MOTTBOT_GITHUB_MAX_ITEMS = "7";
+    process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES = "8888";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
@@ -197,6 +214,13 @@ describe("loadConfig", () => {
       maxSearchMatches: 33,
       maxSearchBytes: 4444,
       commandTimeoutMs: 5555,
+    });
+    expect(config.tools.github).toEqual({
+      defaultRepository: "env-owner/env-repo",
+      command: "env-gh",
+      commandTimeoutMs: 6666,
+      maxItems: 7,
+      maxOutputBytes: 8888,
     });
     expect(config.runtime.instanceLeaseEnabled).toBe(false);
     expect(config.memory.autoSummariesEnabled).toBe(true);

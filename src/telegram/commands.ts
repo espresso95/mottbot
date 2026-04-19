@@ -20,6 +20,14 @@ import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
 import type { AttachmentRecord, AttachmentRecordStore } from "../sessions/attachment-store.js";
+import {
+  formatGithubIssues,
+  formatGithubPullRequests,
+  formatGithubRepositoryMetadata,
+  formatGithubStatusSummary,
+  formatGithubWorkflowRuns,
+  type GithubReadOperations,
+} from "../tools/github-read.js";
 
 function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
@@ -163,6 +171,7 @@ export class TelegramCommandRouter {
     private readonly diagnostics?: OperatorDiagnostics,
     private readonly attachments?: AttachmentRecordStore,
     private readonly toolPolicy?: ToolPolicyEngine,
+    private readonly github?: GithubReadOperations,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -226,6 +235,11 @@ export class TelegramCommandRouter {
       }
       case "debug": {
         await this.handleDebugCommand(event, session, parsed.args);
+        return true;
+      }
+      case "github":
+      case "gh": {
+        await this.handleGithubCommand(event, parsed.args);
         return true;
       }
       case "remember": {
@@ -518,6 +532,12 @@ export class TelegramCommandRouter {
             "/debug summary|service|runs|errors|logs|config - inspect diagnostics",
           ])
         : undefined,
+      isAdmin && this.github
+        ? formatCommandSection("GitHub", [
+            "/github status [repository] - show repository, open work, and latest CI",
+            "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state",
+          ])
+        : undefined,
       this.toolRegistry
         ? [
             "Model-exposed tools for this caller:",
@@ -667,6 +687,116 @@ export class TelegramCommandRouter {
       return;
     }
     await sendReply(this.api, event, "Usage: /debug [summary|service|runs [limit] [here]|errors [limit]|logs [stdout|stderr|both] [lines]|config]");
+  }
+
+  private parseGithubArgs(args: string[], defaultLimit = 5): { limit: number; repository?: string } {
+    let limit = defaultLimit;
+    let repository: string | undefined;
+    for (const raw of args) {
+      const value = raw.trim();
+      if (!value) {
+        continue;
+      }
+      if (/^\d+$/.test(value)) {
+        limit = Math.min(Math.max(Number(value), 1), 50);
+        continue;
+      }
+      repository = value.startsWith("repo:") ? value.slice("repo:".length) : value;
+    }
+    return {
+      limit,
+      ...(repository ? { repository } : {}),
+    };
+  }
+
+  private async handleGithubCommand(event: InboundEvent, args: string[]): Promise<void> {
+    if (!(await this.requireAdmin(event, "inspect GitHub"))) {
+      return;
+    }
+    if (!this.github) {
+      await sendReply(this.api, event, "GitHub integration is not available.");
+      return;
+    }
+    const requestedSub = args[0]?.toLowerCase();
+    const knownSubcommands = new Set(["help", "status", "repo", "prs", "pulls", "issues", "runs", "ci", "failures", "failed"]);
+    const sub = requestedSub && knownSubcommands.has(requestedSub) ? requestedSub : "status";
+    const rest = sub === "status" && requestedSub && !knownSubcommands.has(requestedSub) ? args : args.slice(1);
+    const parsed = this.parseGithubArgs(rest);
+    try {
+      if (sub === "help") {
+        await sendReply(
+          this.api,
+          event,
+          [
+            "GitHub commands",
+            "- /github status [repository]",
+            "- /github repo [repository]",
+            "- /github prs [limit] [repository]",
+            "- /github issues [limit] [repository]",
+            "- /github runs [limit] [repository]",
+            "- /github failures [limit] [repository]",
+          ].join("\n"),
+        );
+        return;
+      }
+      if (sub === "status") {
+        const [metadata, pullRequests, issues, runs] = await Promise.all([
+          this.github.repository({ repository: parsed.repository }),
+          this.github.openPullRequests({ repository: parsed.repository, limit: parsed.limit }),
+          this.github.recentIssues({ repository: parsed.repository, limit: parsed.limit }),
+          this.github.ciStatus({ repository: parsed.repository, limit: parsed.limit }),
+        ]);
+        await sendReply(
+          this.api,
+          event,
+          formatGithubStatusSummary({
+            metadata,
+            pullRequests: pullRequests.pullRequests,
+            pullRequestsTruncated: pullRequests.truncated,
+            issues: issues.issues,
+            issuesTruncated: issues.truncated,
+            runs: runs.runs,
+          }),
+        );
+        return;
+      }
+      if (sub === "repo") {
+        await sendReply(this.api, event, formatGithubRepositoryMetadata(await this.github.repository(parsed)));
+        return;
+      }
+      if (sub === "prs" || sub === "pulls") {
+        const result = await this.github.openPullRequests(parsed);
+        await sendReply(this.api, event, formatGithubPullRequests(result.repository, result.pullRequests));
+        return;
+      }
+      if (sub === "issues") {
+        const result = await this.github.recentIssues(parsed);
+        await sendReply(this.api, event, formatGithubIssues(result.repository, result.issues));
+        return;
+      }
+      if (sub === "runs" || sub === "ci") {
+        const result = await this.github.ciStatus(parsed);
+        await sendReply(
+          this.api,
+          event,
+          formatGithubWorkflowRuns({ repository: result.repository, title: "Recent workflow runs", runs: result.runs }),
+        );
+        return;
+      }
+      if (sub === "failures" || sub === "failed") {
+        const result = await this.github.recentWorkflowFailures(parsed);
+        await sendReply(
+          this.api,
+          event,
+          formatGithubWorkflowRuns({ repository: result.repository, title: "Recent failed workflow runs", runs: result.runs }),
+        );
+        return;
+      }
+    } catch (error) {
+      await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
+      return;
+    }
+    await sendReply(this.api, event, "Usage: /github status|repo|prs|issues|runs|failures [limit] [repository]");
   }
 
   private async handleToolCommand(

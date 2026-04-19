@@ -912,9 +912,13 @@ Design intent:
 - keep GitHub credentials out of logs, Telegram replies, and transcripts
 - make missing auth or rate-limit behavior clear to the operator
 
+Status:
+
+- complete for host-local GitHub CLI read integration; see `docs/completion-test-plan.md` and `docs/tool-use-design.md` for the implementation checklist and tool surface
+
 Initial surfaces:
 
-- read-only model tools
+- read-only model tools: repository metadata, open pull requests, open issues, CI status, and workflow failures
 - admin commands for concise repository and CI status
 - mocked tests by default, optional live read-only validation
 

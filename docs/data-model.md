@@ -29,6 +29,11 @@ Configuration comes from three layers:
 - `MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES`
 - `MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES`
 - `MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS`
+- `MOTTBOT_GITHUB_REPOSITORY`
+- `MOTTBOT_GITHUB_COMMAND`
+- `MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS`
+- `MOTTBOT_GITHUB_MAX_ITEMS`
+- `MOTTBOT_GITHUB_MAX_OUTPUT_BYTES`
 - `MOTTBOT_INSTANCE_LEASE_ENABLED`
 - `MOTTBOT_DEFAULT_MODEL`
 - `MOTTBOT_TRANSPORT`
@@ -94,6 +99,13 @@ Current defaults:
       "maxSearchMatches": 100,
       "maxSearchBytes": 80000,
       "commandTimeoutMs": 5000
+    },
+    "github": {
+      "defaultRepository": "owner/name",
+      "command": "gh",
+      "commandTimeoutMs": 10000,
+      "maxItems": 10,
+      "maxOutputBytes": 80000
     }
   },
   "runtime": {

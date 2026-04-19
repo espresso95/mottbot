@@ -38,6 +38,8 @@ import { OperatorDiagnostics } from "./diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../tools/operator-diagnostic-handlers.js";
 import { createTelegramReactionToolHandlers } from "../tools/telegram-reaction-handlers.js";
 import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
+import { createGithubToolHandlers } from "../tools/github-handlers.js";
+import { GithubCliReadService } from "../tools/github-read.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -68,6 +70,7 @@ export async function bootstrapApplication() {
   const health = new HealthReporter(config, database, authProfiles, systemClock);
   const dashboard = new DashboardServer(config, logger, health, authProfiles);
   const diagnostics = new OperatorDiagnostics(config, database, systemClock);
+  const github = new GithubCliReadService(config.tools.github);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
     leaseName: "bot",
     enabled: config.runtime.instanceLeaseEnabled,
@@ -100,6 +103,7 @@ export async function bootstrapApplication() {
       ...createOperatorDiagnosticToolHandlers(diagnostics),
       ...createTelegramReactionToolHandlers(reactions),
       ...createRepositoryToolHandlers(config.tools.repository),
+      ...createGithubToolHandlers(github),
     },
     adminUserIds: config.telegram.adminUserIds,
     approvals: toolApprovalStore,
@@ -181,6 +185,7 @@ export async function bootstrapApplication() {
     diagnostics,
     attachmentRecordStore,
     toolPolicy,
+    github,
   );
   const bot = new TelegramBotServer(
     config,
