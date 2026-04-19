@@ -233,6 +233,7 @@ Implemented now:
 - durable recovery for accepted queued runs
 - mid-stream outbox rebind when Telegram edit calls fail
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
+- ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - basic health reporting
 
 Not yet implemented:

@@ -47,6 +47,7 @@ const rawConfigSchema = z.object({
     .object({
       cacheDir: z.string().default("./data/attachments"),
       maxFileBytes: z.number().int().min(1).default(20 * 1024 * 1024),
+      maxTotalBytes: z.number().int().min(1).default(30 * 1024 * 1024),
       maxPerMessage: z.number().int().min(0).max(10).default(4),
     })
     .default({}),
@@ -54,6 +55,7 @@ const rawConfigSchema = z.object({
     .object({
       respondInGroupsOnlyWhenMentioned: z.boolean().default(true),
       editThrottleMs: z.number().int().min(250).default(750),
+      maxInboundTextChars: z.number().int().min(1).default(12_000),
     })
     .default({}),
   logging: z
@@ -109,11 +111,13 @@ export type AppConfig = {
   attachments: {
     cacheDir: string;
     maxFileBytes: number;
+    maxTotalBytes: number;
     maxPerMessage: number;
   };
   behavior: {
     respondInGroupsOnlyWhenMentioned: boolean;
     editThrottleMs: number;
+    maxInboundTextChars: number;
   };
   logging: {
     level: string;
@@ -298,6 +302,12 @@ export function loadConfig(): AppConfig {
               ? (fileObject.attachments as any).maxFileBytes
               : undefined)
           : Number(process.env.MOTTBOT_ATTACHMENT_MAX_FILE_BYTES),
+      maxTotalBytes:
+        process.env.MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).maxTotalBytes
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES),
       maxPerMessage:
         process.env.MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE === undefined
           ? (fileObject.attachments && typeof fileObject.attachments === "object"
@@ -321,6 +331,12 @@ export function loadConfig(): AppConfig {
               ? (fileObject.behavior as any).editThrottleMs
               : undefined)
           : Number(process.env.MOTTBOT_EDIT_THROTTLE_MS),
+      maxInboundTextChars:
+        process.env.MOTTBOT_MAX_INBOUND_TEXT_CHARS === undefined
+          ? (fileObject.behavior && typeof fileObject.behavior === "object"
+              ? (fileObject.behavior as any).maxInboundTextChars
+              : undefined)
+          : Number(process.env.MOTTBOT_MAX_INBOUND_TEXT_CHARS),
     },
     logging: {
       ...(fileObject.logging && typeof fileObject.logging === "object" ? (fileObject.logging as object) : {}),
@@ -411,6 +427,7 @@ export function loadConfig(): AppConfig {
     attachments: {
       cacheDir: path.resolve(parsed.attachments.cacheDir),
       maxFileBytes: parsed.attachments.maxFileBytes,
+      maxTotalBytes: parsed.attachments.maxTotalBytes,
       maxPerMessage: parsed.attachments.maxPerMessage,
     },
     behavior: parsed.behavior,

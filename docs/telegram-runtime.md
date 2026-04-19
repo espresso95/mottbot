@@ -36,10 +36,22 @@ Current behavior:
 - captures `text` or `caption` as visible text
 - extracts entities from `entities` or `caption_entities`
 - extracts a single representative file ID and Telegram metadata for supported attachment kinds
+- rejects messages before command/model routing when text or attachment safety limits are exceeded
 - records processed update IDs durably after successful acceptance
 - detects bot mention by username substring match
 - flags commands when the visible text begins with `/`
 - carries topic thread ID through `message_thread_id`
+
+## Safety Limits
+
+Before command routing or model execution, `validateInboundSafety()` checks:
+
+- visible text length against `behavior.maxInboundTextChars` or `MOTTBOT_MAX_INBOUND_TEXT_CHARS`
+- attachment count against `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
+- known per-file sizes against `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- combined known attachment sizes against `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+
+Rejected messages receive a short Telegram reply explaining the limit and are marked processed for update dedupe. They do not create sessions, runs, transcript entries, or queue rows.
 
 Supported attachment kinds:
 
@@ -211,24 +223,25 @@ Important implementation detail:
 
 ### Execution steps
 
-1. Ignore empty text and caption-only empty events.
-2. Ensure the session route exists in the database.
-3. Create a `runs` row in `queued` state.
-4. Persist the user message to the transcript with the run ID.
-5. Persist a `run_queue` row with the inbound context needed for restart recovery.
-6. Return control to ingress so the accepted update can be marked processed.
-7. Claim the queued run for execution.
-8. Send a placeholder Telegram message through the outbox.
-9. Move the run to `starting`.
-10. Resolve auth for the selected profile.
-11. Load recent transcript history.
-12. Download supported image attachments and convert them into native model input blocks.
-13. Build the model prompt.
-14. Start streaming through `CodexTransport`.
-15. Move the run to `streaming` on stream start.
-16. Append text deltas to the collector and edit the placeholder message.
-17. Finalize the message, persist the assistant transcript entry, and record usage.
-18. Mark the run `completed` and the queue row `completed`.
+1. Reject messages that exceed ingress safety limits.
+2. Ignore empty text and caption-only empty events.
+3. Ensure the session route exists in the database.
+4. Create a `runs` row in `queued` state.
+5. Persist the user message to the transcript with the run ID.
+6. Persist a `run_queue` row with the inbound context needed for restart recovery.
+7. Return control to ingress so the accepted update can be marked processed.
+8. Claim the queued run for execution.
+9. Send a placeholder Telegram message through the outbox.
+10. Move the run to `starting`.
+11. Resolve auth for the selected profile.
+12. Load recent transcript history.
+13. Download supported image attachments and convert them into native model input blocks.
+14. Build the model prompt.
+15. Start streaming through `CodexTransport`.
+16. Move the run to `streaming` on stream start.
+17. Append text deltas to the collector and edit the placeholder message.
+18. Finalize the message, persist the assistant transcript entry, and record usage.
+19. Mark the run `completed` and the queue row `completed`.
 
 ### Failure path
 

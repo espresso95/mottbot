@@ -59,11 +59,13 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     attachments: {
       cacheDir: path.join(tempDir, "attachments"),
       maxFileBytes: 20 * 1024 * 1024,
+      maxTotalBytes: 30 * 1024 * 1024,
       maxPerMessage: 4,
     },
     behavior: {
       respondInGroupsOnlyWhenMentioned: true,
       editThrottleMs: 750,
+      maxInboundTextChars: 12_000,
     },
     logging: {
       level: "silent",

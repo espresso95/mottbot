@@ -241,6 +241,7 @@ Attachment settings:
 
 - `attachments.cacheDir` or `MOTTBOT_ATTACHMENT_CACHE_DIR`
 - `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
 - `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
 
 Runtime behavior:
@@ -252,6 +253,17 @@ Runtime behavior:
 - current Pi AI payload support used by the repo exposes text and image blocks only, so PDFs, office files, audio, video, stickers, and animations are not passed as native model inputs
 
 Keep the attachment cache under `data/` or another ignored local path. Do not point it at a committed directory.
+
+## Operator Safety Limits
+
+Ingress safety settings:
+
+- `behavior.maxInboundTextChars` or `MOTTBOT_MAX_INBOUND_TEXT_CHARS`
+- `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
+- `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+
+Rejected messages receive a Telegram reply explaining the limit. They are recorded as processed updates, but they do not create runs, transcript rows, or queued work.
 
 ## Live Smoke Operations
 

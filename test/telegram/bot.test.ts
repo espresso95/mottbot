@@ -7,6 +7,7 @@ const botApi = {
   getMe: vi.fn(async () => ({ username: "mottbot" })),
   deleteWebhook: vi.fn(async () => true),
   setWebhook: vi.fn(async () => true),
+  sendMessage: vi.fn(async () => true),
 };
 const botStart = vi.fn(async () => undefined);
 const botStop = vi.fn(async () => undefined);
@@ -226,6 +227,94 @@ describe("TelegramBotServer", () => {
       updateId: 7,
       chatId: "-1",
       messageId: 70,
+    });
+    expect(updates.release).not.toHaveBeenCalled();
+  });
+
+  it("rejects safety-limit violations with a Telegram reply", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const updates = {
+      begin: vi.fn(() => ({ accepted: true, reason: "new" })),
+      markProcessed: vi.fn(),
+      release: vi.fn(),
+    };
+    const commands = { maybeHandle: vi.fn(async () => false) };
+    const access = { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) };
+    const orchestrator = { enqueueMessage: vi.fn(async () => undefined) };
+    const server = new TelegramBotServer(
+      createTestConfig({
+        behavior: { maxInboundTextChars: 5 } as any,
+      }),
+      new FakeClock(),
+      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
+      updates as any,
+      access as any,
+      commands as any,
+      { resolve: vi.fn() } as any,
+      orchestrator as any,
+    );
+    await server.start();
+    await handlers.get("message")?.({
+      update: { update_id: 9 },
+      message: {
+        message_id: 90,
+        text: "too long",
+        chat: { id: 1, type: "private" },
+        from: { id: 2, username: "user" },
+      },
+    });
+
+    expect(botApi.sendMessage).toHaveBeenCalledWith("1", "Message is too long. Limit is 5 characters.", {
+      reply_parameters: { message_id: 90 },
+    });
+    expect(commands.maybeHandle).not.toHaveBeenCalled();
+    expect(access.evaluate).not.toHaveBeenCalled();
+    expect(orchestrator.enqueueMessage).not.toHaveBeenCalled();
+    expect(updates.markProcessed).toHaveBeenCalledWith({
+      updateId: 9,
+      chatId: "1",
+      messageId: 90,
+    });
+    expect(updates.release).not.toHaveBeenCalled();
+  });
+
+  it("marks safety-limit violations processed when the rejection reply fails", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const updates = {
+      begin: vi.fn(() => ({ accepted: true, reason: "new" })),
+      markProcessed: vi.fn(),
+      release: vi.fn(),
+    };
+    const logger = { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() };
+    botApi.sendMessage.mockRejectedValueOnce(new Error("send failed"));
+    const server = new TelegramBotServer(
+      createTestConfig({
+        behavior: { maxInboundTextChars: 5 } as any,
+      }),
+      new FakeClock(),
+      logger as any,
+      updates as any,
+      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+      { maybeHandle: vi.fn(async () => false) } as any,
+      { resolve: vi.fn() } as any,
+      { enqueueMessage: vi.fn(async () => undefined) } as any,
+    );
+    await server.start();
+    await handlers.get("message")?.({
+      update: { update_id: 10 },
+      message: {
+        message_id: 100,
+        text: "too long",
+        chat: { id: 1, type: "private" },
+        from: { id: 2, username: "user" },
+      },
+    });
+
+    expect(logger.warn).toHaveBeenCalled();
+    expect(updates.markProcessed).toHaveBeenCalledWith({
+      updateId: 10,
+      chatId: "1",
+      messageId: 100,
     });
     expect(updates.release).not.toHaveBeenCalled();
   });

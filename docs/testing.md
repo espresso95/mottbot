@@ -51,7 +51,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 37 test files, 96 tests passing
+- `pnpm test`: 38 test files, 104 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
@@ -66,10 +66,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.89% |
-| Branches | 71.55% |
-| Functions | 89.45% |
-| Lines | 84.96% |
+| Statements | 84.70% |
+| Branches | 71.80% |
+| Functions | 89.25% |
+| Lines | 84.76% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -205,6 +205,7 @@ The current suite catches several subtle behaviors that matter in production:
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
 - supported image attachments are downloaded, converted into native model image inputs, and cleaned from the local cache
+- inbound text and attachment safety-limit violations are rejected before command or model routing
 - durable queue rows prevent duplicate active claims and allow queued runs to resume after restart
 - interrupted runs are recovered as failed on restart
 - processed Telegram updates are deduplicated durably

@@ -9,6 +9,8 @@ import { normalizeUpdate } from "./update-normalizer.js";
 import type { RouteResolver } from "./route-resolver.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { TelegramUpdateStore } from "./update-store.js";
+import { splitTelegramText } from "./formatting.js";
+import { validateInboundSafety } from "./safety.js";
 
 const POLLING_CONFLICT_RETRY_MS = 30_000;
 
@@ -152,6 +154,23 @@ export class TelegramBotServer {
     }
     let processed = false;
     try {
+      const safety = validateInboundSafety(this.config, event);
+      if (!safety.allow) {
+        processed = true;
+        try {
+          await this.sendReply(event, safety.message);
+        } catch (error) {
+          this.logger.warn(
+            { error, reason: safety.reason, updateId: event.updateId },
+            "Failed to send safety-limit rejection reply.",
+          );
+        }
+        this.logger.debug(
+          { reason: safety.reason, updateId: event.updateId },
+          "Telegram update rejected by safety limits.",
+        );
+        return;
+      }
       const handled = await this.commands.maybeHandle(event);
       if (handled) {
         processed = true;
@@ -179,6 +198,19 @@ export class TelegramBotServer {
       } else {
         this.updates.release(event.updateId);
       }
+    }
+  }
+
+  private async sendReply(event: {
+    chatId: string;
+    threadId?: number;
+    messageId: number;
+  }, text: string): Promise<void> {
+    for (const chunk of splitTelegramText(text)) {
+      await this.bot.api.sendMessage(event.chatId, chunk, {
+        ...(typeof event.threadId === "number" ? { message_thread_id: event.threadId } : {}),
+        reply_parameters: { message_id: event.messageId },
+      });
     }
   }
 

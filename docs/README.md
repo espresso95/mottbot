@@ -53,6 +53,7 @@ Implemented in this repo:
 - durable queued-run recovery after restart
 - versioned SQLite migration tracking
 - native image attachment ingestion and attachment-aware prompt construction
+- operator safety limits for inbound text and attachments
 - transcript compaction via deterministic history summaries
 - webhook mode
 - health reporting via `/health` and `mottbot health`

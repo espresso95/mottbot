@@ -17,14 +17,15 @@ As of April 19, 2026:
 - Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
 - Phase 6 live validation is prepared with a guarded preflight command and runbook. The preflight validates Telegram `getMe`, migrations, health counters, and auth profile presence. Actual Telegram message delivery and Codex live calls still require operator-provided test chats and a live integration environment.
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
+- Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 37 test files and 96 tests.
-- `corepack pnpm test:coverage` passes with statements 84.89%, branches 71.55%, functions 89.45%, and lines 84.96%.
+- `corepack pnpm test` passes with 38 test files and 104 tests.
+- `corepack pnpm test:coverage` passes with statements 84.70%, branches 71.80%, functions 89.25%, and lines 84.76%.
 - `corepack pnpm build` passes.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
