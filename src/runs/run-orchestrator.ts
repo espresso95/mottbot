@@ -324,8 +324,13 @@ export class RunOrchestrator {
       });
       await cleanupAttachments();
       const collector = new StreamCollector();
+      const includeAdminTools = Boolean(
+        params.event.fromUserId && this.config.telegram.adminUserIds.includes(params.event.fromUserId),
+      );
       const toolDeclarations =
-        this.toolRegistry && this.toolExecutor ? this.toolRegistry.listModelDeclarations() : undefined;
+        this.toolRegistry && this.toolExecutor
+          ? this.toolRegistry.listModelDeclarations({ includeAdminTools })
+          : undefined;
       const extraContextMessages: ProviderMessage[] = [];
       const executedToolResults: ToolExecutionResult[] = [];
       let result: ModelStreamResult | undefined;

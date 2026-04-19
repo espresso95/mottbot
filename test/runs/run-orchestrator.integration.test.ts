@@ -336,11 +336,7 @@ describe("RunOrchestrator", () => {
         .fn()
         .mockImplementationOnce(async ({ onStart, tools }) => {
           await onStart?.();
-          expect(tools).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-              name: "mottbot_health_snapshot",
-            }),
-          ]));
+          expect(tools.map((tool: { name: string }) => tool.name)).toEqual(["mottbot_health_snapshot"]);
           return {
             text: "",
             transport: "sse",
@@ -469,7 +465,9 @@ describe("RunOrchestrator", () => {
         .fn()
         .mockImplementationOnce(async ({ onStart, tools }) => {
           await onStart?.();
-          expect(tools.map((tool: any) => tool.name)).toContain("mottbot_restart_service");
+          const toolNames = tools.map((tool: { name: string }) => tool.name);
+          expect(toolNames).toContain("mottbot_restart_service");
+          expect(toolNames).toContain("mottbot_recent_runs");
           return {
             text: "",
             transport: "sse",
@@ -490,6 +488,7 @@ describe("RunOrchestrator", () => {
       clock: stores.clock,
       approvals,
       restartService,
+      adminUserIds: stores.config.telegram.adminUserIds,
     });
     const orchestrator = new RunOrchestrator(
       stores.config,

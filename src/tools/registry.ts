@@ -45,6 +45,10 @@ export type ModelToolDeclaration = {
   inputSchema: ToolInputSchema;
 };
 
+export type ModelToolDeclarationOptions = {
+  includeAdminTools?: boolean;
+};
+
 export type ToolRegistryErrorCode =
   | "invalid_definition"
   | "unknown_tool"
@@ -355,12 +359,14 @@ export class ToolRegistry {
     return [...this.definitions.values()].filter((definition) => definition.enabled);
   }
 
-  listModelDeclarations(): ModelToolDeclaration[] {
-    return this.listEnabled().map((definition) => ({
-      name: definition.name,
-      description: definition.description,
-      inputSchema: definition.inputSchema,
-    }));
+  listModelDeclarations(options: ModelToolDeclarationOptions = {}): ModelToolDeclaration[] {
+    return this.listEnabled()
+      .filter((definition) => options.includeAdminTools === true || definition.requiresAdmin !== true)
+      .map((definition) => ({
+        name: definition.name,
+        description: definition.description,
+        inputSchema: definition.inputSchema,
+      }));
   }
 
   resolve(name: string, options: ToolResolveOptions = {}): ToolDefinition {

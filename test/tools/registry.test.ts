@@ -37,10 +37,18 @@ function readOnlyTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
 }
 
 describe("ToolRegistry", () => {
-  it("exposes only enabled read-only model declarations by default", () => {
+  it("exposes only non-admin enabled read-only model declarations by default", () => {
     const registry = createDefaultToolRegistry();
 
     expect(registry.listModelDeclarations().map((tool) => tool.name)).toEqual([
+      "mottbot_health_snapshot",
+    ]);
+  });
+
+  it("includes admin-only model declarations when requested", () => {
+    const registry = createDefaultToolRegistry();
+
+    expect(registry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toEqual([
       "mottbot_health_snapshot",
       "mottbot_service_status",
       "mottbot_recent_runs",
