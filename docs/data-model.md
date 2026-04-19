@@ -220,12 +220,13 @@ Notable fields:
 
 Purpose:
 
-- reserved for update dedupe and ingestion audit
+- durable Telegram update dedupe and ingestion audit
 
 Current state:
 
-- table exists
-- runtime does not yet write to it
+- `TelegramUpdateStore` checks this table before accepting an update
+- processed updates are written after handled commands, accepted model-run handoff, and access-rejected updates
+- inflight update IDs are also tracked in memory so concurrent duplicate delivery is ignored before persistence
 
 ### `outbox_messages`
 

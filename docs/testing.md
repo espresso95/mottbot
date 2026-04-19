@@ -15,6 +15,25 @@ The current stack uses Vitest with V8 coverage.
 
 ## Commands
 
+Install dependencies from the lockfile:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+Fresh installs with pnpm 10 may block native dependency build scripts. If `better-sqlite3` cannot load and tests fail with "Could not locate the bindings file", approve or rebuild the native package before rerunning tests:
+
+```bash
+pnpm approve-builds --all
+pnpm rebuild better-sqlite3
+```
+
+Run the TypeScript check:
+
+```bash
+pnpm check
+```
+
 Run the suite:
 
 ```bash
@@ -29,12 +48,18 @@ pnpm test:coverage
 
 ## Verified Results
 
-Verified locally on April 12, 2026:
+Verified locally on April 19, 2026:
 
-- `pnpm test`: 31 test files, 69 tests passing
-- `pnpm test:coverage`: 31 test files, 69 tests passing
+- `pnpm check`: passes
+- `pnpm test`: 32 test files, 76 tests passing
 
-Coverage summary:
+The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
+
+```text
+https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_access+model.request+api.responses.write
+```
+
+Last recorded coverage run on April 12, 2026:
 
 | Metric | Result |
 | --- | ---: |
@@ -178,3 +203,14 @@ The highest-risk local behaviors are covered:
 - end-to-end run orchestration with integration tests
 
 The remaining risk is mostly on external integrations and hardening features that are intentionally deferred.
+
+## Phase 0 Verification Notes
+
+The April 19, 2026 baseline was produced from a clean working tree after dependency installation and native SQLite binding approval. The commands used were:
+
+```bash
+corepack pnpm check
+corepack pnpm test
+```
+
+Use plain `pnpm` when it is already installed on the host. `corepack pnpm` is equivalent for hosts where Corepack manages pnpm.

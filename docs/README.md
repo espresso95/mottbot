@@ -1,6 +1,6 @@
 # Mottbot Design Docs
 
-These documents describe the Telegram-first Codex subscription bot implemented in this repo. They are aligned to the current codebase as verified on April 12, 2026.
+These documents describe the Telegram-first Codex subscription bot implemented in this repo. They are aligned to the current codebase as verified on April 19, 2026.
 
 ## Doc Map
 
@@ -16,6 +16,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Unit and integration test coverage, verified results, and current gaps.
 - [Operations](./operations.md)
   Local setup, auth bootstrap, operator commands, deployment posture, and hardening backlog.
+- [Completion And Test Plan](./completion-test-plan.md)
+  Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
 - [Single-File Design Brief](./telegram-codex-design.md)
   The original one-file design brief that preceded the implementation.
 
@@ -25,6 +27,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - Read `codex-subscription-provider.md` if your main interest is the OpenClaw-style subscription path.
 - Read `telegram-runtime.md` and `data-model.md` if you want to reproduce the runtime behavior in another codebase.
 - Read `testing.md` and `operations.md` if you want to ship or extend this repo.
+- Read `completion-test-plan.md` if you want the remaining work broken into implementation and test phases.
 
 ## Status
 

@@ -18,7 +18,14 @@ Do not treat the current implementation as a multi-instance bot service.
 1. Install dependencies:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+```
+
+If pnpm 10 blocks native dependency build scripts on a fresh checkout, approve the workspace builds or rebuild `better-sqlite3` before running tests or starting the bot:
+
+```bash
+pnpm approve-builds --all
+pnpm rebuild better-sqlite3
 ```
 
 2. Create configuration:
@@ -56,6 +63,33 @@ Webhook deployments additionally need:
 - `MOTTBOT_TELEGRAM_POLLING=false`
 - `MOTTBOT_TELEGRAM_WEBHOOK_URL`
 - optional webhook path, host, port, and secret token overrides
+
+## Test Environment Checklist
+
+Use a private operator-only test environment before live validation.
+
+Required items:
+
+- a Telegram bot token from BotFather stored in `TELEGRAM_BOT_TOKEN`
+- a strong local `MOTTBOT_MASTER_KEY`
+- the operator's Telegram user ID in `MOTTBOT_ADMIN_USER_IDS`
+- optional test chat IDs in `MOTTBOT_ALLOWED_CHAT_IDS`
+- a development SQLite path such as `./data/mottbot.sqlite`
+- a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite`
+- a Codex auth source, either `$CODEX_HOME/auth.json` for CLI import or local OAuth through `pnpm auth:login`
+- webhook public URL and secret token values when testing webhook mode
+
+Bot setup and teardown:
+
+- create a test bot with BotFather and keep the token out of git
+- add the bot only to private test chats or controlled test groups
+- revoke or rotate the token in BotFather after test environments are retired
+
+Secret handling:
+
+- never commit `.env`, `mottbot.config.json`, SQLite files, WAL files, Codex auth files, Telegram tokens, OAuth access tokens, OAuth refresh tokens, or dashboard auth tokens
+- keep development and live-integration SQLite files separate so destructive recovery tests cannot affect normal local state
+- prefer temporary test chats for webhook and restart-recovery validation
 
 ## Dashboard Operations
 
