@@ -29,14 +29,15 @@ As of April 19, 2026:
 - Phase 14 is complete for the tool permission model: every enabled tool has a runtime policy, model-exposed declarations are filtered by caller role and chat, side-effecting tool calls generate sanitized approval previews and request fingerprints, approvals bind to the latest pending request when available, and admins can inspect bounded tool audit records with `/tool audit`.
 - Phase 15 is complete for read-only local repository tools: approved roots, default denied paths, safe realpath resolution, bounded file listing/reading/search, and bounded git status/branch/commit/diff tools are implemented behind admin-only read-only tool declarations.
 - Phase 16 is complete for read-only GitHub integration: the host GitHub CLI is the auth boundary, admin-only model tools expose bounded repository/PR/issue/CI summaries, and `/github` commands provide concise operator status without requiring model tool use.
+- Phase 17 is complete for the operator dashboard: dashboard API panels expose runtime, logs, tools, approvals, memory, and delayed restart controls with auth gating, server-side validation, bounded output, and dashboard-side secret redaction.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 55 test files and 211 tests.
-- `corepack pnpm test:coverage` passes with statements 84.83%, branches 73.59%, functions 92.78%, and lines 84.76%.
+- `corepack pnpm test` passes with 55 test files and 214 tests.
+- `corepack pnpm test:coverage` passes with statements 84.67%, branches 73.59%, functions 92.74%, and lines 84.59%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -1062,6 +1063,11 @@ Deliverables:
 - Keep secrets and raw prompts out of dashboard output by default.
 - Add API tests for each panel endpoint.
 
+Implemented notes:
+
+- `/api/dashboard/runtime` returns health, service status, process metadata, recent runs, and recent failed runs.
+- `/api/dashboard/logs` returns bounded stdout/stderr excerpts with secret-like text redacted.
+
 ### Task 17.2: Add Tool And Memory Panels
 
 Deliverables:
@@ -1071,6 +1077,11 @@ Deliverables:
 - Validate all dashboard mutations server-side.
 - Add tests for auth, validation, and redaction.
 
+Implemented notes:
+
+- `/api/dashboard/tools` returns enabled tools, model-exposed tool names by role, active approvals, and recent audit rows.
+- `/api/dashboard/memory` supports session-scoped listing, adding, editing, and deleting with server-side validation.
+
 ### Task 17.3: Add Safe Service Controls
 
 Deliverables:
@@ -1079,6 +1090,10 @@ Deliverables:
 - Require dashboard auth token and loopback binding unless explicitly configured otherwise.
 - Add confirmation for process-control actions.
 - Add tests for authorized and unauthorized dashboard actions.
+
+Implemented notes:
+
+- `/api/dashboard/service/restart` requires a configured dashboard auth token, a valid token on the request, and a `restart` confirmation before scheduling the existing delayed launchd restart path.
 
 Edge cases to cover:
 

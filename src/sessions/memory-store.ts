@@ -127,6 +127,35 @@ export class MemoryStore {
       .map(mapMemoryRow);
   }
 
+  update(sessionKey: string, idPrefix: string, contentText: string): SessionMemory | undefined {
+    const normalizedText = normalizeMemoryText(contentText);
+    const matches = this.database.db
+      .prepare<unknown[], SessionMemoryRow>(
+        `select *
+         from session_memories
+         where session_key = ? and id like ?
+         order by created_at desc
+         limit 2`,
+      )
+      .all(sessionKey, `${idPrefix}%`);
+    if (matches.length !== 1 || !matches[0]) {
+      return undefined;
+    }
+    const now = this.clock.now();
+    this.database.db
+      .prepare(
+        `update session_memories
+         set content_text = ?, updated_at = ?
+         where session_key = ? and id = ?`,
+      )
+      .run(normalizedText, now, sessionKey, matches[0].id);
+    return {
+      ...mapMemoryRow(matches[0]),
+      contentText: normalizedText,
+      updatedAt: now,
+    };
+  }
+
   remove(sessionKey: string, idPrefix: string): boolean {
     const matches = this.database.db
       .prepare<unknown[], { id: string }>(

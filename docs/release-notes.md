@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Operator Dashboard
+
+- Added dashboard API panels for runtime health, service status, recent runs, recent failures, and bounded logs.
+- Added tool visibility, active approval, audit, and session memory panels.
+- Added validated session memory add/edit/delete endpoints.
+- Added delayed service restart control that requires a configured dashboard auth token and explicit `restart` confirmation.
+- Redacts token-like strings from dashboard log, memory, approval, audit, and run-summary output.
+
+Operator checklist:
+
+- Keep the dashboard bound to loopback unless `MOTTBOT_DASHBOARD_AUTH_TOKEN` is configured.
+- Set `MOTTBOT_DASHBOARD_AUTH_TOKEN` before using dashboard service restart controls.
+- Use the runtime, logs, tools, and memory panels from `http://127.0.0.1:8787/dashboard` when `MOTTBOT_DASHBOARD_ENABLED=true`.
+
 ### Read-Only GitHub Integration
 
 - Added admin-only GitHub read tools backed by the host GitHub CLI.

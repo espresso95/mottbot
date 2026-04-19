@@ -312,6 +312,23 @@ export class ToolApprovalStore {
       .filter(Boolean);
   }
 
+  listActiveAll(params: { limit?: number; now?: number } = {}): StoredToolApproval[] {
+    const now = params.now ?? this.clock.now();
+    const limit = Math.min(Math.max(params.limit ?? 25, 1), 100);
+    return this.database.db
+      .prepare<unknown[], ToolApprovalRow>(
+        `select *
+         from tool_approvals
+         where consumed_at is null
+           and expires_at > ?
+         order by expires_at asc
+         limit ?`,
+      )
+      .all(now, limit)
+      .map((row) => mapApprovalRow(row)!)
+      .filter(Boolean);
+  }
+
   consume(id: string, now = this.clock.now()): boolean {
     return (
       this.database.db

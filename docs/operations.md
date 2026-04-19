@@ -108,11 +108,22 @@ Environment overrides:
 - `MOTTBOT_DASHBOARD_API_PATH`
 - `MOTTBOT_DASHBOARD_AUTH_TOKEN`
 
+Operational panels:
+
+- runtime health, service status, current process metadata, recent runs, and recent failed runs
+- bounded stdout/stderr log excerpts with dashboard-side secret redaction
+- enabled tools, model-exposed tools by role, active tool approvals, and recent tool audit rows
+- session memory listing, adding, editing, and deleting by session key
+- delayed service restart with an explicit `restart` confirmation
+
 Operational notes:
 
 - dashboard writes updates to the configured config path (default: `mottbot.config.json`, overridden by `MOTTBOT_CONFIG_PATH`)
 - environment variables still override file values
 - restart the process after saving config updates
+- non-loopback dashboard binding requires `MOTTBOT_DASHBOARD_AUTH_TOKEN`
+- service restart from the dashboard requires `MOTTBOT_DASHBOARD_AUTH_TOKEN` even on loopback
+- dashboard API responses redact token-like strings, but operators should still avoid putting secrets in memory entries, tool reasons, or logs
 
 ## CLI Entry Points
 

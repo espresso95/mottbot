@@ -3,8 +3,13 @@ import path from "node:path";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
 import type { AuthProfileStore } from "../codex/auth-store.js";
+import type { MemoryStore, SessionMemorySource } from "../sessions/memory-store.js";
 import type { Logger } from "../shared/logger.js";
+import type { ToolApprovalDecision, ToolApprovalStore, StoredToolApproval } from "../tools/approval.js";
+import type { ServiceRestartScheduled } from "../tools/process-control.js";
+import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import type { AppConfig } from "./config.js";
+import type { OperatorDiagnostics, RecentLogsParams } from "./diagnostics.js";
 import type { HealthReporter } from "./health.js";
 
 const editableDashboardConfigSchema = z.object({
@@ -39,6 +44,24 @@ const editableDashboardConfigSchema = z.object({
 
 type EditableDashboardConfig = z.infer<typeof editableDashboardConfigSchema>;
 
+const addMemorySchema = z.object({
+  sessionKey: z.string().min(1).max(200),
+  contentText: z.string().min(1).max(4_000),
+  source: z.literal("explicit").optional(),
+});
+const updateMemorySchema = z.object({
+  sessionKey: z.string().min(1).max(200),
+  contentText: z.string().min(1).max(4_000),
+});
+const deleteMemorySchema = z.object({
+  sessionKey: z.string().min(1).max(200),
+});
+const restartServiceSchema = z.object({
+  confirm: z.literal("restart"),
+  reason: z.string().min(1).max(500).optional(),
+  delaySeconds: z.number().int().min(10).max(300).optional(),
+});
+
 class DashboardHttpError extends Error {
   constructor(
     readonly statusCode: number,
@@ -46,6 +69,110 @@ class DashboardHttpError extends Error {
   ) {
     super(message);
   }
+}
+
+export type DashboardRestartService = (params: {
+  reason: string;
+  delayMs: number;
+}) => ServiceRestartScheduled;
+
+export type DashboardServerOptions = {
+  diagnostics?: OperatorDiagnostics;
+  toolRegistry?: ToolRegistry;
+  toolApprovals?: ToolApprovalStore;
+  memories?: MemoryStore;
+  restartService?: DashboardRestartService;
+};
+
+const SENSITIVE_KEY_PATTERN = /token|secret|password|authorization|accessToken|refreshToken|botToken|masterKey/i;
+const SENSITIVE_TEXT_PATTERNS: readonly RegExp[] = [
+  /\b\d{6,12}:[A-Za-z0-9_-]{20,}\b/g,
+  /\b(?:gho_|ghp_|github_pat_)[A-Za-z0-9_]+\b/gi,
+  /\bBearer\s+[A-Za-z0-9._-]+\b/gi,
+  /\bAuthorization:\s*[^\s]+/gi,
+  /\b(?:TELEGRAM_BOT_TOKEN|MOTTBOT_MASTER_KEY|TELEGRAM_API_HASH|OPENAI_API_KEY)\s*=\s*[^\s]+/gi,
+];
+const TOOL_DECISION_CODES = new Set<ToolApprovalDecision["code"]>([
+  "read_only",
+  "policy_allowed",
+  "policy_missing",
+  "role_denied",
+  "chat_denied",
+  "approval_required",
+  "approval_expired",
+  "approval_mismatch",
+  "approved",
+  "operator_approved",
+  "revoked",
+]);
+
+function clampInteger(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined || !Number.isInteger(value)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function optionalSearchString(requestUrl: URL, key: string): string | undefined {
+  const value = requestUrl.searchParams.get(key)?.trim();
+  return value ? value : undefined;
+}
+
+function searchInteger(requestUrl: URL, key: string, fallback: number, min: number, max: number): number {
+  const raw = requestUrl.searchParams.get(key);
+  if (!raw) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return clampInteger(Number.isInteger(value) ? value : undefined, fallback, min, max);
+}
+
+function sanitizeText(value: string): string {
+  return SENSITIVE_TEXT_PATTERNS.reduce((current, pattern) => current.replace(pattern, "[redacted]"), value);
+}
+
+function sanitizeJsonValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return sanitizeText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeJsonValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+        key,
+        SENSITIVE_KEY_PATTERN.test(key) ? "[redacted]" : sanitizeJsonValue(child),
+      ]),
+    );
+  }
+  return value;
+}
+
+function summarizeTool(definition: ToolDefinition) {
+  return {
+    name: definition.name,
+    description: definition.description,
+    sideEffect: definition.sideEffect,
+    enabled: definition.enabled,
+    requiresAdmin: definition.requiresAdmin === true,
+    timeoutMs: definition.timeoutMs,
+    maxOutputBytes: definition.maxOutputBytes,
+  };
+}
+
+function summarizeApproval(approval: StoredToolApproval) {
+  return sanitizeJsonValue({
+    id: approval.id,
+    sessionKey: approval.sessionKey,
+    toolName: approval.toolName,
+    approvedByUserId: approval.approvedByUserId,
+    reason: approval.reason,
+    approvedAt: approval.approvedAt,
+    expiresAt: approval.expiresAt,
+    requestFingerprint: approval.requestFingerprint,
+    previewText: approval.previewText,
+  });
 }
 
 export class DashboardServer {
@@ -56,6 +183,7 @@ export class DashboardServer {
     private readonly logger: Logger,
     private readonly health: HealthReporter,
     private readonly authProfiles: AuthProfileStore,
+    private readonly options: DashboardServerOptions = {},
   ) {}
 
   async start(): Promise<void> {
@@ -139,6 +267,34 @@ export class DashboardServer {
       this.writeJson(res, 200, this.health.snapshot());
       return;
     }
+    if (req.method === "GET" && pathname === `${apiPath}/runtime`) {
+      this.writeJson(res, 200, this.readRuntimeState());
+      return;
+    }
+    if (req.method === "GET" && pathname === `${apiPath}/logs`) {
+      this.writeJson(res, 200, this.readLogState(requestUrl));
+      return;
+    }
+    if (req.method === "GET" && pathname === `${apiPath}/tools`) {
+      this.writeJson(res, 200, this.readToolState(requestUrl));
+      return;
+    }
+    if (req.method === "GET" && pathname === `${apiPath}/memory`) {
+      this.writeJson(res, 200, this.readMemoryState(requestUrl));
+      return;
+    }
+    if (req.method === "POST" && pathname === `${apiPath}/memory`) {
+      await this.addMemory(req, res);
+      return;
+    }
+    if (pathname.startsWith(`${apiPath}/memory/`) && (req.method === "PATCH" || req.method === "DELETE")) {
+      await this.handleMemoryMutation(req, res, pathname.slice(`${apiPath}/memory/`.length));
+      return;
+    }
+    if (req.method === "POST" && pathname === `${apiPath}/service/restart`) {
+      await this.handleServiceRestart(req, res);
+      return;
+    }
     if (req.method === "GET" && pathname === `${apiPath}/config`) {
       this.writeJson(res, 200, this.readDashboardState());
       return;
@@ -169,6 +325,192 @@ export class DashboardServer {
     }
 
     this.writeJson(res, 404, { error: "Not found" });
+  }
+
+  private readRuntimeState() {
+    const diagnostics = this.options.diagnostics;
+    const recentRuns = diagnostics?.recentRuns({ limit: 10 }) ?? [];
+    const recentErrors = diagnostics?.recentRuns({
+      limit: 10,
+      statuses: ["failed", "cancelled"],
+    }) ?? [];
+    return sanitizeJsonValue({
+      health: this.health.snapshot(),
+      service: {
+        statusText: diagnostics?.serviceStatus() ?? "Service diagnostics are not available.",
+      },
+      process: {
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        platform: process.platform,
+        nodeVersion: process.version,
+      },
+      recentRuns,
+      recentErrors,
+    });
+  }
+
+  private readLogState(requestUrl: URL) {
+    const stream = optionalSearchString(requestUrl, "stream");
+    const lines = searchInteger(requestUrl, "lines", 40, 1, 100);
+    const params: RecentLogsParams = {
+      stream: stream === "stdout" || stream === "stderr" || stream === "both" ? stream : "both",
+      lines,
+    };
+    const text = this.options.diagnostics?.recentLogsText(params) ?? "Log diagnostics are not available.";
+    return {
+      ...params,
+      text: sanitizeText(text),
+    };
+  }
+
+  private readToolState(requestUrl: URL) {
+    const registry = this.options.toolRegistry;
+    const approvals = this.options.toolApprovals;
+    const limit = searchInteger(requestUrl, "limit", 25, 1, 50);
+    const sessionKey = optionalSearchString(requestUrl, "sessionKey");
+    const toolName = optionalSearchString(requestUrl, "toolName");
+    const rawDecisionCode = optionalSearchString(requestUrl, "decisionCode");
+    const decisionCode =
+      rawDecisionCode && TOOL_DECISION_CODES.has(rawDecisionCode as ToolApprovalDecision["code"])
+        ? (rawDecisionCode as ToolApprovalDecision["code"])
+        : undefined;
+    return {
+      available: Boolean(registry),
+      enabledTools: registry?.listEnabled().map(summarizeTool) ?? [],
+      modelTools: registry
+        ? {
+            user: registry.listModelDeclarations().map((tool) => tool.name),
+            admin: registry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name),
+          }
+        : { user: [], admin: [] },
+      activeApprovals: approvals
+        ? sessionKey
+          ? approvals.listActive(sessionKey).map(summarizeApproval)
+          : approvals.listActiveAll({ limit }).map(summarizeApproval)
+        : [],
+      recentAudit: approvals
+        ? sanitizeJsonValue(
+            approvals.listAudit({
+              ...(sessionKey ? { sessionKey } : {}),
+              ...(toolName ? { toolName } : {}),
+              ...(decisionCode ? { decisionCode } : {}),
+              limit,
+            }),
+          )
+        : [],
+    };
+  }
+
+  private readMemoryState(requestUrl: URL) {
+    const memories = this.options.memories;
+    const sessionKey = optionalSearchString(requestUrl, "sessionKey");
+    const source = optionalSearchString(requestUrl, "source");
+    const parsedSource =
+      source === "explicit" || source === "auto_summary" ? (source as SessionMemorySource) : undefined;
+    const limit = searchInteger(requestUrl, "limit", 20, 1, 100);
+    if (!memories || !sessionKey) {
+      return {
+        available: Boolean(memories),
+        sessionKeyRequired: !sessionKey,
+        sessionKey,
+        memories: [],
+      };
+    }
+    return sanitizeJsonValue({
+      available: true,
+      sessionKey,
+      source: parsedSource,
+      limit,
+      memories: memories.list(sessionKey, limit, parsedSource),
+    });
+  }
+
+  private async addMemory(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const memories = this.options.memories;
+    if (!memories) {
+      this.writeJson(res, 503, { error: "Memory store is not available." });
+      return;
+    }
+    try {
+      const body = await this.readBody(req);
+      const parsed = addMemorySchema.parse(JSON.parse(body));
+      this.writeJson(res, 200, {
+        ok: true,
+        memory: sanitizeJsonValue(
+          memories.add({
+            sessionKey: parsed.sessionKey,
+            contentText: parsed.contentText,
+            source: parsed.source ?? "explicit",
+          }),
+        ),
+      });
+    } catch (error) {
+      this.writeMutationError(res, error);
+    }
+  }
+
+  private async handleMemoryMutation(req: IncomingMessage, res: ServerResponse, rawIdPrefix: string): Promise<void> {
+    const memories = this.options.memories;
+    if (!memories) {
+      this.writeJson(res, 503, { error: "Memory store is not available." });
+      return;
+    }
+    const idPrefix = decodeURIComponent(rawIdPrefix).trim();
+    if (!idPrefix) {
+      this.writeJson(res, 400, { error: "Memory id is required." });
+      return;
+    }
+    try {
+      const body = await this.readBody(req);
+      const rawPayload = JSON.parse(body);
+      if (req.method === "PATCH") {
+        const parsed = updateMemorySchema.parse(rawPayload);
+        const memory = memories.update(parsed.sessionKey, idPrefix, parsed.contentText);
+        if (!memory) {
+          this.writeJson(res, 404, { error: "Memory entry not found or id prefix was ambiguous." });
+          return;
+        }
+        this.writeJson(res, 200, { ok: true, memory: sanitizeJsonValue(memory) });
+        return;
+      }
+      const parsed = deleteMemorySchema.parse(rawPayload);
+      if (!memories.remove(parsed.sessionKey, idPrefix)) {
+        this.writeJson(res, 404, { error: "Memory entry not found or id prefix was ambiguous." });
+        return;
+      }
+      this.writeJson(res, 200, { ok: true });
+    } catch (error) {
+      this.writeMutationError(res, error);
+    }
+  }
+
+  private async handleServiceRestart(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (!this.config.dashboard.authToken?.trim()) {
+      this.writeJson(res, 403, { error: "Dashboard auth token is required for service controls." });
+      return;
+    }
+    const restartService = this.options.restartService;
+    if (!restartService) {
+      this.writeJson(res, 503, { error: "Service restart is not available." });
+      return;
+    }
+    try {
+      const body = await this.readBody(req);
+      const parsed = restartServiceSchema.parse(JSON.parse(body));
+      const delaySeconds = parsed.delaySeconds ?? Math.max(10, Math.ceil(this.config.tools.restartDelayMs / 1000));
+      this.writeJson(res, 200, {
+        ok: true,
+        restart: sanitizeJsonValue(
+          restartService({
+            reason: parsed.reason ?? "dashboard requested restart",
+            delayMs: delaySeconds * 1000,
+          }),
+        ),
+      });
+    } catch (error) {
+      this.writeMutationError(res, error);
+    }
   }
 
   private isAuthorized(req: IncomingMessage): boolean {
@@ -331,6 +673,22 @@ export class DashboardServer {
     res.end(JSON.stringify(payload));
   }
 
+  private writeMutationError(res: ServerResponse, error: unknown): void {
+    if (error instanceof DashboardHttpError && error.statusCode === 413) {
+      this.writeJson(res, 413, { error: "Payload too large" });
+      return;
+    }
+    if (error instanceof SyntaxError || error instanceof z.ZodError) {
+      this.writeJson(res, 400, { error: "Invalid request payload" });
+      return;
+    }
+    if (error instanceof Error) {
+      this.writeJson(res, 400, { error: sanitizeText(error.message) });
+      return;
+    }
+    this.writeJson(res, 400, { error: "Request failed." });
+  }
+
   private renderHtml(): string {
     const apiPath = this.config.dashboard.apiPath;
     return `<!doctype html>
@@ -375,6 +733,34 @@ export class DashboardServer {
   </form>
   <h2>Health</h2>
   <pre id="health">Loading...</pre>
+  <h2>Runtime</h2>
+  <button type="button" id="refreshRuntime">Refresh runtime</button>
+  <pre id="runtime">Loading...</pre>
+  <h2>Logs</h2>
+  <div class="row">
+    <label>Stream <input type="text" id="logStream" value="both" /></label>
+    <label>Lines <input type="number" min="1" max="100" id="logLines" value="40" /></label>
+  </div>
+  <button type="button" id="refreshLogs">Refresh logs</button>
+  <pre id="logs">Loading...</pre>
+  <h2>Tools</h2>
+  <button type="button" id="refreshTools">Refresh tools</button>
+  <pre id="tools">Loading...</pre>
+  <h2>Memory</h2>
+  <label>Session key <input type="text" id="memorySessionKey" /></label>
+  <label>Memory id prefix <input type="text" id="memoryIdPrefix" /></label>
+  <label>Memory text <input type="text" id="memoryText" /></label>
+  <button type="button" id="refreshMemory">Refresh memory</button>
+  <button type="button" id="addMemory">Add memory</button>
+  <button type="button" id="editMemory">Edit memory</button>
+  <button type="button" id="deleteMemory">Delete memory</button>
+  <pre id="memory">Enter a session key.</pre>
+  <h2>Service</h2>
+  <label>Restart confirmation <input type="text" id="restartConfirm" /></label>
+  <label>Restart reason <input type="text" id="restartReason" /></label>
+  <label>Restart delay (seconds) <input type="number" min="10" max="300" id="restartDelaySeconds" value="60" /></label>
+  <button type="button" id="restartService">Restart service</button>
+  <pre id="service">Idle</pre>
   <h2>Auth profiles</h2>
   <pre id="profiles">Loading...</pre>
   <h2>Status</h2>
@@ -409,12 +795,18 @@ export class DashboardServer {
       });
     }
     async function loadData() {
-      const [configResponse, healthResponse] = await Promise.all([
+      const [configResponse, healthResponse, runtimeResponse, logsResponse, toolsResponse] = await Promise.all([
         apiFetch("${apiPath}/config"),
         apiFetch("${apiPath}/health"),
+        apiFetch("${apiPath}/runtime"),
+        apiFetch("${apiPath}/logs"),
+        apiFetch("${apiPath}/tools"),
       ]);
       const configPayload = await configResponse.json();
       const healthPayload = await healthResponse.json();
+      const runtimePayload = await runtimeResponse.json();
+      const logsPayload = await logsResponse.json();
+      const toolsPayload = await toolsResponse.json();
       byId("modelDefault").value = configPayload.state.models.default;
       byId("defaultProfile").value = configPayload.state.auth.defaultProfile;
       byId("preferCliImport").checked = !!configPayload.state.auth.preferCliImport;
@@ -423,7 +815,34 @@ export class DashboardServer {
       byId("polling").checked = !!configPayload.state.telegram.polling;
       byId("logLevel").value = configPayload.state.logging.level;
       byId("health").textContent = JSON.stringify(healthPayload, null, 2);
+      byId("runtime").textContent = JSON.stringify(runtimePayload, null, 2);
+      byId("logs").textContent = logsPayload.text || JSON.stringify(logsPayload, null, 2);
+      byId("tools").textContent = JSON.stringify(toolsPayload, null, 2);
       byId("profiles").textContent = JSON.stringify(configPayload.authProfiles, null, 2);
+    }
+    async function loadRuntime() {
+      const response = await apiFetch("${apiPath}/runtime");
+      byId("runtime").textContent = JSON.stringify(await response.json(), null, 2);
+    }
+    async function loadLogs() {
+      const stream = encodeURIComponent(byId("logStream").value || "both");
+      const lines = encodeURIComponent(byId("logLines").value || "40");
+      const response = await apiFetch("${apiPath}/logs?stream=" + stream + "&lines=" + lines);
+      const payload = await response.json();
+      byId("logs").textContent = payload.text || JSON.stringify(payload, null, 2);
+    }
+    async function loadTools() {
+      const response = await apiFetch("${apiPath}/tools");
+      byId("tools").textContent = JSON.stringify(await response.json(), null, 2);
+    }
+    async function loadMemory() {
+      const sessionKey = byId("memorySessionKey").value;
+      if (!sessionKey) {
+        byId("memory").textContent = "Enter a session key.";
+        return;
+      }
+      const response = await apiFetch("${apiPath}/memory?sessionKey=" + encodeURIComponent(sessionKey));
+      byId("memory").textContent = JSON.stringify(await response.json(), null, 2);
     }
     byId("configForm").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -452,6 +871,73 @@ export class DashboardServer {
       const token = byId("apiToken").value || "";
       localStorage.setItem("mottbot.dashboard.token", token);
       byId("status").textContent = "Saved dashboard API token for this browser.";
+    });
+    byId("refreshRuntime").addEventListener("click", () => {
+      loadRuntime().catch((error) => {
+        byId("status").textContent = String(error);
+      });
+    });
+    byId("refreshLogs").addEventListener("click", () => {
+      loadLogs().catch((error) => {
+        byId("status").textContent = String(error);
+      });
+    });
+    byId("refreshTools").addEventListener("click", () => {
+      loadTools().catch((error) => {
+        byId("status").textContent = String(error);
+      });
+    });
+    byId("refreshMemory").addEventListener("click", () => {
+      loadMemory().catch((error) => {
+        byId("status").textContent = String(error);
+      });
+    });
+    byId("addMemory").addEventListener("click", async () => {
+      const response = await apiFetch("${apiPath}/memory", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionKey: byId("memorySessionKey").value,
+          contentText: byId("memoryText").value,
+        }),
+      });
+      byId("status").textContent = JSON.stringify(await response.json(), null, 2);
+      await loadMemory();
+    });
+    byId("editMemory").addEventListener("click", async () => {
+      const response = await apiFetch("${apiPath}/memory/" + encodeURIComponent(byId("memoryIdPrefix").value), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionKey: byId("memorySessionKey").value,
+          contentText: byId("memoryText").value,
+        }),
+      });
+      byId("status").textContent = JSON.stringify(await response.json(), null, 2);
+      await loadMemory();
+    });
+    byId("deleteMemory").addEventListener("click", async () => {
+      const response = await apiFetch("${apiPath}/memory/" + encodeURIComponent(byId("memoryIdPrefix").value), {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionKey: byId("memorySessionKey").value,
+        }),
+      });
+      byId("status").textContent = JSON.stringify(await response.json(), null, 2);
+      await loadMemory();
+    });
+    byId("restartService").addEventListener("click", async () => {
+      const response = await apiFetch("${apiPath}/service/restart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          confirm: byId("restartConfirm").value,
+          reason: byId("restartReason").value || undefined,
+          delaySeconds: Number(byId("restartDelaySeconds").value || "60"),
+        }),
+      });
+      byId("service").textContent = JSON.stringify(await response.json(), null, 2);
     });
     const savedToken = localStorage.getItem("mottbot.dashboard.token") || "";
     byId("apiToken").value = savedToken;

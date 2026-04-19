@@ -939,6 +939,12 @@ Primary panels:
 - memory inspection/editing
 - safe service controls
 
+Implementation status:
+
+- Implemented as local dashboard API panels for runtime, logs, tools, memory, and restart scheduling.
+- Restart controls require a configured dashboard auth token even when bound to loopback.
+- Dashboard API output redacts token-like strings in logs, memory, tool approvals, audit rows, and run summaries.
+
 ### Phase 18: model-assisted memory
 
 Design intent:

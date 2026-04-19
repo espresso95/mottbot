@@ -73,6 +73,7 @@ Implemented in this repo:
 - read-only operator diagnostics tools and admin `/runs` and `/debug` commands
 - admin-only read-only local repository and git inspection tools
 - admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
+- local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - explicit session memory through `/remember`, `/memory`, and `/forget`, plus optional deterministic automatic summaries
 - host-local instance lease to reduce accidental overlapping bot processes
 

@@ -68,7 +68,6 @@ export async function bootstrapApplication() {
   const updateStore = new TelegramUpdateStore(database, systemClock);
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
-  const dashboard = new DashboardServer(config, logger, health, authProfiles);
   const diagnostics = new OperatorDiagnostics(config, database, systemClock);
   const github = new GithubCliReadService(config.tools.github);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
@@ -95,6 +94,17 @@ export async function bootstrapApplication() {
   const toolPolicy = createToolPolicyEngine({
     definitions: toolRegistry.listEnabled(),
     overrides: config.tools.policies,
+  });
+  const dashboard = new DashboardServer(config, logger, health, authProfiles, {
+    diagnostics,
+    toolRegistry,
+    toolApprovals: toolApprovalStore,
+    memories: memoryStore,
+    restartService: ({ reason, delayMs }) =>
+      scheduleServiceRestart({
+        reason,
+        delayMs,
+      }),
   });
   const toolExecutor = new ToolExecutor(toolRegistry, {
     clock: systemClock,
