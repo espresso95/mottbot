@@ -73,6 +73,13 @@ Enabled read-only tools:
 | `mottbot_recent_runs` | `read_only` | optional `limit` and `sessionKey` | Return recent SQLite run records. |
 | `mottbot_recent_errors` | `read_only` | optional `limit` | Return failed/cancelled runs and recent stderr lines. |
 | `mottbot_recent_logs` | `read_only` | optional `stream` and `lines` | Return recent launchd stdout/stderr lines. |
+| `mottbot_repo_list_files` | `read_only` | optional `root`, `path`, `recursive`, and `limit` | List files under an approved local repository root without reading contents. |
+| `mottbot_repo_read_file` | `read_only` | required `path`; optional `root`, `startLine`, `maxLines`, and `maxBytes` | Read a bounded text slice from an approved local repository file. |
+| `mottbot_repo_search` | `read_only` | required `query`; optional `root`, `path`, `maxMatches`, and `maxBytes` | Search literal text in approved repository files. |
+| `mottbot_git_status` | `read_only` | optional `root` | Read git branch and working-tree status. |
+| `mottbot_git_branch` | `read_only` | optional `root` | Read the current branch or detached commit. |
+| `mottbot_git_recent_commits` | `read_only` | optional `root` and `limit` | Read recent commit summaries. |
+| `mottbot_git_diff` | `read_only` | optional `root`, `path`, and `maxBytes` | Read diff stat/summary or a bounded selected-file diff. |
 
 Disabled reserved tools:
 
@@ -87,8 +94,37 @@ Registry behavior:
 - disabled tool names are rejected
 - enabled tools with side effects are rejected at registry construction time unless the runtime explicitly opts into side-effect definitions
 - input payloads are validated against the declared JSON-schema subset before execution
-- operator diagnostics tools are marked admin-only even though they are read-only
+- operator diagnostics, repository, and git tools are marked admin-only even though they are read-only
 - the restart and Telegram reaction tools are admin-only in addition to requiring a fresh approval by default
+
+## Repository Read Scope
+
+Repository tools are governed separately from general tool policy by `tools.repository` or the `MOTTBOT_REPOSITORY_*` environment variables.
+
+Defaults:
+
+```json
+{
+  "roots": ["."],
+  "deniedPaths": [],
+  "maxReadBytes": 40000,
+  "maxSearchMatches": 100,
+  "maxSearchBytes": 80000,
+  "commandTimeoutMs": 5000
+}
+```
+
+Built-in denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files.
+
+Path safety rules:
+
+- every requested path is resolved through `realpath`
+- traversal outside an approved root is rejected
+- symlinks that resolve outside an approved root are rejected
+- denied paths are checked before and after realpath resolution
+- file reads reject binary-looking files and return bounded line/byte slices
+- search prefers `rg --json --fixed-strings` and falls back to bounded Node search when `rg` is unavailable
+- git status filters denied paths before returning output
 
 ## Tool Policy
 

@@ -50,6 +50,12 @@ const configEnvKeys = [
   "MOTTBOT_TOOL_APPROVAL_TTL_MS",
   "MOTTBOT_RESTART_TOOL_DELAY_MS",
   "MOTTBOT_TOOL_POLICIES_JSON",
+  "MOTTBOT_REPOSITORY_ROOTS",
+  "MOTTBOT_REPOSITORY_DENIED_PATHS",
+  "MOTTBOT_REPOSITORY_MAX_READ_BYTES",
+  "MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES",
+  "MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES",
+  "MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
   "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
@@ -107,6 +113,14 @@ describe("loadConfig", () => {
               maxOutputBytes: 1_000,
             },
           },
+          repository: {
+            roots: ["./file-root"],
+            deniedPaths: ["file-secret"],
+            maxReadBytes: 1111,
+            maxSearchMatches: 22,
+            maxSearchBytes: 3333,
+            commandTimeoutMs: 4444,
+          },
         },
         runtime: { instanceLeaseEnabled: false },
         memory: { autoSummaryRecentMessages: 16 },
@@ -129,6 +143,12 @@ describe("loadConfig", () => {
         maxOutputBytes: 1234,
       },
     });
+    process.env.MOTTBOT_REPOSITORY_ROOTS = "./env-root,./env-root-2";
+    process.env.MOTTBOT_REPOSITORY_DENIED_PATHS = "env-secret,private";
+    process.env.MOTTBOT_REPOSITORY_MAX_READ_BYTES = "2222";
+    process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES = "33";
+    process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES = "4444";
+    process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS = "5555";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
@@ -169,6 +189,14 @@ describe("loadConfig", () => {
         requiresApproval: false,
         maxOutputBytes: 1234,
       },
+    });
+    expect(config.tools.repository).toEqual({
+      roots: ["./env-root", "./env-root-2"],
+      deniedPaths: ["env-secret", "private"],
+      maxReadBytes: 2222,
+      maxSearchMatches: 33,
+      maxSearchBytes: 4444,
+      commandTimeoutMs: 5555,
     });
     expect(config.runtime.instanceLeaseEnabled).toBe(false);
     expect(config.memory.autoSummariesEnabled).toBe(true);

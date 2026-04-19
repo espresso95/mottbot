@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Read-Only Local Repository Tools
+
+- Added admin-only model tools for approved local repository inspection.
+- Added bounded file listing, file reading, literal text search, git status, current branch lookup, recent commits, and git diff summaries.
+- Added repository root and denied-path config through `tools.repository` and `MOTTBOT_REPOSITORY_*`.
+- Denied common secret and generated paths by default, including `.env`, config files, auth files, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files.
+- Rejected path traversal and symlink escapes through realpath checks.
+
+Operator checklist:
+
+- Keep `MOTTBOT_REPOSITORY_ROOTS=.` for the current checkout, or set a comma-separated list of approved roots.
+- Add project-specific private directories to `MOTTBOT_REPOSITORY_DENIED_PATHS`.
+- Ask from an admin chat for repo status, a bounded file read, and a search term to live-validate the tools.
+
 ### Tool Permission Model
 
 - Added per-tool policy overrides through `tools.policies` and `MOTTBOT_TOOL_POLICIES_JSON`.

@@ -16,6 +16,16 @@ const toolPolicyConfigSchema = z.object({
   dryRun: z.boolean().optional(),
   maxOutputBytes: z.number().int().min(1).optional(),
 });
+const repositoryToolConfigSchema = z
+  .object({
+    roots: z.array(z.string()).default(["."]),
+    deniedPaths: z.array(z.string()).default([]),
+    maxReadBytes: z.number().int().min(1).max(200_000).default(40_000),
+    maxSearchMatches: z.number().int().min(1).max(500).default(100),
+    maxSearchBytes: z.number().int().min(1).max(500_000).default(80_000),
+    commandTimeoutMs: z.number().int().min(100).max(30_000).default(5_000),
+  })
+  .default({});
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -107,6 +117,7 @@ const rawConfigSchema = z.object({
       approvalTtlMs: z.number().int().min(1_000).default(5 * 60 * 1000),
       restartDelayMs: z.number().int().min(1_000).default(60_000),
       policies: z.record(toolPolicyConfigSchema).default({}),
+      repository: repositoryToolConfigSchema,
     })
     .default({}),
   runtime: z
@@ -194,6 +205,7 @@ export type AppConfig = {
     approvalTtlMs: number;
     restartDelayMs: number;
     policies: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
+    repository: z.infer<typeof repositoryToolConfigSchema>;
   };
   runtime: {
     instanceLeaseEnabled: boolean;
@@ -222,6 +234,10 @@ function parseCsv(raw: string | undefined): string[] {
 
 function pickDefined<T>(...values: Array<T | undefined>): T | undefined {
   return values.find((value) => value !== undefined);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 }
 
 function readConfigFile(configPath: string): unknown {
@@ -253,6 +269,8 @@ export function loadConfig(): AppConfig {
   const fileConfig = readConfigFile(configPath);
   const fileObject =
     typeof fileConfig === "object" && fileConfig ? (fileConfig as Record<string, unknown>) : {};
+  const fileTools = asRecord(fileObject.tools);
+  const fileRepositoryTools = asRecord(fileTools?.repository);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
     telegram: {
@@ -575,6 +593,37 @@ export function loadConfig(): AppConfig {
         (fileObject.tools && typeof fileObject.tools === "object"
           ? (fileObject.tools as any).policies
           : undefined),
+      repository: {
+        ...(fileRepositoryTools ?? {}),
+        roots: pickDefined(
+          process.env.MOTTBOT_REPOSITORY_ROOTS !== undefined
+            ? parseCsv(process.env.MOTTBOT_REPOSITORY_ROOTS)
+            : undefined,
+          fileRepositoryTools?.roots,
+        ),
+        deniedPaths: pickDefined(
+          process.env.MOTTBOT_REPOSITORY_DENIED_PATHS !== undefined
+            ? parseCsv(process.env.MOTTBOT_REPOSITORY_DENIED_PATHS)
+            : undefined,
+          fileRepositoryTools?.deniedPaths,
+        ),
+        maxReadBytes:
+          process.env.MOTTBOT_REPOSITORY_MAX_READ_BYTES === undefined
+            ? fileRepositoryTools?.maxReadBytes
+            : Number(process.env.MOTTBOT_REPOSITORY_MAX_READ_BYTES),
+        maxSearchMatches:
+          process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES === undefined
+            ? fileRepositoryTools?.maxSearchMatches
+            : Number(process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES),
+        maxSearchBytes:
+          process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES === undefined
+            ? fileRepositoryTools?.maxSearchBytes
+            : Number(process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES),
+        commandTimeoutMs:
+          process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS === undefined
+            ? fileRepositoryTools?.commandTimeoutMs
+            : Number(process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS),
+      },
     },
     runtime: {
       ...(fileObject.runtime && typeof fileObject.runtime === "object" ? (fileObject.runtime as object) : {}),

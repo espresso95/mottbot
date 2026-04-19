@@ -81,6 +81,12 @@ MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own
 MOTTBOT_DASHBOARD_ENABLED=false
 MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false
 MOTTBOT_TOOL_POLICIES_JSON=
+MOTTBOT_REPOSITORY_ROOTS=.
+MOTTBOT_REPOSITORY_DENIED_PATHS=
+MOTTBOT_REPOSITORY_MAX_READ_BYTES=40000
+MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES=100
+MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
+MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
 MOTTBOT_AUTO_MEMORY_SUMMARIES=false
 ```
 
@@ -114,6 +120,14 @@ Example:
 ```bash
 MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
 ```
+
+Repository tool settings:
+
+- `MOTTBOT_REPOSITORY_ROOTS=.` approves the current checkout for read-only admin model tools
+- use a comma-separated list for multiple approved roots
+- `MOTTBOT_REPOSITORY_DENIED_PATHS` adds extra denied path segments or relative paths
+- default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files
+- repository tools are admin-only and read-only; they can list files, read bounded text slices, search literal text, and inspect git status/branch/commits/diffs
 
 Import Codex CLI auth into the configured SQLite database:
 

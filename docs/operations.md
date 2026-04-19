@@ -186,8 +186,28 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_recent_runs`: recent run records from SQLite
 - `mottbot_recent_errors`: failed/cancelled runs plus recent stderr lines
 - `mottbot_recent_logs`: recent launchd stdout/stderr lines
+- `mottbot_repo_list_files`: approved-root file listing without contents
+- `mottbot_repo_read_file`: bounded text slices from approved files
+- `mottbot_repo_search`: bounded literal search across approved files
+- `mottbot_git_status`: branch and working-tree status
+- `mottbot_git_branch`: current branch or detached commit
+- `mottbot_git_recent_commits`: recent commit summaries
+- `mottbot_git_diff`: diff stat/summary or bounded selected-file diff
 
-The diagnostics tools are read-only but admin-only, because logs and run records can contain operational context.
+The diagnostics, repository, and git tools are read-only but admin-only, because logs, run records, source files, and diffs can contain operational context.
+
+Repository tools are scoped by:
+
+```bash
+MOTTBOT_REPOSITORY_ROOTS=.
+MOTTBOT_REPOSITORY_DENIED_PATHS=
+MOTTBOT_REPOSITORY_MAX_READ_BYTES=40000
+MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES=100
+MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
+MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
+```
+
+Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
@@ -379,21 +399,26 @@ Keep the attachment cache under `data/` or another ignored local path. Do not po
 
 ## Tool Operations
 
-Model tool execution is enabled only for registry-approved read-only tools.
+Model tool execution is enabled only for registry-approved read-only tools plus explicitly enabled side-effecting tools.
 
 Current tool set:
 
 - `mottbot_health_snapshot`: returns a token-free runtime health snapshot
+- `mottbot_service_status`, `mottbot_recent_runs`, `mottbot_recent_errors`, and `mottbot_recent_logs`: admin-only operator diagnostics
+- `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
+- `mottbot_restart_service` and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and approval by default
 
 Runtime controls:
 
-- unknown, disabled, invalid, and side-effecting tools are denied by the registry
+- unknown, disabled, and invalid tools are denied by the registry
+- side-effecting tools are disabled unless explicitly enabled and guarded by policy/approval
 - each tool definition has a timeout and output-size limit
 - each run is limited to three tool rounds and five tool calls
+- repository tools resolve real paths, reject traversal/symlink escapes, deny secret and generated paths by default, and return bounded output
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 
-Only the delayed service restart process-control tool has an approval-backed implementation. Do not add local-write, network, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
+Only the delayed service restart and Telegram reaction tools have approval-backed side-effect implementations. Do not add local-write, additional network, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
 
 ## Operator Safety Limits
 

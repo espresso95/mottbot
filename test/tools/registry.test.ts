@@ -54,6 +54,13 @@ describe("ToolRegistry", () => {
       "mottbot_recent_runs",
       "mottbot_recent_errors",
       "mottbot_recent_logs",
+      "mottbot_repo_list_files",
+      "mottbot_repo_read_file",
+      "mottbot_repo_search",
+      "mottbot_git_status",
+      "mottbot_git_branch",
+      "mottbot_git_recent_commits",
+      "mottbot_git_diff",
     ]);
   });
 

@@ -37,6 +37,7 @@ import { codexModelCapabilities } from "../models/provider.js";
 import { OperatorDiagnostics } from "./diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../tools/operator-diagnostic-handlers.js";
 import { createTelegramReactionToolHandlers } from "../tools/telegram-reaction-handlers.js";
+import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -98,6 +99,7 @@ export async function bootstrapApplication() {
     handlers: {
       ...createOperatorDiagnosticToolHandlers(diagnostics),
       ...createTelegramReactionToolHandlers(reactions),
+      ...createRepositoryToolHandlers(config.tools.repository),
     },
     adminUserIds: config.telegram.adminUserIds,
     approvals: toolApprovalStore,

@@ -8,6 +8,9 @@ import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../../src/tools/operator-diagnostic-handlers.js";
 import { createTelegramReactionToolHandlers } from "../../src/tools/telegram-reaction-handlers.js";
 import { createToolPolicyEngine, createToolRequestFingerprint } from "../../src/tools/policy.js";
+import { createRepositoryToolHandlers } from "../../src/tools/repository-handlers.js";
+import fs from "node:fs";
+import path from "node:path";
 
 function readOnlyTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -85,6 +88,49 @@ describe("ToolExecutor", () => {
 
       expect(result.isError).toBe(false);
       expect(result.contentText).toContain("openai-codex/gpt-5.4");
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("executes repository tools for admins and denies non-admin callers", async () => {
+    const stores = createStores();
+    try {
+      fs.writeFileSync(path.join(stores.tempDir, "README.md"), "hello from repo\n");
+      const registry = new ToolRegistry();
+      const executor = new ToolExecutor(registry, {
+        clock: stores.clock,
+        handlers: createRepositoryToolHandlers({
+          roots: [stores.tempDir],
+          deniedPaths: [],
+          maxReadBytes: 1_000,
+          maxSearchMatches: 10,
+          maxSearchBytes: 2_000,
+          commandTimeoutMs: 5_000,
+        }),
+        adminUserIds: ["admin-1"],
+      });
+
+      const denied = await executor.execute({
+        id: "call-repo-denied",
+        name: "mottbot_repo_read_file",
+        arguments: { path: "README.md" },
+      }, {
+        requestedByUserId: "user-1",
+      });
+      expect(denied.isError).toBe(true);
+      expect(denied.errorCode).toBe("role_denied");
+
+      const allowed = await executor.execute({
+        id: "call-repo-allowed",
+        name: "mottbot_repo_read_file",
+        arguments: { path: "README.md" },
+      }, {
+        requestedByUserId: "admin-1",
+      });
+      expect(allowed.isError).toBe(false);
+      expect(allowed.contentText).toContain("hello from repo");
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

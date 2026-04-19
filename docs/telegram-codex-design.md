@@ -891,6 +891,11 @@ Design intent:
 - use structured path resolution rather than string path checks
 - prefer `rg` and bounded file slices for fast, controlled inspection
 
+Status:
+
+- complete for admin-only local repository inspection tools
+- approved roots, denied paths, realpath checks, bounded reads/search, and git status/branch/commit/diff summaries are implemented
+
 Initial tools:
 
 - list approved files

@@ -23,6 +23,12 @@ Configuration comes from three layers:
 - `MOTTBOT_TOOL_APPROVAL_TTL_MS`
 - `MOTTBOT_RESTART_TOOL_DELAY_MS`
 - `MOTTBOT_TOOL_POLICIES_JSON`
+- `MOTTBOT_REPOSITORY_ROOTS`
+- `MOTTBOT_REPOSITORY_DENIED_PATHS`
+- `MOTTBOT_REPOSITORY_MAX_READ_BYTES`
+- `MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES`
+- `MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES`
+- `MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS`
 - `MOTTBOT_INSTANCE_LEASE_ENABLED`
 - `MOTTBOT_DEFAULT_MODEL`
 - `MOTTBOT_TRANSPORT`
@@ -80,7 +86,15 @@ Current defaults:
     "enableSideEffectTools": false,
     "approvalTtlMs": 300000,
     "restartDelayMs": 60000,
-    "policies": {}
+    "policies": {},
+    "repository": {
+      "roots": ["."],
+      "deniedPaths": [],
+      "maxReadBytes": 40000,
+      "maxSearchMatches": 100,
+      "maxSearchBytes": 80000,
+      "commandTimeoutMs": 5000
+    }
   },
   "runtime": {
     "instanceLeaseEnabled": true,

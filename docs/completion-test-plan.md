@@ -27,14 +27,15 @@ As of April 19, 2026:
 - Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
 - Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
 - Phase 14 is complete for the tool permission model: every enabled tool has a runtime policy, model-exposed declarations are filtered by caller role and chat, side-effecting tool calls generate sanitized approval previews and request fingerprints, approvals bind to the latest pending request when available, and admins can inspect bounded tool audit records with `/tool audit`.
+- Phase 15 is complete for read-only local repository tools: approved roots, default denied paths, safe realpath resolution, bounded file listing/reading/search, and bounded git status/branch/commit/diff tools are implemented behind admin-only read-only tool declarations.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 51 test files and 186 tests.
-- `corepack pnpm test:coverage` passes with statements 84.45%, branches 73.08%, functions 91.94%, and lines 84.41%.
+- `corepack pnpm test` passes with 53 test files and 200 tests.
+- `corepack pnpm test:coverage` passes with statements 84.36%, branches 73.55%, functions 92.37%, and lines 84.30%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -48,8 +49,8 @@ Current known gaps:
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
-- Model-executed tools are limited to the health snapshot, admin diagnostics, and the admin-only opt-in delayed restart tool. Other side-effect categories remain disabled.
-- There are no local repository, GitHub, write-capable, or model-cost governance tools yet.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, and the admin-only opt-in delayed restart and Telegram reaction tools. Other side-effect categories remain disabled.
+- There are no GitHub, write-capable, or model-cost governance tools yet.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -889,6 +890,8 @@ Verification:
 
 This phase gives the model safe visibility into the local project without write access.
 
+Status: complete.
+
 Dependencies and ordering:
 
 - Requires Phase 14 policy controls.
@@ -903,6 +906,12 @@ Deliverables:
 - Resolve paths safely and reject traversal outside approved roots.
 - Add tests for allowed files, denied files, symlinks, traversal, and generated-output paths.
 
+Implemented notes:
+
+- `tools.repository` and the `MOTTBOT_REPOSITORY_*` environment variables configure approved roots, extra denied paths, read/search limits, and command timeout.
+- Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files.
+- Repository paths are resolved through `realpath` and rejected when traversal or symlinks escape the approved root.
+
 ### Task 15.2: Add File Search And Read Tools
 
 Deliverables:
@@ -912,6 +921,12 @@ Deliverables:
 - Return structured results with path, line numbers, truncation, and match counts.
 - Add tests for successful search, no matches, binary files, and timeout behavior.
 
+Implemented notes:
+
+- `mottbot_repo_list_files`, `mottbot_repo_read_file`, and `mottbot_repo_search` are admin-only read-only tools.
+- Search prefers `rg --json --fixed-strings` and falls back to a bounded Node search when `rg` is unavailable.
+- Binary reads are rejected using a null-byte sample check.
+
 ### Task 15.3: Add Git Read Tools
 
 Deliverables:
@@ -920,6 +935,13 @@ Deliverables:
 - Sanitize output and avoid leaking ignored or untracked secret file contents.
 - Add tests with a temporary git repository fixture.
 - Document which git commands are used and why they are read-only.
+
+Implemented notes:
+
+- `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff` are admin-only read-only tools.
+- Git status output filters denied paths before returning text.
+- `mottbot_git_branch` returns the current branch or a detached commit marker.
+- `mottbot_git_diff` returns a stat/summary when no path is provided and a bounded selected-file diff when the path is allowed.
 
 Edge cases to cover:
 

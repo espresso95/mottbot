@@ -328,14 +328,15 @@ If execution throws:
 When the model requests an enabled tool, the run orchestrator:
 
 - shows short Telegram status edits while the tool is prepared and running
-- executes read-only tools directly and side-effecting tools only after a fresh one-shot session approval
+- executes read-only tools directly after registry and policy checks, including admin-only repository tools scoped to approved roots
+- executes side-effecting tools only after a fresh one-shot session approval unless policy configures dry-run behavior
 - enforces per-run tool-round and tool-call limits
 - persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads
 - persists side-effecting approval decisions in `tool_approval_audit`
 - sends the provider-native tool result back to Codex in the same active turn
 - finalizes Telegram with the model's answer after tool continuation
 
-Unknown, disabled, invalid, unapproved, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
+Unknown, disabled, invalid, policy-denied, unapproved, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
 
 ## Prompt Building
 

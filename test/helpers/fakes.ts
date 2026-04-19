@@ -98,6 +98,14 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       approvalTtlMs: 5 * 60 * 1000,
       restartDelayMs: 60_000,
       policies: {},
+      repository: {
+        roots: ["."],
+        deniedPaths: [],
+        maxReadBytes: 40_000,
+        maxSearchMatches: 100,
+        maxSearchBytes: 80_000,
+        commandTimeoutMs: 5_000,
+      },
     },
     runtime: {
       instanceLeaseEnabled: true,
