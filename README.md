@@ -45,6 +45,8 @@ pnpm auth:login
 pnpm dev
 ```
 
+For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
+
 5. Open the dashboard:
 
 - `http://127.0.0.1:8787/dashboard` (defaults)
@@ -60,9 +62,12 @@ pnpm dev
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
 - `pnpm health`
+- `pnpm service status`
+- `pnpm restart`
 
 ## Docs
 
+- [Persistent setup](./SETUP.md)
 - [Docs index](./docs/README.md)
 - [Architecture](./docs/architecture.md)
 - [Telegram runtime](./docs/telegram-runtime.md)

@@ -139,7 +139,38 @@ Equivalent `pnpm` scripts:
 - `pnpm db:migrate`
 - `pnpm db:prune`
 - `pnpm health`
+- `pnpm service install --start`
+- `pnpm service status`
+- `pnpm restart`
 - `pnpm smoke:preflight`
+
+## Persistent macOS Service
+
+Use `SETUP.md` for the full host-local service runbook.
+
+The supported persistent local setup is a macOS user LaunchAgent:
+
+- label: `ai.mottbot.bot`
+- plist: `~/Library/LaunchAgents/ai.mottbot.bot.plist`
+- logs: `~/Library/Logs/mottbot/`
+- command: `corepack pnpm exec tsx src/index.ts start`
+
+Common commands:
+
+```bash
+corepack pnpm service install --start
+corepack pnpm service status
+corepack pnpm restart
+corepack pnpm service stop
+```
+
+Runtime secrets remain in `.env`, not in the LaunchAgent plist.
+
+Polling conflict behavior:
+
+- Telegram permits only one active `getUpdates` consumer per bot token.
+- If a second consumer exists, Mottbot logs the conflict and retries every 30 seconds instead of exiting.
+- The bot still cannot receive updates until the other poller stops or the token is rotated.
 
 ## Migration Operations
 

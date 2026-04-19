@@ -12,6 +12,7 @@ import { runCodexOAuthLogin } from "./codex/oauth-login.js";
 import { importCodexCliAuthProfile } from "./codex/cli-auth-import.js";
 import { installShutdown } from "./app/shutdown.js";
 import { HealthReporter } from "./app/health.js";
+import { runServiceCommand } from "./app/service.js";
 
 async function runStart(): Promise<void> {
   const app = await bootstrapApplication();
@@ -127,6 +128,9 @@ function printHelp(): void {
       "  mottbot auth import-cli",
       "  mottbot db migrate",
       "  mottbot db prune [--older-than-days 30] [--dry-run|--yes]",
+      "  mottbot service install [--start]",
+      "  mottbot service start|stop|restart|status|uninstall",
+      "  mottbot restart",
       "  mottbot health",
     ].join("\n") + "\n",
   );
@@ -157,6 +161,14 @@ async function main(): Promise<void> {
   }
   if (group === "db" && subcommand === "prune") {
     await runDbPrune(rest);
+    return;
+  }
+  if (group === "service") {
+    process.exitCode = runServiceCommand(subcommand ? [subcommand, ...rest] : rest);
+    return;
+  }
+  if (group === "restart") {
+    process.exitCode = runServiceCommand(["restart", subcommand, ...rest].filter((value): value is string => Boolean(value)));
     return;
   }
   if (group === "health") {

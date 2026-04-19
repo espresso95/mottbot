@@ -10,10 +10,27 @@ import type { RouteResolver } from "./route-resolver.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { TelegramUpdateStore } from "./update-store.js";
 
+const POLLING_CONFLICT_RETRY_MS = 30_000;
+
+function hasTelegramErrorCode(error: unknown, code: number): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const maybe = error as { error_code?: unknown; message?: unknown; description?: unknown };
+  if (maybe.error_code === code) {
+    return true;
+  }
+  const text = `${String(maybe.message ?? "")}\n${String(maybe.description ?? "")}`;
+  return text.includes(`${code}:`);
+}
+
 export class TelegramBotServer {
   private readonly bot: Bot<Context>;
   private botUsername?: string;
   private webhookServer?: Server;
+  private stopping = false;
+  private retryTimeout?: NodeJS.Timeout;
+  private retryResolve?: () => void;
 
   constructor(
     private readonly config: AppConfig,
@@ -33,6 +50,7 @@ export class TelegramBotServer {
   }
 
   async start(): Promise<void> {
+    this.stopping = false;
     const me = await this.bot.api.getMe();
     this.botUsername = me.username;
 
@@ -48,8 +66,8 @@ export class TelegramBotServer {
       await this.bot.api.deleteWebhook({
         drop_pending_updates: false,
       });
-      await this.bot.start();
-      this.logger.info({ botUsername: this.botUsername }, "Telegram bot started.");
+      this.logger.info({ botUsername: this.botUsername }, "Telegram bot starting in polling mode.");
+      await this.startPolling();
       return;
     }
 
@@ -58,6 +76,8 @@ export class TelegramBotServer {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
+    this.wakePollingRetry();
     if (this.webhookServer) {
       await new Promise<void>((resolve, reject) => {
         this.webhookServer?.close((error) => {
@@ -72,6 +92,48 @@ export class TelegramBotServer {
       return;
     }
     await this.bot.stop();
+  }
+
+  private async startPolling(): Promise<void> {
+    while (!this.stopping) {
+      try {
+        await this.bot.start();
+        return;
+      } catch (error) {
+        if (this.stopping) {
+          return;
+        }
+        if (!hasTelegramErrorCode(error, 409)) {
+          throw error;
+        }
+        this.logger.warn(
+          { retryMs: POLLING_CONFLICT_RETRY_MS },
+          "Telegram polling conflict detected. Another getUpdates consumer is using this bot token; retrying.",
+        );
+        await this.waitBeforePollingRetry(POLLING_CONFLICT_RETRY_MS);
+      }
+    }
+  }
+
+  private waitBeforePollingRetry(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.retryResolve = resolve;
+      this.retryTimeout = setTimeout(() => {
+        this.retryTimeout = undefined;
+        this.retryResolve = undefined;
+        resolve();
+      }, ms);
+    });
+  }
+
+  private wakePollingRetry(): void {
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = undefined;
+    }
+    const resolve = this.retryResolve;
+    this.retryResolve = undefined;
+    resolve?.();
   }
 
   private async handleMessage(ctx: Context): Promise<void> {

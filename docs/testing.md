@@ -51,7 +51,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 36 test files, 93 tests passing
+- `pnpm test`: 37 test files, 96 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
@@ -66,10 +66,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.88% |
-| Branches | 72.01% |
-| Functions | 89.23% |
-| Lines | 84.95% |
+| Statements | 84.82% |
+| Branches | 71.77% |
+| Functions | 89.45% |
+| Lines | 84.89% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -94,6 +94,7 @@ Primary tests:
 - `test/app/config.test.ts`
 - `test/app/bootstrap.test.ts`
 - `test/app/shutdown.test.ts`
+- `test/app/service.test.ts`
 
 ### Database migrations and retention
 
@@ -208,6 +209,7 @@ The current suite catches several subtle behaviors that matter in production:
 - interrupted runs are recovered as failed on restart
 - processed Telegram updates are deduplicated durably
 - webhook mode configures the local server and Telegram webhook registration correctly
+- polling mode logs and retries Telegram 409 conflicts from another active poller
 - interrupted outbox rows are marked failed and partial text is recoverable after restart
 
 ## Current Gaps

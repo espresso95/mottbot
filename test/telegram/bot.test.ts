@@ -55,6 +55,7 @@ describe("TelegramBotServer", () => {
 
   afterEach(() => {
     handlers.clear();
+    vi.useRealTimers();
   });
 
   it("starts and routes accepted messages to the orchestrator", async () => {
@@ -95,6 +96,36 @@ describe("TelegramBotServer", () => {
     });
     await server.stop();
     expect(botStop).toHaveBeenCalled();
+  });
+
+  it("backs off and retries when Telegram reports another active poller", async () => {
+    vi.useFakeTimers();
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+    botStart
+      .mockRejectedValueOnce(Object.assign(new Error("409: Conflict"), { error_code: 409 }))
+      .mockResolvedValueOnce(undefined);
+    const server = new TelegramBotServer(
+      createTestConfig(),
+      new FakeClock(),
+      logger as any,
+      { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() } as any,
+      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+      { maybeHandle: vi.fn(async () => false) } as any,
+      { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
+      { enqueueMessage: vi.fn(async () => undefined) } as any,
+    );
+
+    const startPromise = server.start();
+    await vi.waitFor(() => expect(botStart).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await startPromise;
+
+    expect(botStart).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      { retryMs: 30_000 },
+      "Telegram polling conflict detected. Another getUpdates consumer is using this bot token; retrying.",
+    );
   });
 
   it("short-circuits handled commands", async () => {

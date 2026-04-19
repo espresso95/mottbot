@@ -20,6 +20,8 @@
     "auth:import-cli": "tsx src/index.ts auth import-cli",
     "db:migrate": "tsx src/index.ts db migrate",
     "db:prune": "tsx src/index.ts db prune --dry-run",
+    "service": "tsx src/index.ts service",
+    "restart": "tsx src/index.ts restart",
     "smoke:preflight": "tsx src/tools/live-smoke-preflight.ts"
   },
   "engines": {
