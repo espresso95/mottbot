@@ -141,7 +141,7 @@ Equivalent `pnpm` scripts:
 - `pnpm health`
 - `pnpm service install --start`
 - `pnpm service status`
-- `pnpm restart`
+- `pnpm run restart`
 - `pnpm smoke:preflight`
 
 ## Persistent macOS Service
@@ -160,7 +160,7 @@ Common commands:
 ```bash
 corepack pnpm service install --start
 corepack pnpm service status
-corepack pnpm restart
+corepack pnpm run restart
 corepack pnpm service stop
 ```
 

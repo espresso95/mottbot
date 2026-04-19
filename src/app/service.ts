@@ -113,6 +113,10 @@ function runLaunchctl(args: string[]): CommandResult {
   };
 }
 
+function sleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function ignoreMissingService(result: CommandResult): void {
   if (result.status === 0) {
     return;
@@ -149,7 +153,11 @@ export function stopLaunchAgent(): void {
 export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
   const paths = installLaunchAgent(projectRoot);
   stopLaunchAgent();
-  const bootstrap = runLaunchctl(["bootstrap", userDomain(), paths.plistPath]);
+  let bootstrap = runLaunchctl(["bootstrap", userDomain(), paths.plistPath]);
+  if (bootstrap.status !== 0 && /Bootstrap failed: 5|Input\/output error/i.test(bootstrap.stderr)) {
+    sleepMs(1_000);
+    bootstrap = runLaunchctl(["bootstrap", userDomain(), paths.plistPath]);
+  }
   if (bootstrap.status !== 0) {
     throw new Error(bootstrap.stderr.trim() || "launchctl bootstrap failed.");
   }

@@ -106,7 +106,7 @@ corepack pnpm service status
 Restart from the CLI:
 
 ```bash
-corepack pnpm restart
+corepack pnpm run restart
 ```
 
 Equivalent explicit command:
@@ -168,7 +168,7 @@ Fix options:
 After changing the token:
 
 ```bash
-corepack pnpm restart
+corepack pnpm run restart
 ```
 
 ## Updating Code
@@ -178,7 +178,7 @@ Pull changes and restart:
 ```bash
 git pull
 corepack pnpm install --frozen-lockfile
-corepack pnpm restart
+corepack pnpm run restart
 ```
 
 The service runs from source through `tsx`, so a TypeScript build is not required for the LaunchAgent. Still run checks before or after updates:

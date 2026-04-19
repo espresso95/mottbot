@@ -63,7 +63,7 @@ For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
 - `pnpm db:migrate`
 - `pnpm health`
 - `pnpm service status`
-- `pnpm restart`
+- `pnpm run restart`
 
 ## Docs
 
