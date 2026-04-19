@@ -12,6 +12,18 @@ type MigrationVersionRow = {
   name: string;
 };
 
+type TelegramBotSummary = {
+  id: number;
+  firstName?: string;
+  username?: string;
+  canJoinGroups?: boolean;
+  canReadAllGroupMessages?: boolean;
+};
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
 function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -28,7 +40,31 @@ function readMigrations(database: DatabaseClient): MigrationVersionRow[] {
     .all();
 }
 
-function main(): void {
+async function readTelegramBot(token: string): Promise<TelegramBotSummary> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  const parsed = asObject(await response.json());
+  const result = asObject(parsed?.result);
+  const description = typeof parsed?.description === "string" ? parsed.description : response.statusText;
+  if (!response.ok || parsed?.ok !== true || !result) {
+    throw new Error(`Telegram getMe failed: ${description || "unknown error"}`);
+  }
+  if (typeof result.id !== "number") {
+    throw new Error("Telegram getMe returned a bot result without a numeric id.");
+  }
+  return {
+    id: result.id,
+    ...(typeof result.first_name === "string" ? { firstName: result.first_name } : {}),
+    ...(typeof result.username === "string" ? { username: result.username } : {}),
+    ...(typeof result.can_join_groups === "boolean" ? { canJoinGroups: result.can_join_groups } : {}),
+    ...(typeof result.can_read_all_group_messages === "boolean"
+      ? { canReadAllGroupMessages: result.can_read_all_group_messages }
+      : {}),
+  };
+}
+
+async function main(): Promise<void> {
   if (process.env.MOTTBOT_LIVE_SMOKE_ENABLED !== "true") {
     printJson({
       status: "skipped",
@@ -38,6 +74,7 @@ function main(): void {
   }
 
   const config = loadConfig();
+  const telegramBot = await readTelegramBot(config.telegram.botToken);
   const database = new DatabaseClient(config.storage.sqlitePath);
   try {
     migrateDatabase(database);
@@ -58,6 +95,7 @@ function main(): void {
       issues,
       configPath: config.configPath,
       mode: config.telegram.polling ? "polling" : "webhook",
+      telegramBot,
       sqlitePath: config.storage.sqlitePath,
       attachmentCacheDir: config.attachments.cacheDir,
       defaultProfile: config.auth.defaultProfile,
@@ -78,7 +116,7 @@ function main(): void {
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   printJson({ status: "failed", error: message });

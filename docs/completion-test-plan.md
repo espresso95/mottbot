@@ -15,7 +15,7 @@ As of April 19, 2026:
 - Phase 2 is complete for the single-host scope: Telegram image attachments are downloaded safely, converted into native model image inputs when supported, represented as text metadata otherwise, and cleaned from the local cache after request construction.
 - Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
 - Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
-- Phase 6 live validation is prepared with a guarded preflight command and runbook. Actual Telegram and Codex live calls still require operator-provided test bot credentials, Codex auth, and a live integration environment.
+- Phase 6 live validation is prepared with a guarded preflight command and runbook. The preflight validates Telegram `getMe`, migrations, health counters, and auth profile presence. Actual Telegram message delivery and Codex live calls still require operator-provided test chats and a live integration environment.
 
 ## Current Baseline
 

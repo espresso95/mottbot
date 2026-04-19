@@ -237,6 +237,7 @@ By default the command prints `status: skipped`. It validates a configured live 
 Preflight checks:
 
 - configuration and required secrets can be loaded
+- Telegram `getMe` accepts the configured bot token
 - SQLite migrations apply cleanly
 - the default auth profile is present
 - admin IDs are configured

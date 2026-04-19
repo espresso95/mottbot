@@ -20,7 +20,7 @@ The command exits with `status: skipped` unless this variable is set:
 export MOTTBOT_LIVE_SMOKE_ENABLED=true
 ```
 
-When enabled, preflight loads config, runs migrations, reads health counters, verifies the default auth profile is present, and prints a token-free JSON summary. It does not send Telegram messages or make Codex model calls.
+When enabled, preflight loads config, validates the bot token with Telegram `getMe`, runs migrations, reads health counters, verifies the default auth profile is present, and prints a token-free JSON summary. It does not send Telegram messages or make Codex model calls.
 
 ## Required Environment
 
@@ -75,6 +75,7 @@ Expected result:
 
 - `status` is `ready`
 - `issues` is empty
+- `telegramBot.username` matches the test bot
 - `migrations` includes version `1`
 - `authProfiles` is at least `1`
 
