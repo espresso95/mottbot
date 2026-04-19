@@ -44,10 +44,10 @@ export type RecentLogsParams = {
 const MAX_LOG_READ_BYTES = 128 * 1024;
 
 function clampInteger(value: number | undefined, fallback: number, min: number, max: number): number {
-  if (!Number.isInteger(value)) {
+  if (value === undefined || !Number.isInteger(value)) {
     return fallback;
   }
-  return Math.min(max, Math.max(min, value as number));
+  return Math.min(max, Math.max(min, value));
 }
 
 function tailFileLines(filePath: string, requestedLines: number): string[] {
