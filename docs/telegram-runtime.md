@@ -84,6 +84,8 @@ Before command routing or model execution, `validateInboundSafety()` checks:
 - attachment count against `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
 - known per-file sizes against `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
 - combined known attachment sizes against `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+- extracted file prompt text against `attachments.maxExtractedTextCharsPerFile` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
+- extracted file prompt text across one message against `attachments.maxExtractedTextCharsTotal` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
 
 Rejected messages receive a short Telegram reply explaining the limit and are marked processed for update dedupe. They do not create sessions, runs, transcript entries, or queue rows.
 
@@ -100,16 +102,21 @@ Supported attachment kinds:
 Current behavior:
 
 - attachments are recorded on the event and persisted into transcript metadata
-- stored metadata can include file name, MIME type, size, dimensions, duration, and Telegram file IDs
+- stored metadata can include file name, MIME type, size, dimensions, duration, Telegram file IDs, ingestion status, and extraction summaries
 - prompts render attachment summaries as text context and strip directory-like prefixes from file names
 - image attachments are downloaded through Telegram `getFile` when the selected model supports native image input
 - downloaded image bytes are converted into base64 image blocks for the model request
+- text, Markdown, code, CSV, TSV, and PDF documents are downloaded within byte limits and extracted into bounded prompt-only text
+- CSV and TSV attachments are represented as bounded table previews
+- PDF extraction is bounded by `attachments.pdfMaxPages` / `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES` and reports encrypted, unreadable, or no-text PDFs in attachment metadata
 - unsupported attachment kinds and MIME types remain text metadata
 - cached attachment files are deleted after model request construction or failure cleanup
+- raw extracted file text is not persisted in SQLite; only metadata and extraction summaries are retained
 
 Current limitation:
 
-- non-image documents, audio, video, stickers, and animations are not passed as native model inputs
+- non-image documents are not passed as native provider file blocks; supported documents are converted into prompt text instead
+- audio, video, stickers, and animations are not passed as native model inputs
 - media-group coalescing is not implemented
 
 ## Access Control
@@ -207,6 +214,9 @@ Current policy:
 - `/new`
 - `/reset`
 - `/stop`
+- `/files [list [limit]]`
+- `/files forget <file-id-prefix|all>`
+- `/files clear`
 - `/bind [name]`
 - `/unbind`
 - `/remember <fact>`
@@ -237,6 +247,9 @@ Current policy:
 - `/fast` updates `session_routes.fast_mode`
 - `/new` and `/reset` both clear transcript history for the session
 - `/stop` aborts the active run for the session if one exists
+- `/files` lists recent retained file metadata for the session
+- `/files forget <id-prefix>` removes one retained file metadata record and strips the matching attachment envelope from transcript JSON without deleting the transcript message text
+- `/files clear` removes all retained file metadata for the session and strips attachment envelopes from transcript JSON
 - `/bind` switches the existing route into `bound` mode after validating the binding name
 - `/unbind` restores the route mode based on the session key shape
 - `/remember`, `/memory`, and `/forget` manage explicit long-term memory for the current session
@@ -286,14 +299,18 @@ Important implementation detail:
 10. Move the run to `starting`.
 11. Resolve auth for the selected profile.
 12. Load recent transcript history.
-13. Download supported image attachments and convert them into native model input blocks.
-14. Build the model prompt.
-15. Start streaming through `CodexTransport`.
-16. Move the run to `streaming` on stream start.
-17. Append text deltas to the collector and edit the placeholder message.
-18. Finalize the message, persist the assistant transcript entry, and record usage.
-19. If enabled, update the deterministic automatic session summary.
-20. Mark the run `completed` and the queue row `completed`.
+13. Download supported attachments.
+14. Convert supported images into native model input blocks.
+15. Extract bounded prompt-only text from supported text, Markdown, code, CSV, TSV, and PDF documents.
+16. Persist attachment metadata and extraction summaries without raw extracted text.
+17. Build the model prompt.
+18. Append prompt-only extracted file text and native image blocks to the latest user message.
+19. Start streaming through `CodexTransport`.
+20. Move the run to `streaming` on stream start.
+21. Append text deltas to the collector and edit the placeholder message.
+22. Finalize the message, persist the assistant transcript entry, and record usage.
+23. If enabled, update the deterministic automatic session summary.
+24. Mark the run `completed` and the queue row `completed`.
 
 ### Failure path
 
@@ -388,5 +405,5 @@ The runtime is optimized for Telegram's constraints:
 The Telegram runtime intentionally leaves several hardening items for later:
 
 - no media group coalescing
-- no native model input support for non-image attachment types
+- no native provider file-block support for non-image attachment types
 - no multi-process or multi-replica queue ownership

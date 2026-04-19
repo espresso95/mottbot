@@ -15,6 +15,11 @@ type MessageRow = {
   created_at: number;
 };
 
+type MessageJsonRow = {
+  id: string;
+  content_json: string | null;
+};
+
 function mapMessageRow(row: MessageRow): TranscriptMessage {
   return {
     id: row.id,
@@ -98,6 +103,61 @@ export class TranscriptStore {
     this.database.db
       .prepare("update messages set content_json = ? where run_id = ? and role = ?")
       .run(contentJson ?? null, runId, role);
+  }
+
+  removeAttachmentMetadata(params: {
+    sessionKey: string;
+    runId?: string;
+    recordId?: string;
+  }): number {
+    const rows = this.database.db
+      .prepare<unknown[], MessageJsonRow>(
+        `select id, content_json
+         from messages
+         where session_key = ?
+           and content_json is not null
+           ${params.runId ? "and run_id = ?" : ""}`,
+      )
+      .all(...(params.runId ? [params.sessionKey, params.runId] : [params.sessionKey]));
+    let changed = 0;
+    const update = this.database.db.prepare("update messages set content_json = ? where id = ?");
+    const save = this.database.db.transaction(() => {
+      for (const row of rows) {
+        if (!row.content_json) {
+          continue;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(row.content_json);
+        } catch {
+          continue;
+        }
+        if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { attachments?: unknown }).attachments)) {
+          continue;
+        }
+        const recordId = params.recordId;
+        const nextAttachments = recordId
+          ? (parsed as { attachments: Array<Record<string, unknown>> }).attachments.filter(
+              (attachment) => attachment.recordId !== recordId,
+            )
+          : [];
+        if (nextAttachments.length === (parsed as { attachments: unknown[] }).attachments.length) {
+          continue;
+        }
+        const nextEnvelope = {
+          ...(parsed as Record<string, unknown>),
+          ...(nextAttachments.length > 0 ? { attachments: nextAttachments } : {}),
+        };
+        if (nextAttachments.length === 0) {
+          delete nextEnvelope.attachments;
+        }
+        const nextJson = Object.keys(nextEnvelope).length > 0 ? JSON.stringify(nextEnvelope) : null;
+        update.run(nextJson, row.id);
+        changed += 1;
+      }
+    });
+    save();
+    return changed;
   }
 
   hasRunMessage(runId: string, role?: TranscriptMessageRole): boolean {

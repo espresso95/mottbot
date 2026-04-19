@@ -37,6 +37,7 @@ describe("TelegramAttachmentIngestor", () => {
     });
 
     expect(prepared.nativeInputs).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }]);
+    expect(prepared.extractedTexts).toEqual([]);
     expect(prepared.transcriptAttachments[0]).toMatchObject({
       kind: "photo",
       fileId: "photo-1",
@@ -63,7 +64,7 @@ describe("TelegramAttachmentIngestor", () => {
         file_size: 100,
       })),
     };
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async () => new Response(Buffer.from("%PDF bad"), { status: 200 }));
     const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
 
     const textOnly = await ingestor.prepare({
@@ -71,6 +72,7 @@ describe("TelegramAttachmentIngestor", () => {
       attachments: [{ kind: "photo", fileId: "photo-1" }],
     });
     expect(textOnly.nativeInputs).toEqual([]);
+    expect(textOnly.extractedTexts).toEqual([]);
     expect(textOnly.transcriptAttachments[0]).toMatchObject({
       ingestionStatus: "skipped",
       ingestionReason: "model_does_not_support_images",
@@ -84,9 +86,59 @@ describe("TelegramAttachmentIngestor", () => {
     expect(unsupported.nativeInputs).toEqual([]);
     expect(unsupported.transcriptAttachments[0]).toMatchObject({
       ingestionStatus: "skipped",
-      ingestionReason: "unsupported_attachment_type",
+      extraction: {
+        kind: "pdf",
+        status: "failed",
+      },
     });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("extracts text, Markdown, code, and CSV documents for prompt context", async () => {
+    const stores = createStores({
+      attachments: {
+        maxExtractedTextCharsPerFile: 200,
+        maxExtractedTextCharsTotal: 500,
+      } as any,
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      getFile: vi
+        .fn()
+        .mockResolvedValueOnce({ file_path: "docs/readme.md", file_size: 16 })
+        .mockResolvedValueOnce({ file_path: "docs/main.ts", file_size: 17 })
+        .mockResolvedValueOnce({ file_path: "docs/data.csv", file_size: 17 }),
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(Buffer.from("# Hello\nmarkdown"), { status: 200 }))
+      .mockResolvedValueOnce(new Response(Buffer.from("const value = 1;\n"), { status: 200 }))
+      .mockResolvedValueOnce(new Response(Buffer.from("name,value\nAda,1\n"), { status: 200 }));
+    const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
+
+    const prepared = await ingestor.prepare({
+      allowNativeImages: true,
+      attachments: [
+        { kind: "document", fileId: "md", fileName: "readme.md" },
+        { kind: "document", fileId: "ts", fileName: "main.ts" },
+        { kind: "document", fileId: "csv", fileName: "data.csv" },
+      ],
+    });
+
+    expect(prepared.nativeInputs).toEqual([]);
+    expect(prepared.extractedTexts.map((text) => text.kind)).toEqual(["markdown", "code", "csv"]);
+    expect(prepared.extractedTexts[1]).toMatchObject({ language: "typescript" });
+    expect(prepared.transcriptAttachments).toEqual([
+      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "markdown" }) }),
+      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "code" }) }),
+      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "csv" }) }),
+    ]);
+
+    await ingestor.cleanup(prepared);
+    expect(fs.readdirSync(stores.config.attachments.cacheDir)).toEqual([]);
   });
 
   it("rejects attachments that exceed configured limits", async () => {

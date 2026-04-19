@@ -55,9 +55,27 @@ describe("operational retention", () => {
       role: "assistant",
       contentText: "old answer",
     });
+    stores.attachmentRecords.addMany({
+      sessionKey: "terminal-session",
+      runId: terminalRun.runId,
+      telegramMessageId: 101,
+      attachments: [
+        {
+          recordId: "old-file",
+          kind: "document",
+          fileId: "file-1",
+          fileName: "old.txt",
+          ingestionStatus: "extracted_text",
+          extraction: { kind: "text", status: "extracted", promptChars: 10 },
+        },
+      ],
+    });
     stores.database.db
       .prepare("update messages set created_at = ? where run_id = ?")
       .run(oldTimestamp, terminalRun.runId);
+    stores.database.db
+      .prepare("update attachment_records set created_at = ?, updated_at = ? where run_id = ?")
+      .run(oldTimestamp, oldTimestamp, terminalRun.runId);
     stores.messageStore.record({
       runId: terminalRun.runId,
       chatId: "terminal-chat",
@@ -98,9 +116,27 @@ describe("operational retention", () => {
       role: "assistant",
       contentText: "active answer",
     });
+    stores.attachmentRecords.addMany({
+      sessionKey: "active-session",
+      runId: activeRun.runId,
+      telegramMessageId: 102,
+      attachments: [
+        {
+          recordId: "active-file",
+          kind: "document",
+          fileId: "file-2",
+          fileName: "active.txt",
+          ingestionStatus: "extracted_text",
+          extraction: { kind: "text", status: "extracted", promptChars: 10 },
+        },
+      ],
+    });
     stores.database.db
       .prepare("update messages set created_at = ? where run_id = ?")
       .run(oldTimestamp, activeRun.runId);
+    stores.database.db
+      .prepare("update attachment_records set created_at = ?, updated_at = ? where run_id = ?")
+      .run(oldTimestamp, oldTimestamp, activeRun.runId);
     stores.messageStore.record({
       runId: activeRun.runId,
       chatId: "active-chat",
@@ -123,6 +159,7 @@ describe("operational retention", () => {
       dryRun: true,
       telegramUpdates: 1,
       messages: 1,
+      attachmentRecords: 1,
       telegramBotMessages: 1,
       outboxMessages: 1,
       runs: 1,
@@ -134,12 +171,15 @@ describe("operational retention", () => {
       dryRun: false,
       telegramUpdates: 1,
       messages: 1,
+      attachmentRecords: 1,
       telegramBotMessages: 1,
       outboxMessages: 1,
       runs: 1,
     });
     expect(stores.runs.get(terminalRun.runId)).toBeUndefined();
     expect(stores.runs.get(activeRun.runId)).toMatchObject({ status: "streaming" });
+    expect(stores.attachmentRecords.listRecent("terminal-session")).toEqual([]);
+    expect(stores.attachmentRecords.listRecent("active-session")).toHaveLength(1);
     expect(stores.sessions.findByChat("active-chat")).toBeDefined();
     expect(stores.updateStore.countProcessed()).toBe(0);
     expect(stores.messageStore.hasMessage({ chatId: "terminal-chat", telegramMessageId: 201 })).toBe(false);

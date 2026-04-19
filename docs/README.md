@@ -24,6 +24,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Safety requirements and runtime behavior for read-only model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)
   Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
+- [Release Notes](./release-notes.md)
+  Operator-facing notes and validation checklists for newly added runtime capabilities.
 - [Single-File Design Brief](./telegram-codex-design.md)
   The original one-file design brief that preceded the implementation.
 
@@ -56,6 +58,8 @@ Implemented in this repo:
 - durable queued-run recovery after restart
 - versioned SQLite migration tracking
 - native image attachment ingestion and attachment-aware prompt construction
+- bounded text, Markdown, code, CSV, TSV, and PDF attachment extraction for active model runs
+- session file metadata inspection and forgetting through `/files`
 - operator safety limits for inbound text and attachments
 - transcript compaction via deterministic history summaries
 - webhook mode
@@ -72,7 +76,7 @@ Implemented in this repo:
 
 Planned hardening that is not yet implemented:
 
-- native non-image attachment ingestion into model inputs
+- native provider file blocks for non-image attachments when the provider exposes them
 - fully automated webhook, group, and Codex live smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - model-generated memory beyond deterministic local summaries

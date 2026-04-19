@@ -838,6 +838,8 @@ Primary user-facing additions:
 
 ### Phase 13: general file understanding
 
+Status: complete for bounded text, Markdown, code, CSV, TSV, and PDF extraction into active-run prompt context.
+
 Design intent:
 
 - move beyond image-only native attachment support
@@ -850,6 +852,12 @@ Primary user-facing additions:
 - summaries of uploaded documents
 - file extraction failure messages that explain size, type, encryption, or parsing limits
 - `/files` or equivalent session attachment inspection
+
+Implemented notes:
+
+- raw extracted file text is not persisted in SQLite
+- `attachment_records` stores retained metadata and extraction summaries for `/files`
+- unsupported binaries and unreadable PDFs remain explicit metadata rather than leaking local cache paths or Telegram file URLs
 
 ### Phase 14: tool permission model v2
 

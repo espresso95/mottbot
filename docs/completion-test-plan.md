@@ -25,14 +25,15 @@ As of April 19, 2026:
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
 - Phase 11 is complete for command discovery and conversation UX: `/help`, `/tool help`, `/tools`, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
 - Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
+- Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 49 test files and 170 tests.
-- `corepack pnpm test:coverage` passes with statements 84.64%, branches 72.90%, functions 91.45%, and lines 84.65%.
+- `corepack pnpm test` passes with 50 test files and 178 tests.
+- `corepack pnpm test:coverage` passes with statements 84.70%, branches 72.75%, functions 91.79%, and lines 84.67%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -42,7 +43,7 @@ Verified locally on April 19, 2026:
 
 Current known gaps:
 
-- Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
+- Native provider attachment ingestion is limited to image inputs for models that advertise image support; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
@@ -728,6 +729,8 @@ Dependencies and ordering:
 
 ### Task 13.1: Add Text And Markdown File Ingestion
 
+Status: complete.
+
 Deliverables:
 
 - Detect Telegram text-like documents by MIME type, extension, and safe byte inspection.
@@ -737,6 +740,8 @@ Deliverables:
 - Add tests for UTF-8 text, Markdown, oversized files, and unsupported encodings.
 
 ### Task 13.2: Add PDF Text Extraction
+
+Status: complete.
 
 Deliverables:
 
@@ -748,6 +753,8 @@ Deliverables:
 
 ### Task 13.3: Add Code And CSV Summaries
 
+Status: complete.
+
 Deliverables:
 
 - Recognize common code file extensions and preserve filename/language metadata.
@@ -756,6 +763,8 @@ Deliverables:
 - Add tests for code files, CSV headers, long rows, and truncation behavior.
 
 ### Task 13.4: Add File-Oriented Commands
+
+Status: complete.
 
 Deliverables:
 
@@ -787,6 +796,7 @@ Required testing:
 
 Verification:
 
+- `corepack pnpm vitest run test/telegram/file-extraction.test.ts test/telegram/attachments.test.ts test/runs/helpers.test.ts test/runs/prompt-builder.test.ts test/runs/run-orchestrator.integration.test.ts test/telegram/commands.integration.test.ts test/db/migrate.test.ts test/db/retention.test.ts test/app/config.test.ts`
 - `corepack pnpm check`
 - `corepack pnpm test`
 - `corepack pnpm test:coverage`

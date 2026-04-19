@@ -9,6 +9,7 @@ import {
 } from "../models/provider.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
+import { createId } from "../shared/ids.js";
 import type { Logger } from "../shared/logger.js";
 import {
   RUN_STATUS_TEXT,
@@ -23,6 +24,7 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
+import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { TelegramReactionService } from "../telegram/reactions.js";
@@ -35,7 +37,7 @@ import {
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
 import type { ToolRegistry } from "../tools/registry.js";
-import { appendNativeAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
+import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
 import type { RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
 import type { RunStore } from "./run-store.js";
@@ -126,6 +128,7 @@ export class RunOrchestrator {
     private readonly memories?: MemoryStore,
     private readonly modelCapabilities: ModelCapabilities = codexModelCapabilities,
     private readonly reactions?: TelegramReactionService,
+    private readonly attachmentRecords?: AttachmentRecordStore,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -304,6 +307,13 @@ export class RunOrchestrator {
         signal: params.signal,
       });
       if (params.event.attachments.length > 0) {
+        attachmentPreparation = this.assignAttachmentRecordIds(attachmentPreparation);
+        this.attachmentRecords?.addMany({
+          sessionKey: params.session.sessionKey,
+          runId: run.runId,
+          telegramMessageId: params.event.messageId,
+          attachments: attachmentPreparation.transcriptAttachments,
+        });
         this.transcripts.updateRunMessageContentJson(
           run.runId,
           "user",
@@ -316,9 +326,10 @@ export class RunOrchestrator {
         systemPrompt: params.session.systemPrompt,
         memories: this.memories?.list(params.session.sessionKey),
       });
-      const messages = appendNativeAttachmentsToLatestUserMessage({
+      const messages = appendPreparedAttachmentsToLatestUserMessage({
         messages: prompt.messages,
         nativeInputs: attachmentPreparation.nativeInputs,
+        extractedTexts: attachmentPreparation.extractedTexts,
       });
       await cleanupAttachments();
       const collector = new StreamCollector();
@@ -567,6 +578,16 @@ export class RunOrchestrator {
       mentionsBot: parsed.mentionsBot === true,
       isCommand: parsed.isCommand === true,
       arrivedAt: typeof parsed.arrivedAt === "number" ? parsed.arrivedAt : this.clock.now(),
+    };
+  }
+
+  private assignAttachmentRecordIds(preparation: AttachmentPreparation): AttachmentPreparation {
+    return {
+      ...preparation,
+      transcriptAttachments: preparation.transcriptAttachments.map((attachment) => ({
+        ...attachment,
+        recordId: attachment.recordId ?? createId(),
+      })),
     };
   }
 

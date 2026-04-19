@@ -38,6 +38,13 @@ describe("buildPrompt", () => {
                 fileSize: 4096,
                 width: 640,
                 height: 480,
+                ingestionStatus: "native_input",
+                extraction: {
+                  kind: "text",
+                  status: "extracted",
+                  promptChars: 20,
+                  truncated: true,
+                },
               },
             ],
           }),
@@ -47,10 +54,13 @@ describe("buildPrompt", () => {
     });
     expect(prompt.messages[0]?.content).toContain("Attachments:");
     expect(prompt.messages[0]?.content).toContain("photo");
-    expect(prompt.messages[0]?.content).toContain("abc123");
     expect(prompt.messages[0]?.content).toContain("not-exposed.png");
     expect(prompt.messages[0]?.content).toContain("image/png");
     expect(prompt.messages[0]?.content).toContain("640x480");
+    expect(prompt.messages[0]?.content).toContain("native_input");
+    expect(prompt.messages[0]?.content).toContain("extraction: text extracted");
+    expect(prompt.messages[0]?.content).toContain("truncated");
+    expect(prompt.messages[0]?.content).not.toContain("abc123");
     expect(prompt.messages[0]?.content).not.toContain("/tmp/");
   });
 

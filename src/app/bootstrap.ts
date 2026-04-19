@@ -30,6 +30,7 @@ import { ToolExecutor } from "../tools/executor.js";
 import { ToolApprovalStore } from "../tools/approval.js";
 import { scheduleServiceRestart } from "../tools/process-control.js";
 import { MemoryStore } from "../sessions/memory-store.js";
+import { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import { ApplicationInstanceLease } from "./instance-lease.js";
 import { codexModelCapabilities } from "../models/provider.js";
 import { OperatorDiagnostics } from "./diagnostics.js";
@@ -56,6 +57,7 @@ export async function bootstrapApplication() {
   const runStore = new RunStore(database, systemClock);
   const runQueueStore = new RunQueueStore(database, systemClock);
   const memoryStore = new MemoryStore(database, systemClock);
+  const attachmentRecordStore = new AttachmentRecordStore(database, systemClock);
   const toolApprovalStore = new ToolApprovalStore(database, systemClock);
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
   const transport = new CodexTransport(database, logger);
@@ -151,6 +153,7 @@ export async function bootstrapApplication() {
     memoryStore,
     codexModelCapabilities,
     reactions,
+    attachmentRecordStore,
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
@@ -167,6 +170,7 @@ export async function bootstrapApplication() {
     toolApprovalStore,
     memoryStore,
     diagnostics,
+    attachmentRecordStore,
   );
   const bot = new TelegramBotServer(
     config,

@@ -18,6 +18,7 @@ import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
+import type { AttachmentRecord, AttachmentRecordStore } from "../sessions/attachment-store.js";
 
 function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
@@ -71,6 +72,26 @@ function formatCommandSection(title: string, commands: string[]): string | undef
   return [title, ...commands.map((command) => `- ${command}`)].join("\n");
 }
 
+function formatAttachmentRecord(record: AttachmentRecord): string {
+  const name = record.fileName?.split(/[\\/]/).at(-1)?.replace(/\s+/g, " ").trim() || record.kind;
+  const extraction = [
+    record.extractionKind,
+    record.extractionStatus,
+    record.extractionReason,
+    record.language ? `lang=${record.language}` : undefined,
+    record.promptTextChars !== undefined ? `prompt=${record.promptTextChars}` : undefined,
+    record.extractionTruncated ? "truncated" : undefined,
+  ].filter(Boolean);
+  const details = [
+    record.mimeType,
+    record.fileSize !== undefined ? `${record.fileSize} bytes` : undefined,
+    record.ingestionStatus,
+    record.ingestionReason,
+    extraction.length > 0 ? `extraction=${extraction.join("/")}` : undefined,
+  ].filter(Boolean);
+  return `- ${record.id.slice(0, 8)} ${name}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
+}
+
 async function sendReply(
   api: Api,
   event: InboundEvent,
@@ -99,6 +120,7 @@ export class TelegramCommandRouter {
     private readonly toolApprovals?: ToolApprovalStore,
     private readonly memories?: MemoryStore,
     private readonly diagnostics?: OperatorDiagnostics,
+    private readonly attachments?: AttachmentRecordStore,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -225,6 +247,10 @@ export class TelegramCommandRouter {
         }
         const removed = this.memories.remove(session.sessionKey, target);
         await sendReply(this.api, event, removed ? "Memory forgotten." : "No matching memory found.");
+        return true;
+      }
+      case "files": {
+        await this.handleFilesCommand(event, session, parsed.args);
         return true;
       }
       case "model": {
@@ -400,6 +426,7 @@ export class TelegramCommandRouter {
         "/fast on|off - toggle priority service tier",
         "/new or /reset - clear this session transcript",
         "/stop - cancel the active run for this session",
+        "/files [forget <id-prefix>|clear] - inspect or forget uploaded file metadata",
         "/bind [name] - keep replies always on for this chat or topic",
         "/unbind - restore default route behavior",
       ]),
@@ -462,6 +489,64 @@ export class TelegramCommandRouter {
         sessionKey: args.includes("here") ? session.sessionKey : undefined,
       }),
     );
+  }
+
+  private async handleFilesCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    if (!this.attachments) {
+      await sendReply(this.api, event, "File metadata is not available.");
+      return;
+    }
+    const sub = args[0]?.toLowerCase();
+    if (!sub || sub === "list") {
+      const limit = Number(args[1] ?? 10);
+      const records = this.attachments.listRecent(session.sessionKey, Number.isInteger(limit) ? limit : 10);
+      await sendReply(
+        this.api,
+        event,
+        records.length > 0
+          ? ["Recent files:", ...records.map(formatAttachmentRecord)].join("\n")
+          : "No files recorded for this session.",
+      );
+      return;
+    }
+    if (sub === "clear" || (sub === "forget" && args[1]?.toLowerCase() === "all")) {
+      const removed = this.attachments.clearSession(session.sessionKey);
+      const transcriptRows = this.transcripts.removeAttachmentMetadata({ sessionKey: session.sessionKey });
+      await sendReply(this.api, event, `Forgot ${removed} file records and updated ${transcriptRows} transcript messages.`);
+      return;
+    }
+    if (sub === "forget") {
+      const prefix = normalizeSingleArg(args[1]);
+      if (!prefix) {
+        await sendReply(this.api, event, "Usage: /files forget <file-id-prefix|all>");
+        return;
+      }
+      const matches = this.attachments.findByIdPrefix(session.sessionKey, prefix);
+      if (matches.length === 0) {
+        await sendReply(this.api, event, "No matching file record found.");
+        return;
+      }
+      if (matches.length > 1) {
+        await sendReply(this.api, event, "File ID prefix is ambiguous. Use more characters from /files.");
+        return;
+      }
+      const record = matches[0]!;
+      const removed = this.attachments.remove(session.sessionKey, record.id);
+      const transcriptRows = this.transcripts.removeAttachmentMetadata({
+        sessionKey: session.sessionKey,
+        runId: record.runId,
+        recordId: record.id,
+      });
+      await sendReply(
+        this.api,
+        event,
+        removed > 0
+          ? `Forgot file ${record.id.slice(0, 8)} and updated ${transcriptRows} transcript messages.`
+          : "No matching file record found.",
+      );
+      return;
+    }
+    await sendReply(this.api, event, "Usage: /files [list [limit]] | /files forget <file-id-prefix|all> | /files clear");
   }
 
   private async handleDebugCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {

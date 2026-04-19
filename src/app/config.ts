@@ -58,6 +58,11 @@ const rawConfigSchema = z.object({
       maxFileBytes: z.number().int().min(1).default(20 * 1024 * 1024),
       maxTotalBytes: z.number().int().min(1).default(30 * 1024 * 1024),
       maxPerMessage: z.number().int().min(0).max(10).default(4),
+      maxExtractedTextCharsPerFile: z.number().int().min(0).default(40_000),
+      maxExtractedTextCharsTotal: z.number().int().min(0).default(80_000),
+      csvPreviewRows: z.number().int().min(1).max(200).default(40),
+      csvPreviewColumns: z.number().int().min(1).max(100).default(20),
+      pdfMaxPages: z.number().int().min(1).max(200).default(25),
     })
     .default({}),
   behavior: z
@@ -149,6 +154,11 @@ export type AppConfig = {
     maxFileBytes: number;
     maxTotalBytes: number;
     maxPerMessage: number;
+    maxExtractedTextCharsPerFile: number;
+    maxExtractedTextCharsTotal: number;
+    csvPreviewRows: number;
+    csvPreviewColumns: number;
+    pdfMaxPages: number;
   };
   behavior: {
     respondInGroupsOnlyWhenMentioned: boolean;
@@ -409,6 +419,36 @@ export function loadConfig(): AppConfig {
               ? (fileObject.attachments as any).maxPerMessage
               : undefined)
           : Number(process.env.MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE),
+      maxExtractedTextCharsPerFile:
+        process.env.MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).maxExtractedTextCharsPerFile
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE),
+      maxExtractedTextCharsTotal:
+        process.env.MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).maxExtractedTextCharsTotal
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL),
+      csvPreviewRows:
+        process.env.MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).csvPreviewRows
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS),
+      csvPreviewColumns:
+        process.env.MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).csvPreviewColumns
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS),
+      pdfMaxPages:
+        process.env.MOTTBOT_ATTACHMENT_PDF_MAX_PAGES === undefined
+          ? (fileObject.attachments && typeof fileObject.attachments === "object"
+              ? (fileObject.attachments as any).pdfMaxPages
+              : undefined)
+          : Number(process.env.MOTTBOT_ATTACHMENT_PDF_MAX_PAGES),
     },
     behavior: {
       ...(fileObject.behavior && typeof fileObject.behavior === "object"
@@ -588,6 +628,11 @@ export function loadConfig(): AppConfig {
       maxFileBytes: parsed.attachments.maxFileBytes,
       maxTotalBytes: parsed.attachments.maxTotalBytes,
       maxPerMessage: parsed.attachments.maxPerMessage,
+      maxExtractedTextCharsPerFile: parsed.attachments.maxExtractedTextCharsPerFile,
+      maxExtractedTextCharsTotal: parsed.attachments.maxExtractedTextCharsTotal,
+      csvPreviewRows: parsed.attachments.csvPreviewRows,
+      csvPreviewColumns: parsed.attachments.csvPreviewColumns,
+      pdfMaxPages: parsed.attachments.pdfMaxPages,
     },
     behavior: parsed.behavior,
     logging: parsed.logging,

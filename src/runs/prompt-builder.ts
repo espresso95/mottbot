@@ -25,6 +25,7 @@ const DEFAULT_SYSTEM_PROMPT = [
 
 type TranscriptEnvelope = {
   attachments?: Array<{
+    recordId?: string;
     kind?: string;
     fileId?: string;
     fileName?: string;
@@ -33,6 +34,21 @@ type TranscriptEnvelope = {
     width?: number;
     height?: number;
     duration?: number;
+    ingestionStatus?: string;
+    ingestionReason?: string;
+    downloadedBytes?: number;
+    extraction?: {
+      kind?: string;
+      status?: string;
+      reason?: string;
+      textChars?: number;
+      promptChars?: number;
+      truncated?: boolean;
+      language?: string;
+      rowCount?: number;
+      columnCount?: number;
+      pageCount?: number;
+    };
   }>;
 };
 
@@ -79,9 +95,27 @@ function renderAttachmentMetadata(attachment: NonNullable<TranscriptEnvelope["at
       ? `dimensions: ${attachment.width}x${attachment.height}`
       : undefined,
     typeof attachment.duration === "number" ? `duration: ${attachment.duration}s` : undefined,
-    typeof attachment.fileId === "string" ? `Telegram file id: ${attachment.fileId}` : undefined,
+    typeof attachment.ingestionStatus === "string" ? `ingestion: ${attachment.ingestionStatus}` : undefined,
+    typeof attachment.ingestionReason === "string" ? `reason: ${attachment.ingestionReason}` : undefined,
+    attachment.extraction ? renderExtractionMetadata(attachment.extraction) : undefined,
   ].filter(Boolean);
   return `- ${attachment.kind}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
+}
+
+function renderExtractionMetadata(extraction: NonNullable<NonNullable<TranscriptEnvelope["attachments"]>[number]["extraction"]>): string {
+  const details = [
+    typeof extraction.kind === "string" ? extraction.kind : undefined,
+    typeof extraction.status === "string" ? extraction.status : undefined,
+    typeof extraction.reason === "string" ? extraction.reason : undefined,
+    typeof extraction.language === "string" ? `language=${extraction.language}` : undefined,
+    typeof extraction.promptChars === "number" ? `promptChars=${extraction.promptChars}` : undefined,
+    typeof extraction.textChars === "number" ? `textChars=${extraction.textChars}` : undefined,
+    extraction.truncated === true ? "truncated" : undefined,
+    typeof extraction.rowCount === "number" ? `rows=${extraction.rowCount}` : undefined,
+    typeof extraction.columnCount === "number" ? `columns=${extraction.columnCount}` : undefined,
+    typeof extraction.pageCount === "number" ? `pages=${extraction.pageCount}` : undefined,
+  ].filter(Boolean);
+  return `extraction: ${details.join(" ")}`;
 }
 
 function renderTranscriptContent(entry: TranscriptMessage): string {

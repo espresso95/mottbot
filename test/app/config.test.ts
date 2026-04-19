@@ -19,6 +19,11 @@ const configEnvKeys = [
   "MOTTBOT_ATTACHMENT_MAX_FILE_BYTES",
   "MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES",
   "MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE",
+  "MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE",
+  "MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL",
+  "MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS",
+  "MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS",
+  "MOTTBOT_ATTACHMENT_PDF_MAX_PAGES",
   "MOTTBOT_GROUP_MENTION_ONLY",
   "MOTTBOT_EDIT_THROTTLE_MS",
   "MOTTBOT_MAX_INBOUND_TEXT_CHARS",
@@ -82,7 +87,15 @@ describe("loadConfig", () => {
         models: { default: "openai-codex/gpt-5.4-mini" },
         auth: { preferCliImport: false },
         storage: { sqlitePath: "./custom.sqlite" },
-        attachments: { maxFileBytes: 1234, maxTotalBytes: 4321 },
+        attachments: {
+          maxFileBytes: 1234,
+          maxTotalBytes: 4321,
+          maxExtractedTextCharsPerFile: 111,
+          maxExtractedTextCharsTotal: 222,
+          csvPreviewRows: 7,
+          csvPreviewColumns: 8,
+          pdfMaxPages: 9,
+        },
         behavior: { maxInboundTextChars: 2000 },
         dashboard: { enabled: false, port: 9091 },
         tools: { approvalTtlMs: 10_000 },
@@ -120,6 +133,11 @@ describe("loadConfig", () => {
     expect(config.attachments.maxFileBytes).toBe(1234);
     expect(config.attachments.maxTotalBytes).toBe(4321);
     expect(config.attachments.maxPerMessage).toBe(4);
+    expect(config.attachments.maxExtractedTextCharsPerFile).toBe(111);
+    expect(config.attachments.maxExtractedTextCharsTotal).toBe(222);
+    expect(config.attachments.csvPreviewRows).toBe(7);
+    expect(config.attachments.csvPreviewColumns).toBe(8);
+    expect(config.attachments.pdfMaxPages).toBe(9);
     expect(config.behavior.maxInboundTextChars).toBe(2000);
     expect(config.dashboard.enabled).toBe(false);
     expect(config.dashboard.port).toBe(9091);

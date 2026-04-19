@@ -205,7 +205,8 @@ Run these manual checks from the configured test chats.
 | Bound route | `/bind smoke-test` then unmentioned text | Bot accepts the bound route. |
 | Stop | Send a long prompt, then `/stop` | Active run is cancelled and user-visible state is clear. |
 | Image attachment | Send a supported image | Image is included as native model input for image-capable models. |
-| Non-image attachment | Send a PDF or document | Attachment is summarized as metadata, not sent as a native file block. |
+| Text-like attachment | Send a `.txt`, `.md`, code, CSV, TSV, or selectable-text PDF file | Attachment is extracted into bounded prompt text for the active run and appears in `/files`. |
+| Unsupported binary attachment | Send a `.zip` or invalid binary document | Attachment remains metadata or records an extraction failure without leaking paths, raw bytes, or Telegram file URLs. |
 
 After the run:
 
@@ -247,7 +248,7 @@ Run these checks after Telegram delivery is working:
 Current provider boundary:
 
 - text and image inputs are supported
-- non-image files remain metadata until the provider exposes a supported native file block
+- non-image files use bounded prompt text where supported; they are not sent as native provider file blocks until the provider exposes one
 
 ## Restart And Fault Checks
 

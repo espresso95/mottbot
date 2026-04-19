@@ -12,6 +12,7 @@ import { AuthProfileStore } from "../../src/codex/auth-store.js";
 import { RunStore } from "../../src/runs/run-store.js";
 import { SessionStore } from "../../src/sessions/session-store.js";
 import { TranscriptStore } from "../../src/sessions/transcript-store.js";
+import { AttachmentRecordStore } from "../../src/sessions/attachment-store.js";
 import { HealthReporter } from "../../src/app/health.js";
 import { createTempDir } from "./tmp.js";
 
@@ -67,6 +68,11 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       maxFileBytes: 20 * 1024 * 1024,
       maxTotalBytes: 30 * 1024 * 1024,
       maxPerMessage: 4,
+      maxExtractedTextCharsPerFile: 40_000,
+      maxExtractedTextCharsTotal: 80_000,
+      csvPreviewRows: 40,
+      csvPreviewColumns: 20,
+      pdfMaxPages: 25,
     },
     behavior: {
       respondInGroupsOnlyWhenMentioned: true,
@@ -145,6 +151,7 @@ export function createStores(overrides: Partial<AppConfig> = {}) {
   const authProfiles = new AuthProfileStore(database, clock, new SecretBox(config.security.masterKey));
   const sessions = new SessionStore(database, clock);
   const transcripts = new TranscriptStore(database, clock);
+  const attachmentRecords = new AttachmentRecordStore(database, clock);
   const runs = new RunStore(database, clock);
   const messageStore = new TelegramMessageStore(database, clock);
   const updateStore = new TelegramUpdateStore(database, clock);
@@ -156,6 +163,7 @@ export function createStores(overrides: Partial<AppConfig> = {}) {
     authProfiles,
     sessions,
     transcripts,
+    attachmentRecords,
     runs,
     messageStore,
     updateStore,

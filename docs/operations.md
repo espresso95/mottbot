@@ -338,14 +338,29 @@ Attachment settings:
 - `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
 - `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
 - `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
+- `attachments.maxExtractedTextCharsPerFile` or `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
+- `attachments.maxExtractedTextCharsTotal` or `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
+- `attachments.csvPreviewRows` or `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS`
+- `attachments.csvPreviewColumns` or `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS`
+- `attachments.pdfMaxPages` or `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES`
 
 Runtime behavior:
 
 - supported images are downloaded from Telegram only when the selected model accepts image input
 - downloaded bytes are converted into native image blocks for the model request
-- non-image attachments are preserved as text metadata
+- text, Markdown, code, CSV, TSV, and PDF documents are downloaded within byte limits and converted into bounded prompt-only text
+- CSV and TSV files are summarized as table previews
+- encrypted, unreadable, or scanned PDFs are recorded as extraction failures in attachment metadata
+- other non-image attachments are preserved as text metadata
 - cache files are deleted after model request construction or failure cleanup
-- current Pi AI payload support used by the repo exposes text and image blocks only, so PDFs, office files, audio, video, stickers, and animations are not passed as native model inputs
+- current Pi AI payload support used by the repo exposes text and image blocks only, so PDFs, office files, audio, video, stickers, and animations are not passed as native provider file blocks
+- raw extracted file text is sent only to the active model run and is not stored in SQLite
+
+Telegram commands:
+
+- `/files` lists recent file metadata for the current session
+- `/files forget <id-prefix>` removes one retained file record and strips its transcript attachment metadata
+- `/files clear` removes all retained file records for the current session and strips attachment metadata from transcript JSON
 
 Keep the attachment cache under `data/` or another ignored local path. Do not point it at a committed directory.
 

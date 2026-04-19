@@ -67,6 +67,11 @@ MOTTBOT_ATTACHMENT_CACHE_DIR=./data/attachments
 MOTTBOT_ATTACHMENT_MAX_FILE_BYTES=20971520
 MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES=31457280
 MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE=4
+MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE=40000
+MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL=80000
+MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS=40
+MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS=20
+MOTTBOT_ATTACHMENT_PDF_MAX_PAGES=25
 MOTTBOT_MAX_INBOUND_TEXT_CHARS=12000
 MOTTBOT_TELEGRAM_POLLING=true
 MOTTBOT_TELEGRAM_REACTIONS_ENABLED=true
@@ -85,6 +90,15 @@ Reaction settings:
 - `MOTTBOT_TELEGRAM_ACK_REACTION` is sent after a message is accepted for model handling.
 - `MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own` records reactions only on bot-authored messages; use `all` only for trusted chats.
 - `MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY=true` clears the bot's reaction on the triggering message after the run finishes.
+
+File understanding settings:
+
+- text, Markdown, code, CSV, TSV, and PDF documents are downloaded within the existing attachment byte limits
+- extracted text is sent only to the active model run; SQLite stores metadata and extraction summaries, not raw file contents
+- `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE` and `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL` bound prompt text from files
+- `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS` and `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS` bound table previews
+- `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES` bounds PDF text extraction
+- use `/files` in Telegram to list recent files for the current session and `/files forget <id-prefix>` or `/files clear` to remove retained file metadata
 
 Import Codex CLI auth into the configured SQLite database:
 
@@ -124,6 +138,14 @@ MOTTBOT_USER_SMOKE_TARGET=<group-or-bot-entity>
 MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true
 MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-file
 ```
+
+Recommended file fixtures for live validation:
+
+- `.txt` or `.md` file with short UTF-8 text
+- `.pdf` with selectable text
+- `.ts` or `.py` source file
+- `.csv` with a header and a few rows
+- unsupported binary such as a `.zip`
 
 ## Install And Start The Persistent Service
 

@@ -581,6 +581,92 @@ describe("TelegramCommandRouter", () => {
     expect(memories.list("tg:dm:chat-1:user:user-1")).toEqual([]);
   });
 
+  it("lists and forgets file metadata without clearing unrelated transcript text", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    stores.transcripts.add({
+      sessionKey: session.sessionKey,
+      runId: run.runId,
+      role: "user",
+      contentText: "please read this",
+      contentJson: JSON.stringify({
+        attachments: [
+          {
+            recordId: "file-record-1",
+            kind: "document",
+            fileId: "telegram-file",
+            fileName: "notes.md",
+            ingestionStatus: "extracted_text",
+          },
+        ],
+      }),
+    });
+    stores.attachmentRecords.addMany({
+      sessionKey: session.sessionKey,
+      runId: run.runId,
+      telegramMessageId: 42,
+      attachments: [
+        {
+          recordId: "file-record-1",
+          kind: "document",
+          fileId: "telegram-file",
+          fileName: "notes.md",
+          ingestionStatus: "extracted_text",
+          extraction: {
+            kind: "markdown",
+            status: "extracted",
+            promptChars: 20,
+          },
+        },
+      ],
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stores.attachmentRecords,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/files", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/files forget file-rec", isCommand: true }));
+
+    const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    expect(replies[0]).toContain("notes.md");
+    expect(replies[0]).toContain("extracted_text");
+    expect(replies[1]).toContain("Forgot file");
+    expect(stores.attachmentRecords.listRecent(session.sessionKey)).toEqual([]);
+    const transcript = stores.transcripts.listRecent(session.sessionKey)[0];
+    expect(transcript?.contentText).toBe("please read this");
+    expect(transcript?.contentJson).toBeUndefined();
+  });
+
   it("requires admin approval for side-effecting tools", async () => {
     const stores = createStores({
       tools: {

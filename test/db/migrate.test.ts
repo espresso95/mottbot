@@ -53,7 +53,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(3);
+    expect(countRows(database, "schema_migrations")).toBe(4);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -67,10 +67,11 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(3);
+    expect(migrations).toHaveLength(4);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
     expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
     expect(migrations[2]).toMatchObject({ version: 3, name: "memory sources" });
+    expect(migrations[3]).toMatchObject({ version: 4, name: "attachment records" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -130,7 +131,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(3);
+    expect(countRows(database, "schema_migrations")).toBe(4);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     expect(
@@ -171,7 +172,7 @@ describe("migrateDatabase", () => {
     );
   });
 
-  it("creates operator tool, memory, and instance lease tables", () => {
+  it("creates operator tool, memory, attachment, and instance lease tables", () => {
     const { database, tempDir } = createDatabase();
     cleanup.push(() => {
       database.close();
@@ -180,7 +181,13 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    for (const table of ["tool_approvals", "tool_approval_audit", "session_memories", "app_instance_leases"]) {
+    for (const table of [
+      "tool_approvals",
+      "tool_approval_audit",
+      "session_memories",
+      "attachment_records",
+      "app_instance_leases",
+    ]) {
       expect(
         database.db
           .prepare<unknown[], NameRow>(
@@ -194,6 +201,11 @@ describe("migrateDatabase", () => {
       .all()
       .map((row) => row.name);
     expect(memoryColumns).toContain("source");
+    const attachmentColumns = database.db
+      .prepare<unknown[], { name: string }>("pragma table_info(attachment_records)")
+      .all()
+      .map((row) => row.name);
+    expect(attachmentColumns).toContain("extraction_status");
   });
 
   it("fails clearly when an applied migration has a different checksum", () => {

@@ -242,7 +242,7 @@ Implemented now:
 
 Not yet implemented:
 
-- native model input support for non-image file/media types
+- native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
 - side-effecting local-write, network, or secret-adjacent model-executed tools
 - model-generated summarization or learned compaction
 - distributed multi-instance locks or replica coordination

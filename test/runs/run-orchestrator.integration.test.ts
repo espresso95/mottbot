@@ -301,6 +301,7 @@ describe("RunOrchestrator", () => {
           },
         ],
         nativeInputs: [{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }],
+        extractedTexts: [],
         cachePaths: ["/tmp/not-leaked.png"],
       })),
       cleanup: vi.fn(async () => undefined),
@@ -324,6 +325,13 @@ describe("RunOrchestrator", () => {
       stores.clock,
       stores.logger,
       attachmentIngestor as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stores.attachmentRecords,
     );
 
     await orchestrator.enqueueMessage({
@@ -340,7 +348,14 @@ describe("RunOrchestrator", () => {
     const messages = stores.transcripts.listRecent(session.sessionKey);
     expect(messages[0]?.contentJson).toContain("photo-1");
     expect(messages[0]?.contentJson).toContain("native_input");
+    expect(messages[0]?.contentJson).toContain("recordId");
     expect(messages[0]?.contentText).toBe("Shared attachments.");
+    expect(stores.attachmentRecords.listRecent(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        fileId: "photo-1",
+        ingestionStatus: "native_input",
+      }),
+    ]);
     const streamMessages = transport.stream.mock.calls[0]?.[0].messages;
     const lastUserMessage = streamMessages?.findLast((message: any) => message.role === "user");
     expect(lastUserMessage?.content).toEqual(

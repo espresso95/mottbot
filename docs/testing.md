@@ -242,6 +242,8 @@ The current suite catches several subtle behaviors that matter in production:
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
 - supported image attachments are downloaded, converted into native model image inputs, and cleaned from the local cache
+- text, Markdown, code, CSV, TSV, and PDF attachments are extracted into bounded active-run prompt context without persisting raw extracted text
+- file metadata can be listed and forgotten without clearing unrelated transcript text
 - inbound text and attachment safety-limit violations are rejected before command or model routing
 - durable queue rows prevent duplicate active claims and allow queued runs to resume after restart
 - interrupted runs are recovered as failed on restart
@@ -261,7 +263,7 @@ Not fully covered today:
 - real ChatGPT/Codex OAuth against an operator account
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
-- native model input support for non-image attachment types
+- native provider file-block support for non-image attachment types
 - side-effecting model-executed tools
 
 ## Why The Coverage Is Good Enough For The Current Repo

@@ -3,6 +3,7 @@ import type { DatabaseClient } from "./client.js";
 export type OperationalRetentionCutoffs = {
   telegramUpdatesBefore: number;
   messagesBefore: number;
+  attachmentRecordsBefore: number;
   telegramBotMessagesBefore: number;
   outboxMessagesBefore: number;
   terminalRunsBefore: number;
@@ -13,6 +14,7 @@ export type OperationalRetentionResult = {
   cutoffs: OperationalRetentionCutoffs;
   telegramUpdates: number;
   messages: number;
+  attachmentRecords: number;
   telegramBotMessages: number;
   outboxMessages: number;
   runQueue: number;
@@ -37,6 +39,7 @@ export function buildOperationalRetentionCutoffs(params: {
   return {
     telegramUpdatesBefore: cutoff,
     messagesBefore: cutoff,
+    attachmentRecordsBefore: cutoff,
     telegramBotMessagesBefore: cutoff,
     outboxMessagesBefore: cutoff,
     terminalRunsBefore: cutoff,
@@ -125,6 +128,19 @@ export function pruneOperationalData(params: {
         ...terminalRunParams,
       ],
     },
+    attachmentRecords: {
+      sql: `created_at < ?
+        and (
+          run_id is null
+          or run_id not in (${activeRunIdsSql})
+          or run_id in (${terminalRunIdsSql})
+        )`,
+      params: [
+        params.cutoffs.attachmentRecordsBefore,
+        ...activeRunParams,
+        ...terminalRunParams,
+      ],
+    },
     outboxMessages: {
       sql: `(state != 'active' and updated_at < ? and run_id not in (${activeRunIdsSql}))
         or run_id in (${terminalRunIdsSql})`,
@@ -148,6 +164,12 @@ export function pruneOperationalData(params: {
   const counts = {
     telegramUpdates: count(params.database, "telegram_updates", where.telegramUpdates.sql, where.telegramUpdates.params),
     messages: count(params.database, "messages", where.messages.sql, where.messages.params),
+    attachmentRecords: count(
+      params.database,
+      "attachment_records",
+      where.attachmentRecords.sql,
+      where.attachmentRecords.params,
+    ),
     telegramBotMessages: count(
       params.database,
       "telegram_bot_messages",
@@ -175,6 +197,12 @@ export function pruneOperationalData(params: {
       where.telegramUpdates.params,
     );
     const messages = remove(params.database, "messages", where.messages.sql, where.messages.params);
+    const attachmentRecords = remove(
+      params.database,
+      "attachment_records",
+      where.attachmentRecords.sql,
+      where.attachmentRecords.params,
+    );
     const telegramBotMessages = remove(
       params.database,
       "telegram_bot_messages",
@@ -192,6 +220,7 @@ export function pruneOperationalData(params: {
     return {
       telegramUpdates,
       messages,
+      attachmentRecords,
       telegramBotMessages,
       outboxMessages,
       runQueue,

@@ -3,7 +3,16 @@ import path from "node:path";
 import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
 import { createId } from "../shared/ids.js";
+import {
+  classifyAttachmentForExtraction,
+  extractAttachmentText,
+  mayInspectAttachmentBytes,
+  type AttachmentExtractionMetadata,
+  type ExtractedAttachmentText,
+} from "./file-extraction.js";
 import type { NormalizedAttachment } from "./types.js";
+
+export type { ExtractedAttachmentText } from "./file-extraction.js";
 
 export type NativeAttachmentInput = {
   type: "image";
@@ -12,14 +21,17 @@ export type NativeAttachmentInput = {
 };
 
 export type TranscriptAttachmentMetadata = NormalizedAttachment & {
-  ingestionStatus: "metadata_only" | "native_input" | "skipped";
+  recordId?: string;
+  ingestionStatus: "metadata_only" | "native_input" | "extracted_text" | "skipped";
   ingestionReason?: string;
   downloadedBytes?: number;
+  extraction?: AttachmentExtractionMetadata;
 };
 
 export type AttachmentPreparation = {
   transcriptAttachments: TranscriptAttachmentMetadata[];
   nativeInputs: NativeAttachmentInput[];
+  extractedTexts: ExtractedAttachmentText[];
   cachePaths: string[];
 };
 
@@ -83,6 +95,10 @@ function inferMimeType(attachment: NormalizedAttachment, filePath?: string): str
   return undefined;
 }
 
+function isImageMimeType(mimeType: string | undefined): boolean {
+  return Boolean(mimeType && IMAGE_MIME_TYPES.has(mimeType));
+}
+
 function cacheFileName(attachment: NormalizedAttachment, telegramFile: TelegramFile): string {
   const sourceName = attachment.fileName ?? telegramFile.file_path ?? attachment.fileId;
   return `${createId()}-${sanitizeFileName(path.basename(sourceName))}`;
@@ -132,6 +148,7 @@ export class NoopAttachmentIngestor implements AttachmentIngestor {
         ingestionStatus: "metadata_only",
       })),
       nativeInputs: [],
+      extractedTexts: [],
       cachePaths: [],
     };
   }
@@ -162,7 +179,17 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
 
     const transcriptAttachments: TranscriptAttachmentMetadata[] = [];
     const nativeInputs: NativeAttachmentInput[] = [];
+    const extractedTexts: ExtractedAttachmentText[] = [];
     const cachePaths: string[] = [];
+    const extractionBudget = {
+      remainingChars: this.config.attachments.maxExtractedTextCharsTotal,
+    };
+    const extractionLimits = {
+      maxTextCharsPerFile: this.config.attachments.maxExtractedTextCharsPerFile,
+      csvPreviewRows: this.config.attachments.csvPreviewRows,
+      csvPreviewColumns: this.config.attachments.csvPreviewColumns,
+      pdfMaxPages: this.config.attachments.pdfMaxPages,
+    };
 
     try {
       for (const attachment of params.attachments) {
@@ -173,22 +200,37 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
           ...attachment,
           ingestionStatus: "metadata_only",
         };
-        if (!params.allowNativeImages) {
+        if (attachment.kind !== "document" && !(params.allowNativeImages && attachment.kind === "photo")) {
           transcriptAttachments.push({
             ...baseMetadata,
             ingestionStatus: "skipped",
-            ingestionReason: "model_does_not_support_images",
+            ingestionReason:
+              attachment.kind === "photo" ? "model_does_not_support_images" : "unsupported_attachment_type",
           });
           continue;
         }
-
         const telegramFile = (await this.api.getFile(attachment.fileId)) as TelegramFile;
         const mimeType = inferMimeType(attachment, telegramFile.file_path);
-        if (!mimeType || !IMAGE_MIME_TYPES.has(mimeType)) {
+        const extractionCandidate = classifyAttachmentForExtraction({
+          attachment,
+          mimeType,
+          filePath: telegramFile.file_path,
+        });
+        const canInspectBytes = mayInspectAttachmentBytes({
+          attachment,
+          mimeType,
+        });
+        const shouldTryNativeImage = params.allowNativeImages && isImageMimeType(mimeType);
+        const shouldDownload = shouldTryNativeImage || Boolean(extractionCandidate) || canInspectBytes;
+
+        if (!shouldDownload) {
           transcriptAttachments.push({
             ...baseMetadata,
             ingestionStatus: "skipped",
-            ingestionReason: "unsupported_attachment_type",
+            ingestionReason:
+              isImageMimeType(mimeType) && !params.allowNativeImages
+                ? "model_does_not_support_images"
+                : "unsupported_attachment_type",
           });
           continue;
         }
@@ -216,27 +258,52 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
         const cachePath = path.join(this.config.attachments.cacheDir, cacheFileName(attachment, telegramFile));
         await fs.writeFile(cachePath, buffer);
         cachePaths.push(cachePath);
-        nativeInputs.push({
-          type: "image",
-          data: buffer.toString("base64"),
+        if (shouldTryNativeImage && mimeType) {
+          nativeInputs.push({
+            type: "image",
+            data: buffer.toString("base64"),
+            mimeType,
+          });
+          transcriptAttachments.push({
+            ...baseMetadata,
+            mimeType,
+            fileSize: telegramFileSize ?? buffer.byteLength,
+            ingestionStatus: "native_input",
+            downloadedBytes: buffer.byteLength,
+          });
+          continue;
+        }
+
+        const extraction = await extractAttachmentText({
+          attachment,
           mimeType,
+          filePath: telegramFile.file_path,
+          buffer,
+          limits: extractionLimits,
+          budget: extractionBudget,
         });
+        if (extraction?.extractedText) {
+          extractedTexts.push(extraction.extractedText);
+        }
         transcriptAttachments.push({
           ...baseMetadata,
-          mimeType,
+          ...(mimeType ? { mimeType } : {}),
           fileSize: telegramFileSize ?? buffer.byteLength,
-          ingestionStatus: "native_input",
+          ingestionStatus: extraction?.extractedText ? "extracted_text" : "skipped",
+          ingestionReason: extraction ? undefined : "unsupported_attachment_type",
           downloadedBytes: buffer.byteLength,
+          ...(extraction ? { extraction: extraction.metadata } : {}),
         });
       }
     } catch (error) {
-      await this.cleanup({ transcriptAttachments, nativeInputs, cachePaths });
+      await this.cleanup({ transcriptAttachments, nativeInputs, extractedTexts, cachePaths });
       throw error;
     }
 
     return {
       transcriptAttachments,
       nativeInputs,
+      extractedTexts,
       cachePaths,
     };
   }

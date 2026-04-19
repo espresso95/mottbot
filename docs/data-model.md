@@ -30,7 +30,13 @@ Configuration comes from three layers:
 - `MOTTBOT_SQLITE_PATH`
 - `MOTTBOT_ATTACHMENT_CACHE_DIR`
 - `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
+- `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
 - `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
+- `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
+- `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
+- `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS`
+- `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS`
+- `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES`
 - `MOTTBOT_GROUP_MENTION_ONLY`
 - `MOTTBOT_EDIT_THROTTLE_MS`
 - `MOTTBOT_LOG_LEVEL`
@@ -238,6 +244,30 @@ Notable fields:
 - `content_text`
 - `content_json`
 
+Attachment envelopes in `content_json` store metadata and extraction summaries only. They do not store raw downloaded bytes, raw extracted text, local cache paths, or Telegram file download URLs.
+
+### `attachment_records`
+
+Purpose:
+
+- session-scoped retained file metadata for `/files`
+- extraction audit metadata for active-run file understanding
+- targeted forgetting without deleting unrelated transcript text
+
+Notable fields:
+
+- `id`
+- `session_key`
+- `run_id`
+- `telegram_message_id`
+- `kind`
+- `file_id` and optional `file_unique_id`
+- `file_name`, `mime_type`, and `file_size`
+- `ingestion_status`, `ingestion_reason`, and `downloaded_bytes`
+- `extraction_kind`, `extraction_status`, `extraction_reason`
+- `extracted_text_chars`, `prompt_text_chars`, and `extraction_truncated`
+- optional `language`, `row_count`, `column_count`, and `page_count`
+
 ### `runs`
 
 Purpose:
@@ -437,12 +467,16 @@ The event and transcript metadata can carry:
 - image dimensions
 - audio or video duration
 - ingestion status and reason
+- extraction kind, status, reason, prompt character count, truncation flag, language, table dimensions, and PDF page count
 
-Supported image attachments can also be downloaded into the local attachment cache and converted into base64 model input blocks. Raw file bytes and local cache paths are not stored in SQLite.
+Supported image attachments can be downloaded into the local attachment cache and converted into base64 model input blocks. Supported text, Markdown, code, CSV, TSV, and PDF documents can be downloaded and converted into bounded prompt-only text. Raw file bytes, raw extracted text, local cache paths, and Telegram file download URLs are not stored in SQLite.
+
+The `/files` command reads `attachment_records`. `/files forget <id-prefix>` removes one record and strips the matching attachment envelope from transcript JSON. `/files clear` removes all file records for the current session and strips attachment envelopes from transcript JSON while preserving message text and unrelated transcript rows.
 
 ## Known Data-Model Gaps
 
 - no attachment blob storage or durable file-cache table
+- no durable raw extracted file-text storage by design
 - no distributed queue state for multi-replica deployments beyond the host-local instance lease
 - no model-generated summarization state for long transcripts
 - no dedicated health state for auth profiles beyond refresh failures
