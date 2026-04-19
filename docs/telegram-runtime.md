@@ -251,6 +251,19 @@ If execution throws:
 - the outbox is finalized with `Run failed: <message>`
 - the run is marked `failed`, or `cancelled` if the abort signal was set
 
+## Tool Calls
+
+When the model requests an enabled read-only tool, the run orchestrator:
+
+- shows short Telegram status edits while the tool is prepared and running
+- executes only registry-approved read-only tools
+- enforces per-run tool-round and tool-call limits
+- persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads
+- sends the provider-native tool result back to Codex in the same active turn
+- finalizes Telegram with the model's answer after tool continuation
+
+Unknown, disabled, invalid, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled.
+
 ## Prompt Building
 
 The prompt builder is intentionally simple.

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
 import { RunQueueStore } from "../../src/runs/run-queue-store.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
+import { ToolExecutor } from "../../src/tools/executor.js";
+import { ToolRegistry } from "../../src/tools/registry.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -219,6 +221,125 @@ describe("RunOrchestrator", () => {
       expect.objectContaining({ allowNativeImages: true }),
     );
     expect(attachmentIngestor.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("executes approved read-only tool calls and continues the model response", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: "Working...", lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const assistantToolMessage = {
+      role: "assistant" as const,
+      content: [
+        {
+          type: "toolCall" as const,
+          id: "call-1",
+          name: "mottbot_health_snapshot",
+          arguments: {},
+        },
+      ],
+      api: "openai-codex-responses" as const,
+      provider: "openai-codex" as const,
+      model: "gpt-5.4",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "toolUse" as const,
+      timestamp: stores.clock.now(),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async ({ onStart, tools }) => {
+          await onStart?.();
+          expect(tools).toEqual([
+            expect.objectContaining({
+              name: "mottbot_health_snapshot",
+            }),
+          ]);
+          return {
+            text: "",
+            transport: "sse",
+            requestIdentity: "req-tool-1",
+            toolCalls: [{ id: "call-1", name: "mottbot_health_snapshot", arguments: {} }],
+            assistantMessage: assistantToolMessage,
+            stopReason: "toolUse",
+          };
+        })
+        .mockImplementationOnce(async ({ onStart, extraContextMessages }) => {
+          await onStart?.();
+          expect(extraContextMessages).toEqual([
+            assistantToolMessage,
+            expect.objectContaining({
+              role: "toolResult",
+              toolCallId: "call-1",
+              toolName: "mottbot_health_snapshot",
+              isError: false,
+            }),
+          ]);
+          return { text: "Health is ok.", transport: "sse", requestIdentity: "req-tool-2" };
+        }),
+    };
+    const registry = new ToolRegistry();
+    const executor = new ToolExecutor(registry, {
+      clock: stores.clock,
+      health: stores.health,
+    });
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      registry,
+      executor,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Check health" }),
+      session,
+    });
+
+    await flushAsync();
+
+    const messages = stores.transcripts.listRecent(session.sessionKey);
+    expect(messages.map((message) => message.role)).toEqual(["user", "tool", "assistant"]);
+    expect(messages[1]?.contentText).toContain("Tool mottbot_health_snapshot completed.");
+    expect(messages[1]?.contentJson).toContain("mottbot_health_snapshot");
+    expect(messages[2]?.contentText).toBe("Health is ok.");
+    expect(messages[2]?.contentJson).toContain('"tools"');
+    expect(outbox.update).toHaveBeenCalledWith(
+      expect.anything(),
+      "Running tool: mottbot_health_snapshot...",
+    );
+    expect(transport.stream).toHaveBeenCalledTimes(2);
   });
 
   it("recovers durable queued runs after restart", async () => {

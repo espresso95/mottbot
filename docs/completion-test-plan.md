@@ -20,16 +20,15 @@ As of April 19, 2026:
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
-- Phase 9.1 is complete: a deny-by-default tool registry defines enabled read-only tool declarations, rejects unknown and disabled tools, validates input payloads, and keeps side-effecting tools disabled.
-- Later tool-use phases are documented, but model-executed tools are intentionally not enabled yet.
+- Phase 9 is complete for the read-only v1 tool scope: a deny-by-default registry exposes `mottbot_health_snapshot`, Codex provider tool-call events are normalized, approved read-only tools execute with timeout/output/call limits, tool result metadata is persisted, Telegram shows concise tool status, and side-effect approval types are defined while side-effecting tools remain disabled.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 39 test files and 117 tests.
-- `corepack pnpm test:coverage` passes with statements 85.07%, branches 72.86%, functions 89.57%, and lines 85.17%.
+- `corepack pnpm test` passes with 42 test files and 133 tests.
+- `corepack pnpm test:coverage` passes with statements 85.53%, branches 73.59%, functions 90.43%, and lines 85.60%.
 - `corepack pnpm build` passes.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
@@ -39,7 +38,7 @@ Current known gaps:
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound live Telegram, OAuth, and Codex subscription-backed model calls are not fully automated.
-- Model-executed tools are designed but not implemented.
+- Model-executed tools are limited to the enabled read-only health snapshot. Side-effecting tools are intentionally disabled.
 - Multi-instance coordination is intentionally out of scope for the current runtime posture.
 
 ## Definition Of Complete
@@ -436,7 +435,7 @@ Deliverables:
 
 ## Phase 9: Tool Use Design And Safety
 
-Mottbot does not currently execute model-requested tools. This phase must be completed before enabling tools in real chats.
+Mottbot executes only registry-approved read-only model tools. Side-effecting tools remain disabled until approval persistence, runbooks, and side-effect tests are added.
 
 ### Task 9.1: Define Tool Registry
 
@@ -451,6 +450,8 @@ Deliverables:
 
 ### Task 9.2: Add Provider Tool-Call Boundary
 
+Status: complete.
+
 Deliverables:
 
 - Determine the exact `@mariozechner/pi-ai` tool-call event shapes for the Codex provider.
@@ -459,6 +460,8 @@ Deliverables:
 - Ensure normal text streaming still works when no tools are requested.
 
 ### Task 9.3: Execute Read-Only Tools
+
+Status: complete.
 
 Deliverables:
 
@@ -469,6 +472,8 @@ Deliverables:
 
 ### Task 9.4: Add Telegram Operator UX
 
+Status: complete.
+
 Deliverables:
 
 - Show when a tool call is running.
@@ -477,6 +482,8 @@ Deliverables:
 - Add tests for user-visible tool-call states.
 
 ### Task 9.5: Design Side-Effect Approval
+
+Status: complete for design. Side-effecting execution remains disabled.
 
 Deliverables:
 

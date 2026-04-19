@@ -113,6 +113,8 @@ Persistent conversational record:
 - optional JSON payload
 - created timestamp
 
+For `tool` rows, `content_json` stores the provider tool-call ID, tool name, validated arguments, elapsed time, output byte count, truncation flag, and optional error code. It must not store credentials, bearer tokens, refresh tokens, raw auth payloads, or large raw tool output.
+
 ### Run record
 
 Persistent execution record:

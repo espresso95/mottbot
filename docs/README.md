@@ -21,7 +21,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - [Live Smoke Tests](./live-smoke-tests.md)
   Guarded polling, webhook, Codex, attachment, and fault-injection checks for a real test bot environment.
 - [Tool Use Design](./tool-use-design.md)
-  Safety requirements and implementation phases for future model tool execution.
+  Safety requirements and runtime behavior for read-only model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)
   Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
 - [Single-File Design Brief](./telegram-codex-design.md)
@@ -64,13 +64,13 @@ Implemented in this repo:
 - outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
 - tool-use safety design documentation
-- deny-by-default tool registry with one enabled read-only declaration and disabled side-effect placeholders
+- deny-by-default tool registry and read-only health snapshot execution with disabled side-effect placeholders
 
 Planned hardening that is not yet implemented:
 
 - native non-image attachment ingestion into model inputs
 - fully automated inbound live Telegram and Codex smoke tests
-- provider tool-call parsing and model-executed tool calls
+- side-effecting model-executed tools with approval persistence
 - stronger restart reconciliation for in-progress Telegram deliveries
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

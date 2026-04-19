@@ -1,7 +1,8 @@
 import type { AppConfig } from "../app/config.js";
 import { supportsNativeImageInput } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
-import type { CodexTransport } from "../codex/transport.js";
+import type { CodexStreamResult, CodexTransport } from "../codex/transport.js";
+import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
 import type { Logger } from "../shared/logger.js";
@@ -11,12 +12,15 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
+import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import {
   NoopAttachmentIngestor,
   type AttachmentIngestor,
   type AttachmentPreparation,
   type TranscriptAttachmentMetadata,
 } from "../telegram/attachments.js";
+import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
+import type { ToolRegistry } from "../tools/registry.js";
 import { appendNativeAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
 import type { RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
@@ -25,6 +29,8 @@ import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
 
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
+const MAX_TOOL_ROUNDS_PER_RUN = 3;
+const MAX_TOOL_CALLS_PER_RUN = 5;
 
 function buildUserTranscriptPayload(
   event: InboundEvent,
@@ -55,6 +61,47 @@ function transcriptAttachmentsFromEvent(event: InboundEvent): TranscriptAttachme
   }));
 }
 
+function toolRunningText(call: CodexToolCall): string {
+  return `Running tool: ${call.name}...`;
+}
+
+function toolCompletedText(result: ToolExecutionResult): string {
+  if (result.isError) {
+    return `Tool ${result.toolName} failed. Continuing...`;
+  }
+  return `Tool ${result.toolName} completed. Continuing...`;
+}
+
+function toolTranscriptText(result: ToolExecutionResult): string {
+  if (result.isError) {
+    return result.contentText;
+  }
+  const details = [
+    `Tool ${result.toolName} completed.`,
+    `Output bytes: ${result.outputBytes}`,
+    `Elapsed ms: ${result.elapsedMs}`,
+    result.truncated ? "Output was truncated." : undefined,
+  ].filter(Boolean);
+  return details.join("\n");
+}
+
+function toolTranscriptJson(call: CodexToolCall, result: ToolExecutionResult): string {
+  return JSON.stringify({
+    toolCall: {
+      id: call.id,
+      name: call.name,
+      arguments: call.arguments,
+    },
+    result: {
+      isError: result.isError,
+      elapsedMs: result.elapsedMs,
+      outputBytes: result.outputBytes,
+      truncated: result.truncated,
+      ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+    },
+  });
+}
+
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
 
@@ -71,6 +118,8 @@ export class RunOrchestrator {
     private readonly logger: Logger,
     private readonly attachments: AttachmentIngestor = new NoopAttachmentIngestor(),
     private readonly runQueue?: RunQueueStore,
+    private readonly toolRegistry?: ToolRegistry,
+    private readonly toolExecutor?: ToolExecutor,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -266,44 +315,125 @@ export class RunOrchestrator {
       });
       await cleanupAttachments();
       const collector = new StreamCollector();
-      const result = await this.transport.stream({
-        sessionKey: params.session.sessionKey,
-        modelRef: params.session.modelRef,
-        transport: this.config.models.transport,
-        auth,
-        systemPrompt: prompt.systemPrompt,
-        messages,
-        signal: params.signal,
-        fastMode: params.session.fastMode,
-        onStart: async () => {
-          this.runs.update(run.runId, { status: "streaming" });
-        },
-        onTextDelta: async (delta) => {
-          const nextText = collector.appendText(delta);
-          placeholder = await this.outbox.update(placeholder, nextText);
-        },
-        onThinkingDelta: async (delta) => {
-          collector.appendThinking(delta);
-        },
-      });
-      const finalText = (result.text || collector.getText()).trim();
+      const toolDeclarations =
+        this.toolRegistry && this.toolExecutor ? this.toolRegistry.listModelDeclarations() : undefined;
+      const extraContextMessages: ProviderMessage[] = [];
+      const executedToolResults: ToolExecutionResult[] = [];
+      let result: CodexStreamResult | undefined;
+      let toolRounds = 0;
+      let totalToolCalls = 0;
+
+      while (true) {
+        result = await this.transport.stream({
+          sessionKey: params.session.sessionKey,
+          modelRef: params.session.modelRef,
+          transport: this.config.models.transport,
+          auth,
+          systemPrompt: prompt.systemPrompt,
+          messages,
+          ...(toolDeclarations && toolDeclarations.length > 0 ? { tools: toolDeclarations } : {}),
+          ...(extraContextMessages.length > 0 ? { extraContextMessages } : {}),
+          signal: params.signal,
+          fastMode: params.session.fastMode,
+          onStart: async () => {
+            this.runs.update(run.runId, { status: "streaming" });
+          },
+          onTextDelta: async (delta) => {
+            const nextText = collector.appendText(delta);
+            placeholder = await this.outbox.update(placeholder, nextText);
+          },
+          onThinkingDelta: async (delta) => {
+            collector.appendThinking(delta);
+          },
+          onToolCallStart: async (toolCall) => {
+            if (toolCall.name) {
+              placeholder = await this.outbox.update(placeholder, `Preparing tool: ${toolCall.name}...`);
+            }
+          },
+        });
+
+        const toolCalls = result.toolCalls ?? [];
+        if (toolCalls.length === 0) {
+          break;
+        }
+        if (!this.toolExecutor || !this.toolRegistry || !toolDeclarations || toolDeclarations.length === 0) {
+          throw new Error("Model requested tools, but tool execution is disabled.");
+        }
+        if (toolRounds >= MAX_TOOL_ROUNDS_PER_RUN) {
+          throw new Error(`Model exceeded the ${MAX_TOOL_ROUNDS_PER_RUN} tool-round limit.`);
+        }
+        if (totalToolCalls + toolCalls.length > MAX_TOOL_CALLS_PER_RUN) {
+          throw new Error(`Model exceeded the ${MAX_TOOL_CALLS_PER_RUN} tool-call limit.`);
+        }
+        if (!result.assistantMessage) {
+          throw new Error("Model requested a tool without returning an assistant tool-call message.");
+        }
+
+        extraContextMessages.push(result.assistantMessage);
+        totalToolCalls += toolCalls.length;
+        toolRounds += 1;
+
+        for (const toolCall of toolCalls) {
+          placeholder = await this.outbox.update(placeholder, toolRunningText(toolCall));
+          const execution = await this.toolExecutor.execute(toolCall, params.signal);
+          executedToolResults.push(execution);
+          this.transcripts.add({
+            sessionKey: params.session.sessionKey,
+            runId: run.runId,
+            role: "tool",
+            contentText: toolTranscriptText(execution),
+            contentJson: toolTranscriptJson(toolCall, execution),
+          });
+          extraContextMessages.push(this.toolExecutor.toToolResultMessage(execution));
+          placeholder = await this.outbox.update(placeholder, toolCompletedText(execution));
+          this.logger.info(
+            {
+              runId: run.runId,
+              sessionKey: params.session.sessionKey,
+              toolName: execution.toolName,
+              isError: execution.isError,
+              elapsedMs: execution.elapsedMs,
+              outputBytes: execution.outputBytes,
+              truncated: execution.truncated,
+              errorCode: execution.errorCode,
+            },
+            "Tool call completed.",
+          );
+        }
+      }
+      if (!result) {
+        throw new Error("No model response was produced.");
+      }
+      const finalText = result.text.trim() || collector.getText().trim();
       const visibleText = finalText || "No response generated.";
       const delivery = await this.outbox.finish(placeholder, visibleText);
+      const thinking = result.thinking || collector.getThinking();
+      const assistantEnvelope = {
+        ...(thinking ? { thinking } : {}),
+        ...(delivery.continuationMessageIds.length > 0
+          ? { continuationMessageIds: delivery.continuationMessageIds }
+          : {}),
+        ...(executedToolResults.length > 0
+          ? {
+              tools: executedToolResults.map((toolResult) => ({
+                toolCallId: toolResult.toolCallId,
+                toolName: toolResult.toolName,
+                isError: toolResult.isError,
+                elapsedMs: toolResult.elapsedMs,
+                outputBytes: toolResult.outputBytes,
+                truncated: toolResult.truncated,
+                ...(toolResult.errorCode ? { errorCode: toolResult.errorCode } : {}),
+              })),
+            }
+          : {}),
+      };
       this.transcripts.add({
         sessionKey: params.session.sessionKey,
         runId: run.runId,
         role: "assistant",
         contentText: visibleText,
         telegramMessageId: delivery.primaryMessageId,
-        contentJson:
-          result.thinking || delivery.continuationMessageIds.length > 0
-            ? JSON.stringify({
-                ...(result.thinking ? { thinking: result.thinking } : {}),
-                ...(delivery.continuationMessageIds.length > 0
-                  ? { continuationMessageIds: delivery.continuationMessageIds }
-                  : {}),
-              })
-            : undefined,
+        contentJson: Object.keys(assistantEnvelope).length > 0 ? JSON.stringify(assistantEnvelope) : undefined,
       });
       this.usageRecorder.record(run.runId, result.usage);
       this.runs.update(run.runId, {

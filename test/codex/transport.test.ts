@@ -178,6 +178,95 @@ describe("CodexTransport", () => {
     });
   });
 
+  it("passes tool declarations and normalizes streamed tool calls", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    let capturedContext: any;
+    streamSimple.mockImplementationOnce(async (_model, context) => {
+      capturedContext = context;
+      return createEventStream([
+        {
+          type: "toolcall_start",
+          contentIndex: 0,
+          partial: {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "call-1", name: "mottbot_health_snapshot", arguments: {} }],
+          },
+        },
+        {
+          type: "toolcall_end",
+          toolCall: { type: "toolCall", id: "call-1", name: "mottbot_health_snapshot", arguments: {} },
+        },
+        {
+          type: "done",
+          reason: "toolUse",
+          message: {
+            role: "assistant",
+            content: [{ type: "toolCall", id: "call-1", name: "mottbot_health_snapshot", arguments: {} }],
+            api: "openai-codex-responses",
+            provider: "openai-codex",
+            model: "gpt-5.4",
+            usage: {},
+            stopReason: "toolUse",
+            timestamp: 1,
+          },
+        },
+      ]);
+    });
+    const transport = new CodexTransport(stores.database, stores.logger);
+    const starts: string[] = [];
+    const completed: string[] = [];
+
+    const result = await transport.stream({
+      sessionKey: "session-tools",
+      modelRef: "openai-codex/gpt-5.4",
+      transport: "websocket",
+      auth: {
+        profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+        accessToken: "access",
+        apiKey: "api",
+      },
+      messages: [{ role: "user", content: "status?", timestamp: 1 }],
+      tools: [
+        {
+          name: "mottbot_health_snapshot",
+          description: "Read health.",
+          inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false },
+        },
+      ],
+      onToolCallStart: async (toolCall) => {
+        if (toolCall.name) {
+          starts.push(toolCall.name);
+        }
+      },
+      onToolCallEnd: async (toolCall) => {
+        completed.push(toolCall.name);
+      },
+    });
+
+    expect(capturedContext.tools).toEqual([
+      {
+        name: "mottbot_health_snapshot",
+        description: "Read health.",
+        parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+      },
+    ]);
+    expect(starts).toEqual(["mottbot_health_snapshot"]);
+    expect(completed).toEqual(["mottbot_health_snapshot"]);
+    expect(result.stopReason).toBe("toolUse");
+    expect(result.toolCalls).toEqual([
+      {
+        id: "call-1",
+        name: "mottbot_health_snapshot",
+        arguments: {},
+      },
+    ]);
+    expect(result.assistantMessage?.stopReason).toBe("toolUse");
+  });
+
   it("preserves the degraded websocket window across successful sse retries", async () => {
     const stores = createStores();
     cleanup.push(() => {

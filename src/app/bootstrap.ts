@@ -24,6 +24,8 @@ import { TelegramUpdateStore } from "../telegram/update-store.js";
 import { TelegramMessageStore } from "../telegram/message-store.js";
 import { TelegramAttachmentIngestor } from "../telegram/attachments.js";
 import { DashboardServer } from "./dashboard.js";
+import { createDefaultToolRegistry } from "../tools/registry.js";
+import { ToolExecutor } from "../tools/executor.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -50,6 +52,11 @@ export async function bootstrapApplication() {
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
   const dashboard = new DashboardServer(config, logger, health, authProfiles);
+  const toolRegistry = createDefaultToolRegistry();
+  const toolExecutor = new ToolExecutor(toolRegistry, {
+    clock: systemClock,
+    health,
+  });
 
   const provisionalBot = new TelegramBotServer(
     config,
@@ -107,6 +114,8 @@ export async function bootstrapApplication() {
     logger,
     attachmentIngestor,
     runQueueStore,
+    toolRegistry,
+    toolExecutor,
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(

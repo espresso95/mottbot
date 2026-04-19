@@ -53,7 +53,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 39 test files, 117 tests passing
+- `pnpm test`: 42 test files, 133 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
@@ -68,10 +68,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 85.07% |
-| Branches | 72.86% |
-| Functions | 89.57% |
-| Lines | 85.17% |
+| Statements | 85.53% |
+| Branches | 73.59% |
+| Functions | 90.43% |
+| Lines | 85.60% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -210,6 +210,9 @@ The current suite catches several subtle behaviors that matter in production:
 - usage timeouts and sparse usage payloads normalize into safe status behavior
 - the tool registry exposes only enabled read-only declarations
 - unknown tools, disabled tools, side-effecting enabled tools, and invalid tool inputs are rejected
+- Codex tool-call events are normalized before run orchestration sees them
+- read-only tool calls execute with timeout, output-size, and call-count limits
+- tool results are persisted as `tool` transcript rows and returned to the provider in the active turn
 - non-admin group commands and disallowed-chat commands are rejected before route creation
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
@@ -234,7 +237,7 @@ Not fully covered today:
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
 - native model input support for non-image attachment types
-- model-executed tools
+- side-effecting model-executed tools
 
 ## Why The Coverage Is Good Enough For The Current Repo
 

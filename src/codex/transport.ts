@@ -9,11 +9,21 @@ import type {
   Message,
   SimpleStreamOptions,
   TextContent,
+  Tool,
   Usage,
   UserMessage,
 } from "@mariozechner/pi-ai";
 import type { PromptContentBlock, PromptMessage } from "../runs/prompt-builder.js";
+import type { ModelToolDeclaration } from "../tools/registry.js";
 import { resolveCodexModel } from "./provider.js";
+import {
+  assistantMessageFromUnknown,
+  collectCodexToolCallsFromEvent,
+  collectCodexToolCallsFromMessage,
+  collectCodexToolProgressFromEvent,
+  type CodexToolCall,
+  type CodexToolCallProgress,
+} from "./tool-calls.js";
 import type { CodexResolvedAuth } from "./types.js";
 
 export type TransportMode = "auto" | "sse" | "websocket";
@@ -25,17 +35,24 @@ type StreamParams = {
   auth: CodexResolvedAuth;
   systemPrompt?: string;
   messages: PromptMessage[];
+  tools?: ModelToolDeclaration[];
+  extraContextMessages?: Message[];
   signal?: AbortSignal;
   fastMode?: boolean;
   onStart?: () => Promise<void> | void;
   onTextDelta?: (delta: string) => Promise<void> | void;
   onThinkingDelta?: (delta: string) => Promise<void> | void;
+  onToolCallStart?: (toolCall: CodexToolCallProgress) => Promise<void> | void;
+  onToolCallEnd?: (toolCall: CodexToolCall) => Promise<void> | void;
 };
 
 export type CodexStreamResult = {
   text: string;
   thinking?: string;
   usage?: Record<string, unknown>;
+  toolCalls?: CodexToolCall[];
+  assistantMessage?: AssistantMessage;
+  stopReason?: string;
   transport: "websocket" | "sse";
   requestIdentity: string;
 };
@@ -115,10 +132,23 @@ function toUserContent(content: string | PromptContentBlock[]): UserMessage["con
   });
 }
 
+function toPiAiTools(tools: ModelToolDeclaration[] | undefined): Tool[] | undefined {
+  if (!tools || tools.length === 0) {
+    return undefined;
+  }
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.inputSchema as unknown as Tool["parameters"],
+  }));
+}
+
 function buildPiAiContext(params: {
   systemPrompt?: string;
   messages: PromptMessage[];
   model: ReturnType<typeof resolveCodexModel>;
+  tools?: ModelToolDeclaration[];
+  extraMessages?: Message[];
 }): Context {
   const systemParts = [
     params.systemPrompt?.trim(),
@@ -156,7 +186,8 @@ function buildPiAiContext(params: {
   });
   return {
     ...(systemParts.length > 0 ? { systemPrompt: systemParts.join("\n\n") } : {}),
-    messages,
+    messages: [...messages, ...(params.extraMessages ?? [])],
+    ...(params.tools && params.tools.length > 0 ? { tools: toPiAiTools(params.tools) } : {}),
   };
 }
 
@@ -185,6 +216,14 @@ export class CodexTransport {
       onThinkingDelta: async (delta) => {
         sawProgress = true;
         await params.onThinkingDelta?.(delta);
+      },
+      onToolCallStart: async (toolCall) => {
+        sawProgress = true;
+        await params.onToolCallStart?.(toolCall);
+      },
+      onToolCallEnd: async (toolCall) => {
+        sawProgress = true;
+        await params.onToolCallEnd?.(toolCall);
       },
     };
     try {
@@ -231,6 +270,8 @@ export class CodexTransport {
       systemPrompt: params.systemPrompt,
       messages: params.messages,
       model,
+      tools: params.tools,
+      extraMessages: params.extraContextMessages,
     });
     const options: SimpleStreamOptions = {
       apiKey: params.auth.apiKey,
@@ -251,6 +292,9 @@ export class CodexTransport {
     let text = "";
     let thinking = "";
     let usage: Record<string, unknown> | undefined;
+    let assistantMessage: AssistantMessage | undefined;
+    let stopReason: string | undefined;
+    const toolCalls: CodexToolCall[] = [];
     let started = false;
     const ensureStarted = async () => {
       if (started) {
@@ -258,6 +302,13 @@ export class CodexTransport {
       }
       started = true;
       await params.onStart?.();
+    };
+    const recordToolCall = async (toolCall: CodexToolCall) => {
+      if (toolCalls.some((existing) => existing.id === toolCall.id)) {
+        return;
+      }
+      toolCalls.push(toolCall);
+      await params.onToolCallEnd?.(toolCall);
     };
 
     const maybeStream = await piAi.streamSimple(model, context, options);
@@ -270,6 +321,9 @@ export class CodexTransport {
             type === "text_start" ||
             type === "text_delta" ||
             type === "thinking_delta" ||
+            type === "toolcall_start" ||
+            type === "toolcall_delta" ||
+            type === "toolcall_end" ||
             type === "done"
           ) {
             await ensureStarted();
@@ -291,8 +345,26 @@ export class CodexTransport {
           await params.onThinkingDelta?.(delta);
           continue;
         }
+        if (type === "toolcall_start" || type === "toolcall_delta") {
+          const progress = collectCodexToolProgressFromEvent(event);
+          if (progress) {
+            await params.onToolCallStart?.(progress);
+          }
+          continue;
+        }
+        if (type === "toolcall_end") {
+          for (const toolCall of collectCodexToolCallsFromEvent(event)) {
+            await recordToolCall(toolCall);
+          }
+          continue;
+        }
         if (type === "done") {
-          const done = event as { message?: unknown; usage?: unknown };
+          const done = event as { message?: unknown; usage?: unknown; reason?: unknown };
+          assistantMessage = assistantMessageFromUnknown(done.message);
+          stopReason = typeof done.reason === "string" ? done.reason : assistantMessage?.stopReason;
+          for (const toolCall of collectCodexToolCallsFromMessage(done.message)) {
+            await recordToolCall(toolCall);
+          }
           if (!text && done.message) {
             text = collectMessageText(done.message);
           }
@@ -316,6 +388,9 @@ export class CodexTransport {
         text,
         ...(thinking ? { thinking } : {}),
         ...(usage ? { usage } : {}),
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(assistantMessage ? { assistantMessage } : {}),
+        ...(stopReason ? { stopReason } : {}),
         transport: params.transport,
         requestIdentity: params.requestIdentity,
       };
@@ -323,7 +398,10 @@ export class CodexTransport {
 
     await ensureStarted();
     const completed = await piAi.completeSimple(model, context, options);
+    assistantMessage = assistantMessageFromUnknown(completed);
+    stopReason = assistantMessage?.stopReason;
     text = collectMessageText(completed);
+    toolCalls.push(...collectCodexToolCallsFromMessage(completed));
     usage =
       completed?.usage && typeof completed.usage === "object"
         ? (completed.usage as unknown as Record<string, unknown>)
@@ -331,6 +409,9 @@ export class CodexTransport {
     return {
       text,
       ...(usage ? { usage } : {}),
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+      ...(assistantMessage ? { assistantMessage } : {}),
+      ...(stopReason ? { stopReason } : {}),
       transport: params.transport,
       requestIdentity: params.requestIdentity,
     };

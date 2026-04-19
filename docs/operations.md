@@ -254,6 +254,24 @@ Runtime behavior:
 
 Keep the attachment cache under `data/` or another ignored local path. Do not point it at a committed directory.
 
+## Tool Operations
+
+Model tool execution is enabled only for registry-approved read-only tools.
+
+Current tool set:
+
+- `mottbot_health_snapshot`: returns a token-free runtime health snapshot
+
+Runtime controls:
+
+- unknown, disabled, invalid, and side-effecting tools are denied by the registry
+- each tool definition has a timeout and output-size limit
+- each run is limited to three tool rounds and five tool calls
+- Telegram shows short status edits while a tool is prepared, running, completed, or failed
+- tool call and result metadata is persisted in transcript rows with role `tool`
+
+Side-effecting tools such as service restart remain disabled. Do not enable local-write, network, process-control, or secret-adjacent tools without adding approval persistence, audit retention, and operator runbooks.
+
 ## Operator Safety Limits
 
 Ingress safety settings:
