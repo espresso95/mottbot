@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelegramCommandRouter } from "../../src/telegram/commands.js";
 import { RouteResolver } from "../../src/telegram/route-resolver.js";
+import { fetchCodexUsage } from "../../src/codex/usage.js";
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -163,6 +164,12 @@ describe("TelegramCommandRouter", () => {
       refreshToken: "refresh",
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
+    vi.mocked(fetchCodexUsage).mockResolvedValueOnce({
+      provider: "openai-codex",
+      displayName: "OpenAI Codex",
+      plan: "pro",
+      windows: [{ label: "3h", usedPercent: 20, resetAt: 1_700_000_000_000 }],
+    });
     const router = new TelegramCommandRouter(
       api as any,
       stores.config,
@@ -178,7 +185,42 @@ describe("TelegramCommandRouter", () => {
     await router.maybeHandle(createInboundEvent({ text: "/status", isCommand: true }));
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      expect.stringContaining("Usage: 3h: 20%"),
+      expect.stringContaining("Usage: Plan: pro; 3h: 20%, resets 2023-11-14T22:13:20.000Z"),
+      expect.any(Object),
+    );
+  });
+
+  it("handles /status when usage is unavailable", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.authProfiles.upsert({
+      profileId: "openai-codex:default",
+      source: "local_oauth",
+      accessToken: "access",
+      refreshToken: "refresh",
+    });
+    vi.mocked(fetchCodexUsage).mockRejectedValueOnce(new Error("usage failed"));
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn(async () => ({ accessToken: "access", apiKey: "access", profile: stores.authProfiles.get("openai-codex:default")! })) } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/status", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Usage: Usage unavailable"),
       expect.any(Object),
     );
   });

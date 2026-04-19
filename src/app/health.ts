@@ -3,12 +3,17 @@ import type { Clock } from "../shared/clock.js";
 import type { AppConfig } from "./config.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
 
+const STALE_OUTBOX_MS = 5 * 60 * 1000;
+
 export type HealthSnapshot = {
   status: "ok" | "degraded";
   mode: "polling" | "webhook";
   sessions: number;
   authProfiles: number;
+  queuedRuns: number;
+  activeRuns: number;
   interruptedRuns: number;
+  staleOutboxMessages: number;
   degradedSessions: number;
   processedUpdates: number;
   generatedAt: number;
@@ -24,9 +29,17 @@ export class HealthReporter {
 
   snapshot(): HealthSnapshot {
     const sessions = this.scalarCount("select count(*) as count from session_routes");
-    const interruptedRuns = this.scalarCount(
+    const queuedRuns = this.scalarCount("select count(*) as count from runs where status = 'queued'");
+    const activeRuns = this.scalarCount(
       `select count(*) as count from runs where status in ('starting', 'streaming')`,
     );
+    const staleOutboxMessages = this.database.db
+      .prepare<unknown[], { count: number }>(
+        `select count(*) as count
+         from outbox_messages
+         where state = 'active' and updated_at <= ?`,
+      )
+      .get(this.clock.now() - STALE_OUTBOX_MS)?.count ?? 0;
     const degradedSessions = this.database.db
       .prepare<unknown[], { count: number }>(
         `select count(*) as count
@@ -36,11 +49,14 @@ export class HealthReporter {
       .get(this.clock.now())?.count ?? 0;
     const processedUpdates = this.scalarCount("select count(*) as count from telegram_updates");
     return {
-      status: interruptedRuns > 0 ? "degraded" : "ok",
+      status: activeRuns > 0 || staleOutboxMessages > 0 ? "degraded" : "ok",
       mode: this.config.telegram.polling ? "polling" : "webhook",
       sessions,
       authProfiles: this.authProfiles.list().length,
-      interruptedRuns,
+      queuedRuns,
+      activeRuns,
+      interruptedRuns: activeRuns,
+      staleOutboxMessages,
       degradedSessions,
       processedUpdates,
       generatedAt: this.clock.now(),
@@ -54,7 +70,10 @@ export class HealthReporter {
       `Mode: ${snapshot.mode}`,
       `Sessions: ${snapshot.sessions}`,
       `Auth profiles: ${snapshot.authProfiles}`,
+      `Queued runs: ${snapshot.queuedRuns}`,
+      `Active runs: ${snapshot.activeRuns}`,
       `Interrupted runs: ${snapshot.interruptedRuns}`,
+      `Stale outbox messages: ${snapshot.staleOutboxMessages}`,
       `Degraded sessions: ${snapshot.degradedSessions}`,
       `Processed updates: ${snapshot.processedUpdates}`,
       `Generated at: ${new Date(snapshot.generatedAt).toISOString()}`,

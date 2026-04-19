@@ -8,6 +8,9 @@ export const KNOWN_CODEX_MODEL_REFS = [
   "openai-codex/gpt-5.4-mini",
   "openai-codex/gpt-5.3-codex-spark",
 ] as const;
+export const KNOWN_CODEX_MODEL_REFS_TEXT = KNOWN_CODEX_MODEL_REFS.join(", ");
+
+const CODEX_MODEL_REF_PATTERN = /^openai-codex\/[A-Za-z0-9._-]+$/;
 
 export type CodexModelRef =
   | "openai-codex/gpt-5.4"
@@ -34,11 +37,18 @@ export function isKnownCodexModelRef(modelRef: string): modelRef is (typeof KNOW
   return (KNOWN_CODEX_MODEL_REFS as readonly string[]).includes(modelRef);
 }
 
+export function isCodexModelRef(modelRef: string): modelRef is CodexModelRef {
+  return CODEX_MODEL_REF_PATTERN.test(modelRef);
+}
+
 export function supportsNativeImageInput(modelRef: string): boolean {
   return resolveCodexModel(modelRef, "sse").input.includes("image");
 }
 
 export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
+  if (!isCodexModelRef(modelRef)) {
+    throw new Error(`Invalid Codex model ref ${modelRef}. Expected openai-codex/<model>.`);
+  }
   const [, modelId = "gpt-5.4"] = modelRef.split("/");
   if (modelId === "gpt-5.4-mini") {
     return {

@@ -378,10 +378,20 @@ Useful log events today:
 - bot startup
 - rejected Telegram updates
 - token refresh events
+- queued run, run start, run completion, and run failure with safe run/session/chat fields
 - transport fallback warnings
 - run execution failures
 - Telegram edit failures
 - attachment download or cleanup failures
+
+Health output includes:
+
+- queued runs
+- active runs
+- interrupted runs
+- stale active outbox messages
+- degraded transport sessions
+- processed Telegram updates
 
 ## Deployment Guidance
 

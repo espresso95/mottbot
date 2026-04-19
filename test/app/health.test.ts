@@ -36,7 +36,30 @@ describe("HealthReporter", () => {
       modelRef: "openai-codex/gpt-5.4",
       profileId: "openai-codex:default",
     });
+    const queuedRun = stores.runs.create({
+      sessionKey: "s1",
+      modelRef: "openai-codex/gpt-5.4",
+      profileId: "openai-codex:default",
+    });
     stores.runs.update(run.runId, { status: "starting" });
+    stores.database.db
+      .prepare(
+        `insert into outbox_messages (
+          id, run_id, chat_id, thread_id, telegram_message_id, state, last_rendered_text, last_edit_at, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "outbox-1",
+        queuedRun.runId,
+        "chat-1",
+        null,
+        100,
+        "active",
+        "Working...",
+        stores.clock.now() - 10 * 60 * 1000,
+        stores.clock.now() - 10 * 60 * 1000,
+        stores.clock.now() - 10 * 60 * 1000,
+      );
     stores.updateStore.begin(5);
     stores.updateStore.markProcessed({ updateId: 5, chatId: "chat-1", messageId: 10 });
 
@@ -44,7 +67,10 @@ describe("HealthReporter", () => {
 
     expect(snapshot.sessions).toBe(1);
     expect(snapshot.authProfiles).toBe(1);
+    expect(snapshot.queuedRuns).toBe(1);
+    expect(snapshot.activeRuns).toBe(1);
     expect(snapshot.interruptedRuns).toBe(1);
+    expect(snapshot.staleOutboxMessages).toBe(1);
     expect(snapshot.processedUpdates).toBe(1);
     expect(snapshot.status).toBe("degraded");
   });

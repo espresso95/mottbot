@@ -15,17 +15,20 @@ As of April 19, 2026:
 - Phase 2 is complete for the single-host scope: Telegram image attachments are downloaded safely, converted into native model image inputs when supported, represented as text metadata otherwise, and cleaned from the local cache after request construction.
 - Phase 3 durable queue recovery is implemented for the single-process deployment model: accepted queued runs are persisted, claimed with leases, resumed on restart when recoverable, and marked failed when not recoverable.
 - Phase 4 is complete: SQLite migrations now use an ordered `schema_migrations` ledger, the current schema is captured in `0001_initial.sql`, migration integrity is checked by checksum, and migration tests cover empty databases, unversioned databases, indexes, foreign keys, and checksum mismatch failure.
-- Phase 6 live validation is prepared with a guarded preflight command and runbook. The preflight validates Telegram `getMe`, migrations, health counters, and auth profile presence. Actual Telegram message delivery and Codex live calls still require operator-provided test chats and a live integration environment.
+- Phase 5 is complete for local hardening: token refresh failure paths, CLI write-back failure behavior, provider model ref validation, usage timeout/error normalization, and `/status` usage degradation are covered by tests.
+- Phase 6 live validation is prepared with a guarded preflight command and runbook. The preflight validates Telegram `getMe`, optional outbound `sendMessage`, migrations, health counters, and auth profile presence. Inbound Telegram delivery and Codex live calls still require operator-provided test chats and a live integration environment.
 - Phase 7 has a host-local persistent service path for macOS: `launchd` service install/start/stop/restart/status commands, a top-level `restart` command, setup documentation, and polling-conflict retry behavior.
+- Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
+- A tool-use design phase is documented, but model-executed tools are intentionally not enabled yet.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 38 test files and 104 tests.
-- `corepack pnpm test:coverage` passes with statements 84.70%, branches 71.80%, functions 89.25%, and lines 84.76%.
+- `corepack pnpm test` passes with 38 test files and 111 tests.
+- `corepack pnpm test:coverage` passes with statements 85.54%, branches 73.05%, functions 90.00%, and lines 85.56%.
 - `corepack pnpm build` passes.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - The current test suite covers local state transitions, command behavior, Codex auth parsing and refresh, transport fallback, outbox behavior, and mocked run orchestration.
@@ -34,7 +37,8 @@ Current known gaps:
 
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
-- Live Telegram, OAuth, and Codex subscription-backed model calls are not covered by automated tests.
+- Inbound live Telegram, OAuth, and Codex subscription-backed model calls are not fully automated.
+- Model-executed tools are designed but not implemented.
 - Multi-instance coordination is intentionally out of scope for the current runtime posture.
 
 ## Definition Of Complete
@@ -429,11 +433,60 @@ Deliverables:
 - Confirm docs match final behavior.
 - Confirm `git status --short` contains only intentional source and docs changes.
 
-## Phase 9: Post-V1 Backlog
+## Phase 9: Tool Use Design And Safety
+
+Mottbot does not currently execute model-requested tools. This phase must be completed before enabling tools in real chats.
+
+### Task 9.1: Define Tool Registry
+
+Deliverables:
+
+- Create typed tool definitions with name, description, JSON schema, timeout, and side-effect level.
+- Add a registry that rejects unknown tools.
+- Add tests for schema validation, unknown tools, and disabled side-effecting tools.
+- Document the initial read-only tool set.
+
+### Task 9.2: Add Provider Tool-Call Boundary
+
+Deliverables:
+
+- Determine the exact `@mariozechner/pi-ai` tool-call event shapes for the Codex provider.
+- Keep provider-specific parsing in `src/codex/*`.
+- Add mocked transport tests for tool-call start, arguments, completion, and malformed events.
+- Ensure normal text streaming still works when no tools are requested.
+
+### Task 9.3: Execute Read-Only Tools
+
+Deliverables:
+
+- Execute only registry-approved read-only tools.
+- Enforce timeout, output-size, and max-call limits.
+- Persist tool call and result metadata without credentials or large raw payloads.
+- Add integration tests across run orchestration and transcript persistence.
+
+### Task 9.4: Add Telegram Operator UX
+
+Deliverables:
+
+- Show when a tool call is running.
+- Show concise tool results in Telegram when useful.
+- Add clear failure messages for denied, timed-out, or invalid tool calls.
+- Add tests for user-visible tool-call states.
+
+### Task 9.5: Design Side-Effect Approval
+
+Deliverables:
+
+- Define approval prompts for local writes, network calls, and process-control tools.
+- Add expiration for pending approvals.
+- Add audit records for approved and denied calls.
+- Keep side-effecting tools disabled until approval tests and runbooks exist.
+
+## Phase 10: Post-V1 Backlog
 
 These items are not required to complete the current single-host operator bot, but they should remain visible for future planning.
 
-### Task 9.1: Multi-Instance Coordination
+### Task 10.1: Multi-Instance Coordination
 
 Deliverables:
 
@@ -443,7 +496,7 @@ Deliverables:
 - Define migration and deployment changes needed for multi-instance operation.
 - Keep this out of v1 unless deployment requirements change.
 
-### Task 9.2: Rich Long-Term Memory
+### Task 10.2: Rich Long-Term Memory
 
 Deliverables:
 
@@ -453,7 +506,7 @@ Deliverables:
 - Add operator controls for clearing or inspecting memory.
 - Update prompt and data-model docs.
 
-### Task 9.3: Provider Abstraction Beyond Codex
+### Task 10.3: Provider Abstraction Beyond Codex
 
 Deliverables:
 

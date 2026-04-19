@@ -97,6 +97,17 @@ export class RunOrchestrator {
       modelRef: params.session.modelRef,
       profileId: params.session.profileId,
     });
+    this.logger.info(
+      {
+        runId: run.runId,
+        sessionKey: params.session.sessionKey,
+        chatId: params.event.chatId,
+        modelRef: params.session.modelRef,
+        profileId: params.session.profileId,
+        attachmentCount: params.event.attachments.length,
+      },
+      "Queued run.",
+    );
 
     this.transcripts.add({
       sessionKey: params.session.sessionKey,
@@ -202,6 +213,16 @@ export class RunOrchestrator {
       replyToMessageId: params.event.messageId,
       placeholderText: params.placeholderText,
     });
+    this.logger.info(
+      {
+        runId: run.runId,
+        sessionKey: params.session.sessionKey,
+        chatId: params.event.chatId,
+        modelRef: params.session.modelRef,
+        profileId: params.session.profileId,
+      },
+      "Run starting.",
+    );
     let attachmentPreparation: AttachmentPreparation | undefined;
     let attachmentCleaned = false;
     const cleanupAttachments = async () => {
@@ -291,14 +312,33 @@ export class RunOrchestrator {
         requestIdentity: result.requestIdentity,
         finishedAt: this.clock.now(),
       });
+      this.logger.info(
+        {
+          runId: run.runId,
+          sessionKey: params.session.sessionKey,
+          chatId: params.event.chatId,
+          transport: result.transport,
+        },
+        "Run completed.",
+      );
     } catch (error) {
       await cleanupAttachments();
       const message = getErrorMessage(error);
-      this.logger.error({ error }, "Run execution failed.");
+      const errorCode = params.signal.aborted ? "cancelled" : "run_failed";
+      this.logger.error(
+        {
+          error,
+          runId: run.runId,
+          sessionKey: params.session.sessionKey,
+          chatId: params.event.chatId,
+          errorCode,
+        },
+        "Run execution failed.",
+      );
       await this.outbox.fail(placeholder, `Run failed: ${message}`);
       this.runs.update(run.runId, {
         status: params.signal.aborted ? "cancelled" : "failed",
-        errorCode: params.signal.aborted ? "cancelled" : "run_failed",
+        errorCode,
         errorMessage: message,
         finishedAt: this.clock.now(),
       });

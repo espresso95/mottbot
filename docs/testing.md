@@ -7,6 +7,7 @@ The test suite is organized around the system boundaries that matter operational
 - pure helpers and state derivation
 - SQLite-backed stores
 - auth parsing and refresh behavior
+- provider model selection and usage normalization
 - transport fallback behavior
 - Telegram command and outbox behavior
 - full run orchestration across queue, storage, transport, and rendering
@@ -51,7 +52,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 38 test files, 104 tests passing
+- `pnpm test`: 38 test files, 111 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
@@ -66,10 +67,10 @@ Last recorded coverage run on April 19, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.70% |
-| Branches | 71.80% |
-| Functions | 89.25% |
-| Lines | 84.76% |
+| Statements | 85.54% |
+| Branches | 73.05% |
+| Functions | 90.00% |
+| Lines | 85.56% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -201,6 +202,11 @@ The current suite catches several subtle behaviors that matter in production:
 - degraded SSE backoff remains active after a successful fallback
 - unknown profiles are rejected instead of poisoning future runs
 - unknown model refs and unsafe command arguments are rejected before mutating session settings
+- invalid non-Codex provider refs are rejected at the provider boundary
+- expired profiles without refresh tokens fail before model execution
+- failed refreshes preserve existing credentials
+- failed CLI auth write-back preserves refreshed encrypted database credentials
+- usage timeouts and sparse usage payloads normalize into safe status behavior
 - non-admin group commands and disallowed-chat commands are rejected before route creation
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
@@ -225,6 +231,7 @@ Not fully covered today:
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
 - native model input support for non-image attachment types
+- model-executed tools
 
 ## Why The Coverage Is Good Enough For The Current Repo
 

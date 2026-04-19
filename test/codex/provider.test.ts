@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   OPENAI_CODEX_API,
   OPENAI_CODEX_BASE_URL,
+  isCodexModelRef,
   isKnownCodexModelRef,
   resolveCodexModel,
   supportsNativeImageInput,
@@ -25,6 +26,13 @@ describe("resolveCodexModel", () => {
   it("identifies supported command-selectable model refs", () => {
     expect(isKnownCodexModelRef("openai-codex/gpt-5.4-mini")).toBe(true);
     expect(isKnownCodexModelRef("openai-codex/not-a-model")).toBe(false);
+  });
+
+  it("allows advanced openai-codex model overrides but rejects other providers", () => {
+    expect(isCodexModelRef("openai-codex/experimental-model")).toBe(true);
+    expect(isKnownCodexModelRef("openai-codex/experimental-model")).toBe(false);
+    expect(resolveCodexModel("openai-codex/experimental-model", "sse").id).toBe("experimental-model");
+    expect(() => resolveCodexModel("other-provider/gpt-5.4", "sse")).toThrow("Invalid Codex model ref");
   });
 
   it("identifies native image input support", () => {

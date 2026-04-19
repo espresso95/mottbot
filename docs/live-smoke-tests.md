@@ -22,6 +22,18 @@ export MOTTBOT_LIVE_SMOKE_ENABLED=true
 
 When enabled, preflight loads config, validates the bot token with Telegram `getMe`, runs migrations, reads health counters, verifies the default auth profile is present, and prints a token-free JSON summary. It does not send Telegram messages or make Codex model calls.
 
+Optional outbound Telegram delivery check:
+
+```bash
+export MOTTBOT_LIVE_TEST_CHAT_ID=<operator-or-test-chat-id>
+export MOTTBOT_LIVE_TEST_MESSAGE="Mottbot live smoke outbound check."
+pnpm smoke:preflight
+```
+
+When `MOTTBOT_LIVE_TEST_CHAT_ID` is set, preflight sends one silent Telegram message and reports the resulting `messageId`. This proves Bot API outbound delivery, but it does not prove inbound user updates.
+
+For private chats, the target user must have already opened or started the bot. Telegram rejects bot-initiated conversations with users who have not done that.
+
 ## Required Environment
 
 Use a separate `.env` or shell session with:
@@ -78,6 +90,28 @@ Expected result:
 - `telegramBot.username` matches the test bot
 - `migrations` includes version `1`
 - `authProfiles` is at least `1`
+- `outboundCheck.status` is `skipped` unless `MOTTBOT_LIVE_TEST_CHAT_ID` is set
+
+## Automation Boundary
+
+The Telegram Bot API cannot synthesize real inbound user messages, group mentions, replies, or file uploads. Those checks must be run by an operator from Telegram clients or through a separate user-account test harness that is intentionally outside this bot.
+
+Automated in this repo:
+
+- token-free configuration preflight
+- Telegram `getMe`
+- optional Telegram outbound `sendMessage`
+- migrations and local health counters
+- default auth profile presence
+
+Manual by design:
+
+- inbound private messages
+- group mention and reply gating
+- file uploads
+- `/stop` during a live model turn
+- webhook delivery from Telegram to a public endpoint
+- live Codex model behavior
 
 ## Polling Matrix
 

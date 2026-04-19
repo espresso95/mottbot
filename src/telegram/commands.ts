@@ -2,9 +2,10 @@ import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
 import { importCodexCliAuthProfile } from "../codex/cli-auth-import.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
-import { isKnownCodexModelRef } from "../codex/provider.js";
+import { isKnownCodexModelRef, KNOWN_CODEX_MODEL_REFS_TEXT } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
 import { fetchCodexUsage } from "../codex/usage.js";
+import type { CodexUsageSnapshot } from "../codex/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
@@ -38,6 +39,20 @@ function normalizeBindingName(raw: string[]): string {
 
 function validateBindingName(value: string): boolean {
   return value.length <= MAX_BINDING_NAME_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+function formatReset(resetAt: number | undefined): string {
+  return typeof resetAt === "number" ? `, resets ${new Date(resetAt).toISOString()}` : "";
+}
+
+function formatUsageSummary(usage: CodexUsageSnapshot): string {
+  const windows = usage.windows.map(
+    (window) => `${window.label}: ${window.usedPercent}%${formatReset(window.resetAt)}`,
+  );
+  return [
+    ...(usage.plan ? [`Plan: ${usage.plan}`] : []),
+    ...(windows.length > 0 ? windows : ["No usage windows reported"]),
+  ].join("; ");
 }
 
 async function sendReply(
@@ -87,7 +102,7 @@ export class TelegramCommandRouter {
             accessToken: auth.accessToken,
             accountId: auth.accountId,
           });
-          usageSummary = usage.windows.map((window) => `${window.label}: ${window.usedPercent}%`).join(", ");
+          usageSummary = formatUsageSummary(usage);
         } catch {
           // keep fallback summary
         }
@@ -119,7 +134,7 @@ export class TelegramCommandRouter {
           await sendReply(
             this.api,
             event,
-            `Unknown model ${nextModelRef}. Supported models: openai-codex/gpt-5.4, openai-codex/gpt-5.4-mini, openai-codex/gpt-5.3-codex-spark.`,
+            `Unknown model ${nextModelRef}. Supported models: ${KNOWN_CODEX_MODEL_REFS_TEXT}.`,
           );
           return true;
         }

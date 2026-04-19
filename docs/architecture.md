@@ -234,11 +234,12 @@ Implemented now:
 - mid-stream outbox rebind when Telegram edit calls fail
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
-- basic health reporting
+- health reporting with queued, active, degraded, and stale outbox counters
 
 Not yet implemented:
 
 - native model input support for non-image file/media types
+- model-executed tools
 - richer summarization or learned compaction
 - multi-instance locks or distributed coordination
 

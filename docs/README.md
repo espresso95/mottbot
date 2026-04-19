@@ -20,6 +20,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Host-local macOS LaunchAgent setup, restart commands, logs, and Telegram polling conflict handling.
 - [Live Smoke Tests](./live-smoke-tests.md)
   Guarded polling, webhook, Codex, attachment, and fault-injection checks for a real test bot environment.
+- [Tool Use Design](./tool-use-design.md)
+  Safety requirements and implementation phases for future model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)
   Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
 - [Single-File Design Brief](./telegram-codex-design.md)
@@ -46,6 +48,7 @@ Implemented in this repo:
 - local OAuth login command
 - Codex CLI auth import
 - token refresh with per-profile locking
+- refresh failure handling that avoids reverting refreshed CLI-backed credentials to stale tokens
 - WebSocket-first streaming with SSE fallback
 - durable Telegram update dedupe
 - reply-to-bot gating in groups via persisted bot-message tracking
@@ -57,13 +60,16 @@ Implemented in this repo:
 - transcript compaction via deterministic history summaries
 - webhook mode
 - health reporting via `/health` and `mottbot health`
+- queued/active/stale outbox health counters and safer structured run logs
 - outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
+- tool-use safety design documentation
 
 Planned hardening that is not yet implemented:
 
 - native non-image attachment ingestion into model inputs
-- fully automated live Telegram and Codex smoke tests
+- fully automated inbound live Telegram and Codex smoke tests
+- model-executed tools
 - stronger restart reconciliation for in-progress Telegram deliveries
 - richer summarization beyond deterministic local compaction
 - multi-instance coordination

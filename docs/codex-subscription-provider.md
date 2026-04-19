@@ -27,6 +27,8 @@ Current built-in model refs:
 - `openai-codex/gpt-5.4-mini`: text and image input
 - `openai-codex/gpt-5.3-codex-spark`: text input
 
+The `/model` command only accepts these built-in refs. File or environment configuration may still use an advanced `openai-codex/<model>` override for operator testing, but refs for other providers are rejected at the Codex provider boundary.
+
 The provider catalog also records:
 
 - whether the model supports reasoning
@@ -143,8 +145,9 @@ Imported profiles are stored in the local database, but they are treated as exte
 1. Load the profile from the database.
 2. If the profile is `codex_cli`, re-import the current CLI auth state first.
 3. If the access token is fresh enough, use it directly.
-4. If the token is near expiry and a refresh token exists, refresh it under a per-profile mutex.
-5. Convert OAuth credentials into a runtime API key via `getOAuthApiKey()` when the provider supports it.
+4. If the token is near expiry and no refresh token is available, fail with a clear profile error.
+5. If the token is near expiry and a refresh token exists, refresh it under a per-profile mutex.
+6. Convert OAuth credentials into a runtime API key via `getOAuthApiKey()` when the provider supports it.
 
 ### Refresh locking
 
@@ -157,9 +160,10 @@ This prevents two concurrent runs from refreshing the same profile at the same t
 If a `codex_cli` profile is refreshed:
 
 - the app attempts to write the refreshed token set back to the Codex CLI `auth.json`
-- it then re-imports the profile from that file
+- if write-back succeeds, it re-imports the profile from that file
+- if write-back fails, it keeps the refreshed encrypted database profile and logs a token-free warning
 
-That keeps CLI-backed credentials authoritative.
+That keeps CLI-backed credentials authoritative when possible without reverting the runtime profile to stale credentials after a local file permission failure.
 
 ## Transport Layer
 
@@ -235,6 +239,9 @@ The response is normalized into:
 - provider display name
 - optional plan description
 - one or more labeled usage windows such as `3h`, `Day`, or `Week`
+- optional reset timestamps for usage windows
+
+The Telegram `/status` command includes plan and reset details when present. If usage lookup fails or times out, `/status` still responds with `Usage unavailable` and does not expose account IDs or auth material.
 
 ## Security Model
 

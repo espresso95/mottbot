@@ -73,7 +73,10 @@ export class CodexTokenResolver {
     if (!current?.accessToken) {
       throw new Error(`Profile ${profileId} does not contain an access token.`);
     }
-    if (!shouldRefresh(current) || !current.refreshToken) {
+    if (shouldRefresh(current) && !current.refreshToken) {
+      throw new Error(`Profile ${profileId} is expired and does not contain a refresh token.`);
+    }
+    if (!shouldRefresh(current)) {
       return {
         profile: current,
         accessToken: current.accessToken,
@@ -125,8 +128,10 @@ export class CodexTokenResolver {
       metadata: profile.metadata,
     });
     if (profile.source === "codex_cli") {
-      this.writeBackCodexCliAuth(refreshed);
-      importCodexCliAuthProfile({ store: this.authStore, profileId: profile.profileId });
+      const wroteBack = this.writeBackCodexCliAuth(refreshed);
+      if (wroteBack) {
+        importCodexCliAuthProfile({ store: this.authStore, profileId: profile.profileId });
+      }
     }
     const next = this.authStore.get(profile.profileId);
     if (!next?.accessToken) {
@@ -147,10 +152,10 @@ export class CodexTokenResolver {
     refresh: string;
     expires: number;
     accountId?: string;
-  }): void {
+  }): boolean {
     const authFile = readCodexCliAuthFile();
     if (!authFile || authFile.auth_mode !== "chatgpt") {
-      return;
+      return false;
     }
     const authPath = path.join(resolveCodexCliHome(process.env), "auth.json");
     try {
@@ -166,8 +171,10 @@ export class CodexTokenResolver {
         last_refresh: new Date().toISOString(),
       };
       fs.writeFileSync(authPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+      return true;
     } catch (error) {
       this.logger.warn({ error }, "Failed to write refreshed credentials back to Codex CLI auth file.");
+      return false;
     }
   }
 }

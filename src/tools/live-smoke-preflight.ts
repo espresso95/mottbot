@@ -20,6 +20,17 @@ type TelegramBotSummary = {
   canReadAllGroupMessages?: boolean;
 };
 
+type TelegramOutboundCheck =
+  | {
+      status: "skipped";
+      reason: string;
+    }
+  | {
+      status: "sent";
+      chatId: string;
+      messageId: number;
+    };
+
 function asObject(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 }
@@ -64,6 +75,37 @@ async function readTelegramBot(token: string): Promise<TelegramBotSummary> {
   };
 }
 
+async function sendTelegramSmokeMessage(params: {
+  token: string;
+  chatId: string;
+  text: string;
+}): Promise<TelegramOutboundCheck> {
+  const response = await fetch(`https://api.telegram.org/bot${params.token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: params.chatId,
+      text: params.text,
+      disable_notification: true,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const parsed = asObject(await response.json());
+  const result = asObject(parsed?.result);
+  const description = typeof parsed?.description === "string" ? parsed.description : response.statusText;
+  if (!response.ok || parsed?.ok !== true || !result) {
+    throw new Error(`Telegram sendMessage failed: ${description || "unknown error"}`);
+  }
+  if (typeof result.message_id !== "number") {
+    throw new Error("Telegram sendMessage returned a result without message_id.");
+  }
+  return {
+    status: "sent",
+    chatId: params.chatId,
+    messageId: result.message_id,
+  };
+}
+
 async function main(): Promise<void> {
   if (process.env.MOTTBOT_LIVE_SMOKE_ENABLED !== "true") {
     printJson({
@@ -75,6 +117,17 @@ async function main(): Promise<void> {
 
   const config = loadConfig();
   const telegramBot = await readTelegramBot(config.telegram.botToken);
+  const liveTestChatId = process.env.MOTTBOT_LIVE_TEST_CHAT_ID?.trim();
+  const outboundCheck = liveTestChatId
+    ? await sendTelegramSmokeMessage({
+        token: config.telegram.botToken,
+        chatId: liveTestChatId,
+        text: process.env.MOTTBOT_LIVE_TEST_MESSAGE?.trim() || "Mottbot live smoke outbound check.",
+      })
+    : ({
+        status: "skipped",
+        reason: "Set MOTTBOT_LIVE_TEST_CHAT_ID to send a guarded outbound Telegram check.",
+      } satisfies TelegramOutboundCheck);
   const database = new DatabaseClient(config.storage.sqlitePath);
   try {
     migrateDatabase(database);
@@ -96,14 +149,18 @@ async function main(): Promise<void> {
       configPath: config.configPath,
       mode: config.telegram.polling ? "polling" : "webhook",
       telegramBot,
+      outboundCheck,
       sqlitePath: config.storage.sqlitePath,
       attachmentCacheDir: config.attachments.cacheDir,
       defaultProfile: config.auth.defaultProfile,
       authProfiles: authProfiles.length,
       sessions: health.sessions,
+      activeRuns: health.activeRuns,
       interruptedRuns: health.interruptedRuns,
+      staleOutboxMessages: health.staleOutboxMessages,
       processedUpdates: health.processedUpdates,
-      queuedRuns: countRows(database, "run_queue"),
+      queuedRuns: health.queuedRuns,
+      runQueueRows: countRows(database, "run_queue"),
       migrations: readMigrations(database),
     });
 
