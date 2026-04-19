@@ -165,6 +165,25 @@ Fix options:
 2. Rotate the token in BotFather and update `.env`.
 3. Use webhook mode with a public HTTPS URL instead of polling.
 
+On this host, a previous OpenClaw gateway install may also run as a user
+LaunchAgent and hold the same Telegram polling token. Stop and disable it before
+starting Mottbot:
+
+```bash
+launchctl bootout gui/$(id -u)/ai.openclaw.gateway
+launchctl disable gui/$(id -u)/ai.openclaw.gateway
+```
+
+Confirm it is stopped:
+
+```bash
+launchctl print gui/$(id -u)/ai.openclaw.gateway
+pgrep -fl 'openclaw-gateway|ai.openclaw.gateway|openclaw.*gateway'
+```
+
+The first command should report that the service is not found, and the second
+command should return no matching process.
+
 After changing the token:
 
 ```bash
