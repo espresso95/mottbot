@@ -2,7 +2,17 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Logger } from "../shared/logger.js";
 import { getErrorMessage } from "../shared/errors.js";
 import { createId } from "../shared/ids.js";
-import type { PromptMessage } from "../runs/prompt-builder.js";
+import type {
+  AssistantMessage,
+  Context,
+  ImageContent,
+  Message,
+  SimpleStreamOptions,
+  TextContent,
+  Usage,
+  UserMessage,
+} from "@mariozechner/pi-ai";
+import type { PromptContentBlock, PromptMessage } from "../runs/prompt-builder.js";
 import { resolveCodexModel } from "./provider.js";
 import type { CodexResolvedAuth } from "./types.js";
 
@@ -59,6 +69,95 @@ function collectMessageText(message: unknown): string {
       return record.type === "text" && typeof record.text === "string" ? record.text : "";
     })
     .join("");
+}
+
+function emptyUsage(): Usage {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    },
+  };
+}
+
+function contentToText(content: string | PromptContentBlock[]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content
+    .map((block) => (block.type === "text" ? block.text : ""))
+    .join("")
+    .trim();
+}
+
+function toAssistantContent(content: string | PromptContentBlock[]): TextContent[] {
+  const text = contentToText(content);
+  return text ? [{ type: "text", text }] : [];
+}
+
+function toUserContent(content: string | PromptContentBlock[]): UserMessage["content"] {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content.map((block): TextContent | ImageContent => {
+    if (block.type === "image") {
+      return { type: "image", data: block.data, mimeType: block.mimeType };
+    }
+    return { type: "text", text: block.text };
+  });
+}
+
+function buildPiAiContext(params: {
+  systemPrompt?: string;
+  messages: PromptMessage[];
+  model: ReturnType<typeof resolveCodexModel>;
+}): Context {
+  const systemParts = [
+    params.systemPrompt?.trim(),
+    ...params.messages
+      .filter((message) => message.role === "system")
+      .map((message) => contentToText(message.content))
+      .filter(Boolean),
+  ].filter(Boolean);
+  const messages = params.messages.flatMap((message): Message[] => {
+    if (message.role === "system") {
+      return [];
+    }
+    if (message.role === "user") {
+      const content = toUserContent(message.content);
+      if ((typeof content === "string" && !content.trim()) || (Array.isArray(content) && content.length === 0)) {
+        return [];
+      }
+      return [{ role: "user", content, timestamp: message.timestamp }];
+    }
+    const content = toAssistantContent(message.content);
+    if (content.length === 0) {
+      return [];
+    }
+    const assistant: AssistantMessage = {
+      role: "assistant",
+      content,
+      api: params.model.api,
+      provider: params.model.provider,
+      model: params.model.id,
+      usage: emptyUsage(),
+      stopReason: "stop",
+      timestamp: message.timestamp,
+    };
+    return [assistant];
+  });
+  return {
+    ...(systemParts.length > 0 ? { systemPrompt: systemParts.join("\n\n") } : {}),
+    messages,
+  };
 }
 
 export class CodexTransport {
@@ -128,11 +227,12 @@ export class CodexTransport {
   ): Promise<CodexStreamResult> {
     const piAi = await import("@mariozechner/pi-ai");
     const model = resolveCodexModel(params.modelRef, params.transport);
-    const context = {
-      ...(params.systemPrompt ? { systemPrompt: params.systemPrompt } : {}),
+    const context = buildPiAiContext({
+      systemPrompt: params.systemPrompt,
       messages: params.messages,
-    };
-    const options = {
+      model,
+    });
+    const options: SimpleStreamOptions = {
       apiKey: params.auth.apiKey,
       signal: params.signal,
       onPayload: (payload: unknown) => {
@@ -160,7 +260,7 @@ export class CodexTransport {
       await params.onStart?.();
     };
 
-    const maybeStream = await piAi.streamSimple(model as never, context as never, options as never);
+    const maybeStream = await piAi.streamSimple(model, context, options);
     if (isAsyncIterable(maybeStream)) {
       for await (const event of maybeStream) {
         if (!started && event && typeof event === "object") {
@@ -222,8 +322,8 @@ export class CodexTransport {
     }
 
     await ensureStarted();
-    const completed = (await piAi.completeSimple(model as never, context as never, options as never)) as any;
-    text = collectMessageText(completed?.message);
+    const completed = await piAi.completeSimple(model, context, options);
+    text = collectMessageText(completed);
     usage =
       completed?.usage && typeof completed.usage === "object"
         ? (completed.usage as unknown as Record<string, unknown>)

@@ -106,7 +106,13 @@ describe("CodexTransport", () => {
     });
     streamSimple.mockResolvedValueOnce({ plain: true });
     completeSimple.mockResolvedValueOnce({
-      message: { content: [{ type: "text", text: "completed" }] },
+      role: "assistant",
+      content: [{ type: "text", text: "completed" }],
+      api: "openai-codex-responses",
+      provider: "openai-codex",
+      model: "gpt-5.4",
+      stopReason: "stop",
+      timestamp: 1,
       usage: { total: 1 },
     });
     const transport = new CodexTransport(stores.database, stores.logger);
@@ -126,6 +132,50 @@ describe("CodexTransport", () => {
     expect(result.text).toBe("completed");
     expect(completeSimple).toHaveBeenCalled();
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes assistant history before calling pi-ai", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    let capturedContext: any;
+    streamSimple.mockImplementationOnce(async (_model, context) => {
+      capturedContext = context;
+      return createEventStream([{ type: "done", message: { content: [{ type: "text", text: "ok" }] } }]);
+    });
+    const transport = new CodexTransport(stores.database, stores.logger);
+    const result = await transport.stream({
+      sessionKey: "session-history",
+      modelRef: "openai-codex/gpt-5.4",
+      transport: "websocket",
+      auth: {
+        profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+        accessToken: "access",
+        apiKey: "api",
+      },
+      systemPrompt: "Base instructions.",
+      messages: [
+        { role: "system", content: "Earlier conversation summary.", timestamp: 1 },
+        { role: "user", content: "first", timestamp: 2 },
+        { role: "assistant", content: "previous answer", timestamp: 3 },
+        { role: "user", content: "next", timestamp: 4 },
+      ],
+    });
+
+    expect(result.text).toBe("ok");
+    expect(capturedContext.systemPrompt).toContain("Base instructions.");
+    expect(capturedContext.systemPrompt).toContain("Earlier conversation summary.");
+    expect(capturedContext.messages).toHaveLength(3);
+    expect(capturedContext.messages[1]).toMatchObject({
+      role: "assistant",
+      api: "openai-codex-responses",
+      provider: "openai-codex",
+      model: "gpt-5.4",
+      stopReason: "stop",
+      content: [{ type: "text", text: "previous answer" }],
+    });
   });
 
   it("preserves the degraded websocket window across successful sse retries", async () => {
