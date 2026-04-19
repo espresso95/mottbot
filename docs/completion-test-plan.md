@@ -21,19 +21,20 @@ As of April 19, 2026:
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
-- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
+- Phase 9 is complete for the read-only tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
 - Phase 11 is complete for command discovery and conversation UX: `/help`, `/tool help`, `/tools`, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
 - Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
 - Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
+- Phase 14 is complete for the tool permission model: every enabled tool has a runtime policy, model-exposed declarations are filtered by caller role and chat, side-effecting tool calls generate sanitized approval previews and request fingerprints, approvals bind to the latest pending request when available, and admins can inspect bounded tool audit records with `/tool audit`.
 
 ## Current Baseline
 
 Verified locally on April 19, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 50 test files and 178 tests.
-- `corepack pnpm test:coverage` passes with statements 84.70%, branches 72.75%, functions 91.79%, and lines 84.67%.
+- `corepack pnpm test` passes with 51 test files and 186 tests.
+- `corepack pnpm test:coverage` passes with statements 84.45%, branches 73.08%, functions 91.94%, and lines 84.41%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -53,7 +54,7 @@ Current known gaps:
 
 ## Definition Of Complete
 
-Mottbot is complete for the intended v1 single-host operator use case when:
+Mottbot is complete for the intended single-host operator use case when:
 
 - Private chats, bound group routes, mention-gated group replies, and reply-to-bot flows work in live Telegram.
 - Text, image, and supported file attachments are ingested safely and passed to the model when supported.
@@ -510,7 +511,7 @@ Deliverables:
 - Add audit records for approved and denied calls.
 - Keep side-effecting tools disabled by default and expose the restart tool only to admin callers when the host opts in.
 
-## Phase 10: Post-V1 Backlog
+## Phase 10: Post-Baseline Backlog
 
 These items are not required to complete the current single-host operator bot, but they should remain visible for future planning.
 
@@ -525,7 +526,7 @@ Deliverables:
 - Design distributed locking or external queue requirements.
 - Define how session serialization would work across processes.
 - Define migration and deployment changes needed for multi-instance operation.
-- Keep this out of v1 unless deployment requirements change.
+- Keep this out of the baseline unless deployment requirements change.
 
 ### Task 10.2: Rich Long-Term Memory
 
@@ -802,7 +803,9 @@ Verification:
 - `corepack pnpm test:coverage`
 - Live smoke tests with a text file, PDF fixture, code file, CSV, and image
 
-## Phase 14: Tool Permission Model V2
+## Phase 14: Tool Permission Model
+
+Status: complete.
 
 This phase strengthens the approval layer before adding broader tools.
 
@@ -820,6 +823,13 @@ Deliverables:
 - Preserve deny-by-default behavior when policy is absent.
 - Add tests for policy parsing, policy defaults, and denied execution.
 
+Implemented notes:
+
+- `MOTTBOT_TOOL_POLICIES_JSON` and `tools.policies` provide operator overrides for enabled tools.
+- Admin-only tools remain admin-only even if an override attempts to expose them to normal users.
+- Model tool declarations are filtered before each run by caller role and chat.
+- Execution rechecks policy immediately before running a tool.
+
 ### Task 14.2: Add Approval Previews
 
 Deliverables:
@@ -829,6 +839,12 @@ Deliverables:
 - Avoid including secrets or raw auth payloads in previews.
 - Add tests for preview rendering and preview omission of sensitive fields.
 
+Implemented notes:
+
+- Approval previews redact sensitive argument keys such as token, secret, password, API key, credential, bearer, authorization, and hash.
+- Side-effect approvals store a stable request fingerprint when approved from the latest pending request, preventing reuse for different arguments.
+- Dry-run policy mode returns a preview without calling the side-effect handler.
+
 ### Task 14.3: Add Tool Audit Inspection
 
 Deliverables:
@@ -837,6 +853,11 @@ Deliverables:
 - Add filters by session, tool name, and decision code.
 - Keep audit output bounded and token-free.
 - Add tests for successful, denied, expired, and consumed approval records.
+
+Implemented notes:
+
+- `/tool audit [limit] [here] [tool:<name>] [code:<decision>]` lists bounded audit rows for admins.
+- Audit rows retain decision code, side-effect class, optional run/session, request fingerprint prefix, and sanitized preview text.
 
 Edge cases to cover:
 
@@ -985,7 +1006,7 @@ Verification:
 - Mocked GitHub integration tests
 - Optional live read-only validation against the configured repository
 
-## Phase 17: Operator Dashboard V2
+## Phase 17: Operator Dashboard
 
 This phase turns the existing dashboard into the operational control panel.
 

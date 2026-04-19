@@ -80,6 +80,7 @@ MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY=false
 MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own
 MOTTBOT_DASHBOARD_ENABLED=false
 MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false
+MOTTBOT_TOOL_POLICIES_JSON=
 MOTTBOT_AUTO_MEMORY_SUMMARIES=false
 ```
 
@@ -99,6 +100,20 @@ File understanding settings:
 - `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS` and `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS` bound table previews
 - `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES` bounds PDF text extraction
 - use `/files` in Telegram to list recent files for the current session and `/files forget <id-prefix>` or `/files clear` to remove retained file metadata
+
+Tool policy settings:
+
+- `MOTTBOT_TOOL_POLICIES_JSON` is optional JSON for enabled tool policy overrides
+- policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`
+- leave it empty for conservative defaults
+- side-effecting tool calls generate sanitized approval previews and request fingerprints before execution
+- use `/tool audit [limit] [here] [tool:<name>] [code:<decision>]` as an admin to inspect bounded tool policy and approval audit records
+
+Example:
+
+```bash
+MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
+```
 
 Import Codex CLI auth into the configured SQLite database:
 

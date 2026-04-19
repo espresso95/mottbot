@@ -23,7 +23,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - [Tool Use Design](./tool-use-design.md)
   Safety requirements and runtime behavior for read-only model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)
-  Phased implementation and verification roadmap for closing the remaining v1 hardening gaps.
+  Phased implementation and verification roadmap for closing the remaining hardening gaps.
 - [Release Notes](./release-notes.md)
   Operator-facing notes and validation checklists for newly added runtime capabilities.
 - [Single-File Design Brief](./telegram-codex-design.md)

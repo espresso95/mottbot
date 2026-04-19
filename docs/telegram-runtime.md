@@ -74,7 +74,7 @@ Notification behavior:
 Approved reaction tool:
 
 - `mottbot_telegram_react` adds a Unicode emoji reaction or clears the bot reaction with an empty emoji
-- it is admin-only, side-effecting, and requires the existing one-shot `/tool approve` flow before execution
+- it is admin-only, side-effecting, and requires the one-shot `/tool approve` flow before execution unless policy is set to dry-run
 
 ## Safety Limits
 
@@ -236,6 +236,7 @@ Current policy:
 - `/tools`
 - `/tool approve <tool-name> <reason>`
 - `/tool revoke <tool-name>`
+- `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 
 ### Current command behavior
 
@@ -258,6 +259,8 @@ Current policy:
 - `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
 - `/tool help` and `/tools` explain tool commands for the current caller
 - `/tool approve` and `/tool revoke` are admin-only controls for side-effecting tools
+- `/tool approve` binds to the latest pending approval preview in the current session when one exists
+- `/tool audit` is admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 
 ## Session Queue
 

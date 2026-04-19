@@ -57,6 +57,21 @@ describe("ToolRegistry", () => {
     ]);
   });
 
+  it("filters model declarations with caller policy", () => {
+    const registry = new ToolRegistry([
+      readOnlyTool({ name: "lookup_value" }),
+      readOnlyTool({ name: "hidden_value" }),
+    ]);
+
+    expect(
+      registry
+        .listModelDeclarations({
+          filter: (definition) => definition.name !== "hidden_value",
+        })
+        .map((tool) => tool.name),
+    ).toEqual(["lookup_value"]);
+  });
+
   it("rejects unknown and disabled tools", () => {
     const registry = createDefaultToolRegistry();
 

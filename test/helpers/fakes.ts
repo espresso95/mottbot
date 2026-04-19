@@ -97,6 +97,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       enableSideEffectTools: false,
       approvalTtlMs: 5 * 60 * 1000,
       restartDelayMs: 60_000,
+      policies: {},
     },
     runtime: {
       instanceLeaseEnabled: true,

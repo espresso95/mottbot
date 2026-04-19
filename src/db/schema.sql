@@ -149,6 +149,8 @@ create table if not exists tool_approvals (
   reason text not null,
   approved_at integer not null,
   expires_at integer not null,
+  request_fingerprint text,
+  preview_text text,
   consumed_at integer,
   created_at integer not null,
   updated_at integer not null,
@@ -170,6 +172,8 @@ create table if not exists tool_approval_audit (
   decided_at integer not null,
   approved_by_user_id text,
   reason text,
+  request_fingerprint text,
+  preview_text text,
   created_at integer not null,
   foreign key (session_key) references session_routes(session_key),
   foreign key (run_id) references runs(run_id)
@@ -177,6 +181,9 @@ create table if not exists tool_approval_audit (
 
 create index if not exists idx_tool_approval_audit_session_created
   on tool_approval_audit(session_key, created_at);
+
+create index if not exists idx_tool_approval_audit_pending
+  on tool_approval_audit(session_key, tool_name, decision_code, requested_at);
 
 create table if not exists session_memories (
   id text primary key,

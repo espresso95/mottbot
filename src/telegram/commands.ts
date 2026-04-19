@@ -13,7 +13,8 @@ import type { RouteResolver } from "./route-resolver.js";
 import { splitTelegramText } from "./formatting.js";
 import type { InboundEvent, ParsedCommand } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
-import type { ToolApprovalStore } from "../tools/approval.js";
+import type { ToolApprovalAuditRecord, ToolApprovalDecision, ToolApprovalStore } from "../tools/approval.js";
+import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
@@ -92,6 +93,46 @@ function formatAttachmentRecord(record: AttachmentRecord): string {
   return `- ${record.id.slice(0, 8)} ${name}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
 }
 
+const TOOL_AUDIT_DECISION_CODES: readonly ToolApprovalDecision["code"][] = [
+  "read_only",
+  "policy_allowed",
+  "policy_missing",
+  "role_denied",
+  "chat_denied",
+  "approval_required",
+  "approval_expired",
+  "approval_mismatch",
+  "approved",
+  "operator_approved",
+  "revoked",
+];
+
+function isToolAuditDecisionCode(value: string): value is ToolApprovalDecision["code"] {
+  return TOOL_AUDIT_DECISION_CODES.includes(value as ToolApprovalDecision["code"]);
+}
+
+function truncateSingleLine(value: string, maxChars: number): string {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= maxChars) {
+    return singleLine;
+  }
+  return `${singleLine.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
+}
+
+function formatToolAuditRecord(record: ToolApprovalAuditRecord): string {
+  const at = new Date(record.decidedAt).toISOString();
+  const scope = [
+    record.sessionKey ? `session=${record.sessionKey}` : undefined,
+    record.runId ? `run=${record.runId.slice(0, 8)}` : undefined,
+    record.approvedByUserId ? `by=${record.approvedByUserId}` : undefined,
+    record.requestFingerprint ? `request=${record.requestFingerprint.slice(0, 12)}` : undefined,
+  ].filter(Boolean);
+  const preview = record.previewText ? ` preview="${truncateSingleLine(record.previewText, 120)}"` : "";
+  return `- ${at} ${record.toolName} ${record.allowed ? "allowed" : "denied"}:${record.decisionCode} (${record.sideEffect})${
+    scope.length > 0 ? ` ${scope.join(" ")}` : ""
+  }${preview}`;
+}
+
 async function sendReply(
   api: Api,
   event: InboundEvent,
@@ -121,6 +162,7 @@ export class TelegramCommandRouter {
     private readonly memories?: MemoryStore,
     private readonly diagnostics?: OperatorDiagnostics,
     private readonly attachments?: AttachmentRecordStore,
+    private readonly toolPolicy?: ToolPolicyEngine,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -401,6 +443,21 @@ export class TelegramCommandRouter {
     return Boolean(event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId));
   }
 
+  private callerRole(event: InboundEvent): ToolCallerRole {
+    return this.isAdmin(event) ? "admin" : "user";
+  }
+
+  private listExposedTools(event: InboundEvent) {
+    return this.toolRegistry?.listModelDeclarations({
+      includeAdminTools: this.isAdmin(event),
+      filter: (definition) =>
+        this.toolPolicy?.evaluate(definition, {
+          role: this.callerRole(event),
+          chatId: event.chatId,
+        }).allowed ?? true,
+    }) ?? [];
+  }
+
   private async requireAdmin(event: InboundEvent, action: string): Promise<boolean> {
     if (this.isAdmin(event)) {
       return true;
@@ -445,6 +502,7 @@ export class TelegramCommandRouter {
               ? [
                   "/tool approve <tool-name> <reason> - approve one side-effecting call",
                   "/tool revoke <tool-name> - revoke active approval",
+                  "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect tool audit records",
                 ]
               : []),
           ])
@@ -463,9 +521,7 @@ export class TelegramCommandRouter {
       this.toolRegistry
         ? [
             "Model-exposed tools for this caller:",
-            ...this.toolRegistry
-              .listModelDeclarations({ includeAdminTools: isAdmin })
-              .map((tool) => `- ${tool.name}`),
+            ...this.listExposedTools(event).map((tool) => `- ${tool.name}`),
           ].join("\n")
         : undefined,
     ].filter((section): section is string => Boolean(section));
@@ -629,9 +685,7 @@ export class TelegramCommandRouter {
     }
     if (!sub || sub === "status") {
       const tools = this.toolRegistry.listEnabled();
-      const exposedTools = this.toolRegistry.listModelDeclarations({
-        includeAdminTools: this.isAdmin(event),
-      });
+      const exposedTools = this.listExposedTools(event);
       const approvals = this.toolApprovals.listActive(session.sessionKey);
       await sendReply(
         this.api,
@@ -652,6 +706,30 @@ export class TelegramCommandRouter {
                 .join("\n")}`
             : "No active approvals.",
         ].join("\n\n"),
+      );
+      return;
+    }
+    if (sub === "audit") {
+      if (!(await this.requireAdmin(event, "inspect tool audit records"))) {
+        return;
+      }
+      const parsed = this.parseToolAuditArgs(args.slice(1));
+      if (parsed.error) {
+        await sendReply(this.api, event, parsed.error);
+        return;
+      }
+      const records = this.toolApprovals.listAudit({
+        sessionKey: parsed.here ? session.sessionKey : undefined,
+        toolName: parsed.toolName,
+        decisionCode: parsed.decisionCode,
+        limit: parsed.limit,
+      });
+      await sendReply(
+        this.api,
+        event,
+        records.length > 0
+          ? ["Tool audit:", ...records.map(formatToolAuditRecord)].join("\n")
+          : "No matching tool audit records.",
       );
       return;
     }
@@ -681,17 +759,38 @@ export class TelegramCommandRouter {
         return;
       }
       const reason = normalizeFreeText(args.slice(2)) || "operator approved";
+      const pending = this.toolApprovals.findLatestPendingRequest({
+        sessionKey: session.sessionKey,
+        toolName: definition.name,
+      });
       const approval = this.toolApprovals.approve({
         sessionKey: session.sessionKey,
         toolName: definition.name,
         approvedByUserId: event.fromUserId,
         reason,
         ttlMs: this.config.tools.approvalTtlMs,
+        requestFingerprint: pending?.requestFingerprint,
+        previewText: pending?.previewText,
+      });
+      this.toolApprovals.recordAudit({
+        sessionKey: session.sessionKey,
+        toolName: definition.name,
+        sideEffect: definition.sideEffect,
+        allowed: true,
+        decisionCode: "operator_approved",
+        requestedAt: pending?.requestedAt ?? approval.approvedAt,
+        decidedAt: approval.approvedAt,
+        approvedByUserId: event.fromUserId,
+        reason,
+        requestFingerprint: pending?.requestFingerprint,
+        previewText: pending?.previewText,
       });
       await sendReply(
         this.api,
         event,
-        `Approved ${approval.toolName} for this session until ${new Date(approval.expiresAt).toISOString()}.`,
+        `Approved ${approval.toolName} for this session${
+          approval.requestFingerprint ? " and latest requested preview" : ""
+        } until ${new Date(approval.expiresAt).toISOString()}.`,
       );
       return;
     }
@@ -709,15 +808,88 @@ export class TelegramCommandRouter {
         sessionKey: session.sessionKey,
         toolName,
       });
+      if (revoked > 0) {
+        let definition: ToolDefinition | undefined;
+        try {
+          definition = this.toolRegistry.resolve(toolName, { allowSideEffects: true });
+        } catch {
+          definition = undefined;
+        }
+        if (definition) {
+          const now = Date.now();
+          this.toolApprovals.recordAudit({
+            sessionKey: session.sessionKey,
+            toolName: definition.name,
+            sideEffect: definition.sideEffect,
+            allowed: false,
+            decisionCode: "revoked",
+            requestedAt: now,
+            decidedAt: now,
+          });
+        }
+      }
       await sendReply(this.api, event, revoked > 0 ? `Revoked ${revoked} approvals.` : "No active approval found.");
       return;
     }
-    await sendReply(this.api, event, "Usage: /tool status | /tool approve <tool-name> <reason> | /tool revoke <tool-name>");
+    await sendReply(this.api, event, "Usage: /tool status | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>");
+  }
+
+  private parseToolAuditArgs(args: string[]): {
+    limit: number;
+    here: boolean;
+    toolName?: string;
+    decisionCode?: ToolApprovalDecision["code"];
+    error?: string;
+  } {
+    let limit = 10;
+    let here = false;
+    let toolName: string | undefined;
+    let decisionCode: ToolApprovalDecision["code"] | undefined;
+    for (const raw of args) {
+      const value = raw.trim();
+      if (!value) {
+        continue;
+      }
+      if (value === "here") {
+        here = true;
+        continue;
+      }
+      if (/^\d+$/.test(value)) {
+        limit = Math.min(Math.max(Number(value), 1), 50);
+        continue;
+      }
+      if (value.startsWith("tool:")) {
+        toolName = normalizeSingleArg(value.slice("tool:".length));
+        if (!toolName) {
+          return { limit, here, error: "Usage: /tool audit [limit] [here] [tool:<name>] [code:<decision>]" };
+        }
+        continue;
+      }
+      if (value.startsWith("code:")) {
+        const candidate = value.slice("code:".length);
+        if (!isToolAuditDecisionCode(candidate)) {
+          return {
+            limit,
+            here,
+            error: `Unknown decision code ${candidate}. Supported codes: ${TOOL_AUDIT_DECISION_CODES.join(", ")}.`,
+          };
+        }
+        decisionCode = candidate;
+        continue;
+      }
+      return { limit, here, error: "Usage: /tool audit [limit] [here] [tool:<name>] [code:<decision>]" };
+    }
+    return {
+      limit,
+      here,
+      ...(toolName ? { toolName } : {}),
+      ...(decisionCode ? { decisionCode } : {}),
+    };
   }
 
   private formatToolHelp(event: InboundEvent, session: SessionRoute): string {
     const isAdmin = this.isAdmin(event);
-    const exposedTools = this.toolRegistry?.listModelDeclarations({ includeAdminTools: isAdmin }) ?? [];
+    const exposedTools = this.listExposedTools(event);
     const approvals = this.toolApprovals?.listActive(session.sessionKey) ?? [];
     const commands = [
       "/tool status - show model-exposed tools, enabled host tools, and active approvals",
@@ -726,6 +898,7 @@ export class TelegramCommandRouter {
         ? [
             "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session",
             "/tool revoke <tool-name> - revoke active approvals for this session",
+            "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect recent tool audit records",
           ]
         : ["Approvals are admin-only."]),
     ];

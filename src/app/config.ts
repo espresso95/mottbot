@@ -8,6 +8,14 @@ dotenv.config();
 
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
+const toolCallerRoleSchema = z.enum(["admin", "user"]);
+const toolPolicyConfigSchema = z.object({
+  allowedRoles: z.array(toolCallerRoleSchema).optional(),
+  allowedChatIds: z.array(z.string()).optional(),
+  requiresApproval: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+  maxOutputBytes: z.number().int().min(1).optional(),
+});
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -98,6 +106,7 @@ const rawConfigSchema = z.object({
       enableSideEffectTools: z.boolean().default(false),
       approvalTtlMs: z.number().int().min(1_000).default(5 * 60 * 1000),
       restartDelayMs: z.number().int().min(1_000).default(60_000),
+      policies: z.record(toolPolicyConfigSchema).default({}),
     })
     .default({}),
   runtime: z
@@ -184,6 +193,7 @@ export type AppConfig = {
     enableSideEffectTools: boolean;
     approvalTtlMs: number;
     restartDelayMs: number;
+    policies: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
   };
   runtime: {
     instanceLeaseEnabled: boolean;
@@ -219,6 +229,14 @@ function readConfigFile(configPath: string): unknown {
     return {};
   }
   const raw = fs.readFileSync(configPath, "utf8");
+  return JSON.parse(raw);
+}
+
+function parseJsonEnv(name: string): unknown | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return undefined;
+  }
   return JSON.parse(raw);
 }
 
@@ -552,6 +570,11 @@ export function loadConfig(): AppConfig {
               ? (fileObject.tools as any).restartDelayMs
               : undefined)
           : Number(process.env.MOTTBOT_RESTART_TOOL_DELAY_MS),
+      policies:
+        parseJsonEnv("MOTTBOT_TOOL_POLICIES_JSON") ??
+        (fileObject.tools && typeof fileObject.tools === "object"
+          ? (fileObject.tools as any).policies
+          : undefined),
     },
     runtime: {
       ...(fileObject.runtime && typeof fileObject.runtime === "object" ? (fileObject.runtime as object) : {}),

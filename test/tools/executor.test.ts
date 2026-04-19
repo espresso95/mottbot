@@ -7,6 +7,7 @@ import { removeTempDir } from "../helpers/tmp.js";
 import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../../src/tools/operator-diagnostic-handlers.js";
 import { createTelegramReactionToolHandlers } from "../../src/tools/telegram-reaction-handlers.js";
+import { createToolPolicyEngine, createToolRequestFingerprint } from "../../src/tools/policy.js";
 
 function readOnlyTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -173,6 +174,88 @@ describe("ToolExecutor", () => {
     expect(result.outputBytes).toBeLessThanOrEqual(8);
   });
 
+  it("denies execution when per-tool policy rejects the caller", async () => {
+    const stores = createStores();
+    try {
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const definition = readOnlyTool();
+      const registry = new ToolRegistry([definition]);
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      const policy = createToolPolicyEngine({
+        definitions: [definition],
+        overrides: {
+          lookup_value: {
+            allowedRoles: ["admin"],
+          },
+        },
+      });
+      const executor = new ToolExecutor(registry, {
+        clock: stores.clock,
+        approvals,
+        policy,
+        handlers: {
+          lookup_value: () => "value",
+        },
+      });
+
+      const result = await executor.execute({
+        id: "call-policy-denied",
+        name: "lookup_value",
+        arguments: {},
+      }, {
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        requestedByUserId: "user-1",
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.errorCode).toBe("role_denied");
+      expect(approvals.listAudit({ decisionCode: "role_denied" })).toHaveLength(1);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("uses policy output caps and dry-run mode", async () => {
+    const definition = readOnlyTool();
+    const registry = new ToolRegistry([definition]);
+    const policy = createToolPolicyEngine({
+      definitions: [definition],
+      overrides: {
+        lookup_value: {
+          dryRun: true,
+          maxOutputBytes: 32,
+        },
+      },
+    });
+    const handler = vi.fn(() => "should not run");
+    const executor = new ToolExecutor(registry, {
+      clock: new FakeClock(),
+      policy,
+      handlers: {
+        lookup_value: handler,
+      },
+    });
+
+    const result = await executor.execute({
+      id: "call-dry-run",
+      name: "lookup_value",
+      arguments: {},
+    });
+
+    expect(result.isError).toBe(false);
+    expect(result.truncated).toBe(true);
+    expect(result.outputBytes).toBeLessThanOrEqual(32);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("requires and consumes approval before executing side-effecting tools", async () => {
     const stores = createStores();
     try {
@@ -226,14 +309,40 @@ describe("ToolExecutor", () => {
       });
       expect(denied.isError).toBe(true);
       expect(denied.errorCode).toBe("approval_required");
+      expect(denied.contentText).toContain("Approval preview:");
+      expect(denied.contentText).toContain("operator requested");
       expect(restartService).not.toHaveBeenCalled();
 
+      const requestFingerprint = createToolRequestFingerprint({
+        toolName: "mottbot_restart_service",
+        arguments: { reason: "operator requested" },
+      });
       approvals.approve({
         sessionKey: "tg:dm:chat-1:user:user-1",
         toolName: "mottbot_restart_service",
         approvedByUserId: "admin-1",
         reason: "approved",
         ttlMs: 60_000,
+        requestFingerprint: "different-request",
+      });
+      const mismatched = await executor.execute(call, {
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        runId: run.runId,
+      });
+      expect(mismatched.isError).toBe(true);
+      expect(mismatched.errorCode).toBe("approval_mismatch");
+      expect(restartService).not.toHaveBeenCalled();
+      approvals.revokeActive({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        toolName: "mottbot_restart_service",
+      });
+      approvals.approve({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        toolName: "mottbot_restart_service",
+        approvedByUserId: "admin-1",
+        reason: "approved",
+        ttlMs: 60_000,
+        requestFingerprint,
       });
       const approved = await executor.execute(call, {
         sessionKey: "tg:dm:chat-1:user:user-1",

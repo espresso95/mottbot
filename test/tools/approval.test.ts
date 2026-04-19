@@ -49,6 +49,7 @@ describe("tool approval design", () => {
       reason: "operator requested restart",
       approvedAt: 100,
       expiresAt: 200,
+      requestFingerprint: "fingerprint-1",
     };
 
     expect(evaluateToolApproval(definition, undefined, 100)).toMatchObject({
@@ -63,7 +64,11 @@ describe("tool approval design", () => {
       allowed: false,
       code: "approval_expired",
     });
-    expect(evaluateToolApproval(definition, approval, 199)).toMatchObject({
+    expect(evaluateToolApproval(definition, approval, 199, "fingerprint-2")).toMatchObject({
+      allowed: false,
+      code: "approval_mismatch",
+    });
+    expect(evaluateToolApproval(definition, approval, 199, "fingerprint-1")).toMatchObject({
       allowed: true,
       code: "approved",
     });
@@ -127,12 +132,18 @@ describe("tool approval design", () => {
         approvedByUserId: "8323483502",
         reason: "test restart",
         ttlMs: 60_000,
+        requestFingerprint: "request-1",
+        previewText: "Tool: mottbot_restart_service\nArguments:\n{}",
       });
 
       expect(store.findActive({
         sessionKey: approval.sessionKey,
         toolName: approval.toolName,
-      })).toMatchObject({ id: approval.id });
+      })).toMatchObject({
+        id: approval.id,
+        requestFingerprint: "request-1",
+        previewText: expect.stringContaining("Tool:"),
+      });
       expect(store.listActive(approval.sessionKey)).toHaveLength(1);
       store.recordAudit({
         toolName: approval.toolName,
@@ -144,12 +155,41 @@ describe("tool approval design", () => {
         sessionKey: approval.sessionKey,
         approvedByUserId: approval.approvedByUserId,
         reason: approval.reason,
+        requestFingerprint: approval.requestFingerprint,
+        previewText: approval.previewText,
       });
+      expect(store.findLatestPendingRequest({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+      })).toBeUndefined();
       expect(
         stores.database.db
           .prepare("select count(*) as count from tool_approval_audit")
           .get(),
       ).toEqual({ count: 1 });
+      store.recordAudit({
+        toolName: approval.toolName,
+        sideEffect: "process_control",
+        allowed: false,
+        decisionCode: "approval_required",
+        requestedAt: stores.clock.now(),
+        decidedAt: stores.clock.now(),
+        sessionKey: approval.sessionKey,
+        requestFingerprint: "request-2",
+        previewText: "Tool: mottbot_restart_service\nArguments:\n{}",
+      });
+      expect(store.findLatestPendingRequest({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+      })).toMatchObject({
+        decisionCode: "approval_required",
+        requestFingerprint: "request-2",
+      });
+      expect(store.listAudit({
+        sessionKey: approval.sessionKey,
+        toolName: approval.toolName,
+        decisionCode: "approval_required",
+      })).toHaveLength(1);
       expect(store.consume(approval.id)).toBe(true);
       expect(store.findActive({
         sessionKey: approval.sessionKey,

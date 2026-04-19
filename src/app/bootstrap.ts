@@ -29,6 +29,7 @@ import { createRuntimeToolRegistry } from "../tools/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { ToolApprovalStore } from "../tools/approval.js";
 import { scheduleServiceRestart } from "../tools/process-control.js";
+import { createToolPolicyEngine } from "../tools/policy.js";
 import { MemoryStore } from "../sessions/memory-store.js";
 import { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import { ApplicationInstanceLease } from "./instance-lease.js";
@@ -87,6 +88,10 @@ export async function bootstrapApplication() {
   const toolRegistry = createRuntimeToolRegistry({
     enableSideEffectTools: config.tools.enableSideEffectTools,
   });
+  const toolPolicy = createToolPolicyEngine({
+    definitions: toolRegistry.listEnabled(),
+    overrides: config.tools.policies,
+  });
   const toolExecutor = new ToolExecutor(toolRegistry, {
     clock: systemClock,
     health,
@@ -96,6 +101,7 @@ export async function bootstrapApplication() {
     },
     adminUserIds: config.telegram.adminUserIds,
     approvals: toolApprovalStore,
+    policy: toolPolicy,
     defaultRestartDelayMs: config.tools.restartDelayMs,
     restartService: ({ reason, delayMs }) =>
       scheduleServiceRestart({
@@ -154,6 +160,7 @@ export async function bootstrapApplication() {
     codexModelCapabilities,
     reactions,
     attachmentRecordStore,
+    toolPolicy,
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
@@ -171,6 +178,7 @@ export async function bootstrapApplication() {
     memoryStore,
     diagnostics,
     attachmentRecordStore,
+    toolPolicy,
   );
   const bot = new TelegramBotServer(
     config,

@@ -23,14 +23,14 @@ This design is intentionally Telegram-first. It keeps the runtime focused and av
 - The implementation should prefer existing Codex runtime/auth behavior from `@mariozechner/pi-ai` instead of re-implementing undocumented protocol details.
 - The system is initially single-instance and host-local.
 - SQLite is the primary store.
-- Telegram is the only user-facing transport in v1.
+- Telegram is the only user-facing transport in the current runtime.
 
 ## Non-Goals
 
-- No multi-channel adapter layer in v1.
-- No plugin marketplace or generalized extension loader in v1.
-- No distributed worker fleet in v1.
-- No broad enterprise admin surface in v1.
+- No multi-channel adapter layer in the current runtime.
+- No plugin marketplace or generalized extension loader in the current runtime.
+- No distributed worker fleet in the current runtime.
+- No broad enterprise admin surface in the current runtime.
 
 ## Product Shape
 
@@ -179,7 +179,7 @@ Rules:
   - message replies to a bot message
   - chat is explicitly bound to always-on mode
   - message is an admin command
-- channels: unsupported in v1
+- channels: unsupported in the current runtime
 
 Additional rules:
 
@@ -656,7 +656,7 @@ Formatting:
 
 - preserve code blocks
 - avoid HTML mode unless necessary
-- escape MarkdownV2 correctly if using Markdown mode
+- escape Telegram Markdown formatting correctly if using Markdown mode
 - default to plain text plus fenced code blocks
 
 Streaming:
@@ -800,10 +800,10 @@ Ordering constraints:
 
 - Phase 11 should happen before additional user-facing capabilities so discovery does not lag implementation.
 - Phase 12 should precede broader Telegram UI/action tools so reaction policy, update routing, and side-effect approval patterns are established first.
-- Phase 14 must happen before broad repository tools or any write-capable tool.
+- Phase 14 is required before broad repository tools or any write-capable tool.
 - Phase 15 should precede Phase 16 so local repository inspection patterns are established before remote GitHub context.
 - Phase 21 should precede Phase 22 so model and cost policy can attach to roles and chat governance.
-- Phase 20 should not begin until the approval preview, policy, and audit requirements from Phase 14 are complete.
+- Phase 20 should not begin without the approval preview, policy, and audit requirements from Phase 14.
 
 ### Phase 11: command discovery and conversation UX
 
@@ -859,7 +859,7 @@ Implemented notes:
 - `attachment_records` stores retained metadata and extraction summaries for `/files`
 - unsupported binaries and unreadable PDFs remain explicit metadata rather than leaking local cache paths or Telegram file URLs
 
-### Phase 14: tool permission model v2
+### Phase 14: tool permission model
 
 Design intent:
 
@@ -867,6 +867,11 @@ Design intent:
 - make every side effect explain itself before approval
 - audit every approve, deny, expire, consume, and execute decision
 - keep deny-by-default behavior for missing policy
+
+Status:
+
+- complete for enabled runtime tools
+- policy is loaded from config, declarations are filtered by role and chat, execution rechecks policy, previews are sanitized, and `/tool audit` exposes bounded admin inspection
 
 Core policy dimensions:
 
@@ -908,7 +913,7 @@ Initial surfaces:
 - admin commands for concise repository and CI status
 - mocked tests by default, optional live read-only validation
 
-### Phase 17: operator dashboard v2
+### Phase 17: operator dashboard
 
 Design intent:
 

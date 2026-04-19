@@ -200,17 +200,28 @@ Current side-effecting tool:
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 - `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
 
+Optional per-tool policy:
+
+```bash
+MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
+```
+
+Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Admin-only tool definitions remain admin-only even if policy config attempts to expose them to normal users.
+
 Approval flow:
 
-1. An admin approves a tool for the current session:
+1. The model requests a side-effecting tool call and receives an approval-required denial with a sanitized preview.
+2. An admin approves the latest pending request for the current session:
 
    ```text
    /tool approve mottbot_restart_service planned restart
    ```
 
-2. The next matching model tool call in that session consumes the approval.
-3. The bot records an audit row in SQLite.
-4. The restart tool schedules a delayed service restart, using `MOTTBOT_RESTART_TOOL_DELAY_MS` or the tool input delay.
+3. The next matching model tool call in that session consumes the approval.
+4. The bot records audit rows in SQLite.
+5. The restart tool schedules a delayed service restart, using `MOTTBOT_RESTART_TOOL_DELAY_MS` or the tool input delay.
+
+If an approval was created from a pending preview, the approval is bound to that request fingerprint and cannot be reused for different arguments.
 
 Useful commands:
 
@@ -220,11 +231,13 @@ Useful commands:
 - `/tools`
 - `/tool approve <tool-name> <reason>`
 - `/tool revoke <tool-name>`
+- `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 - `/runs [limit] [here]` lists recent runs for admins; add `here` to filter to the current session
 - `/debug [summary|service|runs|errors|logs|config]` shows admin diagnostics
 - `/help` shows commands available to the current caller
 - `/tool status` shows the model-exposed tool declarations for the caller, enabled host tools, and active approvals for the current session
 - `/tool help` and `/tools` explain tool commands for the current caller
+- `/tool audit` lists bounded recent tool policy and approval decisions for admins
 - `/remember <fact>` stores long-term memory for the current session
 - `/memory` lists current session memory
 - `/forget <memory-id-prefix|all|auto>` removes memory

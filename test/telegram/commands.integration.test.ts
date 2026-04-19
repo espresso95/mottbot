@@ -711,6 +711,10 @@ describe("TelegramCommandRouter", () => {
     );
     await router.maybeHandle(createInboundEvent({ text: "/tool status", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/tool status", fromUserId: "user-1", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({ text: "/tool audit here code:operator_approved", fromUserId: "admin-1", isCommand: true }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/tool audit", fromUserId: "user-1", isCommand: true }));
 
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
@@ -736,5 +740,15 @@ describe("TelegramCommandRouter", () => {
     expect(nonAdminExposed).toContain("mottbot_health_snapshot");
     expect(nonAdminExposed).not.toContain("mottbot_recent_runs");
     expect(nonAdminExposed).not.toContain("mottbot_restart_service");
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("operator_approved"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only configured admins can inspect tool audit records.",
+      expect.any(Object),
+    );
   });
 });

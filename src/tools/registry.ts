@@ -47,6 +47,7 @@ export type ModelToolDeclaration = {
 
 export type ModelToolDeclarationOptions = {
   includeAdminTools?: boolean;
+  filter?: (definition: ToolDefinition) => boolean;
 };
 
 export type ToolRegistryErrorCode =
@@ -399,6 +400,7 @@ export class ToolRegistry {
   listModelDeclarations(options: ModelToolDeclarationOptions = {}): ModelToolDeclaration[] {
     return this.listEnabled()
       .filter((definition) => options.includeAdminTools === true || definition.requiresAdmin !== true)
+      .filter((definition) => options.filter?.(definition) ?? true)
       .map((definition) => ({
         name: definition.name,
         description: definition.description,

@@ -7,8 +7,17 @@ import { ToolRegistry, ToolRegistryError, type ToolDefinition } from "./registry
 import {
   buildToolApprovalAuditRecord,
   evaluateToolApproval,
+  type ToolApprovalDecision,
   type ToolApprovalStore,
 } from "./approval.js";
+import {
+  buildToolApprovalPreview,
+  createToolPolicyEngine,
+  createToolRequestFingerprint,
+  type ToolCallerRole,
+  type ToolPolicy,
+  type ToolPolicyEngine,
+} from "./policy.js";
 
 export type ToolExecutionResult = {
   toolCallId: string;
@@ -39,6 +48,7 @@ export type ToolExecutorDependencies = {
   health?: HealthReporter;
   handlers?: Partial<Record<string, ToolHandler>>;
   approvals?: ToolApprovalStore;
+  policy?: ToolPolicyEngine;
   restartService?: RestartServiceHandler;
   defaultRestartDelayMs?: number;
   adminUserIds?: string[];
@@ -49,6 +59,7 @@ export type ToolExecutionOptions = {
   sessionKey?: string;
   runId?: string;
   requestedByUserId?: string;
+  chatId?: string;
 };
 
 type TimedHandlerResult =
@@ -64,11 +75,13 @@ type TimedHandlerResult =
 
 export class ToolExecutor {
   private readonly handlers = new Map<string, ToolHandler>();
+  private readonly policy: ToolPolicyEngine;
 
   constructor(
     private readonly registry: ToolRegistry,
     private readonly deps: ToolExecutorDependencies,
   ) {
+    this.policy = deps.policy ?? createToolPolicyEngine({ definitions: registry.listEnabled() });
     const health = deps.health;
     if (health) {
       this.handlers.set("mottbot_health_snapshot", () => health.snapshot());
@@ -96,14 +109,78 @@ export class ToolExecutor {
     try {
       const definition = this.registry.resolve(call.name, { allowSideEffects: true });
       const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
-      if (definition.requiresAdmin && !this.isAdmin(options.requestedByUserId)) {
-        return this.errorResult(call, startedAt, "admin_required", `Tool ${call.name} requires a configured admin user.`);
+      const role = this.callerRole(options.requestedByUserId);
+      const policyDecision = this.policy.evaluate(definition, {
+        role,
+        chatId: options.chatId,
+      });
+      if (!policyDecision.allowed) {
+        this.recordAudit({
+          definition,
+          decision: {
+            allowed: false,
+            code: policyDecision.code,
+            message: policyDecision.message,
+          },
+          requestedAt: startedAt,
+          decidedAt: this.deps.clock.now(),
+          options,
+        });
+        return this.errorResult(call, startedAt, policyDecision.code, policyDecision.message);
+      }
+      if (definition.requiresAdmin && role !== "admin") {
+        const decision: ToolApprovalDecision = {
+          allowed: false,
+          code: "role_denied",
+          message: `Tool ${call.name} requires a configured admin user.`,
+        };
+        this.recordAudit({
+          definition,
+          decision,
+          requestedAt: startedAt,
+          decidedAt: this.deps.clock.now(),
+          options,
+        });
+        return this.errorResult(call, startedAt, decision.code, decision.message);
+      }
+      const requestFingerprint = createToolRequestFingerprint({
+        toolName: definition.name,
+        arguments: input,
+      });
+      const previewText = buildToolApprovalPreview({
+        definition,
+        policy: policyDecision.policy,
+        arguments: input,
+      });
+      if (policyDecision.policy.dryRun) {
+        this.recordAudit({
+          definition,
+          decision: {
+            allowed: true,
+            code: "policy_allowed",
+            message: `Tool ${call.name} is configured for dry run only.`,
+          },
+          requestedAt: startedAt,
+          decidedAt: this.deps.clock.now(),
+          options,
+          requestFingerprint,
+          previewText,
+        });
+        return this.successResult(
+          call,
+          startedAt,
+          policyDecision.policy.maxOutputBytes,
+          `Dry run only. No side effects executed.\n\n${previewText}`,
+        );
       }
       const approval = this.evaluateApproval({
         definition,
+        policy: policyDecision.policy,
         call,
         startedAt,
         options,
+        requestFingerprint,
+        previewText,
       });
       if (approval) {
         return approval;
@@ -124,7 +201,7 @@ export class ToolExecutor {
       if (!handled.ok) {
         return this.errorResult(call, startedAt, handled.code, handled.message);
       }
-      return this.successResult(call, startedAt, definition, handled.value);
+      return this.successResult(call, startedAt, policyDecision.policy.maxOutputBytes, handled.value);
     } catch (error) {
       const code = error instanceof ToolRegistryError ? error.code : "tool_failed";
       return this.errorResult(call, startedAt, code, getErrorMessage(error));
@@ -135,14 +212,35 @@ export class ToolExecutor {
     return Boolean(userId && this.deps.adminUserIds?.includes(userId));
   }
 
+  private callerRole(userId: string | undefined): ToolCallerRole {
+    return this.isAdmin(userId) ? "admin" : "user";
+  }
+
   private evaluateApproval(params: {
     definition: ToolDefinition;
+    policy: ToolPolicy;
     call: CodexToolCall;
     startedAt: number;
     options: ToolExecutionOptions;
+    requestFingerprint: string;
+    previewText: string;
   }): ToolExecutionResult | undefined {
-    const definition = params.definition;
-    if (definition.sideEffect === "read_only") {
+    if (!params.policy.requiresApproval) {
+      if (params.definition.sideEffect !== "read_only") {
+        this.recordAudit({
+          definition: params.definition,
+          decision: {
+            allowed: true,
+            code: "policy_allowed",
+            message: `Tool ${params.definition.name} is allowed without per-call approval by policy.`,
+          },
+          requestedAt: params.startedAt,
+          decidedAt: this.deps.clock.now(),
+          options: params.options,
+          requestFingerprint: params.requestFingerprint,
+          previewText: params.previewText,
+        });
+      }
       return undefined;
     }
     const now = this.deps.clock.now();
@@ -150,29 +248,57 @@ export class ToolExecutor {
       params.options.sessionKey && this.deps.approvals
         ? this.deps.approvals.findActive({
             sessionKey: params.options.sessionKey,
-            toolName: definition.name,
+            toolName: params.definition.name,
             now,
           })
         : undefined;
-    const decision = evaluateToolApproval(definition, activeApproval, now);
-    this.deps.approvals?.recordAudit(
-      buildToolApprovalAuditRecord({
-        definition,
-        decision,
-        requestedAt: params.startedAt,
-        decidedAt: now,
-        approval: activeApproval,
-        sessionKey: params.options.sessionKey,
-        runId: params.options.runId,
-      }),
-    );
+    const decision = evaluateToolApproval(params.definition, activeApproval, now, params.requestFingerprint);
+    this.recordAudit({
+      definition: params.definition,
+      decision,
+      requestedAt: params.startedAt,
+      decidedAt: now,
+      options: params.options,
+      approval: activeApproval,
+      requestFingerprint: params.requestFingerprint,
+      previewText: params.previewText,
+    });
     if (!decision.allowed) {
-      return this.errorResult(params.call, params.startedAt, decision.code, decision.message);
+      const message =
+        decision.code === "approval_required"
+          ? `${decision.message}\n\nApproval preview:\n${params.previewText}`
+          : decision.message;
+      return this.errorResult(params.call, params.startedAt, decision.code, message);
     }
     if (activeApproval) {
       this.deps.approvals?.consume(activeApproval.id, now);
     }
     return undefined;
+  }
+
+  private recordAudit(params: {
+    definition: ToolDefinition;
+    decision: ToolApprovalDecision;
+    requestedAt: number;
+    decidedAt: number;
+    options: ToolExecutionOptions;
+    approval?: Parameters<typeof buildToolApprovalAuditRecord>[0]["approval"];
+    requestFingerprint?: string;
+    previewText?: string;
+  }): void {
+    this.deps.approvals?.recordAudit(
+      buildToolApprovalAuditRecord({
+        definition: params.definition,
+        decision: params.decision,
+        requestedAt: params.requestedAt,
+        decidedAt: params.decidedAt,
+        approval: params.approval,
+        sessionKey: params.options.sessionKey,
+        runId: params.options.runId,
+        requestFingerprint: params.requestFingerprint,
+        previewText: params.previewText,
+      }),
+    );
   }
 
   toToolResultMessage(result: ToolExecutionResult): ToolResultMessage {
@@ -225,11 +351,11 @@ export class ToolExecutor {
   private successResult(
     call: CodexToolCall,
     startedAt: number,
-    definition: ToolDefinition,
+    maxOutputBytes: number,
     value: unknown,
   ): ToolExecutionResult {
     const text = formatToolOutput(value);
-    const limited = limitUtf8Bytes(text, definition.maxOutputBytes);
+    const limited = limitUtf8Bytes(text, maxOutputBytes);
     return {
       toolCallId: call.id,
       toolName: call.name,

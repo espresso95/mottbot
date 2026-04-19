@@ -49,6 +49,7 @@ const configEnvKeys = [
   "MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS",
   "MOTTBOT_TOOL_APPROVAL_TTL_MS",
   "MOTTBOT_RESTART_TOOL_DELAY_MS",
+  "MOTTBOT_TOOL_POLICIES_JSON",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
   "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
@@ -98,7 +99,15 @@ describe("loadConfig", () => {
         },
         behavior: { maxInboundTextChars: 2000 },
         dashboard: { enabled: false, port: 9091 },
-        tools: { approvalTtlMs: 10_000 },
+        tools: {
+          approvalTtlMs: 10_000,
+          policies: {
+            mottbot_recent_runs: {
+              allowedRoles: ["admin"],
+              maxOutputBytes: 1_000,
+            },
+          },
+        },
         runtime: { instanceLeaseEnabled: false },
         memory: { autoSummaryRecentMessages: 16 },
       }),
@@ -112,6 +121,14 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_DASHBOARD_HOST = "0.0.0.0";
     process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS = "true";
     process.env.MOTTBOT_RESTART_TOOL_DELAY_MS = "30000";
+    process.env.MOTTBOT_TOOL_POLICIES_JSON = JSON.stringify({
+      mottbot_health_snapshot: {
+        allowedRoles: ["admin", "user"],
+        allowedChatIds: ["chat-1"],
+        requiresApproval: false,
+        maxOutputBytes: 1234,
+      },
+    });
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
@@ -145,6 +162,14 @@ describe("loadConfig", () => {
     expect(config.tools.enableSideEffectTools).toBe(true);
     expect(config.tools.approvalTtlMs).toBe(10_000);
     expect(config.tools.restartDelayMs).toBe(30_000);
+    expect(config.tools.policies).toEqual({
+      mottbot_health_snapshot: {
+        allowedRoles: ["admin", "user"],
+        allowedChatIds: ["chat-1"],
+        requiresApproval: false,
+        maxOutputBytes: 1234,
+      },
+    });
     expect(config.runtime.instanceLeaseEnabled).toBe(false);
     expect(config.memory.autoSummariesEnabled).toBe(true);
     expect(config.memory.autoSummaryRecentMessages).toBe(16);

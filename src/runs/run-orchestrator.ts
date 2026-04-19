@@ -36,6 +36,7 @@ import {
   type TranscriptAttachmentMetadata,
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
+import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
@@ -129,6 +130,7 @@ export class RunOrchestrator {
     private readonly modelCapabilities: ModelCapabilities = codexModelCapabilities,
     private readonly reactions?: TelegramReactionService,
     private readonly attachmentRecords?: AttachmentRecordStore,
+    private readonly toolPolicy?: ToolPolicyEngine,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -336,9 +338,17 @@ export class RunOrchestrator {
       const includeAdminTools = Boolean(
         params.event.fromUserId && this.config.telegram.adminUserIds.includes(params.event.fromUserId),
       );
+      const callerRole: ToolCallerRole = includeAdminTools ? "admin" : "user";
       const toolDeclarations =
         this.toolRegistry && this.toolExecutor
-          ? this.toolRegistry.listModelDeclarations({ includeAdminTools })
+          ? this.toolRegistry.listModelDeclarations({
+              includeAdminTools,
+              filter: (definition) =>
+                this.toolPolicy?.evaluate(definition, {
+                  role: callerRole,
+                  chatId: params.event.chatId,
+                }).allowed ?? true,
+            })
           : undefined;
       const extraContextMessages: ProviderMessage[] = [];
       const executedToolResults: ToolExecutionResult[] = [];
@@ -403,6 +413,7 @@ export class RunOrchestrator {
             sessionKey: params.session.sessionKey,
             runId: run.runId,
             requestedByUserId: params.event.fromUserId,
+            chatId: params.event.chatId,
           });
           executedToolResults.push(execution);
           this.transcripts.add({

@@ -22,6 +22,7 @@ Configuration comes from three layers:
 - `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS`
 - `MOTTBOT_TOOL_APPROVAL_TTL_MS`
 - `MOTTBOT_RESTART_TOOL_DELAY_MS`
+- `MOTTBOT_TOOL_POLICIES_JSON`
 - `MOTTBOT_INSTANCE_LEASE_ENABLED`
 - `MOTTBOT_DEFAULT_MODEL`
 - `MOTTBOT_TRANSPORT`
@@ -78,7 +79,8 @@ Current defaults:
   "tools": {
     "enableSideEffectTools": false,
     "approvalTtlMs": 300000,
-    "restartDelayMs": 60000
+    "restartDelayMs": 60000,
+    "policies": {}
   },
   "runtime": {
     "instanceLeaseEnabled": true,
@@ -374,6 +376,8 @@ Notable fields:
 - `reason`
 - `approved_at`
 - `expires_at`
+- `request_fingerprint`
+- `preview_text`
 - `consumed_at`
 
 ### `tool_approval_audit`
@@ -392,6 +396,10 @@ Notable fields:
 - `decision_code`
 - `approved_by_user_id`
 - `reason`
+- `request_fingerprint`
+- `preview_text`
+
+Audit rows store sanitized previews only. They must not contain bearer tokens, refresh tokens, bot tokens, raw auth payloads, or local secret file contents.
 
 ### `session_memories`
 

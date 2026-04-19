@@ -24,7 +24,7 @@ The repo is intentionally narrow and does not include a generic plugin or multi-
 - no multi-channel adapter layer
 - no distributed worker fleet
 - no plugin discovery system
-- no direct public bot product posture in v1
+- no direct public bot product posture
 - no general OpenAI API key path as the primary integration
 
 ## System Context
