@@ -239,4 +239,4 @@ If `/health` works but model responses fail, inspect:
 - Keep `.env` permission-restricted with `chmod 600 .env`.
 - Keep `MOTTBOT_MASTER_KEY` stable for the same SQLite database. Changing it prevents decrypting existing auth profile tokens.
 - Do not run multiple polling instances with the same token.
-- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need operator-approved tools such as `mottbot_restart_service`.
+- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need admin-only, operator-approved tools such as `mottbot_restart_service`.

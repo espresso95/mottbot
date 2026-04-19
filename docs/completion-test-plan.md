@@ -21,7 +21,7 @@ As of April 19, 2026:
 - Phase 7.1 observability is implemented for queued/active/stale outbox health counters and safe structured run lifecycle logs.
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
-- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
+- Phase 9 is complete for the read-only v1 tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
 
 ## Current Baseline
@@ -42,7 +42,7 @@ Current known gaps:
 - Native attachment ingestion is limited to image inputs for models that advertise image support; unsupported files remain text metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
-- Model-executed tools are limited to the health snapshot and the opt-in delayed restart tool. Other side-effect categories remain disabled.
+- Model-executed tools are limited to the health snapshot, admin diagnostics, and the admin-only opt-in delayed restart tool. Other side-effect categories remain disabled.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -502,7 +502,7 @@ Deliverables:
 - Define approval prompts for local writes, network calls, and process-control tools.
 - Add expiration for pending approvals.
 - Add audit records for approved and denied calls.
-- Keep side-effecting tools disabled by default and expose the restart tool only when the host opts in.
+- Keep side-effecting tools disabled by default and expose the restart tool only to admin callers when the host opts in.
 
 ## Phase 10: Post-V1 Backlog
 

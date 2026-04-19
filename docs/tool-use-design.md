@@ -73,7 +73,7 @@ Disabled reserved tools:
 
 | Tool | Side effect | Status | Reason |
 | --- | --- | --- | --- |
-| `mottbot_restart_service` | `process_control` | opt-in | Exposed only when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
+| `mottbot_restart_service` | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
 
 Registry behavior:
 
@@ -82,6 +82,7 @@ Registry behavior:
 - enabled tools with side effects are rejected at registry construction time unless the runtime explicitly opts into side-effect definitions
 - input payloads are validated against the declared JSON-schema subset before execution
 - operator diagnostics tools are marked admin-only even though they are read-only
+- the restart tool is admin-only in addition to requiring a fresh approval
 
 ## Runtime Behavior
 

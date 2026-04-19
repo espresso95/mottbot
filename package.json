@@ -36,6 +36,7 @@
     "grammy": "^1.38.3",
     "open": "^10.2.0",
     "pino": "^9.7.0",
+    "punycode": "^2.3.1",
     "telegram": "^2.26.22",
     "zod": "^3.25.76"
   },
@@ -55,6 +56,10 @@
     ],
     "onlyBuiltDependencies": [
       "better-sqlite3"
-    ]
+    ],
+    "patchedDependencies": {
+      "whatwg-url@5.0.0": "patches/whatwg-url@5.0.0.patch",
+      "tr46@0.0.3": "patches/tr46@0.0.3.patch"
+    }
   }
 }

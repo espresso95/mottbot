@@ -1,0 +1,11 @@
+diff --git a/lib/url-state-machine.js b/lib/url-state-machine.js
+index c25dbc2c486289fbd7446baed24dc6343f0226f6..7aa62ad28f0ccefc52f861adcd45d240c27f5fc9 100644
+--- a/lib/url-state-machine.js
++++ b/lib/url-state-machine.js
+@@ -1,5 +1,5 @@
+ "use strict";
+-const punycode = require("punycode");
++const punycode = require("punycode/");
+ const tr46 = require("tr46");
+ 
+ const specialSchemes = {

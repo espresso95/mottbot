@@ -204,6 +204,7 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     maxOutputBytes: 8_000,
     sideEffect: "process_control",
     enabled: false,
+    requiresAdmin: true,
   },
 ] as const;
 

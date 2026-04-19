@@ -463,11 +463,17 @@ export class TelegramCommandRouter {
     }
     if (!sub || sub === "status") {
       const tools = this.toolRegistry.listEnabled();
+      const exposedTools = this.toolRegistry.listModelDeclarations({
+        includeAdminTools: this.isAdmin(event),
+      });
       const approvals = this.toolApprovals.listActive(session.sessionKey);
       await sendReply(
         this.api,
         event,
         [
+          exposedTools.length > 0
+            ? `Model-exposed tools for this caller:\n${exposedTools.map((tool) => `- ${tool.name}`).join("\n")}`
+            : "No model-exposed tools for this caller.",
           tools.length > 0
             ? `Enabled tools:\n${tools.map((tool) => `- ${tool.name} (${tool.sideEffect})`).join("\n")}`
             : "No enabled tools.",

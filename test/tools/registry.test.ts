@@ -110,7 +110,10 @@ describe("ToolRegistry", () => {
     const runtimeRegistry = createRuntimeToolRegistry({ enableSideEffectTools: true });
 
     expect(registry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
-    expect(runtimeRegistry.listModelDeclarations().map((tool) => tool.name)).toContain("mottbot_restart_service");
+    expect(runtimeRegistry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
+    expect(runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toContain(
+      "mottbot_restart_service",
+    );
   });
 
   it("accepts disabled side-effecting tool definitions without exposing them", () => {

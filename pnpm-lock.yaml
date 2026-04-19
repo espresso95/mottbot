@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  tr46@0.0.3:
+    hash: 590c3747afb00f7a520333c468e2cd15da5f896533777a88f94bbce8cd755aac
+    path: patches/tr46@0.0.3.patch
+  whatwg-url@5.0.0:
+    hash: 8ce074ebd750c8c278955c4e9c5a2ae15c8fc9ca2d08d6cb65e452ccb9ca7a47
+    path: patches/whatwg-url@5.0.0.patch
+
 importers:
 
   .:
@@ -26,6 +34,9 @@ importers:
       pino:
         specifier: ^9.7.0
         version: 9.14.0
+      punycode:
+        specifier: ^2.3.1
+        version: 2.3.1
       telegram:
         specifier: ^2.26.22
         version: 2.26.22
@@ -1472,6 +1483,10 @@ packages:
 
   pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
+
+  punycode@2.3.1:
+    resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
+    engines: {node: '>=6'}
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -3348,7 +3363,7 @@ snapshots:
 
   node-fetch@2.7.0:
     dependencies:
-      whatwg-url: 5.0.0
+      whatwg-url: 5.0.0(patch_hash=8ce074ebd750c8c278955c4e9c5a2ae15c8fc9ca2d08d6cb65e452ccb9ca7a47)
 
   node-fetch@3.3.2:
     dependencies:
@@ -3496,6 +3511,8 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+
+  punycode@2.3.1: {}
 
   quick-format-unescaped@4.0.4: {}
 
@@ -3659,7 +3676,7 @@ snapshots:
 
   tinyrainbow@3.1.0: {}
 
-  tr46@0.0.3: {}
+  tr46@0.0.3(patch_hash=590c3747afb00f7a520333c468e2cd15da5f896533777a88f94bbce8cd755aac): {}
 
   ts-algebra@2.0.0: {}
 
@@ -3752,9 +3769,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  whatwg-url@5.0.0:
+  whatwg-url@5.0.0(patch_hash=8ce074ebd750c8c278955c4e9c5a2ae15c8fc9ca2d08d6cb65e452ccb9ca7a47):
     dependencies:
-      tr46: 0.0.3
+      tr46: 0.0.3(patch_hash=590c3747afb00f7a520333c468e2cd15da5f896533777a88f94bbce8cd755aac)
       webidl-conversions: 3.0.1
 
   why-is-node-running@2.3.0:

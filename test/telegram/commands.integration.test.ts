@@ -518,6 +518,7 @@ describe("TelegramCommandRouter", () => {
       }),
     );
     await router.maybeHandle(createInboundEvent({ text: "/tool status", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/tool status", fromUserId: "user-1", isCommand: true }));
 
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
@@ -527,8 +528,21 @@ describe("TelegramCommandRouter", () => {
     expect(approvals.listActive("tg:dm:chat-1:user:admin-1")).toHaveLength(1);
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      expect.stringContaining("Active approvals"),
+      expect.stringContaining("mottbot_restart_service"),
       expect.any(Object),
     );
+    const statusReplies = vi
+      .mocked(api.sendMessage)
+      .mock.calls.map(([, text]) => text)
+      .filter((text): text is string => typeof text === "string" && text.includes("Model-exposed tools"));
+    const modelExposedSection = (text: string) => text.split("\n\nEnabled tools:")[0] ?? text;
+    const adminExposed = modelExposedSection(statusReplies[0] ?? "");
+    const nonAdminExposed = modelExposedSection(statusReplies[1] ?? "");
+    expect(adminExposed).toContain("mottbot_recent_runs");
+    expect(adminExposed).toContain("mottbot_restart_service");
+    expect(statusReplies[0]).toContain("Active approvals");
+    expect(nonAdminExposed).toContain("mottbot_health_snapshot");
+    expect(nonAdminExposed).not.toContain("mottbot_recent_runs");
+    expect(nonAdminExposed).not.toContain("mottbot_restart_service");
   });
 });

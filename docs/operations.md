@@ -197,7 +197,7 @@ MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
 
 Current side-effecting tool:
 
-- `mottbot_restart_service`: schedules a delayed local launchd restart
+- `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 
 Approval flow:
 
@@ -218,6 +218,7 @@ Useful commands:
 - `/tool revoke <tool-name>`
 - `/runs [limit] [here]` lists recent runs for admins; add `here` to filter to the current session
 - `/debug [summary|service|runs|errors|logs|config]` shows admin diagnostics
+- `/tool status` shows the model-exposed tool declarations for the caller, enabled host tools, and active approvals for the current session
 - `/remember <fact>` stores long-term memory for the current session
 - `/memory` lists current session memory
 - `/forget <memory-id-prefix|all|auto>` removes memory
