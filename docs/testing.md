@@ -51,7 +51,7 @@ pnpm test:coverage
 Verified locally on April 19, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 32 test files, 76 tests passing
+- `pnpm test`: 32 test files, 79 tests passing
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 
@@ -173,6 +173,8 @@ The current suite catches several subtle behaviors that matter in production:
 - transport fallback does not rerun a request after partial stream progress
 - degraded SSE backoff remains active after a successful fallback
 - unknown profiles are rejected instead of poisoning future runs
+- unknown model refs and unsafe command arguments are rejected before mutating session settings
+- non-admin group commands and disallowed-chat commands are rejected before route creation
 - interrupted runs are recovered as failed on restart
 - processed Telegram updates are deduplicated durably
 - webhook mode configures the local server and Telegram webhook registration correctly

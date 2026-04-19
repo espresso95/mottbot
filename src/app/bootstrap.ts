@@ -95,6 +95,7 @@ export async function bootstrapApplication() {
     tokenResolver,
     transport,
     outbox,
+    systemClock,
     logger,
   );
   const commands = new TelegramCommandRouter(

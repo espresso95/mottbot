@@ -2,6 +2,7 @@ import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
 import { importCodexCliAuthProfile } from "../codex/cli-auth-import.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
+import { isKnownCodexModelRef } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
 import { fetchCodexUsage } from "../codex/usage.js";
 import type { SessionStore } from "../sessions/session-store.js";
@@ -21,6 +22,22 @@ function parseCommand(text: string): ParsedCommand {
     args: rest,
     raw: trimmed,
   };
+}
+
+const PROFILE_ID_PATTERN = /^[A-Za-z0-9:_./-]{1,128}$/;
+const MAX_BINDING_NAME_LENGTH = 64;
+
+function normalizeSingleArg(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeBindingName(raw: string[]): string {
+  return raw.join(" ").replace(/\s+/g, " ").trim() || "here";
+}
+
+function validateBindingName(value: string): boolean {
+  return value.length <= MAX_BINDING_NAME_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 async function sendReply(
@@ -55,6 +72,9 @@ export class TelegramCommandRouter {
       return false;
     }
     const parsed = parseCommand(raw);
+    if (await this.rejectUnauthorizedCommand(event)) {
+      return true;
+    }
     const session = this.routes.resolve(event);
 
     switch (parsed.command) {
@@ -90,16 +110,26 @@ export class TelegramCommandRouter {
         return true;
       }
       case "model": {
-        if (!parsed.args[0]) {
+        const nextModelRef = normalizeSingleArg(parsed.args[0]);
+        if (!nextModelRef) {
           await sendReply(this.api, event, "Usage: /model <provider/model>");
           return true;
         }
-        this.sessions.setModelRef(session.sessionKey, parsed.args[0]);
-        await sendReply(this.api, event, `Model set to ${parsed.args[0]}.`);
+        if (!isKnownCodexModelRef(nextModelRef)) {
+          await sendReply(
+            this.api,
+            event,
+            `Unknown model ${nextModelRef}. Supported models: openai-codex/gpt-5.4, openai-codex/gpt-5.4-mini, openai-codex/gpt-5.3-codex-spark.`,
+          );
+          return true;
+        }
+        this.sessions.setModelRef(session.sessionKey, nextModelRef);
+        await sendReply(this.api, event, `Model set to ${nextModelRef}.`);
         return true;
       }
       case "profile": {
-        if (!parsed.args[0]) {
+        const nextProfileId = normalizeSingleArg(parsed.args[0]);
+        if (!nextProfileId) {
           const profiles = this.authProfiles.list();
           await sendReply(
             this.api,
@@ -110,7 +140,10 @@ export class TelegramCommandRouter {
           );
           return true;
         }
-        const nextProfileId = parsed.args[0];
+        if (!PROFILE_ID_PATTERN.test(nextProfileId)) {
+          await sendReply(this.api, event, "Invalid profile ID. Use 1-128 letters, numbers, dots, slashes, underscores, colons, or hyphens.");
+          return true;
+        }
         if (!this.authProfiles.get(nextProfileId)) {
           await sendReply(this.api, event, `Unknown profile ${nextProfileId}.`);
           return true;
@@ -141,7 +174,12 @@ export class TelegramCommandRouter {
         return true;
       }
       case "bind": {
-        this.sessions.bind(session.sessionKey, parsed.args.join(" ") || "here");
+        const bindingName = normalizeBindingName(parsed.args);
+        if (!validateBindingName(bindingName)) {
+          await sendReply(this.api, event, "Invalid binding name. Use 1-64 visible characters.");
+          return true;
+        }
+        this.sessions.bind(session.sessionKey, bindingName);
         await sendReply(this.api, event, "Route bound for always-on replies in this chat/topic.");
         return true;
       }
@@ -196,5 +234,22 @@ export class TelegramCommandRouter {
       default:
         return false;
     }
+  }
+
+  private async rejectUnauthorizedCommand(event: InboundEvent): Promise<boolean> {
+    const isAdmin = Boolean(event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId));
+    if (
+      !isAdmin &&
+      this.config.telegram.allowedChatIds.length > 0 &&
+      !this.config.telegram.allowedChatIds.includes(event.chatId)
+    ) {
+      await sendReply(this.api, event, "This chat is not allowed to use this bot.");
+      return true;
+    }
+    if (!isAdmin && event.chatType !== "private") {
+      await sendReply(this.api, event, "Only configured admins can run bot commands in groups.");
+      return true;
+    }
+    return false;
   }
 }

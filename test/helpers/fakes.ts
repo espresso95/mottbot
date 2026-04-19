@@ -100,8 +100,8 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
   };
 }
 
-export function createStores() {
-  const config = createTestConfig();
+export function createStores(overrides: Partial<AppConfig> = {}) {
+  const config = createTestConfig(overrides);
   const tempDir = path.dirname(config.storage.sqlitePath);
   const clock = new FakeClock();
   const database = new DatabaseClient(config.storage.sqlitePath);

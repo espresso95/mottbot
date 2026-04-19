@@ -67,7 +67,7 @@ Current limitation:
 1. Admin users listed in `telegram.adminUserIds` are always allowed.
 2. If `telegram.allowedChatIds` is non-empty, all other chats are denied unless listed.
 3. Private chats are always allowed.
-4. Commands are always allowed.
+4. Commands are handled before model routing, but the command router enforces its own chat and admin policy.
 5. A previously bound route is always allowed.
 6. Replies are allowed only when the replied-to message is a known bot-authored Telegram message for the same chat/thread.
 7. In groups, if `behavior.respondInGroupsOnlyWhenMentioned` is true, only direct mentions are allowed.
@@ -134,6 +134,16 @@ When a new route is created, it inherits:
 
 `TelegramCommandRouter` handles commands before the ACL-model pipeline.
 
+### Command authorization
+
+Current policy:
+
+- configured admin users can run commands in any chat, including chats outside `telegram.allowedChatIds`
+- non-admin users can run commands only in private chats
+- when `telegram.allowedChatIds` is non-empty, non-admin private commands are rejected unless the chat is listed
+- non-admin group and supergroup commands are rejected before a session route is created
+- denied commands receive a short Telegram reply and are marked processed by update dedupe
+
 ### Session and runtime commands
 
 - `/status`
@@ -157,12 +167,12 @@ When a new route is created, it inherits:
 
 - `/status` includes session key, model, profile, fast mode, profile count, and usage when available
 - `/health` returns a lightweight runtime snapshot
-- `/model` updates `session_routes.model_ref`
-- `/profile` updates `session_routes.profile_id` only when the target profile exists
+- `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
+- `/profile` updates `session_routes.profile_id` only when the target profile exists and the profile ID has a safe shape
 - `/fast` updates `session_routes.fast_mode`
 - `/new` and `/reset` both clear transcript history for the session
 - `/stop` aborts the active run for the session if one exists
-- `/bind` switches the existing route into `bound` mode
+- `/bind` switches the existing route into `bound` mode after validating the binding name
 - `/unbind` restores the route mode based on the session key shape
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram

@@ -3,6 +3,11 @@ import type { TransportMode } from "./transport.js";
 export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
 export const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 export const OPENAI_CODEX_API = "openai-codex-responses";
+export const KNOWN_CODEX_MODEL_REFS = [
+  "openai-codex/gpt-5.4",
+  "openai-codex/gpt-5.4-mini",
+  "openai-codex/gpt-5.3-codex-spark",
+] as const;
 
 export type CodexModelRef =
   | "openai-codex/gpt-5.4"
@@ -24,6 +29,10 @@ export type RuntimeCodexModel = {
   maxTokens: number;
   transport: TransportMode;
 };
+
+export function isKnownCodexModelRef(modelRef: string): modelRef is (typeof KNOWN_CODEX_MODEL_REFS)[number] {
+  return (KNOWN_CODEX_MODEL_REFS as readonly string[]).includes(modelRef);
+}
 
 export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
   const [, modelId = "gpt-5.4"] = modelRef.split("/");

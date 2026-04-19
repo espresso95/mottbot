@@ -190,6 +190,19 @@ Admin controls are exposed through Telegram commands:
 - `/auth import-cli`
 - `/auth login`
 
+Command authorization:
+
+- configured admin users can run commands in any chat
+- non-admin users can run commands only in private chats
+- if `MOTTBOT_ALLOWED_CHAT_IDS` is set, non-admin private commands must come from a listed chat
+- non-admin group and supergroup commands are rejected before creating or mutating a session route
+
+Command validation:
+
+- `/model` accepts only known built-in Codex model refs
+- `/profile <profile_id>` requires an existing profile ID with a safe command-line shape
+- `/bind [name]` accepts at most 64 visible characters
+
 ## Failure Handling
 
 Current behavior:

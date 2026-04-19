@@ -53,6 +53,7 @@ describe("RunOrchestrator", () => {
       { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
       transport as any,
       outbox as any,
+      stores.clock,
       stores.logger,
     );
 
@@ -68,12 +69,21 @@ describe("RunOrchestrator", () => {
     expect(messages[1]?.contentText).toBe("hello world");
     expect(messages[1]?.telegramMessageId).toBe(1);
     const runRow = stores.database.db
-      .prepare("select status, transport, request_identity, usage_json from runs limit 1")
-      .get() as { status: string; transport: string; request_identity: string; usage_json: string };
+      .prepare("select status, transport, request_identity, usage_json, started_at, finished_at from runs limit 1")
+      .get() as {
+        status: string;
+        transport: string;
+        request_identity: string;
+        usage_json: string;
+        started_at: number;
+        finished_at: number;
+      };
     expect(runRow.status).toBe("completed");
     expect(runRow.transport).toBe("sse");
     expect(runRow.request_identity).toBe("req-1");
     expect(runRow.usage_json).toContain("\"input\":1");
+    expect(runRow.started_at).toBe(stores.clock.now());
+    expect(runRow.finished_at).toBe(stores.clock.now());
     expect(outbox.finish).toHaveBeenCalled();
   });
 
@@ -106,6 +116,7 @@ describe("RunOrchestrator", () => {
       { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
       { stream: vi.fn(async () => { throw new Error("boom"); }) } as any,
       outbox as any,
+      stores.clock,
       stores.logger,
     );
 
@@ -159,6 +170,7 @@ describe("RunOrchestrator", () => {
         }),
       } as any,
       outbox as any,
+      stores.clock,
       stores.logger,
     );
 

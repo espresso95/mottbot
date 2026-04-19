@@ -1,6 +1,7 @@
 import type { AppConfig } from "../app/config.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
 import type { CodexTransport } from "../codex/transport.js";
+import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
 import type { Logger } from "../shared/logger.js";
 import type { SessionQueue } from "../sessions/queue.js";
@@ -45,6 +46,7 @@ export class RunOrchestrator {
     private readonly tokenResolver: CodexTokenResolver,
     private readonly transport: CodexTransport,
     private readonly outbox: TelegramOutbox,
+    private readonly clock: Clock,
     private readonly logger: Logger,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
@@ -119,7 +121,7 @@ export class RunOrchestrator {
     try {
       this.runs.update(run.runId, {
         status: "starting",
-        startedAt: Date.now(),
+        startedAt: this.clock.now(),
       });
       const auth = await this.tokenResolver.resolve(params.session.profileId);
       const history = this.transcripts.listRecent(params.session.sessionKey, 30);
@@ -172,7 +174,7 @@ export class RunOrchestrator {
         status: "completed",
         transport: result.transport,
         requestIdentity: result.requestIdentity,
-        finishedAt: Date.now(),
+        finishedAt: this.clock.now(),
       });
     } catch (error) {
       const message = getErrorMessage(error);
@@ -182,7 +184,7 @@ export class RunOrchestrator {
         status: params.signal.aborted ? "cancelled" : "failed",
         errorCode: params.signal.aborted ? "cancelled" : "run_failed",
         errorMessage: message,
-        finishedAt: Date.now(),
+        finishedAt: this.clock.now(),
       });
     }
   }

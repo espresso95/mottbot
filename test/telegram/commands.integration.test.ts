@@ -57,6 +57,99 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalled();
   });
 
+  it("rejects unsafe command input before updating session settings", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/model openai-codex/not-a-model", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/profile bad!", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({ text: `/bind ${"x".repeat(65)}`, isCommand: true }),
+    );
+
+    const session = stores.sessions.findByChat("chat-1");
+    expect(session?.modelRef).toBe("openai-codex/gpt-5.4");
+    expect(session?.profileId).toBe("openai-codex:default");
+    expect(session?.routeMode).toBe("dm");
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Unknown model openai-codex/not-a-model"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Invalid profile ID"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Invalid binding name"),
+      expect.any(Object),
+    );
+  });
+
+  it("blocks commands from disallowed chats and non-admin group users", async () => {
+    const stores = createStores({
+      telegram: {
+        allowedChatIds: ["allowed-chat"],
+      } as any,
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/auth import-cli", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "allowed-chat",
+        chatType: "group",
+        text: "/auth import-cli",
+        isCommand: true,
+      }),
+    );
+
+    expect(stores.sessions.findByChat("chat-1")).toBeUndefined();
+    expect(stores.sessions.findByChat("allowed-chat")).toBeUndefined();
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "This chat is not allowed to use this bot.",
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "allowed-chat",
+      "Only configured admins can run bot commands in groups.",
+      expect.any(Object),
+    );
+  });
+
   it("handles /status with usage data", async () => {
     const stores = createStores();
     cleanup.push(() => {

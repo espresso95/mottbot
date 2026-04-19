@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { OPENAI_CODEX_API, OPENAI_CODEX_BASE_URL, resolveCodexModel } from "../../src/codex/provider.js";
+import {
+  OPENAI_CODEX_API,
+  OPENAI_CODEX_BASE_URL,
+  isKnownCodexModelRef,
+  resolveCodexModel,
+} from "../../src/codex/provider.js";
 
 describe("resolveCodexModel", () => {
   it("builds gpt-5.4 defaults", () => {
@@ -14,5 +19,10 @@ describe("resolveCodexModel", () => {
     expect(model.transport).toBe("sse");
     expect(model.input).toEqual(["text"]);
     expect(model.maxTokens).toBe(128_000);
+  });
+
+  it("identifies supported command-selectable model refs", () => {
+    expect(isKnownCodexModelRef("openai-codex/gpt-5.4-mini")).toBe(true);
+    expect(isKnownCodexModelRef("openai-codex/not-a-model")).toBe(false);
   });
 });
