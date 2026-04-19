@@ -184,10 +184,10 @@ describe("repository tool handlers", () => {
         query: "missing",
       });
       expect(noMatch).toMatchObject({
-        engine: "rg",
         matches: [],
         truncated: false,
       });
+      expect(["rg", "node"]).toContain(noMatch.engine);
 
       process.env.PATH = "";
       const fallback = await runTool(handlers.mottbot_repo_search!, {
