@@ -78,6 +78,7 @@ Implemented in this repo:
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`
 - local UTC daily and monthly usage budgets with `/usage` reporting
+- repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 
@@ -85,6 +86,6 @@ Planned hardening that is not yet implemented:
 
 - native provider file blocks for non-image attachments when the provider exposes them
 - billing-grade token or currency budgets if provider usage data becomes reliable enough to enforce
-- fully automated webhook, group, and Codex live smoke tests
+- fully automated webhook delivery and live Codex fault-injection smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - distributed multi-instance coordination beyond the host-local lease

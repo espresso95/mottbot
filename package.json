@@ -26,7 +26,8 @@
     "service": "tsx src/index.ts service",
     "restart": "tsx src/index.ts restart",
     "smoke:preflight": "tsx src/tools/live-smoke-preflight.ts",
-    "smoke:telegram-user": "tsx src/tools/live-telegram-user-smoke.ts"
+    "smoke:telegram-user": "tsx src/tools/live-telegram-user-smoke.ts",
+    "smoke:suite": "tsx src/tools/live-validation-suite.ts"
   },
   "engines": {
     "node": ">=24"

@@ -34,6 +34,49 @@ When `MOTTBOT_LIVE_TEST_CHAT_ID` is set, preflight sends one silent Telegram mes
 
 For private chats, the target user must have already opened or started the bot. Telegram rejects bot-initiated conversations with users who have not done that.
 
+## Live Validation Suite
+
+For repeatable live validation, run the suite wrapper:
+
+```bash
+pnpm smoke:suite
+```
+
+It exits with `status: skipped` unless this guard is set:
+
+```bash
+export MOTTBOT_LIVE_VALIDATION_ENABLED=true
+```
+
+Start with a dry run to see exactly which checks will execute without sending Telegram messages:
+
+```bash
+MOTTBOT_LIVE_VALIDATION_ENABLED=true \
+MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
+pnpm smoke:suite
+```
+
+The suite always includes `smoke:preflight`. When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are present, it also composes the MTProto user-account harness into:
+
+- private model conversation
+- `/health`
+- `/usage`
+- reply-to-latest-bot-message conversation
+- optional group mention conversation
+- optional attachment fixture uploads
+
+Useful controls:
+
+```bash
+export MOTTBOT_LIVE_VALIDATION_SCENARIOS=preflight,private,health,usage,reply,group_mention,files
+export MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE=true
+export MOTTBOT_LIVE_VALIDATION_GROUP_TARGET=<group-or-bot-entity>
+export MOTTBOT_LIVE_VALIDATION_FILE_PATHS=/absolute/path/a.txt,/absolute/path/b.png
+export MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT=false
+```
+
+Scenario filtering is optional. When omitted, the suite runs every scenario it can run with the available environment and reports skipped optional group/file checks in token-free JSON.
+
 ## Required Environment
 
 Use a separate `.env` or shell session with:
@@ -104,15 +147,15 @@ Automated in this repo:
 - migrations and local health counters
 - default auth profile presence
 - optional MTProto user-account smoke messages through `pnpm smoke:telegram-user`
+- repeatable live validation matrix through `pnpm smoke:suite`
 
-Manual by design:
+Manual or environment-dependent by design:
 
-- inbound private messages without the MTProto user smoke harness
-- group mention and reply gating
-- file uploads
+- inbound private messages without the MTProto user smoke harness or suite
+- group mention, reply gating, and file uploads without the MTProto user smoke harness or suite
 - `/stop` during a live model turn
 - webhook delivery from Telegram to a public endpoint
-- live Codex model behavior
+- live Codex model behavior beyond ordinary prompted replies
 
 ## Optional User-Account Smoke Harness
 

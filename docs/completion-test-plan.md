@@ -35,14 +35,15 @@ As of April 20, 2026:
 - Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note creation and Telegram sends are approved and scoped, and GitHub write tools remain deferred.
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
+- Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 62 test files and 255 tests.
-- `corepack pnpm test:coverage` passes with statements 84.8%, branches 74.51%, functions 93.54%, and lines 84.72%.
+- `corepack pnpm test` passes with 64 test files and 265 tests.
+- `corepack pnpm test:coverage` passes with statements 84.71%, branches 74.6%, functions 93.22%, and lines 84.62%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -55,7 +56,7 @@ Current known gaps:
 - Native provider attachment ingestion is limited to image inputs for models that advertise image support; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
-- Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
+- Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
 - Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
@@ -1514,3 +1515,64 @@ Verification:
 - `corepack pnpm build`
 - Mocked usage-window tests
 - Optional live usage reporting smoke test
+
+## Phase 23: Live Validation Automation
+
+This phase makes the live validation workflow repeatable without requiring the operator to manually assemble one-off commands for every check.
+
+Status: complete for a guarded suite runner, dry-run plan output, preflight composition, MTProto private-chat command/conversation checks, reply-to-latest-bot-message checks, optional group mention checks, optional attachment fixture checks, docs, and helper tests. Public webhook delivery automation and live Codex fault injection remain later hardening work.
+
+Dependencies and ordering:
+
+- Follows Phase 6 and Phase 7 because it composes the existing guarded preflight and host-local runtime scripts.
+- Follows Phase 13, Phase 21, and Phase 22 so attachment, group governance, and `/usage` scenarios are meaningful.
+
+### Task 23.1: Add Suite Runner
+
+Deliverables:
+
+- Add a `pnpm smoke:suite` script.
+- Require `MOTTBOT_LIVE_VALIDATION_ENABLED=true` before any live action.
+- Add dry-run output through `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true`.
+- Print token-free JSON summaries with scenario status, skipped checks, and bounded child output.
+
+### Task 23.2: Compose Existing Smoke Harnesses
+
+Deliverables:
+
+- Always include guarded live preflight.
+- Reuse the MTProto user-account harness for private conversation, `/health`, `/usage`, and reply checks when Telegram API credentials are configured.
+- Add optional group mention and attachment fixture scenarios.
+- Allow `MOTTBOT_LIVE_VALIDATION_SCENARIOS` to filter the matrix.
+
+### Task 23.3: Document Operator Workflow
+
+Deliverables:
+
+- Update `docs/live-smoke-tests.md`, `SETUP.md`, `docs/operations.md`, and `docs/testing.md`.
+- Add `.env.example` entries for live validation suite flags.
+- Document which checks remain manual or environment-dependent.
+
+Edge cases to cover:
+
+- Guard unset, dry-run mode, and scenario filters.
+- User-account credentials missing by default versus required by policy.
+- Group target omitted, fixture paths omitted, and multiple fixture paths.
+- Bounded output and token-free summaries when child scripts fail.
+- Reusing an existing Telegram user session versus first-run interactive login.
+
+Required testing:
+
+- Unit tests for plan generation, scenario filtering, required credential handling, group scenarios, and file scenarios.
+- Typecheck for the suite runner.
+- Skipped-mode smoke execution without live secrets.
+- Dry-run execution without live secrets.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- `corepack pnpm build`
+- `corepack pnpm smoke:suite`
+- `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true corepack pnpm smoke:suite`

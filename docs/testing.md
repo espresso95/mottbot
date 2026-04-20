@@ -64,7 +64,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
 
-The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight`.
+The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight` or the composed `pnpm smoke:suite`.
 
 For private-chat live validation without manually typing in Telegram every time, use the optional MTProto harness:
 
@@ -74,16 +74,26 @@ pnpm smoke:telegram-user
 
 It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
 
+For repeatable live validation, use:
+
+```bash
+pnpm smoke:suite
+```
+
+It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set. In dry-run mode it prints the planned preflight, private conversation, command, reply, group, and attachment checks without sending Telegram messages.
+
 ## Verified Results
 
 Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 62 test files, 255 tests passing
+- `pnpm test`: 64 test files, 265 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
+- `pnpm smoke:suite`: passes in skipped mode when `MOTTBOT_LIVE_VALIDATION_ENABLED` is unset
+- `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite`: passes without live secrets
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 
@@ -95,10 +105,10 @@ Last recorded coverage run on April 20, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.8% |
-| Branches | 74.51% |
-| Functions | 93.54% |
-| Lines | 84.72% |
+| Statements | 84.71% |
+| Branches | 74.6% |
+| Functions | 93.22% |
+| Lines | 84.62% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

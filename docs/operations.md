@@ -155,6 +155,7 @@ Equivalent `pnpm` scripts:
 - `pnpm run restart`
 - `pnpm smoke:preflight`
 - `pnpm smoke:telegram-user`
+- `pnpm smoke:suite`
 
 ## Release Verification
 
@@ -183,6 +184,8 @@ corepack pnpm smoke:preflight
 ```
 
 No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
+
+`pnpm smoke:suite` composes the guarded preflight and optional MTProto user-account checks into a repeatable live validation matrix. It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set, and `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
 
 `pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
 
@@ -617,6 +620,20 @@ Preflight checks:
 - admin IDs are configured
 - webhook mode has a public URL when polling is disabled
 - health counters and migration versions can be read without printing tokens
+
+Suite dry run:
+
+```bash
+MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite
+```
+
+Suite execution:
+
+```bash
+MOTTBOT_LIVE_VALIDATION_ENABLED=true pnpm smoke:suite
+```
+
+The suite runs the guarded preflight and, when user-account credentials are configured, private conversation, `/health`, `/usage`, reply-to-latest-bot-message, optional group mention, and optional attachment fixture checks.
 
 ## Auth Operations
 

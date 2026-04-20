@@ -237,6 +237,22 @@ Expected result:
 - `migrations` includes version `1`
 - `issues` is empty
 
+Run the repeatable suite dry run:
+
+```bash
+MOTTBOT_LIVE_VALIDATION_ENABLED=true \
+MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
+corepack pnpm smoke:suite
+```
+
+Run the suite for real:
+
+```bash
+MOTTBOT_LIVE_VALIDATION_ENABLED=true corepack pnpm smoke:suite
+```
+
+When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are configured, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, and optional attachment fixture checks on top of preflight.
+
 Optional private-chat smoke without manually typing in Telegram:
 
 ```bash

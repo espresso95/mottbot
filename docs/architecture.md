@@ -245,6 +245,7 @@ Implemented now:
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
+- guarded live validation suite that composes preflight, MTProto private-chat, command, reply, group, and attachment checks
 
 Not yet implemented:
 
@@ -252,6 +253,7 @@ Not yet implemented:
 - generic network-write, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction
+- automated public webhook delivery validation
 - distributed multi-instance locks or replica coordination
 
 ## Provider Boundary Rationale
