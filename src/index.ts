@@ -7,6 +7,8 @@ import { SecretBox } from "./shared/crypto.js";
 import { DatabaseClient } from "./db/client.js";
 import { migrateDatabase } from "./db/migrate.js";
 import { buildOperationalRetentionCutoffs, pruneOperationalData } from "./db/retention.js";
+import { createOperationalBackup, validateOperationalBackup } from "./ops/backup.js";
+import { rotateServiceLogs, serviceLogStatus } from "./ops/logs.js";
 import { AuthProfileStore } from "./codex/auth-store.js";
 import { runCodexOAuthLogin } from "./codex/oauth-login.js";
 import { importCodexCliAuthProfile } from "./codex/cli-auth-import.js";
@@ -95,6 +97,18 @@ function readPositiveIntFlag(args: string[], name: string, fallback: number): nu
   return parsed;
 }
 
+function readOptionalStringFlag(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return undefined;
+  }
+  const value = args[index + 1]?.trim();
+  if (!value) {
+    throw new Error(`${name} must be followed by a value.`);
+  }
+  return value;
+}
+
 async function runDbPrune(args: string[]): Promise<void> {
   const config = loadConfig();
   const database = new DatabaseClient(config.storage.sqlitePath);
@@ -119,6 +133,57 @@ async function runDbPrune(args: string[]): Promise<void> {
   }
 }
 
+async function runBackupCommand(args: string[]): Promise<void> {
+  const [command = "create", ...rest] = args;
+  if (command === "create") {
+    const config = loadConfig();
+    const result = await createOperationalBackup({
+      config,
+      destinationRoot: readOptionalStringFlag(rest, "--dest"),
+      includeEnv: rest.includes("--include-env"),
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (result.envIncluded) {
+      process.stderr.write("Warning: .env was included and may contain secrets. Do not share this backup.\n");
+    }
+    return;
+  }
+  if (command === "validate") {
+    const backupDir = rest.find((arg) => !arg.startsWith("--"));
+    if (!backupDir) {
+      throw new Error("Usage: mottbot backup validate <backup-dir> [--target-sqlite <path>]");
+    }
+    const result = validateOperationalBackup({
+      backupDir,
+      targetSqlitePath: readOptionalStringFlag(rest, "--target-sqlite"),
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.exitCode = result.ok ? 0 : 1;
+    return;
+  }
+  throw new Error("Usage: mottbot backup create [--dest <dir>] [--include-env] | validate <backup-dir> [--target-sqlite <path>]");
+}
+
+function runLogsCommand(args: string[]): void {
+  const [command = "status", ...rest] = args;
+  if (command === "status") {
+    process.stdout.write(`${JSON.stringify(serviceLogStatus(), null, 2)}\n`);
+    return;
+  }
+  if (command === "rotate") {
+    const result = rotateServiceLogs({
+      archiveRoot: readOptionalStringFlag(rest, "--archive-dir"),
+      truncate: rest.includes("--truncate"),
+      maxArchives: rest.includes("--max-archives")
+        ? readPositiveIntFlag(rest, "--max-archives", 10)
+        : undefined,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  throw new Error("Usage: mottbot logs status | rotate [--archive-dir <dir>] [--truncate] [--max-archives <count>]");
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -126,8 +191,12 @@ function printHelp(): void {
       "  mottbot start",
       "  mottbot auth login",
       "  mottbot auth import-cli",
+      "  mottbot backup create [--dest <dir>] [--include-env]",
+      "  mottbot backup validate <backup-dir> [--target-sqlite <path>]",
       "  mottbot db migrate",
       "  mottbot db prune [--older-than-days 30] [--dry-run|--yes]",
+      "  mottbot logs status",
+      "  mottbot logs rotate [--archive-dir <dir>] [--truncate] [--max-archives 10]",
       "  mottbot service install [--start]",
       "  mottbot service start|stop|restart|status|uninstall",
       "  mottbot restart",
@@ -152,6 +221,10 @@ async function main(): Promise<void> {
     await runAuthImportCli();
     return;
   }
+  if (group === "backup") {
+    await runBackupCommand(subcommand ? [subcommand, ...rest] : rest);
+    return;
+  }
   if (group === "db" && subcommand === "migrate") {
     const config = loadConfig();
     const database = new DatabaseClient(config.storage.sqlitePath);
@@ -161,6 +234,10 @@ async function main(): Promise<void> {
   }
   if (group === "db" && subcommand === "prune") {
     await runDbPrune(rest);
+    return;
+  }
+  if (group === "logs") {
+    runLogsCommand(subcommand ? [subcommand, ...rest] : rest);
     return;
   }
   if (group === "service") {

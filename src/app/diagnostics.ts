@@ -71,6 +71,17 @@ function tailFileLines(filePath: string, requestedLines: number): string[] {
   return lines.slice(-requestedLines);
 }
 
+function logHeading(label: string, filePath: string): string {
+  if (!fs.existsSync(filePath)) {
+    return `${label} (missing):`;
+  }
+  const stats = fs.lstatSync(filePath);
+  if (stats.isSymbolicLink()) {
+    return `${label} (symlink):`;
+  }
+  return `${label} (${stats.size} bytes):`;
+}
+
 function mapRun(row: RecentRunRow): RecentRunDiagnostic {
   return {
     runId: row.run_id,
@@ -167,10 +178,10 @@ export class OperatorDiagnostics {
     const paths = this.paths();
     const sections: string[] = [];
     if (stream === "stdout" || stream === "both") {
-      sections.push(["stdout:", ...tailFileLines(paths.stdoutPath, lines).map((line) => `- ${line}`)].join("\n"));
+      sections.push([logHeading("stdout", paths.stdoutPath), ...tailFileLines(paths.stdoutPath, lines).map((line) => `- ${line}`)].join("\n"));
     }
     if (stream === "stderr" || stream === "both") {
-      sections.push(["stderr:", ...tailFileLines(paths.stderrPath, lines).map((line) => `- ${line}`)].join("\n"));
+      sections.push([logHeading("stderr", paths.stderrPath), ...tailFileLines(paths.stderrPath, lines).map((line) => `- ${line}`)].join("\n"));
     }
     return sections.join("\n\n");
   }

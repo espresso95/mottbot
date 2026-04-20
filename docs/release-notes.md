@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Backup And Log Operations
+
+- Added `mottbot backup create` for timestamped local backups with SQLite online backup, optional source sidecars, redacted config, manifest checksums, and optional `.env` inclusion.
+- Added `mottbot backup validate` for checksum and SQLite integrity checks plus restore target warnings.
+- Added `mottbot logs status` and `mottbot logs rotate` for launchd log size inspection, archive, optional truncation, and archive retention.
+- Added log-size visibility to diagnostics output.
+
+Operator checklist:
+
+- Run `corepack pnpm backup create` before migrations, pruning, or high-risk host maintenance.
+- Keep `.env` excluded unless the backup will remain private on the same trusted host.
+- Use `corepack pnpm logs rotate --truncate --max-archives 10` when launchd logs grow too large.
+
 ### Model-Assisted Memory
 
 - Added opt-in post-run memory candidate extraction with `MOTTBOT_MEMORY_CANDIDATES_ENABLED`.

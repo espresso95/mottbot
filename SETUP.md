@@ -245,6 +245,50 @@ Uninstall the LaunchAgent:
 corepack pnpm service uninstall
 ```
 
+## Backups And Restore Validation
+
+Create a local backup:
+
+```bash
+corepack pnpm backup create
+```
+
+The command writes a timestamped directory under `data/backups/` by default. It includes:
+
+- a SQLite online backup at `mottbot.sqlite`
+- source `-wal` and `-shm` sidecar files when present
+- `config.redacted.json`
+- `manifest.json` with file sizes and SHA-256 checksums
+
+`.env` is excluded by default. Include it only for a private host-local backup:
+
+```bash
+corepack pnpm backup create --include-env
+```
+
+Validate a backup before restore:
+
+```bash
+corepack pnpm backup validate data/backups/<backup-dir>
+```
+
+Dry-run a restore target check:
+
+```bash
+corepack pnpm backup validate data/backups/<backup-dir> --target-sqlite data/mottbot.sqlite
+```
+
+Restore runbook:
+
+1. Stop the service with `corepack pnpm service stop`.
+2. Validate the backup with `corepack pnpm backup validate <backup-dir> --target-sqlite data/mottbot.sqlite`.
+3. Move the existing database and sidecars aside instead of deleting them.
+4. Copy `<backup-dir>/mottbot.sqlite` into the configured `MOTTBOT_SQLITE_PATH`.
+5. Recreate `.env` separately unless the backup was intentionally made with `--include-env`.
+6. Run `corepack pnpm db migrate`.
+7. Start the service with `corepack pnpm service start`.
+8. Confirm `corepack pnpm health` reports `Status: ok`.
+
 ## Logs
 
 Watch stderr:
@@ -258,6 +302,26 @@ Watch stdout:
 ```bash
 tail -f ~/Library/Logs/mottbot/bot.out.log
 ```
+
+Show log sizes:
+
+```bash
+corepack pnpm logs status
+```
+
+Archive logs without truncating active files:
+
+```bash
+corepack pnpm logs rotate
+```
+
+Archive and truncate launchd log files:
+
+```bash
+corepack pnpm logs rotate --truncate --max-archives 10
+```
+
+Rotated logs are written under `~/Library/Logs/mottbot/archive/` by default. The command skips missing files and symlinks instead of truncating an unexpected target.
 
 ## Telegram Polling Conflict
 

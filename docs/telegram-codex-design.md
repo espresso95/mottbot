@@ -983,6 +983,13 @@ Primary surfaces:
 - log archive/truncate workflow
 - updated setup and operations runbooks
 
+Implementation status:
+
+- `mottbot backup create` writes a timestamped local backup with SQLite integrity checking, redacted config, manifest checksums, and optional `.env` inclusion
+- `mottbot backup validate` verifies backup files and warns about restore targets that already exist
+- `mottbot logs status` reports launchd log sizes
+- `mottbot logs rotate` archives logs, optionally truncates active files, skips symlinks, and prunes old archives
+
 ### Phase 20: write-capable approved tools
 
 Design intent:

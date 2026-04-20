@@ -1204,6 +1204,8 @@ Verification:
 
 This phase turns operational hygiene into repeatable commands.
 
+Status: complete for local backup creation, backup validation, restore dry-run warnings, log status, log archive/truncation, retention pruning, docs, and tests.
+
 Dependencies and ordering:
 
 - Can be implemented at any time, but should happen before the bot stores more high-value memories, files, or role policy.
@@ -1218,6 +1220,11 @@ Deliverables:
 - Add integrity checks for backup files.
 - Add tests using a temporary SQLite database.
 
+Implemented:
+
+- `mottbot backup create [--dest <dir>] [--include-env]` writes a manifest, consistent SQLite backup, optional source sidecars, and redacted config.
+- `manifest.json` records sizes and SHA-256 checksums; the backup database is checked with `pragma integrity_check`.
+
 ### Task 19.2: Add Restore Runbook And Dry Run
 
 Deliverables:
@@ -1225,6 +1232,10 @@ Deliverables:
 - Document restore steps for launchd downtime, file placement, permissions, and migration checks.
 - Add a dry-run restore validator if practical.
 - Add tests for validator behavior.
+
+Implemented:
+
+- `mottbot backup validate <backup-dir> [--target-sqlite <path>]` verifies manifest checksums and SQLite integrity, warns when `.env` is absent, and warns if the target database already exists.
 
 ### Task 19.3: Add Log Rotation Policy
 
@@ -1234,6 +1245,12 @@ Deliverables:
 - Keep log rotation separate from committed output.
 - Add health or diagnostic visibility into log file size.
 - Update `SETUP.md` and `docs/operations.md`.
+
+Implemented:
+
+- `mottbot logs status` reports launchd log paths and sizes.
+- `mottbot logs rotate [--archive-dir <dir>] [--truncate] [--max-archives <count>]` archives logs, optionally truncates active files, skips missing files/symlinks, and prunes old archives.
+- `/debug logs` diagnostics include log sizes in section headers.
 
 Edge cases to cover:
 

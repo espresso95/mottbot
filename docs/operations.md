@@ -356,19 +356,10 @@ Current behavior:
 
 Backup before migration:
 
-1. Stop the bot process.
-2. Copy the configured SQLite file from `MOTTBOT_SQLITE_PATH` or `storage.sqlitePath`.
-3. Also copy the WAL sidecar files when present:
-
-```text
-mottbot.sqlite
-mottbot.sqlite-wal
-mottbot.sqlite-shm
-```
-
-4. Store the backup outside the repo and outside ignored runtime directories that may be cleaned.
-5. Run `pnpm db:migrate`.
-6. Start the bot and run `pnpm health`.
+1. Run `corepack pnpm backup create`.
+2. Validate the new backup with `corepack pnpm backup validate <backup-dir>`.
+3. Run `corepack pnpm db migrate`.
+4. Start or restart the bot and run `corepack pnpm health`.
 
 Rollback expectation:
 
@@ -377,6 +368,69 @@ Rollback expectation:
 - start the bot again
 
 Do not hand-edit rows in `schema_migrations`. If a checksum mismatch appears, treat it as a migration-file integrity problem and inspect the local diff before retrying.
+
+## Backup And Restore Operations
+
+Create a host-local backup:
+
+```bash
+corepack pnpm backup create
+```
+
+The backup command creates a timestamped directory under `data/backups/` unless `--dest <dir>` is provided. It writes a consistent SQLite online backup, copies source WAL/SHM sidecars when present, writes a redacted config snapshot, and records file sizes plus SHA-256 checksums in `manifest.json`.
+
+`.env` is excluded by default because it contains runtime secrets. Use `--include-env` only for private host-local backups:
+
+```bash
+corepack pnpm backup create --include-env
+```
+
+Validate a backup:
+
+```bash
+corepack pnpm backup validate data/backups/<backup-dir>
+```
+
+Run a restore dry-run check against the configured database path:
+
+```bash
+corepack pnpm backup validate data/backups/<backup-dir> --target-sqlite data/mottbot.sqlite
+```
+
+Restore checklist:
+
+1. Stop launchd: `corepack pnpm service stop`.
+2. Validate the backup and target path.
+3. Move the existing SQLite database plus `-wal` and `-shm` sidecars aside.
+4. Copy `mottbot.sqlite` from the backup into `MOTTBOT_SQLITE_PATH`.
+5. Recreate `.env` separately unless the backup intentionally included it.
+6. Run `corepack pnpm db migrate`.
+7. Restart: `corepack pnpm service start`.
+8. Confirm `corepack pnpm health` is healthy.
+
+Do not restore over a running service. The validator warns when the target database already exists so the operator can plan downtime and an explicit replacement.
+
+## Log Rotation Operations
+
+Inspect launchd log sizes:
+
+```bash
+corepack pnpm logs status
+```
+
+Archive logs:
+
+```bash
+corepack pnpm logs rotate
+```
+
+Archive, truncate active log files, and retain only the latest ten archives:
+
+```bash
+corepack pnpm logs rotate --truncate --max-archives 10
+```
+
+Archives are written below `~/Library/Logs/mottbot/archive/` by default. Missing logs are recorded as skipped. Symlinks are also skipped so the command does not truncate an unexpected target.
 
 ## Data Retention Operations
 

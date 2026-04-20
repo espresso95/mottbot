@@ -75,6 +75,7 @@ Implemented in this repo:
 - admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
+- host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 
 Planned hardening that is not yet implemented:

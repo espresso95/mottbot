@@ -237,6 +237,7 @@ Implemented now:
 - health reporting with queued, active, degraded, and stale outbox counters
 - deny-by-default tool registry, health snapshot execution, and opt-in approved restart tool execution
 - scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
+- host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
 
