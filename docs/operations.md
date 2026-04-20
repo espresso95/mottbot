@@ -241,6 +241,7 @@ Operational notes:
 - model tool declarations are filtered by global tool policy, selected-agent restrictions, and per-chat `toolNames`; execution is rechecked before handlers run
 - `/model` refuses a model not listed in `modelRefs` when a chat policy sets that list
 - `/remember` and memory candidate acceptance refuse scopes not listed in `memoryScopes`
+- selected-agent `maxConcurrentRuns` caps active execution across sessions on this host, and `maxQueuedRuns` rejects new work with a failed-run Telegram status when the persisted backlog for that agent is full
 
 ## Operator Tools
 

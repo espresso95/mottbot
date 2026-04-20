@@ -27,6 +27,8 @@ const agentConfigSchema = z.object({
   fastMode: z.boolean().optional(),
   toolNames: z.array(z.string().min(1).max(128)).optional(),
   toolPolicies: z.record(toolPolicyConfigSchema).optional(),
+  maxConcurrentRuns: z.number().int().min(1).max(32).optional(),
+  maxQueuedRuns: z.number().int().min(0).max(1000).optional(),
 });
 const agentRoutingBindingSchema = z.object({
   agentId: agentIdSchema,
@@ -339,6 +341,8 @@ export type AgentConfig = {
   fastMode: boolean;
   toolNames?: string[];
   toolPolicies?: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
+  maxConcurrentRuns?: number;
+  maxQueuedRuns?: number;
 };
 
 export type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
@@ -395,6 +399,8 @@ function normalizeAgents(
       fastMode: rawAgent.fastMode ?? false,
       ...(rawAgent.toolNames ? { toolNames: rawAgent.toolNames } : {}),
       ...(rawAgent.toolPolicies ? { toolPolicies: rawAgent.toolPolicies } : {}),
+      ...(rawAgent.maxConcurrentRuns !== undefined ? { maxConcurrentRuns: rawAgent.maxConcurrentRuns } : {}),
+      ...(rawAgent.maxQueuedRuns !== undefined ? { maxQueuedRuns: rawAgent.maxQueuedRuns } : {}),
     });
   }
   if (!agents.has(rawAgents.defaultId)) {

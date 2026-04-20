@@ -1,4 +1,4 @@
-import type { AppConfig } from "../app/config.js";
+import type { AgentConfig, AppConfig } from "../app/config.js";
 import type { CodexToolCall } from "../codex/tool-calls.js";
 import {
   codexModelCapabilities,
@@ -49,6 +49,7 @@ import type { RunStore } from "./run-store.js";
 import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
 import { UsageBudgetExceededError, type UsageBudgetService } from "./usage-budget.js";
+import { AgentRunLimiter } from "./agent-run-limiter.js";
 
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
@@ -125,6 +126,7 @@ function toolTranscriptJson(call: CodexToolCall, result: ToolExecutionResult): s
 
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
+  private readonly agentLimiter = new AgentRunLimiter();
 
   constructor(
     private readonly config: AppConfig,
@@ -171,9 +173,22 @@ export class RunOrchestrator {
     if (!userPayload.contentText) {
       return;
     }
+    const agent = this.agentForSession(params.session);
+    const queueLimitMessage = this.agentQueueLimitMessage(params.session, agent);
+    if (queueLimitMessage) {
+      await this.rejectRunAtEnqueue({
+        event: params.event,
+        session: params.session,
+        userPayload,
+        errorCode: "agent_queue_full",
+        errorMessage: queueLimitMessage,
+      });
+      return;
+    }
 
     const run = this.runs.create({
       sessionKey: params.session.sessionKey,
+      agentId: params.session.agentId,
       modelRef: params.session.modelRef,
       profileId: params.session.profileId,
     });
@@ -247,32 +262,84 @@ export class RunOrchestrator {
     recovered?: boolean;
   }): void {
     void this.queue.enqueue(params.session.sessionKey, async (signal) => {
-      if (
-        this.runQueue &&
-        !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
-      ) {
-        return;
-      }
-      await this.execute({
-        event: params.event,
-        session: params.session,
-        runId: params.runId,
-        placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
-        signal,
+      const agent = this.agentForSession(params.session);
+      await this.agentLimiter.run(params.session.agentId, agent?.maxConcurrentRuns, async () => {
+        if (
+          this.runQueue &&
+          !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
+        ) {
+          return;
+        }
+        await this.execute({
+          event: params.event,
+          session: params.session,
+          runId: params.runId,
+          placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
+          signal,
+        });
+        const finalRun = this.runs.get(params.runId);
+        if (!this.runQueue || !finalRun) {
+          return;
+        }
+        if (finalRun.status === "completed") {
+          this.runQueue.complete(params.runId);
+          return;
+        }
+        this.runQueue.fail(params.runId, finalRun.errorMessage ?? finalRun.status);
       });
-      const finalRun = this.runs.get(params.runId);
-      if (!this.runQueue || !finalRun) {
-        return;
-      }
-      if (finalRun.status === "completed") {
-        this.runQueue.complete(params.runId);
-        return;
-      }
-      this.runQueue.fail(params.runId, finalRun.errorMessage ?? finalRun.status);
     }).catch((error) => {
       this.runQueue?.fail(params.runId, getErrorMessage(error));
       this.logger.error({ error, runId: params.runId }, "Queued run failed.");
     });
+  }
+
+  private agentQueueLimitMessage(session: SessionRoute, agent: AgentConfig | undefined): string | undefined {
+    if (agent?.maxQueuedRuns === undefined) {
+      return undefined;
+    }
+    const queued = this.runs.countByAgentStatuses(session.agentId, ["queued"]);
+    if (queued < agent.maxQueuedRuns) {
+      return undefined;
+    }
+    return `Agent ${session.agentId} queue is full (${queued}/${agent.maxQueuedRuns} queued runs). Try again after current work finishes.`;
+  }
+
+  private async rejectRunAtEnqueue(params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    userPayload: { contentText?: string; contentJson?: string };
+    errorCode: string;
+    errorMessage: string;
+  }): Promise<void> {
+    const run = this.runs.create({
+      sessionKey: params.session.sessionKey,
+      agentId: params.session.agentId,
+      modelRef: params.session.modelRef,
+      profileId: params.session.profileId,
+    });
+    this.transcripts.add({
+      sessionKey: params.session.sessionKey,
+      runId: run.runId,
+      role: "user",
+      contentText: params.userPayload.contentText,
+      contentJson: params.userPayload.contentJson,
+      telegramMessageId: params.event.messageId,
+      replyToTelegramMessageId: params.event.replyToMessageId,
+    });
+    this.runs.update(run.runId, {
+      status: "failed",
+      errorCode: params.errorCode,
+      errorMessage: params.errorMessage,
+      finishedAt: this.clock.now(),
+    });
+    const placeholder = await this.outbox.start({
+      runId: run.runId,
+      chatId: params.event.chatId,
+      threadId: params.event.threadId,
+      replyToMessageId: params.event.messageId,
+      placeholderText: RUN_STATUS_TEXT.starting,
+    });
+    await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
   }
 
   private async execute(params: {

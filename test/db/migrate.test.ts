@@ -57,7 +57,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(8);
+    expect(countRows(database, "schema_migrations")).toBe(9);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -71,7 +71,7 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(8);
+    expect(migrations).toHaveLength(9);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
     expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
     expect(migrations[2]).toMatchObject({ version: 3, name: "memory sources" });
@@ -80,6 +80,7 @@ describe("migrateDatabase", () => {
     expect(migrations[5]).toMatchObject({ version: 6, name: "model assisted memory" });
     expect(migrations[6]).toMatchObject({ version: 7, name: "telegram governance" });
     expect(migrations[7]).toMatchObject({ version: 8, name: "agent routes" });
+    expect(migrations[8]).toMatchObject({ version: 9, name: "agent run limits" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -139,7 +140,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(8);
+    expect(countRows(database, "schema_migrations")).toBe(9);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     const sessionColumns = database.db
@@ -147,6 +148,11 @@ describe("migrateDatabase", () => {
       .all()
       .map((row) => row.name);
     expect(sessionColumns).toContain("agent_id");
+    const runColumns = database.db
+      .prepare<unknown[], TableColumnRow>("pragma table_info(runs)")
+      .all()
+      .map((row) => row.name);
+    expect(runColumns).toContain("agent_id");
     expect(
       database.db
         .prepare<unknown[], NameRow>(

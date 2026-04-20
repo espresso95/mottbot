@@ -6,6 +6,7 @@ import type { RunRecord, RunStatus } from "../sessions/types.js";
 type RunRow = {
   run_id: string;
   session_key: string;
+  agent_id: string;
   status: RunStatus;
   model_ref: string;
   profile_id: string;
@@ -38,6 +39,7 @@ function mapRunRow(row: RunRow): RunRecord {
   return {
     runId: row.run_id,
     sessionKey: row.session_key,
+    agentId: row.agent_id,
     status: row.status,
     modelRef: row.model_ref,
     profileId: row.profile_id,
@@ -59,11 +61,12 @@ export class RunStore {
     private readonly clock: Clock,
   ) {}
 
-  create(params: { sessionKey: string; modelRef: string; profileId: string }): RunRecord {
+  create(params: { sessionKey: string; modelRef: string; profileId: string; agentId?: string }): RunRecord {
     const now = this.clock.now();
     const run: RunRecord = {
       runId: createId(),
       sessionKey: params.sessionKey,
+      agentId: params.agentId ?? "main",
       status: "queued",
       modelRef: params.modelRef,
       profileId: params.profileId,
@@ -73,10 +76,10 @@ export class RunStore {
     this.database.db
       .prepare(
         `insert into runs (
-          run_id, session_key, status, model_ref, profile_id, transport, request_identity, started_at, finished_at, error_code, error_message, usage_json, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, null, null, null, null, null, null, null, ?, ?)`,
+          run_id, session_key, agent_id, status, model_ref, profile_id, transport, request_identity, started_at, finished_at, error_code, error_message, usage_json, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, null, null, null, null, null, null, null, ?, ?)`,
       )
-      .run(run.runId, run.sessionKey, run.status, run.modelRef, run.profileId, run.createdAt, run.updatedAt);
+      .run(run.runId, run.sessionKey, run.agentId, run.status, run.modelRef, run.profileId, run.createdAt, run.updatedAt);
     return run;
   }
 
@@ -100,10 +103,11 @@ export class RunStore {
     this.database.db
       .prepare(
         `update runs
-         set status = ?, model_ref = ?, profile_id = ?, transport = ?, request_identity = ?, started_at = ?, finished_at = ?, error_code = ?, error_message = ?, usage_json = ?, updated_at = ?
+         set agent_id = ?, status = ?, model_ref = ?, profile_id = ?, transport = ?, request_identity = ?, started_at = ?, finished_at = ?, error_code = ?, error_message = ?, usage_json = ?, updated_at = ?
          where run_id = ?`,
       )
       .run(
+        next.agentId,
         next.status,
         next.modelRef,
         next.profileId,
@@ -130,6 +134,22 @@ export class RunStore {
         `select count(*) as count from runs where status in (${placeholders})`,
       )
       .get(...statuses);
+    return row?.count ?? 0;
+  }
+
+  countByAgentStatuses(agentId: string, statuses: RunStatus[]): number {
+    if (statuses.length === 0) {
+      return 0;
+    }
+    const placeholders = statuses.map(() => "?").join(", ");
+    const row = this.database.db
+      .prepare<unknown[], { count: number }>(
+        `select count(*) as count
+         from runs
+         where agent_id = ?
+           and status in (${placeholders})`,
+      )
+      .get(agentId, ...statuses);
     return row?.count ?? 0;
   }
 

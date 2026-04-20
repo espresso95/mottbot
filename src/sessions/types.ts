@@ -35,6 +35,7 @@ export type RunStatus = "queued" | "starting" | "streaming" | "completed" | "fai
 export type RunRecord = {
   runId: string;
   sessionKey: string;
+  agentId: string;
   status: RunStatus;
   modelRef: string;
   profileId: string;

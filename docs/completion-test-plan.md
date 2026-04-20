@@ -40,14 +40,15 @@ As of April 20, 2026:
 - Phase 25 is complete for guarded tool expansion: Mottbot can read, append, and replace approved local text documents, run allowlisted local commands inside approved workspace roots, and call allowlisted tools on configured MCP stdio servers. All new side effects remain admin-only, disabled by default, approval-gated, bounded, and audited through the existing tool policy layer.
 - Phase 26 is complete for the first named-agent routing slice: config can define reusable agent presets, bind Telegram chats, topics, chat types, or users to an agent, persist the selected agent on the session route, and apply that agent's profile, model, fast mode, and system prompt defaults to newly created routes.
 - Phase 27 is complete for runtime agent controls: owner/admin users can inspect, set, and reset the current session agent; agent model changes are checked against chat governance and local usage budgets; agent tool allow-lists and per-tool policy restrictions are enforced in model tool declarations and execution.
+- Phase 28 is complete for host-local per-agent run limits: agents can cap active concurrent runs and queued backlog, runs persist `agent_id`, agent concurrency is enforced across sessions, and full queues fail fast with a Telegram-visible error.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 68 test files and 299 tests.
-- `corepack pnpm test:coverage` passes with statements 85.09%, branches 74.95%, functions 93.14%, and lines 85.01%.
+- `corepack pnpm test` passes with 69 test files and 301 tests.
+- `corepack pnpm test:coverage` passes with statements 85.18%, branches 75%, functions 93.21%, and lines 85.09%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
@@ -64,7 +65,7 @@ Current known gaps:
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
 - Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, GitHub issue/comment writes, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, broader GitHub writes, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
-- Named agents support Telegram bindings, runtime owner/admin switching, and per-agent tool restrictions. Per-agent concurrency caps and channel bindings beyond Telegram remain backlog items.
+- Named agents support Telegram bindings, runtime owner/admin switching, per-agent tool restrictions, and host-local per-agent run limits. Channel bindings beyond Telegram remain a backlog item.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -1897,4 +1898,80 @@ Required testing:
 - Run orchestrator tests for model-governance rejection before transport and agent-filtered tool declarations.
 - Tool policy tests for per-agent restriction merging.
 - Tool executor tests proving execution enforces the selected agent allow-list even when a call is manually provided.
+- Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.
+
+## Phase 28: Per-Agent Concurrency And Queue Limits
+
+This phase gives named agents basic resource isolation on a single host. It keeps the existing per-session serialization but adds an agent-level limiter so one busy agent cannot consume all local model execution slots.
+
+Status: complete for host-local active-run concurrency caps, queued-backlog limits, run-level agent persistence, and failed-run reporting when an agent queue is full.
+
+Dependencies and ordering:
+
+- Follows Phase 26 because runs need stable agent identity.
+- Follows Phase 27 because runtime agent switching must already be route-local and policy-checked.
+- Remains host-local; distributed coordination is still out of scope.
+
+### Task 28.1: Persist Agent Identity On Runs
+
+Deliverables:
+
+- Add `agent_id` to the `runs` table through a migration.
+- Preserve existing runs with default `main`.
+- Include `agentId` in `RunRecord`.
+- Create new runs with the current route's `agentId`.
+- Add an index for agent/status counting.
+
+Implemented:
+
+- Migration `0009_agent_run_limits.sql` adds `runs.agent_id` and `idx_runs_agent_status_created`.
+- `RunStore.create()` accepts `agentId`, returns it in `RunRecord`, and can count runs by agent and status.
+
+### Task 28.2: Add Agent Limit Configuration
+
+Deliverables:
+
+- Add optional `maxConcurrentRuns` to agent config.
+- Add optional `maxQueuedRuns` to agent config.
+- Validate conservative numeric bounds.
+- Document that omitted values mean unlimited host-local capacity.
+
+Implemented:
+
+- Agent config accepts `maxConcurrentRuns` from `1` to `32`.
+- Agent config accepts `maxQueuedRuns` from `0` to `1000`.
+- Config tests cover parsing both fields.
+
+### Task 28.3: Enforce Host-Local Agent Limits
+
+Deliverables:
+
+- Keep per-session serialization intact.
+- Limit concurrently executing runs by selected agent across sessions.
+- Count queued runs by persisted `agent_id`.
+- Reject new runs with a failed run record and Telegram-visible error when an agent queue is full.
+- Keep recovery behavior compatible with queued runs after restart.
+
+Implemented:
+
+- `AgentRunLimiter` serializes active execution by agent when `maxConcurrentRuns` is configured.
+- `RunOrchestrator` checks `maxQueuedRuns` before accepting a new run.
+- Queue-full rejection records the user transcript, creates a failed run with `agent_queue_full`, and sends a failed status through the outbox.
+
+Edge cases to cover:
+
+- `maxQueuedRuns: 0` as a deliberate pause for an agent.
+- Multiple sessions using the same agent.
+- Multiple agents running concurrently without blocking each other.
+- Recovered queued runs after restart respecting current concurrency caps.
+- Route agent changes while older queued runs still belong to the previous run agent.
+- Queue limit counts excluding failed/completed runs.
+- Missing agent config for old routes after config edits should fall back to unlimited limits.
+
+Required testing:
+
+- Migration tests for `runs.agent_id`.
+- Run-store tests for `agentId` persistence and agent/status counts.
+- Limiter tests proving same-agent runs wait while other agents proceed.
+- Orchestrator tests proving queue-full failures do not call model transport and do produce a Telegram-visible failure.
 - Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.

@@ -56,6 +56,7 @@ create index if not exists idx_messages_session_created on messages(session_key,
 create table if not exists runs (
   run_id text primary key,
   session_key text not null,
+  agent_id text not null default 'main',
   status text not null,
   model_ref text not null,
   profile_id text not null,
@@ -72,6 +73,7 @@ create table if not exists runs (
 );
 
 create index if not exists idx_runs_session_created on runs(session_key, created_at);
+create index if not exists idx_runs_agent_status_created on runs(agent_id, status, created_at);
 
 create table if not exists run_queue (
   run_id text primary key,

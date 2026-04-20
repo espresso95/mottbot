@@ -835,6 +835,68 @@ describe("RunOrchestrator", () => {
     );
   });
 
+  it("rejects new runs when the selected agent queue is full", async () => {
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+            maxQueuedRuns: 0,
+          },
+        ],
+        bindings: [],
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      agentId: "main",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = { stream: vi.fn() };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn() } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "hello" }),
+      session,
+    });
+
+    expect(transport.stream).not.toHaveBeenCalled();
+    expect(stores.runs.countByAgentStatuses("main", ["failed"])).toBe(1);
+    expect(outbox.fail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("queue is full"),
+    );
+  });
+
   it("executes an approved side-effecting restart tool once", async () => {
     const stores = createStores({
       tools: {

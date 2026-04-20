@@ -28,6 +28,7 @@ describe("RunStore", () => {
 
     const run = stores.runs.create({
       sessionKey: "s1",
+      agentId: "docs",
       modelRef: "openai-codex/gpt-5.4",
       profileId: "openai-codex:default",
     });
@@ -38,10 +39,13 @@ describe("RunStore", () => {
       usageJson: "{\"input\":1}",
     });
     expect(updated).toMatchObject({
+      agentId: "docs",
       status: "completed",
       transport: "sse",
       requestIdentity: "req-1",
       usageJson: "{\"input\":1}",
     });
+    expect(stores.runs.countByAgentStatuses("docs", ["completed"])).toBe(1);
+    expect(stores.runs.countByAgentStatuses("main", ["completed"])).toBe(0);
   });
 });

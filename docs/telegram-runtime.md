@@ -207,6 +207,8 @@ Owner/admin users can use `/agent list`, `/agent show [agent-id]`, `/agent set <
 
 When an agent defines `toolNames`, only those tools are exposed to the model and executable for sessions using that agent. Agent `toolPolicies` are applied as additional restrictions on top of global tool policies and chat governance.
 
+Agents can also define `maxConcurrentRuns` and `maxQueuedRuns`. Concurrent-run limits are enforced in memory across sessions for the selected agent. Queue limits are counted from persisted run records by `agent_id`; a full queue creates a failed run with `agent_queue_full` and sends a normal failed-run Telegram status.
+
 ## Command Surface
 
 `TelegramCommandRouter` handles commands before the ACL-model pipeline.

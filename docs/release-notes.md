@@ -11,6 +11,8 @@
 - Added `/agent list`, `/agent show`, `/agent set`, and `/agent reset`; set/reset are owner/admin-only.
 - Added agent `toolNames` and `toolPolicies` so selected agents can further restrict model-visible and executable tools.
 - Added run-time model governance for persisted agent models before model transport.
+- Added agent `maxConcurrentRuns` and `maxQueuedRuns` for host-local active-run and backlog control.
+- Added `agent_id` to run records for agent-level queue accounting.
 
 Operator checklist:
 
@@ -20,6 +22,7 @@ Operator checklist:
 - Keep chat governance and usage budgets aligned with any agent that uses a different model.
 - Use `/agent set <id>` to move an existing session to a configured agent after validating that the target profile exists.
 - Use agent tool restrictions only to narrow the global tool policy; they cannot make side-effecting tools approval-free.
+- Use `maxQueuedRuns:0` to temporarily pause accepting new work for an agent while still keeping the agent configured.
 
 ### Guarded Tool Expansion
 

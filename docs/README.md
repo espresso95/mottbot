@@ -44,7 +44,7 @@ Implemented in this repo:
 - Telegram polling bot via `grammY`
 - normalized Telegram ingress
 - ACL and route resolution
-- config-defined named agents, Telegram route bindings, runtime `/agent` switching, and per-agent tool restrictions
+- config-defined named agents, Telegram route bindings, runtime `/agent` switching, per-agent tool restrictions, and host-local per-agent run limits
 - per-session run serialization
 - SQLite-backed session, transcript, run, outbox, and auth storage
 - Subscription-backed `openai-codex` provider boundary
@@ -89,7 +89,7 @@ Implemented in this repo:
 
 Planned hardening that is not yet implemented:
 
-- per-agent concurrency policy
+- channel bindings beyond Telegram
 - enabling native provider file blocks for non-image attachments when the provider exposes them
 - billing-grade token or currency budgets if provider usage data becomes reliable enough to enforce
 - fully automated webhook delivery and live Codex fault-injection smoke tests

@@ -79,6 +79,7 @@ Owns route identity and concurrency.
 - `session-store.ts`: persistent route config and mutable session settings
 - `transcript-store.ts`: transcript persistence
 - `queue.ts`: strict one-run-at-a-time execution per session
+- `agent-run-limiter.ts`: host-local active-run caps per configured agent
 
 ### `src/runs/*`
 
@@ -196,7 +197,7 @@ All long-lived state lives in sessions, transcripts, runs, auth profiles, and tr
 
 ### 2. Sessions are the concurrency boundary
 
-`SessionQueue` serializes work per `session_key`. `run_queue` persists accepted queued work so a restarted process can resume runs that never reached `starting`.
+`SessionQueue` serializes work per `session_key`. `AgentRunLimiter` can additionally cap active execution per selected agent across sessions. `run_queue` persists accepted queued work so a restarted process can resume runs that never reached `starting`.
 
 ### 3. Provider logic is isolated
 
@@ -227,7 +228,7 @@ Implemented now:
 - durable update dedupe using `telegram_updates`
 - mention/reply-to-bot/bound-command ACL
 - deterministic session routing
-- config-defined named agents, Telegram route bindings, runtime `/agent` switching, and per-agent tool restrictions
+- config-defined named agents, Telegram route bindings, runtime `/agent` switching, per-agent tool restrictions, and host-local per-agent run limits
 - run persistence and transcript persistence
 - local OAuth login command
 - Codex CLI auth import and refresh write-back
@@ -253,7 +254,7 @@ Implemented now:
 Not yet implemented:
 
 - enabling native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
-- per-agent concurrency policy
+- channel bindings beyond Telegram
 - generic network-write beyond configured MCP stdio servers, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction
