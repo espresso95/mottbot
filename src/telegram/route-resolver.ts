@@ -1,4 +1,4 @@
-import type { AppConfig } from "../app/config.js";
+import type { AgentConfig, AppConfig } from "../app/config.js";
 import { buildSessionKey } from "../sessions/session-key.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { SessionRoute } from "../sessions/types.js";
@@ -22,12 +22,7 @@ export class RouteResolver {
     private readonly sessions: SessionStore,
   ) {}
 
-  resolve(event: InboundEvent): SessionRoute {
-    const existing = this.sessions.findByChat(event.chatId, event.threadId);
-    if (existing?.routeMode === "bound") {
-      return existing;
-    }
-
+  selectAgent(event: InboundEvent): AgentConfig {
     const binding = this.config.agents.bindings.find((candidate) => matchesBinding(candidate, event));
     const agentId = binding?.agentId ?? this.config.agents.defaultId;
     const agent =
@@ -36,6 +31,16 @@ export class RouteResolver {
     if (!agent) {
       throw new Error(`No configured agent found for '${agentId}'.`);
     }
+    return agent;
+  }
+
+  resolve(event: InboundEvent): SessionRoute {
+    const existing = this.sessions.findByChat(event.chatId, event.threadId);
+    if (existing?.routeMode === "bound") {
+      return existing;
+    }
+
+    const agent = this.selectAgent(event);
 
     const built = buildSessionKey({
       chatType: event.chatType,

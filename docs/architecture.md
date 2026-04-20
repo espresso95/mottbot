@@ -227,7 +227,7 @@ Implemented now:
 - durable update dedupe using `telegram_updates`
 - mention/reply-to-bot/bound-command ACL
 - deterministic session routing
-- config-defined named agents and Telegram route bindings
+- config-defined named agents, Telegram route bindings, runtime `/agent` switching, and per-agent tool restrictions
 - run persistence and transcript persistence
 - local OAuth login command
 - Codex CLI auth import and refresh write-back
@@ -253,7 +253,7 @@ Implemented now:
 Not yet implemented:
 
 - enabling native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
-- runtime agent switching commands and per-agent policy overrides
+- per-agent concurrency policy
 - generic network-write beyond configured MCP stdio servers, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction

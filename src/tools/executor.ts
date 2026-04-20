@@ -16,6 +16,7 @@ import {
   isToolAdminRole,
   createToolRequestFingerprint,
   type ToolCallerRole,
+  type ToolPolicyConfig,
   type ToolPolicy,
   type ToolPolicyEngine,
 } from "./policy.js";
@@ -69,6 +70,8 @@ export type ToolExecutionOptions = {
   requestedByUserId?: string;
   chatId?: string;
   threadId?: number;
+  allowedToolNames?: readonly string[];
+  toolPolicyOverrides?: Record<string, ToolPolicyConfig>;
 };
 
 type TimedHandlerResult =
@@ -119,6 +122,21 @@ export class ToolExecutor {
       const definition = this.registry.resolve(call.name, { allowSideEffects: true });
       const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
       const role = this.callerRole(options.requestedByUserId);
+      if (options.allowedToolNames && !options.allowedToolNames.includes(definition.name)) {
+        const decision: ToolApprovalDecision = {
+          allowed: false,
+          code: "chat_denied",
+          message: `Tool ${definition.name} is not allowed by the selected agent.`,
+        };
+        this.recordAudit({
+          definition,
+          decision,
+          requestedAt: startedAt,
+          decidedAt: this.deps.clock.now(),
+          options,
+        });
+        return this.errorResult(call, startedAt, decision.code, decision.message);
+      }
       if (
         options.chatId &&
         this.deps.isToolAllowed &&
@@ -141,6 +159,8 @@ export class ToolExecutor {
       const policyDecision = this.policy.evaluate(definition, {
         role,
         chatId: options.chatId,
+      }, {
+        override: options.toolPolicyOverrides?.[definition.name],
       });
       if (!policyDecision.allowed) {
         this.recordAudit({

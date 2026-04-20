@@ -41,7 +41,7 @@ import {
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
 import { isToolAdminRole, type ToolCallerRole, type ToolPolicyEngine } from "../tools/policy.js";
-import type { ToolRegistry } from "../tools/registry.js";
+import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
 import type { RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
@@ -56,6 +56,7 @@ const MAX_TOOL_CALLS_PER_RUN = 5;
 
 export type RunGovernancePolicy = {
   resolveCallerRole?: (userId: string | undefined) => ToolCallerRole;
+  isModelAllowed?: (params: { chatId: string; modelRef: string }) => boolean;
   isToolAllowed?: (params: { chatId: string; toolName: string }) => boolean;
   validateAttachments?: (params: {
     chatId: string;
@@ -161,6 +162,9 @@ export class RunOrchestrator {
       profileId: params.session.profileId,
       modelRef: params.session.modelRef,
       boundName: params.session.boundName,
+      agentId: params.session.agentId,
+      fastMode: params.session.fastMode,
+      systemPrompt: params.session.systemPrompt,
     });
 
     const userPayload = buildUserTranscriptPayload(params.event, transcriptAttachmentsFromEvent(params.event));
@@ -325,6 +329,12 @@ export class RunOrchestrator {
       if (attachmentPolicyViolation) {
         throw new Error(attachmentPolicyViolation.message);
       }
+      if (
+        this.governance?.isModelAllowed &&
+        !this.governance.isModelAllowed({ chatId: params.event.chatId, modelRef: params.session.modelRef })
+      ) {
+        throw new Error(`Model ${params.session.modelRef} is not allowed in this chat.`);
+      }
       const budgetDecision = this.usageBudget?.evaluate({
         session: params.session,
         modelRef: params.session.modelRef,
@@ -380,9 +390,12 @@ export class RunOrchestrator {
           ? this.toolRegistry.listModelDeclarations({
               includeAdminTools,
               filter: (definition) =>
+                this.isToolAllowedByAgent(params.session, definition) &&
                 (this.toolPolicy?.evaluate(definition, {
                   role: callerRole,
                   chatId: params.event.chatId,
+                }, {
+                  override: this.agentForSession(params.session)?.toolPolicies?.[definition.name],
                 }).allowed ?? true) &&
                 (this.governance?.isToolAllowed?.({
                   chatId: params.event.chatId,
@@ -455,6 +468,8 @@ export class RunOrchestrator {
             requestedByUserId: params.event.fromUserId,
             chatId: params.event.chatId,
             threadId: params.event.threadId,
+            allowedToolNames: this.agentForSession(params.session)?.toolNames,
+            toolPolicyOverrides: this.agentForSession(params.session)?.toolPolicies,
           });
           executedToolResults.push(execution);
           this.transcripts.add({
@@ -590,6 +605,15 @@ export class RunOrchestrator {
   private callerRole(userId: string | undefined): ToolCallerRole {
     return this.governance?.resolveCallerRole?.(userId) ??
       (userId && this.config.telegram.adminUserIds.includes(userId) ? "owner" : "user");
+  }
+
+  private agentForSession(session: SessionRoute) {
+    return this.config.agents.list.find((agent) => agent.id === session.agentId);
+  }
+
+  private isToolAllowedByAgent(session: SessionRoute, definition: ToolDefinition): boolean {
+    const agent = this.agentForSession(session);
+    return !agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name);
   }
 
   private async proposeMemoryCandidates(params: {

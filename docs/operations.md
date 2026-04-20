@@ -238,7 +238,7 @@ Operational notes:
 
 - owners and admins can still run governance commands if a bad chat policy would otherwise block recovery
 - non-operator group commands require an explicit `commandRoles` entry for that command or wildcard
-- model tool declarations are filtered by both global tool policy and per-chat `toolNames`, and execution is rechecked before handlers run
+- model tool declarations are filtered by global tool policy, selected-agent restrictions, and per-chat `toolNames`; execution is rechecked before handlers run
 - `/model` refuses a model not listed in `modelRefs` when a chat policy sets that list
 - `/remember` and memory candidate acceptance refuse scopes not listed in `memoryScopes`
 

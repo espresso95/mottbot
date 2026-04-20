@@ -39,6 +39,10 @@ export type ToolPolicyDecision =
       policy?: ToolPolicy;
     };
 
+export type ToolPolicyEvaluationOptions = {
+  override?: ToolPolicyConfig;
+};
+
 const SENSITIVE_KEY_PATTERN = /(api[_-]?key|authorization|bearer|credential|hash|password|secret|token)/i;
 const MAX_PREVIEW_ARGUMENT_CHARS = 1_200;
 
@@ -135,6 +139,37 @@ function mergePolicy(definition: ToolDefinition, override: ToolPolicyConfig | un
   };
 }
 
+function intersectRoles(left: ToolCallerRole[], right: ToolCallerRole[]): ToolCallerRole[] {
+  const rightSet = new Set(right);
+  return left.filter((role) => rightSet.has(role));
+}
+
+function intersectChatIds(left: string[], right: string[]): string[] {
+  if (left.length === 0) {
+    return right;
+  }
+  if (right.length === 0) {
+    return left;
+  }
+  const rightSet = new Set(right);
+  return left.filter((chatId) => rightSet.has(chatId));
+}
+
+function applyAdditionalPolicy(definition: ToolDefinition, base: ToolPolicy, override: ToolPolicyConfig | undefined): ToolPolicy {
+  if (!override) {
+    return base;
+  }
+  const overridePolicy = mergePolicy(definition, override);
+  return {
+    toolName: base.toolName,
+    allowedRoles: uniqueRoles(intersectRoles(base.allowedRoles, overridePolicy.allowedRoles)),
+    allowedChatIds: intersectChatIds(base.allowedChatIds, overridePolicy.allowedChatIds),
+    requiresApproval: base.requiresApproval || overridePolicy.requiresApproval,
+    dryRun: base.dryRun || overridePolicy.dryRun,
+    maxOutputBytes: Math.min(base.maxOutputBytes, overridePolicy.maxOutputBytes),
+  };
+}
+
 export class ToolPolicyEngine {
   private readonly policies = new Map<string, ToolPolicy>();
 
@@ -148,8 +183,13 @@ export class ToolPolicyEngine {
     return this.policies.get(toolName);
   }
 
-  evaluate(definition: ToolDefinition, context: ToolPolicyContext): ToolPolicyDecision {
-    const policy = this.get(definition.name);
+  evaluate(
+    definition: ToolDefinition,
+    context: ToolPolicyContext,
+    options: ToolPolicyEvaluationOptions = {},
+  ): ToolPolicyDecision {
+    const basePolicy = this.get(definition.name);
+    const policy = basePolicy ? applyAdditionalPolicy(definition, basePolicy, options.override) : undefined;
     if (!policy) {
       return {
         allowed: false,
@@ -182,16 +222,34 @@ export class ToolPolicyEngine {
   }
 }
 
+export function validateToolPolicyReferences(params: {
+  definitions: readonly ToolDefinition[];
+  toolNames?: readonly string[];
+  overrides?: Record<string, ToolPolicyConfig>;
+  label: string;
+}): void {
+  const definitionsByName = new Set(params.definitions.map((definition) => definition.name));
+  for (const toolName of params.toolNames ?? []) {
+    if (!definitionsByName.has(toolName)) {
+      throw new Error(`${params.label} references unknown or disabled tool ${toolName}.`);
+    }
+  }
+  for (const toolName of Object.keys(params.overrides ?? {})) {
+    if (!definitionsByName.has(toolName)) {
+      throw new Error(`${params.label} policy references unknown or disabled tool ${toolName}.`);
+    }
+  }
+}
+
 export function createToolPolicyEngine(params: {
   definitions: readonly ToolDefinition[];
   overrides?: Record<string, ToolPolicyConfig>;
 }): ToolPolicyEngine {
-  const definitionsByName = new Map(params.definitions.map((definition) => [definition.name, definition]));
-  for (const toolName of Object.keys(params.overrides ?? {})) {
-    if (!definitionsByName.has(toolName)) {
-      throw new Error(`Tool policy references unknown or disabled tool ${toolName}.`);
-    }
-  }
+  validateToolPolicyReferences({
+    definitions: params.definitions,
+    overrides: params.overrides,
+    label: "Tool",
+  });
   return new ToolPolicyEngine(
     params.definitions.map((definition) => mergePolicy(definition, params.overrides?.[definition.name])),
   );

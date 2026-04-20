@@ -1,5 +1,6 @@
 import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
+import type { AgentConfig } from "../app/config.js";
 import type { SessionRoute, SessionRouteMode } from "./types.js";
 
 type SessionRow = {
@@ -117,6 +118,16 @@ export class SessionStore {
 
   setSystemPrompt(sessionKey: string, systemPrompt?: string): void {
     this.touch(sessionKey, { system_prompt: systemPrompt ?? null });
+  }
+
+  setAgent(sessionKey: string, agent: AgentConfig): void {
+    this.touch(sessionKey, {
+      agent_id: agent.id,
+      profile_id: agent.profileId,
+      model_ref: agent.modelRef,
+      fast_mode: agent.fastMode ? 1 : 0,
+      system_prompt: agent.systemPrompt ?? null,
+    });
   }
 
   bind(sessionKey: string, boundName = "here"): void {

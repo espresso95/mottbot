@@ -30,7 +30,7 @@ import { createRuntimeToolRegistry } from "../tools/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { ToolApprovalStore } from "../tools/approval.js";
 import { scheduleServiceRestart } from "../tools/process-control.js";
-import { createToolPolicyEngine } from "../tools/policy.js";
+import { createToolPolicyEngine, validateToolPolicyReferences } from "../tools/policy.js";
 import { MemoryStore } from "../sessions/memory-store.js";
 import { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import { ApplicationInstanceLease } from "./instance-lease.js";
@@ -101,6 +101,14 @@ export async function bootstrapApplication() {
   const toolRegistry = createRuntimeToolRegistry({
     enableSideEffectTools: config.tools.enableSideEffectTools,
   });
+  for (const agent of config.agents.list) {
+    validateToolPolicyReferences({
+      definitions: toolRegistry.listEnabled(),
+      toolNames: agent.toolNames,
+      overrides: agent.toolPolicies,
+      label: `Agent ${agent.id}`,
+    });
+  }
   const toolPolicy = createToolPolicyEngine({
     definitions: toolRegistry.listEnabled(),
     overrides: config.tools.policies,
@@ -196,6 +204,7 @@ export async function bootstrapApplication() {
     usageBudget,
     {
       resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
+      isModelAllowed: ({ chatId, modelRef }) => governance.isModelAllowed({ chatId, modelRef }),
       isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
       validateAttachments: ({ chatId, attachments }) =>
         governance.validateAttachments({ chatId, attachments }),

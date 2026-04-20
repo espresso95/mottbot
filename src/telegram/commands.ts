@@ -1,8 +1,8 @@
 import type { Api } from "grammy";
-import type { AppConfig } from "../app/config.js";
+import type { AgentConfig, AppConfig } from "../app/config.js";
 import { importCodexCliAuthProfile } from "../codex/cli-auth-import.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
-import { isKnownCodexModelRef, KNOWN_CODEX_MODEL_REFS_TEXT } from "../codex/provider.js";
+import { isCodexModelRef, isKnownCodexModelRef, KNOWN_CODEX_MODEL_REFS_TEXT } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
 import { fetchCodexUsage } from "../codex/usage.js";
 import type { CodexUsageSnapshot } from "../codex/types.js";
@@ -262,6 +262,29 @@ function formatToolAuditRecord(record: ToolApprovalAuditRecord): string {
   }${preview}`;
 }
 
+function formatAgentLine(agent: AgentConfig, params: { currentId?: string; defaultId: string }): string {
+  const labels = [
+    agent.id === params.defaultId ? "default" : undefined,
+    agent.id === params.currentId ? "current" : undefined,
+    agent.fastMode ? "fast" : undefined,
+    agent.toolNames && agent.toolNames.length > 0 ? `tools=${agent.toolNames.length}` : undefined,
+  ].filter(Boolean);
+  const display = agent.displayName ? ` (${agent.displayName})` : "";
+  return `- ${agent.id}${display}${labels.length > 0 ? ` [${labels.join(", ")}]` : ""}: ${agent.modelRef}, ${agent.profileId}`;
+}
+
+function formatAgentDetails(agent: AgentConfig): string {
+  return [
+    `Agent: ${agent.id}${agent.displayName ? ` (${agent.displayName})` : ""}`,
+    `Model: ${agent.modelRef}`,
+    `Profile: ${agent.profileId}`,
+    `Fast mode: ${agent.fastMode ? "on" : "off"}`,
+    `System prompt: ${agent.systemPrompt ? "configured" : "not set"}`,
+    `Tool allow-list: ${agent.toolNames && agent.toolNames.length > 0 ? agent.toolNames.join(", ") : "all policy-allowed tools"}`,
+    `Tool policy overrides: ${agent.toolPolicies ? Object.keys(agent.toolPolicies).join(", ") || "none" : "none"}`,
+  ].join("\n");
+}
+
 async function sendReply(
   api: Api,
   event: InboundEvent,
@@ -332,6 +355,7 @@ export class TelegramCommandRouter {
           event,
           [
             `Session: ${session.sessionKey}`,
+            `Agent: ${session.agentId}`,
             `Model: ${session.modelRef}`,
             `Profile: ${session.profileId}`,
             `Fast mode: ${session.fastMode ? "on" : "off"}`,
@@ -347,6 +371,10 @@ export class TelegramCommandRouter {
       }
       case "usage": {
         await this.handleUsageCommand(event, session, parsed.args);
+        return true;
+      }
+      case "agent": {
+        await this.handleAgentCommand(event, session, parsed.args);
         return true;
       }
       case "tool": {
@@ -653,19 +681,27 @@ export class TelegramCommandRouter {
     return this.userRole(event);
   }
 
-  private listExposedTools(event: InboundEvent) {
+  private listExposedToolsForSession(event: InboundEvent, session: SessionRoute) {
+    const agent = this.agentForSession(session);
     return this.toolRegistry?.listModelDeclarations({
       includeAdminTools: this.isAdmin(event),
       filter: (definition) =>
+        (!agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name)) &&
         (this.toolPolicy?.evaluate(definition, {
           role: this.callerRole(event),
           chatId: event.chatId,
+        }, {
+          override: agent?.toolPolicies?.[definition.name],
         }).allowed ?? true) &&
         (this.governance?.isToolAllowed({
           chatId: event.chatId,
           toolName: definition.name,
         }) ?? true),
     }) ?? [];
+  }
+
+  private agentForSession(session: SessionRoute): AgentConfig | undefined {
+    return this.config.agents.list.find((agent) => agent.id === session.agentId);
   }
 
   private async requireAdmin(event: InboundEvent, action: string): Promise<boolean> {
@@ -686,7 +722,7 @@ export class TelegramCommandRouter {
 
   private formatHelp(event: InboundEvent, session: SessionRoute): string {
     const isAdmin = this.isAdmin(event);
-    const exposedTools = this.listExposedTools(event);
+    const exposedTools = this.listExposedToolsForSession(event, session);
     const sections = [
       [
         "Mottbot help",
@@ -707,6 +743,7 @@ export class TelegramCommandRouter {
           commandHelp("status", "/status - show session, model, profile, and usage"),
           commandHelp("health", "/health - show runtime health"),
           commandHelp("usage", "/usage [daily|monthly] - show local run usage and configured limits"),
+          commandHelp("agent", "/agent [list|show|set|reset] - inspect or change this session agent"),
           commandHelp("model", "/model <provider/model> - change this session model"),
           commandHelp("profile", "/profile [profile-id] - list or select auth profile"),
           commandHelp("fast", "/fast on|off - toggle priority service tier"),
@@ -822,6 +859,131 @@ export class TelegramCommandRouter {
     }
     const window = selectedWindow === "monthly" ? "monthly" : "daily";
     await sendReply(this.api, event, this.usageBudget.formatUsageReport({ session, window }));
+  }
+
+  private async handleAgentCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    const sub = args[0]?.toLowerCase() ?? "show";
+    if (sub === "list") {
+      await sendReply(
+        this.api,
+        event,
+        [
+          "Configured agents:",
+          ...this.config.agents.list.map((agent) =>
+            formatAgentLine(agent, { currentId: session.agentId, defaultId: this.config.agents.defaultId }),
+          ),
+        ].join("\n"),
+      );
+      return;
+    }
+    if (sub === "show") {
+      const requestedAgentId = normalizeSingleArg(args[1]);
+      const agent = requestedAgentId ? this.findAgent(requestedAgentId) : this.agentForSession(session);
+      if (!agent) {
+        await sendReply(
+          this.api,
+          event,
+          requestedAgentId
+            ? `Unknown agent ${requestedAgentId}.`
+            : `Current route agent ${session.agentId} is not in the current config.`,
+        );
+        return;
+      }
+      await sendReply(this.api, event, formatAgentDetails(agent));
+      return;
+    }
+    if (sub === "set") {
+      if (!(await this.requireAdmin(event, "change session agents"))) {
+        return;
+      }
+      const agentId = normalizeSingleArg(args[1]);
+      const agent = agentId ? this.findAgent(agentId) : undefined;
+      if (!agent) {
+        await sendReply(this.api, event, "Usage: /agent set <agent-id>");
+        return;
+      }
+      await this.applyAgentSelection(event, session, agent, "Agent set");
+      return;
+    }
+    if (sub === "reset") {
+      if (!(await this.requireAdmin(event, "reset session agents"))) {
+        return;
+      }
+      await this.applyAgentSelection(event, session, this.routes.selectAgent(event), "Agent reset");
+      return;
+    }
+    await sendReply(this.api, event, "Usage: /agent [list|show [agent-id]|set <agent-id>|reset]");
+  }
+
+  private findAgent(agentId: string): AgentConfig | undefined {
+    return this.config.agents.list.find((agent) => agent.id === agentId);
+  }
+
+  private sessionWithAgent(session: SessionRoute, agent: AgentConfig): SessionRoute {
+    return {
+      ...session,
+      agentId: agent.id,
+      profileId: agent.profileId,
+      modelRef: agent.modelRef,
+      fastMode: agent.fastMode,
+      systemPrompt: agent.systemPrompt,
+    };
+  }
+
+  private validateAgentSelection(
+    event: InboundEvent,
+    session: SessionRoute,
+    agent: AgentConfig,
+  ): { allowed: true; warnings: string[] } | { allowed: false; message: string } {
+    if (!isCodexModelRef(agent.modelRef)) {
+      return { allowed: false, message: `Invalid agent model ${agent.modelRef}. Expected openai-codex/<model>.` };
+    }
+    if (!this.authProfiles.get(agent.profileId)) {
+      return { allowed: false, message: `Agent profile ${agent.profileId} is not configured.` };
+    }
+    if (this.governance && !this.governance.isModelAllowed({ chatId: event.chatId, modelRef: agent.modelRef })) {
+      return { allowed: false, message: `Agent model ${agent.modelRef} is not allowed in this chat.` };
+    }
+    const nextSession = this.sessionWithAgent(session, agent);
+    const budgetDecision = this.usageBudget?.evaluate({
+      session: nextSession,
+      modelRef: agent.modelRef,
+    });
+    if (budgetDecision && !budgetDecision.allowed) {
+      return {
+        allowed: false,
+        message: budgetDecision.deniedReason ?? `Agent model ${agent.modelRef} exceeds a usage budget.`,
+      };
+    }
+    return {
+      allowed: true,
+      warnings: budgetDecision?.warnings ?? [],
+    };
+  }
+
+  private async applyAgentSelection(
+    event: InboundEvent,
+    session: SessionRoute,
+    agent: AgentConfig,
+    label: string,
+  ): Promise<void> {
+    const decision = this.validateAgentSelection(event, session, agent);
+    if (!decision.allowed) {
+      await sendReply(this.api, event, decision.message);
+      return;
+    }
+    this.sessions.setAgent(session.sessionKey, agent);
+    await sendReply(
+      this.api,
+      event,
+      [
+        `${label} to ${agent.id}.`,
+        `Model: ${agent.modelRef}`,
+        `Profile: ${agent.profileId}`,
+        `Fast mode: ${agent.fastMode ? "on" : "off"}`,
+        ...decision.warnings,
+      ].join("\n"),
+    );
   }
 
   private async handleUsersCommand(event: InboundEvent, args: string[]): Promise<void> {
@@ -1415,7 +1577,7 @@ export class TelegramCommandRouter {
     }
     if (!sub || sub === "status") {
       const tools = this.toolRegistry.listEnabled();
-      const exposedTools = this.listExposedTools(event);
+      const exposedTools = this.listExposedToolsForSession(event, session);
       const approvals = this.toolApprovals.listActive(session.sessionKey);
       await sendReply(
         this.api,
@@ -1619,7 +1781,7 @@ export class TelegramCommandRouter {
 
   private formatToolHelp(event: InboundEvent, session: SessionRoute): string {
     const isAdmin = this.isAdmin(event);
-    const exposedTools = this.listExposedTools(event);
+    const exposedTools = this.listExposedToolsForSession(event, session);
     const approvals = this.toolApprovals?.listActive(session.sessionKey) ?? [];
     const commands = this.visibleCommandTexts(event, [
       commandHelp("tool", "/tool status - show model-exposed tools, enabled host tools, and active approvals"),

@@ -145,6 +145,8 @@ Current defaults:
 }
 ```
 
+Agent entries may include `displayName`, `profileId`, `modelRef`, `fastMode`, `systemPrompt`, `toolNames`, and `toolPolicies`. `toolNames` is an allow-list for model-exposed tools when that agent is selected. `toolPolicies` uses the same shape as global tool policy entries and is applied as an additional restriction, not a relaxation of global policy.
+
 ## Session Identity
 
 The session key is the primary identity boundary for queueing, transcript storage, and route settings.

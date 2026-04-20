@@ -39,14 +39,15 @@ As of April 20, 2026:
 - Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, the transport safely falls back to text rather than sending raw file bytes as an unsupported content type, and dormant native-file preparation is restricted to classified document types.
 - Phase 25 is complete for guarded tool expansion: Mottbot can read, append, and replace approved local text documents, run allowlisted local commands inside approved workspace roots, and call allowlisted tools on configured MCP stdio servers. All new side effects remain admin-only, disabled by default, approval-gated, bounded, and audited through the existing tool policy layer.
 - Phase 26 is complete for the first named-agent routing slice: config can define reusable agent presets, bind Telegram chats, topics, chat types, or users to an agent, persist the selected agent on the session route, and apply that agent's profile, model, fast mode, and system prompt defaults to newly created routes.
+- Phase 27 is complete for runtime agent controls: owner/admin users can inspect, set, and reset the current session agent; agent model changes are checked against chat governance and local usage budgets; agent tool allow-lists and per-tool policy restrictions are enforced in model tool declarations and execution.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 68 test files and 294 tests.
-- `corepack pnpm test:coverage` passes with statements 85.3%, branches 75.32%, functions 93.19%, and lines 85.24%.
+- `corepack pnpm test` passes with 68 test files and 299 tests.
+- `corepack pnpm test:coverage` passes with statements 85.09%, branches 74.95%, functions 93.14%, and lines 85.01%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
@@ -63,7 +64,7 @@ Current known gaps:
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
 - Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, GitHub issue/comment writes, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, broader GitHub writes, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
-- Named agents are config-bound route presets. Runtime agent switching commands, per-agent tool policy overrides, per-agent concurrency caps, and channel bindings beyond Telegram remain backlog items.
+- Named agents support Telegram bindings, runtime owner/admin switching, and per-agent tool restrictions. Per-agent concurrency caps and channel bindings beyond Telegram remain backlog items.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -1746,7 +1747,7 @@ Dependencies and ordering:
 
 - Follows Phase 21 because user and chat governance remain the authorization boundary.
 - Follows Phase 22 because selected agents can use distinct model refs and must still be governed by budget checks.
-- Follows Phase 25 because future per-agent tool policies should reuse the existing tool registry and approval model.
+- Follows Phase 25 because later per-agent tool policies should reuse the existing tool registry and approval model.
 
 ### Task 26.1: Add Agent Configuration
 
@@ -1760,7 +1761,7 @@ Deliverables:
 
 Implemented:
 
-- Agent presets include ID, optional display name, profile ID, model ref, fast mode, and system prompt.
+- Agent presets include ID, optional display name, profile ID, model ref, fast mode, system prompt, optional tool allow-list, and optional per-tool policy restrictions.
 - Startup normalizes missing profile/model defaults from the global config.
 - Config tests cover file plus environment loading, default synthesis, and unknown binding rejection.
 
@@ -1799,7 +1800,7 @@ Edge cases to cover:
 - Interaction with `/model`, `/profile`, `/fast`, and `/reset`, because those commands mutate route-local settings after the agent default is applied.
 - Chat governance conflicts where a route-bound agent uses a model or tool not allowed by the current chat policy.
 - Budget checks for routes whose selected agent uses a higher-cost model.
-- Future runtime switching commands must validate agent IDs and preserve or reset mutable route overrides intentionally.
+- Runtime switching commands must validate agent IDs and preserve or reset mutable route overrides intentionally.
 - MCP server startup failure, malformed JSON-RPC output, MCP error response, timeout before initialize, timeout during tool call, unallowlisted tool, oversized result, stderr with sensitive-looking text, and server process cleanup.
 - Approval preview mismatch, approval expiration, approval revocation, duplicate model tool calls, dry-run policy, chat-policy denial, and non-admin caller denial for every new side-effecting tool.
 
@@ -1820,3 +1821,80 @@ Verification:
 - `corepack pnpm test`
 - `corepack pnpm test:coverage`
 - `corepack pnpm build`
+
+## Phase 27: Runtime Agent Controls And Agent Tool Policy
+
+This phase turns named agents from route defaults into an operator-controlled runtime feature while keeping model, tool, and budget policy checks centralized.
+
+Status: complete for owner/admin `/agent` commands, chat-governed agent model selection, usage-budget checks before agent switches, run-time model governance, agent tool allow-lists, and per-agent tool policy restrictions.
+
+Dependencies and ordering:
+
+- Follows Phase 26 because agent identity must already be persisted on session routes.
+- Follows Phase 21 because runtime switching must respect chat governance.
+- Follows Phase 14 and Phase 25 because per-agent tool restrictions must reuse the existing tool policy and approval system.
+
+### Task 27.1: Add Runtime Agent Commands
+
+Deliverables:
+
+- Add `/agent list` to show configured agents.
+- Add `/agent show [agent-id]` to inspect the current or named agent.
+- Add owner/admin-only `/agent set <agent-id>` to apply an agent to the current session route.
+- Add owner/admin-only `/agent reset` to reapply the route-bound or default agent.
+- Display the current agent in `/status` and `/help`.
+- Validate that the agent profile exists before switching.
+
+Implemented:
+
+- `/agent` commands are handled by `TelegramCommandRouter`.
+- `SessionStore.setAgent()` updates `agent_id`, `profile_id`, `model_ref`, `fast_mode`, and `system_prompt` as one route-local change.
+- Command tests cover listing, switching, profile/model/fast/system prompt updates, and governance rejection.
+
+### Task 27.2: Enforce Agent Model Governance
+
+Deliverables:
+
+- Reject `/agent set` and `/agent reset` when the selected agent model is not allowed by the chat policy.
+- Check local usage budgets before switching to an agent model and report budget denial or warnings.
+- Reject model runs whose persisted route model is no longer allowed by current chat policy.
+
+Implemented:
+
+- `/agent set` and `/agent reset` call the same chat-model and usage-budget services as model runs.
+- `RunOrchestrator` checks `isModelAllowed` before auth/model transport so route-bound agent models cannot bypass chat policy.
+
+### Task 27.3: Add Per-Agent Tool Restrictions
+
+Deliverables:
+
+- Let agent config declare an optional `toolNames` allow-list.
+- Let agent config declare optional per-tool policy restrictions using the existing tool policy shape.
+- Validate agent tool names and policy references against the enabled runtime tool registry at startup.
+- Filter model-exposed tool declarations by agent restrictions.
+- Enforce the same restrictions in `ToolExecutor` so stale or forged tool calls cannot bypass declaration filtering.
+
+Implemented:
+
+- Agent `toolNames` restricts model-visible and executable tools for the selected session agent.
+- Agent `toolPolicies` applies additional restrictions on top of global tool policy, including role, chat, dry-run, and output-byte constraints.
+- Tool policy tests cover agent restrictions as additional policy, and executor tests cover denial outside the selected agent allow-list.
+
+Edge cases to cover:
+
+- Switching to an agent whose profile was removed after startup.
+- Switching to an agent whose model is not valid for the Codex provider.
+- Chat policies changing after a route already selected an agent.
+- Usage budgets that become exhausted between `/agent set` and the next model run.
+- Agent tool allow-lists that reference disabled side-effect tools when side-effect tools are off.
+- Agent tool policy role/chat restrictions that are stricter than the global policy.
+- Stale model tool calls for tools no longer exposed after an agent switch.
+
+Required testing:
+
+- Command tests for `/agent list`, `/agent show`, `/agent set`, `/agent reset`, non-admin denial, unknown agent IDs, missing profiles, governance denial, and budget denial.
+- Session store tests for atomic route-local agent updates and clearing old system prompts.
+- Run orchestrator tests for model-governance rejection before transport and agent-filtered tool declarations.
+- Tool policy tests for per-agent restriction merging.
+- Tool executor tests proving execution enforces the selected agent allow-list even when a call is manually provided.
+- Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.

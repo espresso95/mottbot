@@ -98,6 +98,27 @@ describe("ToolExecutor", () => {
     }
   });
 
+  it("denies tools outside the selected agent allow-list", async () => {
+    const executor = new ToolExecutor(new ToolRegistry(), {
+      clock: new FakeClock(),
+    });
+
+    const result = await executor.execute(
+      {
+        id: "call-1",
+        name: "mottbot_health_snapshot",
+        arguments: {},
+      },
+      {
+        allowedToolNames: ["mottbot_recent_runs"],
+      },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.errorCode).toBe("chat_denied");
+    expect(result.contentText).toContain("selected agent");
+  });
+
   it("executes repository tools for admins and denies non-admin callers", async () => {
     const stores = createStores();
     try {

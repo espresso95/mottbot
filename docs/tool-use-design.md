@@ -330,14 +330,14 @@ Example:
 
 Admin-only tool definitions remain owner/admin-only even if policy config tries to expose them to trusted or normal users.
 For side-effecting tools, `requiresApproval:false` is ignored; use `dryRun:true` to return a preview without executing a side effect.
-Per-chat `toolNames` governance policy further filters model-exposed tools and is rechecked immediately before tool execution.
+Per-agent `toolNames` and per-chat `toolNames` governance policy further filter model-exposed tools and are rechecked immediately before tool execution. Agent `toolPolicies` can add stricter role, chat, dry-run, or output-byte limits on top of global policy.
 
 ## Runtime Behavior
 
 - `CodexTransport` converts registry declarations into `@mariozechner/pi-ai` tool declarations.
 - Streamed `toolcall_start`, `toolcall_delta`, and `toolcall_end` events are normalized in `src/codex/*`; malformed or incomplete events are ignored rather than executed.
 - `RunOrchestrator` allows up to three tool rounds and five tool calls per run.
-- `RunOrchestrator` filters tool declarations by caller role and chat policy before sending them to the model.
+- `RunOrchestrator` filters tool declarations by caller role, selected agent, and chat policy before sending them to the model.
 - `ToolExecutor` rechecks registry, schema, caller role, chat policy, timeout, and output limits immediately before execution.
 - `ToolExecutor` executes side-effecting tools only when the runtime exposes them and a fresh matching approval exists for the same session. Dry-run policy returns the sanitized preview without calling the handler.
 - Tool results are sent back to the provider as `toolResult` messages in the same active turn.

@@ -258,6 +258,13 @@ describe("loadConfig", () => {
           modelRef: "openai-codex/gpt-5.4-mini",
           systemPrompt: "Keep operations concise.",
           fastMode: true,
+          toolNames: ["mottbot_health_snapshot"],
+          toolPolicies: {
+            mottbot_health_snapshot: {
+              allowedRoles: ["admin"],
+              maxOutputBytes: 1234,
+            },
+          },
         },
       ],
       bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],
@@ -290,6 +297,13 @@ describe("loadConfig", () => {
           modelRef: "openai-codex/gpt-5.4-mini",
           systemPrompt: "Keep operations concise.",
           fastMode: true,
+          toolNames: ["mottbot_health_snapshot"],
+          toolPolicies: {
+            mottbot_health_snapshot: {
+              allowedRoles: ["admin"],
+              maxOutputBytes: 1234,
+            },
+          },
         },
       ],
       bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],

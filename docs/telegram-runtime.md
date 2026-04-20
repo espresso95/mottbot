@@ -199,8 +199,13 @@ The selected agent provides:
 - `modelRef`
 - `fastMode`
 - optional `systemPrompt`
+- optional model tool allow-list and per-tool policy restrictions
 
 If no agents are configured, startup synthesizes a default `main` agent from `auth.defaultProfile` and `models.default`. Existing session routes keep their persisted agent, profile, model, fast mode, and system prompt settings; config changes apply to newly created routes.
+
+Owner/admin users can use `/agent list`, `/agent show [agent-id]`, `/agent set <agent-id>`, and `/agent reset` to inspect or update the current route's agent. Agent switching validates the target profile, rejects models disallowed by chat governance, and checks local usage budgets before mutating the route. Model runs also re-check chat model policy before transport, so policy changes apply even to existing routes.
+
+When an agent defines `toolNames`, only those tools are exposed to the model and executable for sessions using that agent. Agent `toolPolicies` are applied as additional restrictions on top of global tool policies and chat governance.
 
 ## Command Surface
 
@@ -291,6 +296,7 @@ Chat policy JSON accepts:
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
 - `/profile` updates `session_routes.profile_id` only when the target profile exists and the profile ID has a safe shape
+- `/agent` lists, shows, sets, or resets the route agent; set/reset is owner/admin-only
 - `/fast` updates `session_routes.fast_mode`
 - `/new` and `/reset` both clear transcript history for the session
 - `/stop` aborts the active run for the session if one exists

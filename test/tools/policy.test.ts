@@ -105,6 +105,73 @@ describe("tool policy engine", () => {
     });
   });
 
+  it("applies per-agent policy overrides as additional restrictions", () => {
+    const definition = tool();
+    const policy = createToolPolicyEngine({
+      definitions: [definition],
+      overrides: {
+        lookup_value: {
+          allowedRoles: ["admin", "trusted"],
+          allowedChatIds: ["chat-1", "chat-2"],
+          maxOutputBytes: 2_000,
+        },
+      },
+    });
+
+    expect(
+      policy.evaluate(
+        definition,
+        { role: "trusted", chatId: "chat-1" },
+        {
+          override: {
+            allowedRoles: ["admin"],
+            allowedChatIds: ["chat-2"],
+            maxOutputBytes: 1_000,
+          },
+        },
+      ),
+    ).toMatchObject({
+      allowed: false,
+      code: "role_denied",
+    });
+    expect(
+      policy.evaluate(
+        definition,
+        { role: "admin", chatId: "chat-1" },
+        {
+          override: {
+            allowedRoles: ["admin"],
+            allowedChatIds: ["chat-2"],
+            maxOutputBytes: 1_000,
+          },
+        },
+      ),
+    ).toMatchObject({
+      allowed: false,
+      code: "chat_denied",
+    });
+    expect(
+      policy.evaluate(
+        definition,
+        { role: "admin", chatId: "chat-2" },
+        {
+          override: {
+            allowedRoles: ["admin"],
+            allowedChatIds: ["chat-2"],
+            maxOutputBytes: 1_000,
+          },
+        },
+      ),
+    ).toMatchObject({
+      allowed: true,
+      policy: expect.objectContaining({
+        allowedRoles: ["admin"],
+        allowedChatIds: ["chat-2"],
+        maxOutputBytes: 1_000,
+      }),
+    });
+  });
+
   it("rejects overrides for unknown or disabled tools", () => {
     expect(() =>
       createToolPolicyEngine({

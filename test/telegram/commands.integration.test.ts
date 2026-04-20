@@ -578,6 +578,145 @@ describe("TelegramCommandRouter", () => {
     );
   });
 
+  it("lists and switches configured agents with policy checks", async () => {
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+          },
+          {
+            id: "docs",
+            displayName: "Docs",
+            profileId: "openai-codex:docs",
+            modelRef: "openai-codex/gpt-5.4-mini",
+            fastMode: true,
+            systemPrompt: "Write concise docs.",
+            toolNames: ["mottbot_health_snapshot"],
+          },
+        ],
+        bindings: [],
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.authProfiles.upsert({
+      profileId: "openai-codex:default",
+      source: "local_oauth",
+      accessToken: "access",
+      refreshToken: "refresh",
+    });
+    stores.authProfiles.upsert({
+      profileId: "openai-codex:docs",
+      source: "local_oauth",
+      accessToken: "access",
+      refreshToken: "refresh",
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/agent list", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/agent set docs", fromUserId: "admin-1", isCommand: true }));
+
+    const session = stores.sessions.get("tg:dm:chat-1:user:admin-1");
+    expect(session).toMatchObject({
+      agentId: "docs",
+      profileId: "openai-codex:docs",
+      modelRef: "openai-codex/gpt-5.4-mini",
+      fastMode: true,
+      systemPrompt: "Write concise docs.",
+    });
+    const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    expect(replies[0]).toContain("docs (Docs)");
+    expect(replies[1]).toContain("Agent set to docs");
+  });
+
+  it("rejects agent switching when chat governance disallows the agent model", async () => {
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+          },
+          {
+            id: "docs",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4-mini",
+            fastMode: false,
+          },
+        ],
+        bindings: [],
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.authProfiles.upsert({
+      profileId: "openai-codex:default",
+      source: "local_oauth",
+      accessToken: "access",
+      refreshToken: "refresh",
+    });
+    const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
+      ownerUserIds: stores.config.telegram.adminUserIds,
+    });
+    governance.setChatPolicy({
+      chatId: "chat-1",
+      actorUserId: "admin-1",
+      policy: { modelRefs: ["openai-codex/gpt-5.4"] },
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governance,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/agent set docs", fromUserId: "admin-1", isCommand: true }));
+
+    expect(stores.sessions.findByChat("chat-1")?.agentId).toBe("main");
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("not allowed in this chat"),
+      expect.any(Object),
+    );
+  });
+
   it("rejects selecting an unknown profile", async () => {
     const stores = createStores();
     cleanup.push(() => {

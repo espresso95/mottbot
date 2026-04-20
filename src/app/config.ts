@@ -9,6 +9,13 @@ dotenv.config();
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
 const toolCallerRoleSchema = z.enum(["owner", "admin", "trusted", "user"]);
+const toolPolicyConfigSchema = z.object({
+  allowedRoles: z.array(toolCallerRoleSchema).optional(),
+  allowedChatIds: z.array(z.string()).optional(),
+  requiresApproval: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+  maxOutputBytes: z.number().int().min(1).optional(),
+});
 const telegramChatTypeSchema = z.enum(["private", "group", "supergroup", "channel"]);
 const agentIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 const agentConfigSchema = z.object({
@@ -18,6 +25,8 @@ const agentConfigSchema = z.object({
   modelRef: z.string().min(1).max(200).optional(),
   systemPrompt: z.string().min(1).max(8000).optional(),
   fastMode: z.boolean().optional(),
+  toolNames: z.array(z.string().min(1).max(128)).optional(),
+  toolPolicies: z.record(toolPolicyConfigSchema).optional(),
 });
 const agentRoutingBindingSchema = z.object({
   agentId: agentIdSchema,
@@ -33,13 +42,6 @@ const agentsConfigSchema = z
     bindings: z.array(agentRoutingBindingSchema).default([]),
   })
   .default({});
-const toolPolicyConfigSchema = z.object({
-  allowedRoles: z.array(toolCallerRoleSchema).optional(),
-  allowedChatIds: z.array(z.string()).optional(),
-  requiresApproval: z.boolean().optional(),
-  dryRun: z.boolean().optional(),
-  maxOutputBytes: z.number().int().min(1).optional(),
-});
 const usageBudgetConfigSchema = z
   .object({
     dailyRuns: z.number().int().min(0).default(0),
@@ -335,6 +337,8 @@ export type AgentConfig = {
   modelRef: string;
   systemPrompt?: string;
   fastMode: boolean;
+  toolNames?: string[];
+  toolPolicies?: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
 };
 
 export type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
@@ -389,6 +393,8 @@ function normalizeAgents(
       modelRef: rawAgent.modelRef ?? defaults.modelRef,
       ...(rawAgent.systemPrompt ? { systemPrompt: rawAgent.systemPrompt } : {}),
       fastMode: rawAgent.fastMode ?? false,
+      ...(rawAgent.toolNames ? { toolNames: rawAgent.toolNames } : {}),
+      ...(rawAgent.toolPolicies ? { toolPolicies: rawAgent.toolPolicies } : {}),
     });
   }
   if (!agents.has(rawAgents.defaultId)) {

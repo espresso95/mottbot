@@ -37,6 +37,19 @@ describe("SessionStore", () => {
       fastMode: true,
       systemPrompt: "custom",
     });
+    stores.sessions.setAgent(session.sessionKey, {
+      id: "docs",
+      profileId: "openai-codex:docs",
+      modelRef: "openai-codex/gpt-5.3-codex-spark",
+      fastMode: false,
+    });
+    expect(stores.sessions.get(session.sessionKey)).toMatchObject({
+      agentId: "docs",
+      modelRef: "openai-codex/gpt-5.3-codex-spark",
+      profileId: "openai-codex:docs",
+      fastMode: false,
+    });
+    expect(stores.sessions.get(session.sessionKey)?.systemPrompt).toBeUndefined();
   });
 
   it("binds and unbinds without breaking dm routing", () => {

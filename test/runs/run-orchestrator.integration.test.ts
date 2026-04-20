@@ -773,6 +773,68 @@ describe("RunOrchestrator", () => {
     ]);
   });
 
+  it("rejects runs when governance disallows the selected agent model", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      agentId: "main",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4-mini",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = { stream: vi.fn() };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        isModelAllowed: ({ modelRef }) => modelRef === "openai-codex/gpt-5.4",
+      },
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "hello" }),
+      session,
+    });
+
+    await flushAsync();
+
+    expect(transport.stream).not.toHaveBeenCalled();
+    expect(outbox.fail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("not allowed in this chat"),
+    );
+  });
+
   it("executes an approved side-effecting restart tool once", async () => {
     const stores = createStores({
       tools: {
