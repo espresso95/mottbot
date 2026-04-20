@@ -58,6 +58,7 @@ Implemented in this repo:
 - durable queued-run recovery after restart
 - versioned SQLite migration tracking
 - native image attachment ingestion and attachment-aware prompt construction
+- capability-gated native file attachment plumbing with safe fallback while Codex file blocks remain unsupported
 - bounded text, Markdown, code, CSV, TSV, and PDF attachment extraction for active model runs
 - session file metadata inspection and forgetting through `/files`
 - operator safety limits for inbound text and attachments
@@ -84,7 +85,7 @@ Implemented in this repo:
 
 Planned hardening that is not yet implemented:
 
-- native provider file blocks for non-image attachments when the provider exposes them
+- enabling native provider file blocks for non-image attachments when the provider exposes them
 - billing-grade token or currency budgets if provider usage data becomes reliable enough to enforce
 - fully automated webhook delivery and live Codex fault-injection smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries

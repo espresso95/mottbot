@@ -111,6 +111,7 @@ Current behavior:
 - prompts render attachment summaries as text context and strip directory-like prefixes from file names
 - image attachments are downloaded through Telegram `getFile` when the selected model supports native image input
 - downloaded image bytes are converted into base64 image blocks for the model request
+- native non-image file inputs are represented internally and capability-gated, but the active Codex provider adapter currently reports file input as unsupported
 - text, Markdown, code, CSV, TSV, and PDF documents are downloaded within byte limits and extracted into bounded prompt-only text
 - CSV and TSV attachments are represented as bounded table previews
 - PDF extraction is bounded by `attachments.pdfMaxPages` / `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES` and reports encrypted, unreadable, or no-text PDFs in attachment metadata
@@ -120,7 +121,7 @@ Current behavior:
 
 Current limitation:
 
-- non-image documents are not passed as native provider file blocks; supported documents are converted into prompt text instead
+- non-image documents are not passed as native provider file blocks until the provider adapter exposes a real file content type; supported documents are converted into prompt text instead
 - audio, video, stickers, and animations are not passed as native model inputs
 - media-group coalescing is not implemented
 

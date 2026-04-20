@@ -581,7 +581,7 @@ describe("RunOrchestrator", () => {
       ]),
     );
     expect(attachmentIngestor.prepare).toHaveBeenCalledWith(
-      expect.objectContaining({ allowNativeImages: true }),
+      expect.objectContaining({ allowNativeFiles: false, allowNativeImages: true }),
     );
     expect(attachmentIngestor.cleanup).toHaveBeenCalledTimes(1);
   });

@@ -3,7 +3,8 @@ import type { SessionMemory } from "../sessions/memory-store.js";
 
 export type PromptContentBlock =
   | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "file"; data: string; mimeType: string; fileName?: string };
 
 export type PromptMessage = {
   role: "system" | "user" | "assistant";

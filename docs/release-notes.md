@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Native File Attachment Plumbing
+
+- Added internal native file attachment input plumbing and model capability checks.
+- Kept native file input disabled for the current Codex provider adapter because the installed provider boundary supports text and images only.
+- Added a transport fallback so accidental file blocks become safe text notices instead of image payloads.
+- Added tests proving native file preparation is capability-gated and raw file bytes are not passed through the current provider context.
+
+Operator checklist:
+
+- Continue relying on bounded text extraction for PDF, text, Markdown, code, CSV, and TSV files.
+- Use `pnpm smoke:suite` attachment fixtures to validate live fallback behavior.
+- Do not expect native provider file blocks until the provider adapter exposes a real file content type.
+
 ### Live Validation Automation
 
 - Added `pnpm smoke:suite` as a guarded live validation matrix.

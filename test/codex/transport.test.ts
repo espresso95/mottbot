@@ -178,6 +178,50 @@ describe("CodexTransport", () => {
     });
   });
 
+  it("does not pass native file bytes through the current pi-ai provider boundary", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    let capturedContext: any;
+    streamSimple.mockImplementationOnce(async (_model, context) => {
+      capturedContext = context;
+      return createEventStream([{ type: "done", message: { content: [{ type: "text", text: "ok" }] } }]);
+    });
+    const transport = new CodexTransport(stores.database, stores.logger);
+
+    await transport.stream({
+      sessionKey: "session-file-fallback",
+      modelRef: "openai-codex/gpt-5.4",
+      transport: "websocket",
+      auth: {
+        profile: { profileId: "p1", provider: "openai-codex", source: "local_oauth", createdAt: 1, updatedAt: 1 },
+        accessToken: "access",
+        apiKey: "api",
+      },
+      messages: [
+        {
+          role: "user",
+          timestamp: 1,
+          content: [
+            { type: "text", text: "Inspect this file." },
+            { type: "file", data: "c2VjcmV0", mimeType: "application/pdf", fileName: "report.pdf" },
+          ],
+        },
+      ],
+    });
+
+    expect(capturedContext.messages[0].content).toEqual([
+      { type: "text", text: "Inspect this file." },
+      {
+        type: "text",
+        text: "[Native file report.pdf (application/pdf) omitted: the current Codex provider adapter supports text and images only.]",
+      },
+    ]);
+    expect(JSON.stringify(capturedContext)).not.toContain("c2VjcmV0");
+  });
+
   it("passes tool declarations and normalizes streamed tool calls", async () => {
     const stores = createStores();
     cleanup.push(() => {

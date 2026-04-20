@@ -128,6 +128,13 @@ function toUserContent(content: string | PromptContentBlock[]): UserMessage["con
     if (block.type === "image") {
       return { type: "image", data: block.data, mimeType: block.mimeType };
     }
+    if (block.type === "file") {
+      const name = block.fileName ? ` ${block.fileName}` : "";
+      return {
+        type: "text",
+        text: `[Native file${name} (${block.mimeType}) omitted: the current Codex provider adapter supports text and images only.]`,
+      };
+    }
     return { type: "text", text: block.text };
   });
 }

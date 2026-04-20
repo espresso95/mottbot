@@ -5,6 +5,7 @@ import {
   isCodexModelRef,
   isKnownCodexModelRef,
   resolveCodexModel,
+  supportsNativeFileInput,
   supportsNativeImageInput,
 } from "../../src/codex/provider.js";
 
@@ -38,5 +39,10 @@ describe("resolveCodexModel", () => {
   it("identifies native image input support", () => {
     expect(supportsNativeImageInput("openai-codex/gpt-5.4")).toBe(true);
     expect(supportsNativeImageInput("openai-codex/gpt-5.3-codex-spark")).toBe(false);
+  });
+
+  it("keeps native file input disabled until the provider adapter exposes file content blocks", () => {
+    expect(supportsNativeFileInput("openai-codex/gpt-5.4")).toBe(false);
+    expect(supportsNativeFileInput("openai-codex/gpt-5.4-mini")).toBe(false);
   });
 });

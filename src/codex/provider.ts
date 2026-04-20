@@ -45,6 +45,10 @@ export function supportsNativeImageInput(modelRef: string): boolean {
   return resolveCodexModel(modelRef, "sse").input.includes("image");
 }
 
+export function supportsNativeFileInput(_modelRef: string): boolean {
+  return false;
+}
+
 export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
   if (!isCodexModelRef(modelRef)) {
     throw new Error(`Invalid Codex model ref ${modelRef}. Expected openai-codex/<model>.`);

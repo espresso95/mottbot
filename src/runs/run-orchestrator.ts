@@ -343,6 +343,7 @@ export class RunOrchestrator {
       attachmentPreparation = await this.attachments.prepare({
         attachments: params.event.attachments,
         allowNativeImages: this.modelCapabilities.supportsNativeImageInput(params.session.modelRef),
+        allowNativeFiles: this.modelCapabilities.supportsNativeFileInput(params.session.modelRef),
         signal: params.signal,
       });
       if (params.event.attachments.length > 0) {

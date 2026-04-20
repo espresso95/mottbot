@@ -14,11 +14,18 @@ import type { NormalizedAttachment } from "./types.js";
 
 export type { ExtractedAttachmentText } from "./file-extraction.js";
 
-export type NativeAttachmentInput = {
-  type: "image";
-  data: string;
-  mimeType: string;
-};
+export type NativeAttachmentInput =
+  | {
+      type: "image";
+      data: string;
+      mimeType: string;
+    }
+  | {
+      type: "file";
+      data: string;
+      mimeType: string;
+      fileName?: string;
+    };
 
 export type TranscriptAttachmentMetadata = NormalizedAttachment & {
   recordId?: string;
@@ -39,6 +46,7 @@ export type AttachmentIngestor = {
   prepare(params: {
     attachments: NormalizedAttachment[];
     allowNativeImages: boolean;
+    allowNativeFiles: boolean;
     signal?: AbortSignal;
   }): Promise<AttachmentPreparation>;
   cleanup(preparation: AttachmentPreparation): Promise<void>;
@@ -141,6 +149,8 @@ async function readResponseBody(params: {
 export class NoopAttachmentIngestor implements AttachmentIngestor {
   async prepare(params: {
     attachments: NormalizedAttachment[];
+    allowNativeImages?: boolean;
+    allowNativeFiles?: boolean;
   }): Promise<AttachmentPreparation> {
     return {
       transcriptAttachments: params.attachments.map((attachment) => ({
@@ -168,6 +178,7 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
   async prepare(params: {
     attachments: NormalizedAttachment[];
     allowNativeImages: boolean;
+    allowNativeFiles: boolean;
     signal?: AbortSignal;
   }): Promise<AttachmentPreparation> {
     if (params.attachments.length > this.config.attachments.maxPerMessage) {
@@ -221,7 +232,10 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
           mimeType,
         });
         const shouldTryNativeImage = params.allowNativeImages && isImageMimeType(mimeType);
-        const shouldDownload = shouldTryNativeImage || Boolean(extractionCandidate) || canInspectBytes;
+        const shouldTryNativeFile =
+          params.allowNativeFiles && attachment.kind === "document" && !isImageMimeType(mimeType);
+        const shouldDownload =
+          shouldTryNativeImage || shouldTryNativeFile || Boolean(extractionCandidate) || canInspectBytes;
 
         if (!shouldDownload) {
           transcriptAttachments.push({
@@ -267,6 +281,28 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
           transcriptAttachments.push({
             ...baseMetadata,
             mimeType,
+            fileSize: telegramFileSize ?? buffer.byteLength,
+            ingestionStatus: "native_input",
+            downloadedBytes: buffer.byteLength,
+          });
+          continue;
+        }
+        if (shouldTryNativeFile) {
+          nativeInputs.push({
+            type: "file",
+            data: buffer.toString("base64"),
+            mimeType: mimeType ?? "application/octet-stream",
+            ...(attachment.fileName || telegramFile.file_path
+              ? {
+                  fileName: sanitizeFileName(
+                    path.basename(attachment.fileName ?? telegramFile.file_path ?? "attachment"),
+                  ),
+                }
+              : {}),
+          });
+          transcriptAttachments.push({
+            ...baseMetadata,
+            ...(mimeType ? { mimeType } : {}),
             fileSize: telegramFileSize ?? buffer.byteLength,
             ingestionStatus: "native_input",
             downloadedBytes: buffer.byteLength,

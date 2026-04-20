@@ -36,14 +36,15 @@ As of April 20, 2026:
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
+- Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, and the transport safely falls back to text rather than sending raw file bytes as an unsupported content type.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 64 test files and 265 tests.
-- `corepack pnpm test:coverage` passes with statements 84.71%, branches 74.6%, functions 93.22%, and lines 84.62%.
+- `corepack pnpm test` passes with 64 test files and 268 tests.
+- `corepack pnpm test:coverage` passes with statements 84.8%, branches 74.62%, functions 93.34%, and lines 84.71%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -53,7 +54,7 @@ Verified locally on April 20, 2026:
 
 Current known gaps:
 
-- Native provider attachment ingestion is limited to image inputs for models that advertise image support; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
+- Native provider attachment ingestion is limited to image inputs for models that advertise image support. Phase 24 adds native-file plumbing and guards, but the active Codex provider adapter still supports only text and images; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
@@ -1576,3 +1577,64 @@ Verification:
 - `corepack pnpm build`
 - `corepack pnpm smoke:suite`
 - `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true corepack pnpm smoke:suite`
+
+## Phase 24: Native Non-Image Provider File Blocks
+
+This phase moves beyond prompt-only non-image document handling when the provider adapter exposes a real file content type.
+
+Status: started. Mottbot now has typed native file attachment plumbing, model capability detection for native file input, and a Codex transport fallback that never passes raw file bytes through the current text/image-only Pi AI boundary. The active Codex model capability still reports native file input as unsupported, so runtime behavior remains prompt-text extraction for supported documents.
+
+Dependencies and ordering:
+
+- Follows Phase 13 because text extraction and metadata retention are the fallback path.
+- Follows Phase 23 so attachment fixture smoke checks can validate any future provider-native file path.
+- Requires a provider adapter content type that can represent non-image files without treating them as images.
+
+### Task 24.1: Add Native File Plumbing
+
+Deliverables:
+
+- Extend internal native attachment inputs with a file variant.
+- Extend prompt content blocks with a file variant.
+- Pass a separate native file capability from model capabilities into attachment preparation.
+- Add tests proving native file preparation is capability-gated.
+
+### Task 24.2: Guard The Current Provider Boundary
+
+Deliverables:
+
+- Report native file input as unsupported for the current `openai-codex` Pi AI provider boundary.
+- Ensure accidental file blocks are rendered as a safe text fallback rather than passed as image blocks.
+- Add tests proving raw file bytes are not sent through the current provider context.
+
+### Task 24.3: Enable Provider-Native Files When Available
+
+Deliverables:
+
+- Add a provider content conversion for real non-image file blocks once the provider adapter supports them.
+- Restrict enabled file MIME types and size limits to the provider-supported set.
+- Add live smoke coverage with PDF, text, CSV, code, unsupported binary, and mixed attachment messages.
+
+Edge cases to cover:
+
+- Provider supports images but not files.
+- Provider supports a subset of file MIME types.
+- Mixed image and file attachments.
+- File name sanitization without leaking local paths.
+- Raw bytes/base64 never appearing in logs, Telegram output, or text fallbacks.
+- Extraction fallback when native file support is disabled or rejected by provider.
+
+Required testing:
+
+- Unit tests for native file input preparation and fallback conversion.
+- Orchestrator tests proving `allowNativeFiles` follows model capabilities.
+- Transport tests proving unsupported file blocks do not become image blocks.
+- Attachment smoke tests through `pnpm smoke:suite` once a provider-native file path exists.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm vitest run test/codex/provider.test.ts test/codex/transport.test.ts test/telegram/attachments.test.ts test/runs/helpers.test.ts test/runs/run-orchestrator.integration.test.ts`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- `corepack pnpm build`

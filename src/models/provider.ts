@@ -2,7 +2,7 @@ import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import type { CodexResolvedAuth } from "../codex/types.js";
 import type { TransportMode, CodexStreamResult } from "../codex/transport.js";
 import type { CodexToolCall, CodexToolCallProgress } from "../codex/tool-calls.js";
-import { supportsNativeImageInput } from "../codex/provider.js";
+import { supportsNativeFileInput, supportsNativeImageInput } from "../codex/provider.js";
 import type { PromptMessage } from "../runs/prompt-builder.js";
 import type { ModelToolDeclaration } from "../tools/registry.js";
 
@@ -38,8 +38,10 @@ export type ModelTransport = {
 
 export type ModelCapabilities = {
   supportsNativeImageInput(modelRef: string): boolean;
+  supportsNativeFileInput(modelRef: string): boolean;
 };
 
 export const codexModelCapabilities: ModelCapabilities = {
+  supportsNativeFileInput,
   supportsNativeImageInput,
 };

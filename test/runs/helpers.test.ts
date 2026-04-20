@@ -41,7 +41,10 @@ describe("run helpers", () => {
           truncated: false,
         },
       ],
-      nativeInputs: [{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }],
+      nativeInputs: [
+        { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+        { type: "file", data: "c2VjcmV0", mimeType: "application/pdf", fileName: "/tmp/secret/report.pdf" },
+      ],
     });
 
     expect(messages[0]?.content).toBe("older");
@@ -52,6 +55,7 @@ describe("run helpers", () => {
         text: expect.stringContaining("main.ts"),
       }),
       { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+      { type: "file", data: "c2VjcmV0", mimeType: "application/pdf", fileName: "report.pdf" },
     ]);
     expect(JSON.stringify(messages)).not.toContain("/tmp/secret");
   });

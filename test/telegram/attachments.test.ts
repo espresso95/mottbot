@@ -33,6 +33,7 @@ describe("TelegramAttachmentIngestor", () => {
 
     const prepared = await ingestor.prepare({
       allowNativeImages: true,
+      allowNativeFiles: false,
       attachments: [{ kind: "photo", fileId: "photo-1" }],
     });
 
@@ -69,6 +70,7 @@ describe("TelegramAttachmentIngestor", () => {
 
     const textOnly = await ingestor.prepare({
       allowNativeImages: false,
+      allowNativeFiles: false,
       attachments: [{ kind: "photo", fileId: "photo-1" }],
     });
     expect(textOnly.nativeInputs).toEqual([]);
@@ -81,6 +83,7 @@ describe("TelegramAttachmentIngestor", () => {
 
     const unsupported = await ingestor.prepare({
       allowNativeImages: true,
+      allowNativeFiles: false,
       attachments: [{ kind: "document", fileId: "doc-1", mimeType: "application/pdf" }],
     });
     expect(unsupported.nativeInputs).toEqual([]);
@@ -121,6 +124,7 @@ describe("TelegramAttachmentIngestor", () => {
 
     const prepared = await ingestor.prepare({
       allowNativeImages: true,
+      allowNativeFiles: false,
       attachments: [
         { kind: "document", fileId: "md", fileName: "readme.md" },
         { kind: "document", fileId: "ts", fileName: "main.ts" },
@@ -136,6 +140,48 @@ describe("TelegramAttachmentIngestor", () => {
       expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "code" }) }),
       expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "csv" }) }),
     ]);
+
+    await ingestor.cleanup(prepared);
+    expect(fs.readdirSync(stores.config.attachments.cacheDir)).toEqual([]);
+  });
+
+  it("builds native file inputs only when the provider capability allows them", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      getFile: vi.fn(async () => ({
+        file_path: "docs/report.pdf",
+        file_size: 8,
+      })),
+    };
+    const fetchImpl = vi.fn(async () => new Response(Buffer.from("%PDF doc"), { status: 200 }));
+    const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
+
+    const prepared = await ingestor.prepare({
+      allowNativeImages: true,
+      allowNativeFiles: true,
+      attachments: [
+        { kind: "document", fileId: "doc-1", fileName: "quarterly report.pdf", mimeType: "application/pdf" },
+      ],
+    });
+
+    expect(prepared.nativeInputs).toEqual([
+      {
+        type: "file",
+        data: "JVBERiBkb2M=",
+        mimeType: "application/pdf",
+        fileName: "quarterly_report.pdf",
+      },
+    ]);
+    expect(prepared.extractedTexts).toEqual([]);
+    expect(prepared.transcriptAttachments[0]).toMatchObject({
+      ingestionStatus: "native_input",
+      downloadedBytes: 8,
+      mimeType: "application/pdf",
+    });
 
     await ingestor.cleanup(prepared);
     expect(fs.readdirSync(stores.config.attachments.cacheDir)).toEqual([]);
@@ -163,6 +209,7 @@ describe("TelegramAttachmentIngestor", () => {
     await expect(
       ingestor.prepare({
         allowNativeImages: true,
+        allowNativeFiles: false,
         attachments: [
           { kind: "photo", fileId: "a" },
           { kind: "photo", fileId: "b" },
@@ -173,6 +220,7 @@ describe("TelegramAttachmentIngestor", () => {
     await expect(
       ingestor.prepare({
         allowNativeImages: true,
+        allowNativeFiles: false,
         attachments: [{ kind: "photo", fileId: "a" }],
       }),
     ).rejects.toMatchObject({ code: "attachment.too_large", name: "AttachmentIngestionError" });
@@ -201,6 +249,7 @@ describe("TelegramAttachmentIngestor", () => {
     await expect(
       ingestor.prepare({
         allowNativeImages: true,
+        allowNativeFiles: false,
         attachments: [
           { kind: "photo", fileId: "first" },
           { kind: "photo", fileId: "second" },

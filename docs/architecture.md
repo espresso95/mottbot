@@ -236,6 +236,7 @@ Implemented now:
 - durable recovery for accepted queued runs
 - mid-stream outbox rebind when Telegram edit calls fail
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
+- capability-gated native file attachment plumbing with safe fallback while the current provider adapter lacks non-image file content blocks
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
 - deny-by-default tool registry, health snapshot execution, and opt-in approved local note, Telegram send/reaction, and restart tool execution
@@ -249,7 +250,7 @@ Implemented now:
 
 Not yet implemented:
 
-- native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
+- enabling native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
 - generic network-write, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction

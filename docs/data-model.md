@@ -609,7 +609,7 @@ The event and transcript metadata can carry:
 - ingestion status and reason
 - extraction kind, status, reason, prompt character count, truncation flag, language, table dimensions, and PDF page count
 
-Supported image attachments can be downloaded into the local attachment cache and converted into base64 model input blocks. Supported text, Markdown, code, CSV, TSV, and PDF documents can be downloaded and converted into bounded prompt-only text. Raw file bytes, raw extracted text, local cache paths, and Telegram file download URLs are not stored in SQLite.
+Supported image attachments can be downloaded into the local attachment cache and converted into base64 model input blocks. Native non-image file input is represented internally but disabled for the current Codex provider boundary, so supported text, Markdown, code, CSV, TSV, and PDF documents are downloaded and converted into bounded prompt-only text. Raw file bytes, raw extracted text, local cache paths, and Telegram file download URLs are not stored in SQLite.
 
 The `/files` command reads `attachment_records`. `/files forget <id-prefix>` removes one record and strips the matching attachment envelope from transcript JSON. `/files clear` removes all file records for the current session and strips attachment envelopes from transcript JSON while preserving message text and unrelated transcript rows.
 

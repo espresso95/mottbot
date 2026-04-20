@@ -87,7 +87,7 @@ It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set. In dry-run m
 Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 64 test files, 265 tests passing
+- `pnpm test`: 64 test files, 268 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -105,10 +105,10 @@ Last recorded coverage run on April 20, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.71% |
-| Branches | 74.6% |
-| Functions | 93.22% |
-| Lines | 84.62% |
+| Statements | 84.8% |
+| Branches | 74.62% |
+| Functions | 93.34% |
+| Lines | 84.71% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -256,6 +256,7 @@ The current suite catches several subtle behaviors that matter in production:
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
 - supported image attachments are downloaded, converted into native model image inputs, and cleaned from the local cache
+- native file attachment plumbing is capability-gated, and current Codex transport tests prove unsupported file blocks fall back to text without passing raw base64 through the provider context
 - text, Markdown, code, CSV, TSV, and PDF attachments are extracted into bounded active-run prompt context without persisting raw extracted text
 - file metadata can be listed and forgotten without clearing unrelated transcript text
 - inbound text and attachment safety-limit violations are rejected before command or model routing
@@ -277,7 +278,7 @@ Not fully covered today:
 - real ChatGPT/Codex OAuth against an operator account
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
-- native provider file-block support for non-image attachment types
+- enabling native provider file-block support for non-image attachment types once the provider boundary exposes a real file content type
 - side-effecting model-executed tools
 
 ## Why The Coverage Is Good Enough For The Current Repo

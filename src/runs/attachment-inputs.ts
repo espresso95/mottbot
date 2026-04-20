@@ -61,11 +61,20 @@ export function appendPreparedAttachmentsToLatestUserMessage(params: {
               ]
             : []
         ),
-        ...params.nativeInputs.map((input): PromptContentBlock => ({
-          type: "image",
-          data: input.data,
-          mimeType: input.mimeType,
-        })),
+        ...params.nativeInputs.map((input): PromptContentBlock =>
+          input.type === "image"
+            ? {
+                type: "image",
+                data: input.data,
+                mimeType: input.mimeType,
+              }
+            : {
+                type: "file",
+                data: input.data,
+                mimeType: input.mimeType,
+                ...(input.fileName ? { fileName: sanitizeLabel(input.fileName) } : {}),
+              },
+        ),
       ],
     };
   });
