@@ -21,7 +21,7 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - [Live Smoke Tests](./live-smoke-tests.md)
   Guarded polling, webhook, Codex, attachment, optional MTProto user-account, and fault-injection checks for a real test bot environment.
 - [Tool Use Design](./tool-use-design.md)
-  Safety requirements and runtime behavior for read-only model tool execution.
+  Safety requirements and runtime behavior for read-only and approval-gated model tool execution.
 - [Completion And Test Plan](./completion-test-plan.md)
   Phased implementation and verification roadmap for closing the remaining hardening gaps.
 - [Release Notes](./release-notes.md)
@@ -74,7 +74,7 @@ Implemented in this repo:
 - read-only operator diagnostics tools and admin `/runs` and `/debug` commands
 - admin-only read-only local repository and git inspection tools
 - admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
-- admin-only approval-gated local note creation and Telegram send/reaction tools
+- admin-only approval-gated local note/document writes, allowlisted local command execution, MCP stdio calls, and Telegram send/reaction tools
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`

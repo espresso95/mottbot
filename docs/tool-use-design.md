@@ -23,7 +23,10 @@ Implemented:
 - persistent side-effect approval prompts, decisions, expiration, consumption, and audit records in `src/tools/approval.ts`
 - admin-only Telegram approval commands through `/tool approve`, `/tool revoke`, and `/tool status`
 - an opt-in delayed `mottbot_restart_service` process-control tool guarded by one-shot session-scoped approval
-- opt-in local note creation under approved roots
+- admin-only bounded document reads from approved local-write roots
+- opt-in local note creation, document append, and document replace under approved roots
+- opt-in allowlisted local command execution under approved workspace roots
+- opt-in MCP stdio bridge calls to configured servers and allowlisted MCP tools
 - opt-in Telegram message and reaction tools restricted to the current chat or configured approved targets
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
 - per-tool runtime policies loaded from config or `MOTTBOT_TOOL_POLICIES_JSON`
@@ -33,7 +36,8 @@ Implemented:
 Not implemented:
 
 - GitHub write tools
-- generic network-write or secret-adjacent tools
+- generic network-write beyond configured MCP servers
+- secret-adjacent tools
 - arbitrary sandboxed plugin execution
 
 ## Safety Requirements
@@ -43,7 +47,7 @@ Tool execution must be deny-by-default.
 Required controls:
 
 - static allowlist of tool names and schemas
-- per-tool side-effect classification: read-only, local write, network write, Telegram send, GitHub write, process control, or secret-adjacent
+- per-tool side-effect classification: read-only, local write, local command execution, network write, Telegram send, GitHub write, process control, or secret-adjacent
 - maximum tool-call count per model turn
 - timeout and output-size limits per tool call
 - no environment dumps, raw credential reads, or arbitrary shell by default
@@ -61,7 +65,7 @@ Keep ownership boundaries narrow:
 - `src/telegram/*` owns approval and result notifications
 - a new `src/tools/*` module owns tool definitions, validation, execution, and result normalization
 
-The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, and local note creation with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
+The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, local note/document writes, allowlisted local command execution, and configured MCP stdio tool calls with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
 
 ## Initial Tool Registry
 
@@ -88,12 +92,17 @@ Enabled read-only tools:
 | `mottbot_github_recent_issues` | `read_only` | optional `repository` and `limit` | Read recent open issue summaries. |
 | `mottbot_github_ci_status` | `read_only` | optional `repository` and `limit` | Read recent GitHub Actions workflow runs. |
 | `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit` | Read recent failed workflow runs. |
+| `mottbot_local_doc_read` | `read_only` | required `path`; optional `root` and `maxBytes` | Read a bounded `.md` or `.txt` file from an approved local-write root and return its SHA-256 for safe edits. |
 
 Disabled reserved tools:
 
 | Tool | Side effect | Status | Reason |
 | --- | --- | --- | --- |
 | `mottbot_local_note_create` | `local_write` | opt-in | Creates only new `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution. |
+| `mottbot_local_doc_append` | `local_write` | opt-in | Appends plain text to existing `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution. |
+| `mottbot_local_doc_replace` | `local_write` | opt-in | Replaces existing `.md` or `.txt` files under approved local-write roots only when the supplied SHA-256 matches the current file; requires one-shot admin approval before execution. |
+| `mottbot_local_command_run` | `local_exec` | opt-in | Runs one host-allowlisted command in an approved workspace root without shell expansion; requires one-shot admin approval before execution. |
+| `mottbot_mcp_call_tool` | `network_write` | opt-in | Calls one allowlisted tool on one configured MCP stdio server; requires one-shot admin approval before execution. |
 | `mottbot_telegram_send_message` | `telegram_send` | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution. |
 | `mottbot_restart_service` | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
 | `mottbot_telegram_react` | `telegram_send` | opt-in | Adds or clears Telegram reactions only after one-shot admin approval. |
@@ -125,11 +134,68 @@ Safety rules:
 
 - local write roots are created on startup if missing
 - paths must be relative to an approved root
-- only `.md` and `.txt` files can be created
-- existing files are never overwritten
+- only `.md` and `.txt` files can be created, read, appended, or replaced
+- the note tool never overwrites existing files
+- full-file replace requires a SHA-256 from `mottbot_local_doc_read`, so stale edits are rejected before writing
 - parent directories are checked after realpath resolution so symlink escapes are rejected
 - built-in denied paths include `.env`, config files, auth files, `.codex`, `.git`, `node_modules`, build output, database files, logs, and Telegram session files
-- output returns path, size, and cleanup guidance, not the written content
+- write output returns path, size, and checksums, not the written content
+
+## Local Command Scope
+
+Local command execution is governed separately from general tool policy by `tools.localExec` or the `MOTTBOT_LOCAL_EXEC_*` environment variables.
+
+Defaults:
+
+```json
+{
+  "roots": ["./data/tool-workspace"],
+  "deniedPaths": [],
+  "allowedCommands": [],
+  "timeoutMs": 5000,
+  "maxOutputBytes": 40000
+}
+```
+
+Safety rules:
+
+- no command runs unless it is listed in `allowedCommands` by exact command or executable basename
+- shells and privilege-changing host commands are denied even if accidentally allowlisted
+- working directories must be relative to an approved root
+- traversal, denied directories, and symlink escapes are rejected before execution
+- commands run with `shell:false`, ignored stdin, bounded stdout/stderr, timeout enforcement, and a minimal environment
+- nonzero command exits return bounded stdout/stderr and exit metadata instead of throwing a tool infrastructure error
+
+## MCP Stdio Bridge
+
+MCP tool calls are governed by `tools.mcp.servers` or `MOTTBOT_MCP_SERVERS_JSON`.
+
+Example:
+
+```json
+{
+  "servers": [
+    {
+      "name": "docs",
+      "command": "node",
+      "args": ["./mcp/docs-server.mjs"],
+      "allowedTools": ["search", "read"],
+      "timeoutMs": 10000,
+      "maxOutputBytes": 40000
+    }
+  ]
+}
+```
+
+Safety rules:
+
+- server names are explicit config keys, not arbitrary executable input
+- each server must allow at least one named MCP tool
+- the requested MCP tool must appear in that server's `allowedTools`
+- shell and privilege-changing server commands are denied
+- servers are started per tool call over stdio with `shell:false`, bounded stderr, timeout enforcement, and a minimal environment
+- only `initialize`, `notifications/initialized`, and one `tools/call` round are supported in this first bridge
+- remote MCP servers and long-lived background MCP sessions remain out of scope
 
 ## Telegram Send Scope
 

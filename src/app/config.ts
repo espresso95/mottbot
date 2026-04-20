@@ -48,6 +48,15 @@ const localWriteToolConfigSchema = z
     maxWriteBytes: z.number().int().min(1).max(200_000).default(20_000),
   })
   .default({});
+const localExecToolConfigSchema = z
+  .object({
+    roots: z.array(z.string()).default(["./data/tool-workspace"]),
+    deniedPaths: z.array(z.string()).default([]),
+    allowedCommands: z.array(z.string()).default([]),
+    timeoutMs: z.number().int().min(100).max(30_000).default(5_000),
+    maxOutputBytes: z.number().int().min(1).max(200_000).default(40_000),
+  })
+  .default({});
 const telegramSendToolConfigSchema = z
   .object({
     allowedChatIds: z.array(z.string()).default([]),
@@ -60,6 +69,19 @@ const githubToolConfigSchema = z
     commandTimeoutMs: z.number().int().min(100).max(30_000).default(10_000),
     maxItems: z.number().int().min(1).max(50).default(10),
     maxOutputBytes: z.number().int().min(1).max(500_000).default(80_000),
+  })
+  .default({});
+const mcpServerConfigSchema = z.object({
+  name: z.string().min(1).max(64),
+  command: z.string().min(1).max(500),
+  args: z.array(z.string().max(500)).default([]),
+  allowedTools: z.array(z.string().min(1).max(128)).default([]),
+  timeoutMs: z.number().int().min(100).max(30_000).default(10_000),
+  maxOutputBytes: z.number().int().min(1).max(200_000).default(40_000),
+});
+const mcpToolConfigSchema = z
+  .object({
+    servers: z.array(mcpServerConfigSchema).default([]),
   })
   .default({});
 
@@ -155,8 +177,10 @@ const rawConfigSchema = z.object({
       policies: z.record(toolPolicyConfigSchema).default({}),
       repository: repositoryToolConfigSchema,
       localWrite: localWriteToolConfigSchema,
+      localExec: localExecToolConfigSchema,
       telegramSend: telegramSendToolConfigSchema,
       github: githubToolConfigSchema,
+      mcp: mcpToolConfigSchema,
     })
     .default({}),
   runtime: z
@@ -250,8 +274,10 @@ export type AppConfig = {
     policies: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
     repository: z.infer<typeof repositoryToolConfigSchema>;
     localWrite: z.infer<typeof localWriteToolConfigSchema>;
+    localExec: z.infer<typeof localExecToolConfigSchema>;
     telegramSend: z.infer<typeof telegramSendToolConfigSchema>;
     github: z.infer<typeof githubToolConfigSchema>;
+    mcp: z.infer<typeof mcpToolConfigSchema>;
   };
   runtime: {
     instanceLeaseEnabled: boolean;
@@ -322,8 +348,10 @@ export function loadConfig(): AppConfig {
   const fileTools = asRecord(fileObject.tools);
   const fileRepositoryTools = asRecord(fileTools?.repository);
   const fileLocalWriteTools = asRecord(fileTools?.localWrite);
+  const fileLocalExecTools = asRecord(fileTools?.localExec);
   const fileTelegramSendTools = asRecord(fileTools?.telegramSend);
   const fileGithubTools = asRecord(fileTools?.github);
+  const fileMcpTools = asRecord(fileTools?.mcp);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
     telegram: {
@@ -696,6 +724,35 @@ export function loadConfig(): AppConfig {
             ? fileLocalWriteTools?.maxWriteBytes
             : Number(process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES),
       },
+      localExec: {
+        ...(fileLocalExecTools ?? {}),
+        roots: pickDefined(
+          process.env.MOTTBOT_LOCAL_EXEC_ROOTS !== undefined
+            ? parseCsv(process.env.MOTTBOT_LOCAL_EXEC_ROOTS)
+            : undefined,
+          fileLocalExecTools?.roots,
+        ),
+        deniedPaths: pickDefined(
+          process.env.MOTTBOT_LOCAL_EXEC_DENIED_PATHS !== undefined
+            ? parseCsv(process.env.MOTTBOT_LOCAL_EXEC_DENIED_PATHS)
+            : undefined,
+          fileLocalExecTools?.deniedPaths,
+        ),
+        allowedCommands: pickDefined(
+          process.env.MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS !== undefined
+            ? parseCsv(process.env.MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS)
+            : undefined,
+          fileLocalExecTools?.allowedCommands,
+        ),
+        timeoutMs:
+          process.env.MOTTBOT_LOCAL_EXEC_TIMEOUT_MS === undefined
+            ? fileLocalExecTools?.timeoutMs
+            : Number(process.env.MOTTBOT_LOCAL_EXEC_TIMEOUT_MS),
+        maxOutputBytes:
+          process.env.MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES === undefined
+            ? fileLocalExecTools?.maxOutputBytes
+            : Number(process.env.MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES),
+      },
       telegramSend: {
         ...(fileTelegramSendTools ?? {}),
         allowedChatIds: pickDefined(
@@ -727,6 +784,12 @@ export function loadConfig(): AppConfig {
           process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES === undefined
             ? fileGithubTools?.maxOutputBytes
             : Number(process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES),
+      },
+      mcp: {
+        ...(fileMcpTools ?? {}),
+        servers:
+          parseJsonEnv("MOTTBOT_MCP_SERVERS_JSON") ??
+          (fileMcpTools ? fileMcpTools.servers : undefined),
       },
     },
     runtime: {

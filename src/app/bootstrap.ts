@@ -41,7 +41,9 @@ import { createTelegramReactionToolHandlers } from "../tools/telegram-reaction-h
 import { createTelegramSendToolHandlers } from "../tools/telegram-send-handlers.js";
 import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
 import { createLocalWriteToolHandlers } from "../tools/local-write-handlers.js";
+import { createLocalExecToolHandlers } from "../tools/local-exec-handlers.js";
 import { createGithubToolHandlers } from "../tools/github-handlers.js";
+import { createMcpToolHandlers } from "../tools/mcp-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
 
@@ -123,7 +125,9 @@ export async function bootstrapApplication() {
       ...createTelegramSendToolHandlers(provisionalBot.api, config.tools.telegramSend),
       ...createRepositoryToolHandlers(config.tools.repository),
       ...createLocalWriteToolHandlers(config.tools.localWrite),
+      ...createLocalExecToolHandlers(config.tools.localExec),
       ...createGithubToolHandlers(github),
+      ...createMcpToolHandlers(config.tools.mcp),
     },
     adminUserIds: config.telegram.adminUserIds,
     resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),

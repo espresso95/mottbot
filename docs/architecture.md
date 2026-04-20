@@ -239,7 +239,7 @@ Implemented now:
 - capability-gated native file attachment plumbing with safe fallback while the current provider adapter lacks non-image file content blocks
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
-- deny-by-default tool registry, health snapshot execution, and opt-in approved local note, Telegram send/reaction, and restart tool execution
+- deny-by-default tool registry, health snapshot execution, admin diagnostics, read-only repository/GitHub inspection, and opt-in approved local note/document writes, allowlisted local command execution, MCP stdio calls, Telegram send/reaction, and restart tool execution
 - scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
 - persistent Telegram roles and per-chat governance policy for commands, models, tools, memory scopes, and attachment limits
 - caller-aware command discovery filtered by role, chat type, enabled features, and per-chat command policy
@@ -252,7 +252,7 @@ Implemented now:
 Not yet implemented:
 
 - enabling native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
-- generic network-write, GitHub-write, or secret-adjacent model-executed tools
+- generic network-write beyond configured MCP stdio servers, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction
 - automated public webhook delivery validation

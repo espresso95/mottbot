@@ -37,14 +37,15 @@ As of April 20, 2026:
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
 - Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, and the transport safely falls back to text rather than sending raw file bytes as an unsupported content type.
+- Phase 25 is complete for guarded tool expansion: Mottbot can read, append, and replace approved local text documents, run allowlisted local commands inside approved workspace roots, and call allowlisted tools on configured MCP stdio servers. All new side effects remain admin-only, disabled by default, approval-gated, bounded, and audited through the existing tool policy layer.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 64 test files and 269 tests.
-- `corepack pnpm test:coverage` passes with statements 84.85%, branches 74.69%, functions 93.4%, and lines 84.76%.
+- `corepack pnpm test` passes with 66 test files and 280 tests.
+- `corepack pnpm test:coverage` passes with statements 85.08%, branches 74.83%, functions 93.34%, and lines 85.02%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -57,7 +58,7 @@ Current known gaps:
 - Native provider attachment ingestion is limited to image inputs for models that advertise image support. Phase 24 adds native-file plumbing and guards, but the active Codex provider adapter still supports only text and images; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
-- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, and secret-adjacent model tools remain unimplemented.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, GitHub write, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
@@ -1637,6 +1638,91 @@ Verification:
 
 - `corepack pnpm check`
 - `corepack pnpm vitest run test/codex/provider.test.ts test/codex/transport.test.ts test/telegram/attachments.test.ts test/runs/helpers.test.ts test/runs/run-orchestrator.integration.test.ts`
+- `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- `corepack pnpm build`
+
+## Phase 25: Guarded Local Execution, Document Editing, And MCP
+
+This phase gives the model practical operator capabilities without opening arbitrary host access.
+
+Status: complete for local `.md` and `.txt` document reads/edits, allowlisted local command execution, and a first MCP stdio bridge. All side-effecting tools are admin-only, disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`, require request-bound approval, and flow through existing policy and audit persistence.
+
+Dependencies and ordering:
+
+- Follows Phase 14 because policy, approval previews, request fingerprints, and audit persistence are required for every side effect.
+- Follows Phase 20 because local writes must reuse the approved write-tool pattern.
+- Follows Phase 15 because path resolution, denied paths, and bounded output should match repository tool safety.
+
+### Task 25.1: Expand Local Document Tools
+
+Deliverables:
+
+- Add an admin-only read-only tool for bounded `.md` and `.txt` reads under approved local-write roots.
+- Return SHA-256 for the full current file so replacement edits can be guarded against stale content.
+- Add approval-gated append and replace tools for existing `.md` and `.txt` files.
+- Keep create, append, replace, and read behavior inside approved roots with traversal, denied path, and symlink escape rejection.
+- Document operator setup and approval workflow.
+
+Implemented:
+
+- `mottbot_local_doc_read` reads bounded content and returns full-file SHA-256.
+- `mottbot_local_doc_append` appends bounded plain text to existing approved documents.
+- `mottbot_local_doc_replace` replaces existing approved documents only when `expectedSha256` matches the current content.
+- Tests cover read output, append output, replacement checksums, stale SHA rejection, path traversal denial, denied paths, overwrite denial, and oversized writes.
+
+### Task 25.2: Add Allowlisted Local Command Execution
+
+Deliverables:
+
+- Add a new `local_exec` side-effect class.
+- Add configuration for approved workspace roots, denied paths, command allowlist, timeout, and output cap.
+- Execute commands without shell expansion, ignored stdin, bounded stdout/stderr, and a minimal environment.
+- Deny shells and privilege-changing commands even if they are accidentally configured.
+- Return nonzero command exits as bounded tool results instead of infrastructure failures.
+
+Implemented:
+
+- `mottbot_local_command_run` runs only exact or basename-allowlisted commands under `tools.localExec` roots.
+- `MOTTBOT_LOCAL_EXEC_*` environment variables configure roots, denied paths, allowed commands, timeout, and output size.
+- Tests cover allowed command execution, denied shells, nonallowlisted commands, traversal, denied cwd paths, and nonzero exits.
+
+### Task 25.3: Add A Minimal MCP Stdio Bridge
+
+Deliverables:
+
+- Add configuration for named MCP stdio servers, command/args, per-server tool allowlists, timeout, and output cap.
+- Call only explicitly allowlisted MCP tools on explicitly configured servers.
+- Spawn servers without shell expansion and use a minimal environment.
+- Support a single initialize plus `tools/call` round per approved tool call.
+- Bound returned JSON and stderr.
+
+Implemented:
+
+- `mottbot_mcp_call_tool` starts one configured stdio MCP server per approved call, initializes it, calls one allowlisted tool, bounds the result, and terminates the process.
+- `MOTTBOT_MCP_SERVERS_JSON` provides environment configuration for server entries.
+- Tests cover successful tool calls, denied server commands, missing server names, and nonallowlisted MCP tools.
+
+Edge cases to cover:
+
+- Local document read of an oversized file, UTF-8 boundary truncation, stale SHA replacement, symlink escape, denied path, missing file, directory path, permission denied, and concurrent file edits.
+- Command allowlist by basename versus full path, cwd traversal, cwd symlink escape, missing executable, denied shell, timeout, nonzero exit, very large stdout/stderr, null-byte arguments, and command output containing sensitive-looking text.
+- MCP server startup failure, malformed JSON-RPC output, MCP error response, timeout before initialize, timeout during tool call, unallowlisted tool, oversized result, stderr with sensitive-looking text, and server process cleanup.
+- Approval preview mismatch, approval expiration, approval revocation, duplicate model tool calls, dry-run policy, chat-policy denial, and non-admin caller denial for every new side-effecting tool.
+
+Required testing:
+
+- Unit tests for local document path resolution, read bounds, append/replace behavior, and checksum matching.
+- Unit tests for local command validation, cwd scope, output bounds, timeout, and nonzero exit behavior.
+- Unit tests for MCP config validation, JSON-RPC request flow, allowlists, bounded output, and server errors.
+- Registry and policy tests proving the new side-effect class is disabled by default, admin-only, and approval-gated when enabled.
+- Executor tests proving approvals are request-bound and cannot be reused across changed command, document, or MCP arguments.
+- Live validation only against disposable local documents, disposable workspace roots, and test MCP servers with non-destructive tools.
+
+Verification:
+
+- `corepack pnpm check`
+- `corepack pnpm vitest run test/app/config.test.ts test/tools/registry.test.ts test/tools/local-write-handlers.test.ts test/tools/local-exec-handlers.test.ts test/tools/mcp-handlers.test.ts test/tools/executor.test.ts`
 - `corepack pnpm test`
 - `corepack pnpm test:coverage`
 - `corepack pnpm build`

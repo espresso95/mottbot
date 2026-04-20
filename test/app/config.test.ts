@@ -59,12 +59,18 @@ const configEnvKeys = [
   "MOTTBOT_LOCAL_WRITE_ROOTS",
   "MOTTBOT_LOCAL_WRITE_DENIED_PATHS",
   "MOTTBOT_LOCAL_WRITE_MAX_BYTES",
+  "MOTTBOT_LOCAL_EXEC_ROOTS",
+  "MOTTBOT_LOCAL_EXEC_DENIED_PATHS",
+  "MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS",
+  "MOTTBOT_LOCAL_EXEC_TIMEOUT_MS",
+  "MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES",
   "MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS",
   "MOTTBOT_GITHUB_REPOSITORY",
   "MOTTBOT_GITHUB_COMMAND",
   "MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS",
   "MOTTBOT_GITHUB_MAX_ITEMS",
   "MOTTBOT_GITHUB_MAX_OUTPUT_BYTES",
+  "MOTTBOT_MCP_SERVERS_JSON",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
   "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
@@ -140,6 +146,13 @@ describe("loadConfig", () => {
             deniedPaths: ["file-private"],
             maxWriteBytes: 555,
           },
+          localExec: {
+            roots: ["./file-workspace"],
+            deniedPaths: ["file-denied"],
+            allowedCommands: ["node"],
+            timeoutMs: 1111,
+            maxOutputBytes: 2222,
+          },
           telegramSend: {
             allowedChatIds: ["file-chat"],
           },
@@ -149,6 +162,16 @@ describe("loadConfig", () => {
             commandTimeoutMs: 5555,
             maxItems: 6,
             maxOutputBytes: 7777,
+          },
+          mcp: {
+            servers: [
+              {
+                name: "file-mcp",
+                command: "node",
+                args: ["server.js"],
+                allowedTools: ["read"],
+              },
+            ],
           },
         },
         runtime: { instanceLeaseEnabled: false },
@@ -182,12 +205,27 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_LOCAL_WRITE_ROOTS = "./env-notes,./env-notes-2";
     process.env.MOTTBOT_LOCAL_WRITE_DENIED_PATHS = "env-private,blocked";
     process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES = "6666";
+    process.env.MOTTBOT_LOCAL_EXEC_ROOTS = "./env-workspace,./env-workspace-2";
+    process.env.MOTTBOT_LOCAL_EXEC_DENIED_PATHS = "env-exec-private,blocked-exec";
+    process.env.MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS = "node,pnpm";
+    process.env.MOTTBOT_LOCAL_EXEC_TIMEOUT_MS = "7777";
+    process.env.MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES = "9999";
     process.env.MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS = "chat-2,@channel";
     process.env.MOTTBOT_GITHUB_REPOSITORY = "env-owner/env-repo";
     process.env.MOTTBOT_GITHUB_COMMAND = "env-gh";
     process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS = "6666";
     process.env.MOTTBOT_GITHUB_MAX_ITEMS = "7";
     process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES = "8888";
+    process.env.MOTTBOT_MCP_SERVERS_JSON = JSON.stringify([
+      {
+        name: "env-mcp",
+        command: "node",
+        args: ["mcp.js"],
+        allowedTools: ["lookup"],
+        timeoutMs: 1234,
+        maxOutputBytes: 5678,
+      },
+    ]);
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
     process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED = "true";
@@ -250,6 +288,13 @@ describe("loadConfig", () => {
       deniedPaths: ["env-private", "blocked"],
       maxWriteBytes: 6666,
     });
+    expect(config.tools.localExec).toEqual({
+      roots: ["./env-workspace", "./env-workspace-2"],
+      deniedPaths: ["env-exec-private", "blocked-exec"],
+      allowedCommands: ["node", "pnpm"],
+      timeoutMs: 7777,
+      maxOutputBytes: 9999,
+    });
     expect(config.tools.telegramSend).toEqual({
       allowedChatIds: ["chat-2", "@channel"],
     });
@@ -259,6 +304,18 @@ describe("loadConfig", () => {
       commandTimeoutMs: 6666,
       maxItems: 7,
       maxOutputBytes: 8888,
+    });
+    expect(config.tools.mcp).toEqual({
+      servers: [
+        {
+          name: "env-mcp",
+          command: "node",
+          args: ["mcp.js"],
+          allowedTools: ["lookup"],
+          timeoutMs: 1234,
+          maxOutputBytes: 5678,
+        },
+      ],
     });
     expect(config.runtime.instanceLeaseEnabled).toBe(false);
     expect(config.memory.autoSummariesEnabled).toBe(true);

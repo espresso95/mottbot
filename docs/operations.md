@@ -257,8 +257,9 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_github_recent_issues`: recent open issue summaries
 - `mottbot_github_ci_status`: recent GitHub Actions workflow runs
 - `mottbot_github_workflow_failures`: recent failed workflow runs
+- `mottbot_local_doc_read`: bounded `.md` or `.txt` reads from approved local-write roots with SHA-256 output for safe edits
 
-The diagnostics, repository, git, and GitHub tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, and CI output can contain operational context.
+The diagnostics, repository, git, GitHub, and local document read tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, CI output, and operator documents can contain operational context.
 
 Repository tools are scoped by:
 
@@ -294,6 +295,10 @@ MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
 Current side-effecting tools:
 
 - `mottbot_local_note_create`: creates a new `.md` or `.txt` draft note under an approved local-write root
+- `mottbot_local_doc_append`: appends plain text to an existing `.md` or `.txt` document under an approved local-write root
+- `mottbot_local_doc_replace`: replaces an existing `.md` or `.txt` document only when the supplied SHA-256 matches the current file
+- `mottbot_local_command_run`: runs one configured local command in an approved workspace root
+- `mottbot_mcp_call_tool`: calls one allowlisted tool on one configured MCP stdio server
 - `mottbot_telegram_send_message`: sends plain text to the current Telegram chat or a configured approved target
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 - `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
@@ -306,7 +311,27 @@ MOTTBOT_LOCAL_WRITE_DENIED_PATHS=
 MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000
 ```
 
-Local write roots are created when the service starts. The note tool is create-only, rejects path traversal and symlink escapes, allows only `.md` and `.txt`, and never returns the written content in tool output.
+Local write roots are created when the service starts. Local document tools reject path traversal and symlink escapes, allow only `.md` and `.txt`, and keep writes approval-gated. The note tool is create-only. The replace tool requires a SHA-256 from `mottbot_local_doc_read`, so a file changed after review cannot be overwritten by stale model output. Write tool output returns path, size, and checksums, not the written content.
+
+Local command execution is scoped by:
+
+```bash
+MOTTBOT_LOCAL_EXEC_ROOTS=./data/tool-workspace
+MOTTBOT_LOCAL_EXEC_DENIED_PATHS=
+MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS=
+MOTTBOT_LOCAL_EXEC_TIMEOUT_MS=5000
+MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES=40000
+```
+
+Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve commands. Commands run without shell expansion, with ignored stdin, bounded stdout/stderr, timeout enforcement, a minimal environment, and a working directory under `MOTTBOT_LOCAL_EXEC_ROOTS`. Shells and privilege-changing commands are denied even if they appear in the allowlist.
+
+MCP stdio tool calls are scoped by:
+
+```bash
+MOTTBOT_MCP_SERVERS_JSON='[{"name":"docs","command":"node","args":["./mcp/docs-server.mjs"],"allowedTools":["search","read"],"timeoutMs":10000,"maxOutputBytes":40000}]'
+```
+
+Each MCP server entry must name the executable and the exact MCP tools Mottbot may call. The bridge starts a fresh stdio server per approved call, performs initialize plus one `tools/call`, bounds output, and denies unconfigured servers, unallowlisted MCP tools, shells, and privilege-changing commands. Remote MCP servers and long-lived MCP sessions are not implemented.
 
 Telegram send tools are scoped by:
 
@@ -574,7 +599,8 @@ Current tool set:
 - `mottbot_service_status`, `mottbot_recent_runs`, `mottbot_recent_errors`, and `mottbot_recent_logs`: admin-only operator diagnostics
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
 - `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
-- `mottbot_local_note_create`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
+- `mottbot_local_doc_read`: admin-only bounded local document read plus edit checksum
+- `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
 
 Runtime controls:
 
@@ -583,11 +609,14 @@ Runtime controls:
 - each tool definition has a timeout and output-size limit
 - each run is limited to three tool rounds and five tool calls
 - repository tools resolve real paths, reject traversal/symlink escapes, deny secret and generated paths by default, and return bounded output
+- local document tools stay under local-write roots, allow only `.md` and `.txt`, and reject stale full replacements by SHA-256
+- local command tools require an allowlisted command and approved cwd, run without shell expansion, and return bounded stdout/stderr
+- MCP calls require a configured stdio server and per-server MCP tool allowlist
 - GitHub tools require host `gh` auth, accept only `owner/name` repository identifiers, and return bounded sanitized summaries
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 
-Approval-backed side-effect implementations currently cover local note creation, Telegram send/reaction, and delayed service restart. Do not add generic network, GitHub write, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
+Approval-backed side-effect implementations currently cover local note/document writes, local command execution, configured MCP stdio calls, Telegram send/reaction, and delayed service restart. Do not add generic network, GitHub write, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
 
 ## Operator Safety Limits
 

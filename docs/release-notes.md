@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Guarded Tool Expansion
+
+- Added admin-only `mottbot_local_doc_read` for bounded `.md` and `.txt` reads under approved local-write roots, including SHA-256 output for safe edits.
+- Added approval-gated `mottbot_local_doc_append` and `mottbot_local_doc_replace` for approved local documents; replacements require the current SHA-256 to match.
+- Added approval-gated `mottbot_local_command_run` for allowlisted commands inside approved workspace roots without shell expansion.
+- Added approval-gated `mottbot_mcp_call_tool` for one allowlisted tool call on one configured MCP stdio server.
+- Added `MOTTBOT_LOCAL_EXEC_*` and `MOTTBOT_MCP_SERVERS_JSON` configuration.
+
+Operator checklist:
+
+- Keep `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` until you are ready for model-requested side effects.
+- Set `MOTTBOT_LOCAL_WRITE_ROOTS` to a disposable document directory before testing append or replace.
+- Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve specific commands.
+- Configure MCP servers with explicit `allowedTools`; do not point the bridge at broad or destructive tool servers for first validation.
+- Use `/tool audit here` after approval tests to confirm previews, approvals, and execution decisions.
+
 ### Command Discovery
 
 - Added `/commands` as an alias for `/help`.

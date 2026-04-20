@@ -87,6 +87,15 @@ MOTTBOT_REPOSITORY_MAX_READ_BYTES=40000
 MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES=100
 MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
 MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
+MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes
+MOTTBOT_LOCAL_WRITE_DENIED_PATHS=
+MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000
+MOTTBOT_LOCAL_EXEC_ROOTS=./data/tool-workspace
+MOTTBOT_LOCAL_EXEC_DENIED_PATHS=
+MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS=
+MOTTBOT_LOCAL_EXEC_TIMEOUT_MS=5000
+MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES=40000
+MOTTBOT_MCP_SERVERS_JSON=
 MOTTBOT_GITHUB_REPOSITORY=
 MOTTBOT_GITHUB_COMMAND=gh
 MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000
@@ -183,10 +192,36 @@ Repository tool settings:
 
 Local write tool settings:
 
-- `MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes` approves where the model can create draft `.md` or `.txt` notes after admin approval
+- `MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes` approves where the model can create, read, append, or replace `.md` and `.txt` documents
 - `MOTTBOT_LOCAL_WRITE_DENIED_PATHS` adds extra denied path segments or relative paths
-- `MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000` caps each created note
-- local note creation is create-only, rejects traversal and symlink escapes, and does not return written content in tool output
+- `MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000` caps each read or write result
+- local document tools reject traversal and symlink escapes
+- `mottbot_local_note_create` is create-only
+- `mottbot_local_doc_replace` requires the SHA-256 returned by `mottbot_local_doc_read`, so stale edits are rejected
+- write tools do not return written content in tool output
+
+Local command execution settings:
+
+- `MOTTBOT_LOCAL_EXEC_ROOTS=./data/tool-workspace` approves where commands can run
+- `MOTTBOT_LOCAL_EXEC_DENIED_PATHS` adds extra denied cwd path segments or relative paths
+- `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` must list exact commands or executable basenames before any command can run
+- `MOTTBOT_LOCAL_EXEC_TIMEOUT_MS=5000` caps runtime
+- `MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES=40000` caps stdout and stderr returned to the model
+- commands run without shell expansion, with ignored stdin and a minimal environment
+- shells and privilege-changing commands are denied even if accidentally configured
+
+MCP bridge settings:
+
+- `MOTTBOT_MCP_SERVERS_JSON` is a JSON array of configured stdio MCP servers
+- each entry needs `name`, `command`, optional `args`, and `allowedTools`
+- each approved call starts the configured server, initializes it, calls one allowlisted tool, bounds output, and terminates the server process
+- unconfigured servers, unallowlisted tools, shells, and privilege-changing commands are denied
+
+Example:
+
+```bash
+MOTTBOT_MCP_SERVERS_JSON='[{"name":"docs","command":"node","args":["./mcp/docs-server.mjs"],"allowedTools":["search","read"],"timeoutMs":10000,"maxOutputBytes":40000}]'
+```
 
 Telegram send tool settings:
 
@@ -469,4 +504,4 @@ If `/health` works but model responses fail, inspect:
 - Keep `.env` permission-restricted with `chmod 600 .env`.
 - Keep `MOTTBOT_MASTER_KEY` stable for the same SQLite database. Changing it prevents decrypting existing auth profile tokens.
 - Do not run multiple polling instances with the same token.
-- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need admin-only, operator-approved tools such as local note creation, Telegram send/reaction, or delayed restart.
+- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need admin-only, operator-approved tools such as local document writes, allowlisted local command execution, MCP stdio calls, Telegram send/reaction, or delayed restart.

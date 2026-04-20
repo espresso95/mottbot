@@ -14,6 +14,7 @@ The test suite is organized around the system boundaries that matter operational
 - Telegram role governance and chat-policy enforcement
 - full run orchestration across queue, storage, transport, and rendering
 - deny-by-default tool registry behavior
+- approval-gated local document writes, allowlisted local command execution, and configured MCP stdio calls
 
 The current stack uses Vitest with V8 coverage.
 
@@ -253,6 +254,9 @@ The current suite catches several subtle behaviors that matter in production:
 - Codex tool-call events are normalized before run orchestration sees them
 - read-only tool calls execute with timeout, output-size, and call-count limits
 - tool results are persisted as `tool` transcript rows and returned to the provider in the active turn
+- local document tools stay under approved roots, return edit checksums, reject stale replacements, and deny traversal or denied paths
+- local command tools require an allowlisted command, reject denied cwd paths and shell commands, and return bounded nonzero exit output
+- MCP stdio tools require configured servers and per-server tool allowlists
 - non-admin group commands and disallowed-chat commands are rejected before route creation
 - retention pruning removes old terminal operational rows without deleting active runs or reply ACL rows
 - Telegram attachment metadata is normalized and rendered into prompt text without exposing path-like prefixes
@@ -280,7 +284,7 @@ Not fully covered today:
 - live subscription-backed model calls
 - full end-to-end crash recovery across process restart and fresh inbound traffic
 - enabling native provider file-block support for non-image attachment types once the provider boundary exposes a real file content type
-- side-effecting model-executed tools
+- live execution of side-effecting model tools against real Telegram chats, real command targets, and real MCP servers
 
 ## Why The Coverage Is Good Enough For The Current Repo
 

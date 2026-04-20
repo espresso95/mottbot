@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createLocalWriteToolHandlers } from "../../src/tools/local-write-handlers.js";
@@ -20,6 +21,10 @@ const definition: ToolDefinition = {
   sideEffect: "local_write",
   enabled: true,
 };
+
+function sha256(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
 
 async function runTool(handler: ToolHandler, input: Record<string, unknown>): Promise<unknown> {
   return await handler({
@@ -89,6 +94,134 @@ describe("local write tool handlers", () => {
     }
   });
 
+  it("appends and replaces existing Markdown or text documents", async () => {
+    const root = createTempDir();
+    try {
+      const docPath = path.join(root, "docs/plan.md");
+      fs.mkdirSync(path.dirname(docPath), { recursive: true });
+      fs.writeFileSync(docPath, "one\n", "utf8");
+      const handlers = createLocalWriteToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        maxWriteBytes: 1_000,
+      });
+
+      const read = await runTool(handlers.mottbot_local_doc_read!, {
+        path: "docs/plan.md",
+      });
+      expect(read).toMatchObject({
+        ok: true,
+        action: "read_file",
+        path: "docs/plan.md",
+        sizeBytes: 4,
+        sha256: sha256("one\n"),
+        text: "one\n",
+        truncated: false,
+      });
+
+      const appended = await runTool(handlers.mottbot_local_doc_append!, {
+        path: "docs/plan.md",
+        content: "two\n",
+      });
+      expect(appended).toMatchObject({
+        ok: true,
+        action: "appended_file",
+        path: "docs/plan.md",
+        appendedBytes: 4,
+        newSizeBytes: 8,
+        sha256: sha256("one\ntwo\n"),
+      });
+      expect(fs.readFileSync(docPath, "utf8")).toBe("one\ntwo\n");
+
+      const replaced = await runTool(handlers.mottbot_local_doc_replace!, {
+        path: "docs/plan.md",
+        expectedSha256: sha256("one\ntwo\n"),
+        content: "done\n",
+      });
+      expect(replaced).toMatchObject({
+        ok: true,
+        action: "replaced_file",
+        path: "docs/plan.md",
+        previousSizeBytes: 8,
+        newSizeBytes: 5,
+        sha256: sha256("done\n"),
+      });
+      expect(fs.readFileSync(docPath, "utf8")).toBe("done\n");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("requires matching SHA-256 for document replacement", async () => {
+    const root = createTempDir();
+    try {
+      fs.writeFileSync(path.join(root, "plan.md"), "current\n", "utf8");
+      const handlers = createLocalWriteToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        maxWriteBytes: 1_000,
+      });
+
+      await expect(
+        runTool(handlers.mottbot_local_doc_replace!, {
+          path: "plan.md",
+          expectedSha256: sha256("stale\n"),
+          content: "next\n",
+        }),
+      ).rejects.toThrow(/changed/);
+      expect(fs.readFileSync(path.join(root, "plan.md"), "utf8")).toBe("current\n");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("bounds document reads and validates document edit inputs", async () => {
+    const root = createTempDir();
+    try {
+      fs.writeFileSync(path.join(root, "plan.txt"), "abcdef", "utf8");
+      const handlers = createLocalWriteToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        maxWriteBytes: 4,
+      });
+
+      const read = await runTool(handlers.mottbot_local_doc_read!, {
+        path: "plan.txt",
+        maxBytes: 99,
+      });
+      expect(read).toMatchObject({
+        text: "abcd",
+        sizeBytes: 6,
+        sha256: sha256("abcdef"),
+        truncated: true,
+      });
+
+      await expect(runTool(handlers.mottbot_local_doc_read!, {})).rejects.toThrow(/path is required/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_append!, {
+          path: "plan.txt",
+          content: "   ",
+        }),
+      ).rejects.toThrow(/content is required/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_replace!, {
+          path: "plan.txt",
+          expectedSha256: "not-a-sha",
+          content: "next",
+        }),
+      ).rejects.toThrow(/expectedSha256/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_replace!, {
+          path: "plan.txt",
+          expectedSha256: sha256("abcdef"),
+          content: "too long",
+        }),
+      ).rejects.toThrow(/exceeding/);
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("rejects overwrite, traversal, denied paths, unsupported extensions, and oversized content", async () => {
     const root = createTempDir();
     const outside = createTempDir();
@@ -143,6 +276,21 @@ describe("local write tool handlers", () => {
           content: "too large\n",
         }),
       ).rejects.toThrow(/exceeding/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_read!, {
+          path: "private/secret.md",
+        }),
+      ).rejects.toThrow(/denied/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_read!, {
+          path: "../outside.md",
+        }),
+      ).rejects.toThrow(/outside the approved root/);
+      await expect(
+        runTool(handlers.mottbot_local_doc_read!, {
+          path: "outside-link/missing.md",
+        }),
+      ).rejects.toThrow(/resolves outside|no such file/);
     } finally {
       removeTempDir(root);
       removeTempDir(outside);

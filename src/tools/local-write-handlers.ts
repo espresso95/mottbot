@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import type { ToolHandler } from "./executor.js";
 
@@ -91,6 +92,24 @@ function rootLabel(rootPath: string, realPath: string): string {
   return path.basename(realPath) || realPath;
 }
 
+function assertTextDocumentPath(rawPath: string, decodedPath: string): void {
+  if (!/\.(md|txt)$/i.test(decodedPath)) {
+    throw new Error(`Local write path ${rawPath} must end in .md or .txt.`);
+  }
+}
+
+function assertWriteContent(params: { content: string; maxWriteBytes: number }): number {
+  const sizeBytes = Buffer.byteLength(params.content, "utf8");
+  if (sizeBytes > params.maxWriteBytes) {
+    throw new Error(`content is ${sizeBytes} bytes, exceeding the ${params.maxWriteBytes} byte limit.`);
+  }
+  return sizeBytes;
+}
+
+function sha256(value: Buffer): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
 class LocalWriteScope {
   private readonly roots: LocalWriteRoot[];
   private readonly deniedPaths: string[];
@@ -155,9 +174,7 @@ class LocalWriteScope {
     if (path.isAbsolute(decodedPath)) {
       throw new Error("Local write path must be relative to an approved root.");
     }
-    if (!/\.(md|txt)$/i.test(decodedPath)) {
-      throw new Error("Local write path must end in .md or .txt.");
-    }
+    assertTextDocumentPath(rawPath, decodedPath);
     const candidate = path.resolve(root.realPath, decodedPath);
     if (!isInside(root.realPath, candidate)) {
       throw new Error(`Local write path ${rawPath} is outside the approved root.`);
@@ -184,6 +201,48 @@ class LocalWriteScope {
     };
   }
 
+  resolveExistingDocumentPath(params: { root?: string; targetPath: string }): ResolvedLocalWritePath {
+    const root = this.resolveRoot(params.root);
+    const rawPath = params.targetPath.trim();
+    if (!rawPath) {
+      throw new Error("path is required.");
+    }
+    const decodedPath = decodePathInput(rawPath);
+    if (decodedPath.includes("\0")) {
+      throw new Error("Local write path contains a null byte.");
+    }
+    if (path.isAbsolute(decodedPath)) {
+      throw new Error("Local write path must be relative to an approved root.");
+    }
+    assertTextDocumentPath(rawPath, decodedPath);
+    const candidate = path.resolve(root.realPath, decodedPath);
+    if (!isInside(root.realPath, candidate)) {
+      throw new Error(`Local write path ${rawPath} is outside the approved root.`);
+    }
+    const relativePath = path.relative(root.realPath, candidate);
+    if (this.isDenied(relativePath)) {
+      throw new Error(`Local write path ${rawPath} is denied by policy.`);
+    }
+    const realPath = fs.realpathSync(candidate);
+    if (!isInside(root.realPath, realPath)) {
+      throw new Error(`Local write path ${rawPath} resolves outside the approved root.`);
+    }
+    const realRelativePath = path.relative(root.realPath, realPath);
+    if (this.isDenied(realRelativePath)) {
+      throw new Error(`Local write path ${rawPath} is denied by policy.`);
+    }
+    const stats = fs.statSync(realPath);
+    if (!stats.isFile()) {
+      throw new Error(`Local write path ${rawPath} is not a file.`);
+    }
+    return {
+      root,
+      absolutePath: realPath,
+      relativePath: realRelativePath,
+      displayPath: normalizeDisplayPath(realRelativePath),
+    };
+  }
+
   isDenied(relativePath: string): boolean {
     return this.deniedPaths.some((spec) => matchesDeniedPath(relativePath, spec));
   }
@@ -205,10 +264,7 @@ function createNote(params: {
   sizeBytes: number;
   cleanup: string;
 } {
-  const sizeBytes = Buffer.byteLength(params.content, "utf8");
-  if (sizeBytes > params.maxWriteBytes) {
-    throw new Error(`content is ${sizeBytes} bytes, exceeding the ${params.maxWriteBytes} byte limit.`);
-  }
+  const sizeBytes = assertWriteContent(params);
   if (fs.existsSync(params.target.absolutePath)) {
     throw new Error(`Local write path ${params.target.displayPath} already exists.`);
   }
@@ -228,9 +284,111 @@ function createNote(params: {
   };
 }
 
+function appendDocument(params: {
+  target: ResolvedLocalWritePath;
+  content: string;
+  maxWriteBytes: number;
+}): {
+  ok: true;
+  action: "appended_file";
+  root: string;
+  path: string;
+  appendedBytes: number;
+  newSizeBytes: number;
+  sha256: string;
+} {
+  const appendedBytes = assertWriteContent(params);
+  fs.appendFileSync(params.target.absolutePath, params.content, { encoding: "utf8", mode: 0o600 });
+  const next = fs.readFileSync(params.target.absolutePath);
+  return {
+    ok: true,
+    action: "appended_file",
+    root: displayRoot(params.target.root),
+    path: params.target.displayPath,
+    appendedBytes,
+    newSizeBytes: next.byteLength,
+    sha256: sha256(next),
+  };
+}
+
+function replaceDocument(params: {
+  target: ResolvedLocalWritePath;
+  expectedSha256: string;
+  content: string;
+  maxWriteBytes: number;
+}): {
+  ok: true;
+  action: "replaced_file";
+  root: string;
+  path: string;
+  previousSizeBytes: number;
+  newSizeBytes: number;
+  sha256: string;
+} {
+  const newSizeBytes = assertWriteContent(params);
+  const previous = fs.readFileSync(params.target.absolutePath);
+  const previousSha256 = sha256(previous);
+  if (previousSha256 !== params.expectedSha256.toLowerCase()) {
+    throw new Error(`Local write path ${params.target.displayPath} changed; expected SHA-256 ${params.expectedSha256}.`);
+  }
+  fs.writeFileSync(params.target.absolutePath, params.content, { encoding: "utf8", mode: 0o600 });
+  return {
+    ok: true,
+    action: "replaced_file",
+    root: displayRoot(params.target.root),
+    path: params.target.displayPath,
+    previousSizeBytes: previous.byteLength,
+    newSizeBytes,
+    sha256: sha256(Buffer.from(params.content, "utf8")),
+  };
+}
+
+function readDocument(params: {
+  target: ResolvedLocalWritePath;
+  maxBytes: number;
+}): {
+  ok: true;
+  action: "read_file";
+  root: string;
+  path: string;
+  sizeBytes: number;
+  sha256: string;
+  text: string;
+  truncated: boolean;
+} {
+  const content = fs.readFileSync(params.target.absolutePath);
+  const truncated = content.byteLength > params.maxBytes;
+  const visible = truncated ? content.subarray(0, params.maxBytes) : content;
+  return {
+    ok: true,
+    action: "read_file",
+    root: displayRoot(params.target.root),
+    path: params.target.displayPath,
+    sizeBytes: content.byteLength,
+    sha256: sha256(content),
+    text: visible.toString("utf8"),
+    truncated,
+  };
+}
+
 export function createLocalWriteToolHandlers(config: LocalWriteToolConfig): Partial<Record<string, ToolHandler>> {
   const scope = new LocalWriteScope(config);
   return {
+    mottbot_local_doc_read: ({ arguments: input }) => {
+      const targetPath = optionalString(input.path);
+      if (!targetPath) {
+        throw new Error("path is required.");
+      }
+      const target = scope.resolveExistingDocumentPath({
+        root: optionalString(input.root),
+        targetPath,
+      });
+      const requestedMaxBytes = typeof input.maxBytes === "number" ? input.maxBytes : config.maxWriteBytes;
+      return readDocument({
+        target,
+        maxBytes: Math.min(requestedMaxBytes, config.maxWriteBytes),
+      });
+    },
     mottbot_local_note_create: ({ arguments: input }) => {
       const targetPath = optionalString(input.path);
       const content = typeof input.content === "string" ? input.content : "";
@@ -246,6 +404,49 @@ export function createLocalWriteToolHandlers(config: LocalWriteToolConfig): Part
       });
       return createNote({
         target,
+        content,
+        maxWriteBytes: config.maxWriteBytes,
+      });
+    },
+    mottbot_local_doc_append: ({ arguments: input }) => {
+      const targetPath = optionalString(input.path);
+      const content = typeof input.content === "string" ? input.content : "";
+      if (!targetPath) {
+        throw new Error("path is required.");
+      }
+      if (!content.trim()) {
+        throw new Error("content is required.");
+      }
+      const target = scope.resolveExistingDocumentPath({
+        root: optionalString(input.root),
+        targetPath,
+      });
+      return appendDocument({
+        target,
+        content,
+        maxWriteBytes: config.maxWriteBytes,
+      });
+    },
+    mottbot_local_doc_replace: ({ arguments: input }) => {
+      const targetPath = optionalString(input.path);
+      const expectedSha256 = optionalString(input.expectedSha256);
+      const content = typeof input.content === "string" ? input.content : "";
+      if (!targetPath) {
+        throw new Error("path is required.");
+      }
+      if (!expectedSha256 || !/^[a-f0-9]{64}$/i.test(expectedSha256)) {
+        throw new Error("expectedSha256 must be a 64-character hex SHA-256 value.");
+      }
+      if (!content.trim()) {
+        throw new Error("content is required.");
+      }
+      const target = scope.resolveExistingDocumentPath({
+        root: optionalString(input.root),
+        targetPath,
+      });
+      return replaceDocument({
+        target,
+        expectedSha256,
         content,
         maxWriteBytes: config.maxWriteBytes,
       });

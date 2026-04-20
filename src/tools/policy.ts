@@ -92,6 +92,8 @@ function sideEffectDescription(sideEffect: ToolSideEffect): string {
       return "read local runtime data";
     case "local_write":
       return "write local files";
+    case "local_exec":
+      return "run configured local commands";
     case "network":
       return "call an external or Telegram network API";
     case "network_write":

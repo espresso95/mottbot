@@ -66,6 +66,7 @@ describe("ToolRegistry", () => {
       "mottbot_github_recent_issues",
       "mottbot_github_ci_status",
       "mottbot_github_workflow_failures",
+      "mottbot_local_doc_read",
     ]);
   });
 
@@ -142,6 +143,10 @@ describe("ToolRegistry", () => {
     expect(sideEffectToolNames).toEqual(
       expect.arrayContaining([
         "mottbot_local_note_create",
+        "mottbot_local_doc_append",
+        "mottbot_local_doc_replace",
+        "mottbot_local_command_run",
+        "mottbot_mcp_call_tool",
         "mottbot_telegram_send_message",
         "mottbot_restart_service",
         "mottbot_telegram_react",

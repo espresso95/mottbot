@@ -1,6 +1,7 @@
 export type ToolSideEffect =
   | "read_only"
   | "local_write"
+  | "local_exec"
   | "network"
   | "network_write"
   | "telegram_send"
@@ -554,6 +555,40 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     enabled: true,
     requiresAdmin: true,
   },
+  {
+    name: "mottbot_local_doc_read",
+    description: "Read a bounded Markdown or text document from an approved local-write root and return its SHA-256 for safe edits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          maxLength: 300,
+          description: "Approved-root-relative existing .md or .txt path to read.",
+        },
+        maxBytes: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200000,
+          description: "Maximum UTF-8 bytes to return, capped by host config.",
+        },
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
 ] as const;
 
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
@@ -588,6 +623,161 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     timeoutMs: 3_000,
     maxOutputBytes: 12_000,
     sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_local_doc_append",
+    description: "Append plain text to an existing Markdown or text document under an approved local-write root after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          maxLength: 300,
+          description: "Approved-root-relative existing .md or .txt path to append to.",
+        },
+        content: {
+          type: "string",
+          minLength: 1,
+          maxLength: 40000,
+          description: "Plain text content to append, capped again by host config.",
+        },
+      },
+      required: ["path", "content"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 12_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_local_doc_replace",
+    description: "Replace an existing Markdown or text document under an approved local-write root after explicit operator approval and SHA-256 match.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          maxLength: 300,
+          description: "Approved-root-relative existing .md or .txt path to replace.",
+        },
+        expectedSha256: {
+          type: "string",
+          minLength: 64,
+          maxLength: 64,
+          description: "SHA-256 of the current file content, usually obtained from a prior document read.",
+        },
+        content: {
+          type: "string",
+          minLength: 1,
+          maxLength: 40000,
+          description: "Replacement plain text content, capped again by host config.",
+        },
+      },
+      required: ["path", "expectedSha256", "content"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 12_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_local_command_run",
+    description: "Run one configured local command in an approved working directory after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved execution root label or path. Required only when multiple roots are configured.",
+        },
+        cwd: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional root-relative working directory. Defaults to the selected root.",
+        },
+        command: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Executable name or configured command path that must appear in the host allowlist.",
+        },
+        args: {
+          type: "array",
+          description: "Command arguments. Shell syntax is not supported.",
+          items: {
+            type: "string",
+            maxLength: 500,
+          },
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 100,
+          maximum: 30000,
+          description: "Optional timeout capped by host config.",
+        },
+      },
+      required: ["command"],
+      additionalProperties: false,
+    },
+    timeoutMs: 30_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_mcp_call_tool",
+    description: "Call one allowlisted tool on one configured MCP stdio server after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server: {
+          type: "string",
+          minLength: 1,
+          maxLength: 64,
+          description: "Configured MCP server name.",
+        },
+        tool: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Allowlisted MCP tool name.",
+        },
+        arguments: {
+          type: "object",
+          description: "MCP tool arguments.",
+          additionalProperties: true,
+        },
+      },
+      required: ["server", "tool", "arguments"],
+      additionalProperties: false,
+    },
+    timeoutMs: 30_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "network_write",
     enabled: false,
     requiresAdmin: true,
   },

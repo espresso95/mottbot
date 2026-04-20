@@ -111,6 +111,13 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
         deniedPaths: [],
         maxWriteBytes: 20_000,
       },
+      localExec: {
+        roots: [path.join(tempDir, "tool-workspace")],
+        deniedPaths: [],
+        allowedCommands: [],
+        timeoutMs: 5_000,
+        maxOutputBytes: 40_000,
+      },
       telegramSend: {
         allowedChatIds: [],
       },
@@ -119,6 +126,9 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
         commandTimeoutMs: 10_000,
         maxItems: 10,
         maxOutputBytes: 80_000,
+      },
+      mcp: {
+        servers: [],
       },
     },
     runtime: {
