@@ -12,6 +12,7 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: [
         "src/index.ts",
+        "src/**/types.ts",
         "src/tools/live-smoke-preflight.ts",
         "src/tools/live-telegram-user-smoke.ts",
         "src/app/service.ts",
