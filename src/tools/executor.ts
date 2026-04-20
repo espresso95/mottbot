@@ -39,6 +39,11 @@ export type ToolExecutionContext = {
   definition: ToolDefinition;
   arguments: Record<string, unknown>;
   signal?: AbortSignal;
+  sessionKey?: string;
+  runId?: string;
+  requestedByUserId?: string;
+  chatId?: string;
+  threadId?: number;
 };
 
 export type ToolHandler = (context: ToolExecutionContext) => Promise<unknown> | unknown;
@@ -60,6 +65,7 @@ export type ToolExecutionOptions = {
   runId?: string;
   requestedByUserId?: string;
   chatId?: string;
+  threadId?: number;
 };
 
 type TimedHandlerResult =
@@ -195,6 +201,11 @@ export class ToolExecutor {
             definition,
             arguments: input,
             signal: options.signal,
+            sessionKey: options.sessionKey,
+            runId: options.runId,
+            requestedByUserId: options.requestedByUserId,
+            chatId: options.chatId,
+            threadId: options.threadId,
           }),
         definition.timeoutMs,
       );

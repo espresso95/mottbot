@@ -37,7 +37,9 @@ import { codexModelCapabilities } from "../models/provider.js";
 import { OperatorDiagnostics } from "./diagnostics.js";
 import { createOperatorDiagnosticToolHandlers } from "../tools/operator-diagnostic-handlers.js";
 import { createTelegramReactionToolHandlers } from "../tools/telegram-reaction-handlers.js";
+import { createTelegramSendToolHandlers } from "../tools/telegram-send-handlers.js";
 import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
+import { createLocalWriteToolHandlers } from "../tools/local-write-handlers.js";
 import { createGithubToolHandlers } from "../tools/github-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
 
@@ -112,7 +114,9 @@ export async function bootstrapApplication() {
     handlers: {
       ...createOperatorDiagnosticToolHandlers(diagnostics),
       ...createTelegramReactionToolHandlers(reactions),
+      ...createTelegramSendToolHandlers(provisionalBot.api, config.tools.telegramSend),
       ...createRepositoryToolHandlers(config.tools.repository),
+      ...createLocalWriteToolHandlers(config.tools.localWrite),
       ...createGithubToolHandlers(github),
     },
     adminUserIds: config.telegram.adminUserIds,

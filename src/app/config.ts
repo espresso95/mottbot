@@ -26,6 +26,18 @@ const repositoryToolConfigSchema = z
     commandTimeoutMs: z.number().int().min(100).max(30_000).default(5_000),
   })
   .default({});
+const localWriteToolConfigSchema = z
+  .object({
+    roots: z.array(z.string()).default(["./data/tool-notes"]),
+    deniedPaths: z.array(z.string()).default([]),
+    maxWriteBytes: z.number().int().min(1).max(200_000).default(20_000),
+  })
+  .default({});
+const telegramSendToolConfigSchema = z
+  .object({
+    allowedChatIds: z.array(z.string()).default([]),
+  })
+  .default({});
 const githubToolConfigSchema = z
   .object({
     defaultRepository: z.string().optional(),
@@ -127,6 +139,8 @@ const rawConfigSchema = z.object({
       restartDelayMs: z.number().int().min(1_000).default(60_000),
       policies: z.record(toolPolicyConfigSchema).default({}),
       repository: repositoryToolConfigSchema,
+      localWrite: localWriteToolConfigSchema,
+      telegramSend: telegramSendToolConfigSchema,
       github: githubToolConfigSchema,
     })
     .default({}),
@@ -219,6 +233,8 @@ export type AppConfig = {
     restartDelayMs: number;
     policies: Record<string, z.infer<typeof toolPolicyConfigSchema>>;
     repository: z.infer<typeof repositoryToolConfigSchema>;
+    localWrite: z.infer<typeof localWriteToolConfigSchema>;
+    telegramSend: z.infer<typeof telegramSendToolConfigSchema>;
     github: z.infer<typeof githubToolConfigSchema>;
   };
   runtime: {
@@ -288,6 +304,8 @@ export function loadConfig(): AppConfig {
     typeof fileConfig === "object" && fileConfig ? (fileConfig as Record<string, unknown>) : {};
   const fileTools = asRecord(fileObject.tools);
   const fileRepositoryTools = asRecord(fileTools?.repository);
+  const fileLocalWriteTools = asRecord(fileTools?.localWrite);
+  const fileTelegramSendTools = asRecord(fileTools?.telegramSend);
   const fileGithubTools = asRecord(fileTools?.github);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
@@ -641,6 +659,34 @@ export function loadConfig(): AppConfig {
           process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS === undefined
             ? fileRepositoryTools?.commandTimeoutMs
             : Number(process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS),
+      },
+      localWrite: {
+        ...(fileLocalWriteTools ?? {}),
+        roots: pickDefined(
+          process.env.MOTTBOT_LOCAL_WRITE_ROOTS !== undefined
+            ? parseCsv(process.env.MOTTBOT_LOCAL_WRITE_ROOTS)
+            : undefined,
+          fileLocalWriteTools?.roots,
+        ),
+        deniedPaths: pickDefined(
+          process.env.MOTTBOT_LOCAL_WRITE_DENIED_PATHS !== undefined
+            ? parseCsv(process.env.MOTTBOT_LOCAL_WRITE_DENIED_PATHS)
+            : undefined,
+          fileLocalWriteTools?.deniedPaths,
+        ),
+        maxWriteBytes:
+          process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES === undefined
+            ? fileLocalWriteTools?.maxWriteBytes
+            : Number(process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES),
+      },
+      telegramSend: {
+        ...(fileTelegramSendTools ?? {}),
+        allowedChatIds: pickDefined(
+          process.env.MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS !== undefined
+            ? parseCsv(process.env.MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS)
+            : undefined,
+          fileTelegramSendTools?.allowedChatIds,
+        ),
       },
       github: {
         ...(fileGithubTools ?? {}),

@@ -106,6 +106,14 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
         maxSearchBytes: 80_000,
         commandTimeoutMs: 5_000,
       },
+      localWrite: {
+        roots: [path.join(tempDir, "tool-notes")],
+        deniedPaths: [],
+        maxWriteBytes: 20_000,
+      },
+      telegramSend: {
+        allowedChatIds: [],
+      },
       github: {
         command: "gh",
         commandTimeoutMs: 10_000,

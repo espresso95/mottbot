@@ -1,4 +1,12 @@
-export type ToolSideEffect = "read_only" | "local_write" | "network" | "process_control" | "secret_adjacent";
+export type ToolSideEffect =
+  | "read_only"
+  | "local_write"
+  | "network"
+  | "network_write"
+  | "telegram_send"
+  | "github_write"
+  | "process_control"
+  | "secret_adjacent";
 
 export type ToolJsonPrimitive = string | number | boolean | null;
 
@@ -550,6 +558,77 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
+    name: "mottbot_local_note_create",
+    description: "Create a new Markdown or text note in an approved local notes directory after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          maxLength: 300,
+          description: "Approved-root-relative .md or .txt path to create. Existing files are never overwritten.",
+        },
+        content: {
+          type: "string",
+          minLength: 1,
+          maxLength: 40000,
+          description: "Plain text content to write, capped again by host config.",
+        },
+      },
+      required: ["path", "content"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 12_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_telegram_send_message",
+    description: "Send a plain-text Telegram message to the current chat or a configured approved chat after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        chatId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Optional Telegram chat ID or username. Defaults to the current chat.",
+        },
+        text: {
+          type: "string",
+          minLength: 1,
+          maxLength: 4000,
+          description: "Plain text message body. Formatting modes are intentionally not supported.",
+        },
+        replyToMessageId: {
+          type: "integer",
+          minimum: 1,
+          description: "Optional message ID to reply to in the target chat.",
+        },
+        disableNotification: {
+          type: "boolean",
+          description: "Whether Telegram should send the message silently.",
+        },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    timeoutMs: 5_000,
+    maxOutputBytes: 8_000,
+    sideEffect: "telegram_send",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
     name: "mottbot_restart_service",
     description: "Restart the local Mottbot service after explicit operator approval.",
     inputSchema: {
@@ -608,7 +687,7 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     },
     timeoutMs: 3_000,
     maxOutputBytes: 8_000,
-    sideEffect: "network",
+    sideEffect: "telegram_send",
     enabled: false,
     requiresAdmin: true,
   },

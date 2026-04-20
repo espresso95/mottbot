@@ -83,6 +83,28 @@ describe("tool policy engine", () => {
     });
   });
 
+  it("keeps side-effect approvals mandatory even if policy tries to disable them", () => {
+    const definition = tool({
+      name: "send_message",
+      sideEffect: "telegram_send",
+      requiresAdmin: true,
+    });
+    const policy = createToolPolicyEngine({
+      definitions: [definition],
+      overrides: {
+        send_message: {
+          requiresApproval: false,
+          dryRun: true,
+        },
+      },
+    }).get(definition.name);
+
+    expect(policy).toMatchObject({
+      requiresApproval: true,
+      dryRun: true,
+    });
+  });
+
   it("rejects overrides for unknown or disabled tools", () => {
     expect(() =>
       createToolPolicyEngine({
@@ -120,6 +142,33 @@ describe("tool policy engine", () => {
     expect(preview).toContain("[redacted]");
     expect(preview).not.toContain("secret-token");
     expect(preview).not.toContain("secret-password");
+  });
+
+  it("renders distinct approval previews for write side-effect classes", () => {
+    const localWrite = tool({ name: "local_note", sideEffect: "local_write" });
+    const networkWrite = tool({ name: "network_write", sideEffect: "network_write" });
+    const telegramSend = tool({ name: "telegram_send", sideEffect: "telegram_send" });
+    const githubWrite = tool({ name: "github_write", sideEffect: "github_write" });
+    const processControl = tool({ name: "process_control", sideEffect: "process_control" });
+    const policy = createToolPolicyEngine({
+      definitions: [localWrite, networkWrite, telegramSend, githubWrite, processControl],
+    });
+
+    expect(buildToolApprovalPreview({ definition: localWrite, policy: policy.get("local_note")!, arguments: {} })).toContain(
+      "write local files",
+    );
+    expect(buildToolApprovalPreview({ definition: networkWrite, policy: policy.get("network_write")!, arguments: {} })).toContain(
+      "write through an external network API",
+    );
+    expect(buildToolApprovalPreview({ definition: telegramSend, policy: policy.get("telegram_send")!, arguments: {} })).toContain(
+      "Telegram Bot API",
+    );
+    expect(buildToolApprovalPreview({ definition: githubWrite, policy: policy.get("github_write")!, arguments: {} })).toContain(
+      "GitHub API",
+    );
+    expect(
+      buildToolApprovalPreview({ definition: processControl, policy: policy.get("process_control")!, arguments: {} }),
+    ).toContain("control the local Mottbot process");
   });
 
   it("creates stable fingerprints independent of object key order", () => {

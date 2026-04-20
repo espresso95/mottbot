@@ -76,6 +76,11 @@ Approved reaction tool:
 - `mottbot_telegram_react` adds a Unicode emoji reaction or clears the bot reaction with an empty emoji
 - it is admin-only, side-effecting, and requires the one-shot `/tool approve` flow before execution unless policy is set to dry-run
 
+Approved send tool:
+
+- `mottbot_telegram_send_message` sends plain text to the current chat or a configured approved target
+- it is admin-only, side-effecting, and requires the same one-shot approval flow; the target and text are bound into the approval fingerprint
+
 ## Safety Limits
 
 Before command routing or model execution, `validateInboundSafety()` checks:
@@ -340,7 +345,7 @@ When the model requests an enabled tool, the run orchestrator:
 
 - shows short Telegram status edits while the tool is prepared and running
 - executes read-only tools directly after registry and policy checks, including admin-only repository tools scoped to approved roots and admin-only GitHub tools backed by the host `gh` CLI
-- executes side-effecting tools only after a fresh one-shot session approval unless policy configures dry-run behavior
+- executes side-effecting tools only after a fresh one-shot session approval; dry-run policy returns the preview without calling the handler
 - enforces per-run tool-round and tool-call limits
 - persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads
 - persists side-effecting approval decisions in `tool_approval_audit`

@@ -135,14 +135,17 @@ describe("ToolRegistry", () => {
   it("enables the reserved restart tool only through the runtime registry factory", () => {
     const registry = createDefaultToolRegistry();
     const runtimeRegistry = createRuntimeToolRegistry({ enableSideEffectTools: true });
+    const sideEffectToolNames = runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name);
 
     expect(registry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
     expect(runtimeRegistry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
-    expect(runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toContain(
-      "mottbot_restart_service",
-    );
-    expect(runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name)).toContain(
-      "mottbot_telegram_react",
+    expect(sideEffectToolNames).toEqual(
+      expect.arrayContaining([
+        "mottbot_local_note_create",
+        "mottbot_telegram_send_message",
+        "mottbot_restart_service",
+        "mottbot_telegram_react",
+      ]),
     );
   });
 

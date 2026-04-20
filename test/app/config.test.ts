@@ -56,6 +56,10 @@ const configEnvKeys = [
   "MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES",
   "MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES",
   "MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS",
+  "MOTTBOT_LOCAL_WRITE_ROOTS",
+  "MOTTBOT_LOCAL_WRITE_DENIED_PATHS",
+  "MOTTBOT_LOCAL_WRITE_MAX_BYTES",
+  "MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS",
   "MOTTBOT_GITHUB_REPOSITORY",
   "MOTTBOT_GITHUB_COMMAND",
   "MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS",
@@ -129,6 +133,14 @@ describe("loadConfig", () => {
             maxSearchBytes: 3333,
             commandTimeoutMs: 4444,
           },
+          localWrite: {
+            roots: ["./file-notes"],
+            deniedPaths: ["file-private"],
+            maxWriteBytes: 555,
+          },
+          telegramSend: {
+            allowedChatIds: ["file-chat"],
+          },
           github: {
             defaultRepository: "file-owner/file-repo",
             command: "file-gh",
@@ -164,6 +176,10 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES = "33";
     process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES = "4444";
     process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS = "5555";
+    process.env.MOTTBOT_LOCAL_WRITE_ROOTS = "./env-notes,./env-notes-2";
+    process.env.MOTTBOT_LOCAL_WRITE_DENIED_PATHS = "env-private,blocked";
+    process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES = "6666";
+    process.env.MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS = "chat-2,@channel";
     process.env.MOTTBOT_GITHUB_REPOSITORY = "env-owner/env-repo";
     process.env.MOTTBOT_GITHUB_COMMAND = "env-gh";
     process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS = "6666";
@@ -220,6 +236,14 @@ describe("loadConfig", () => {
       maxSearchMatches: 33,
       maxSearchBytes: 4444,
       commandTimeoutMs: 5555,
+    });
+    expect(config.tools.localWrite).toEqual({
+      roots: ["./env-notes", "./env-notes-2"],
+      deniedPaths: ["env-private", "blocked"],
+      maxWriteBytes: 6666,
+    });
+    expect(config.tools.telegramSend).toEqual({
+      allowedChatIds: ["chat-2", "@channel"],
     });
     expect(config.tools.github).toEqual({
       defaultRepository: "env-owner/env-repo",

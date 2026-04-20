@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Write-Capable Approved Tools
+
+- Added admin-only `mottbot_local_note_create` for create-only `.md` and `.txt` draft notes under approved local-write roots.
+- Added admin-only `mottbot_telegram_send_message` for plain-text Telegram sends to the current chat or configured approved targets.
+- Added `MOTTBOT_LOCAL_WRITE_*` and `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` configuration.
+- Expanded side-effect classes for local write, network write, Telegram send, GitHub write, process control, and secret-adjacent tools.
+- Real side-effect execution now always requires a one-shot request-bound approval; `dryRun:true` remains the preview-only path.
+
+Operator checklist:
+
+- Keep `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` until you want model-initiated writes.
+- Set `MOTTBOT_LOCAL_WRITE_ROOTS` to a disposable notes directory for first validation.
+- Leave `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` empty unless cross-chat sends are intentionally approved.
+- Test by asking the bot to create one draft note, inspect the approval preview, approve it, then verify the created file.
+
 ### Backup And Log Operations
 
 - Added `mottbot backup create` for timestamped local backups with SQLite online backup, optional source sidecars, redacted config, manifest checksums, and optional `.env` inclusion.

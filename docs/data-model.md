@@ -100,6 +100,14 @@ Current defaults:
       "maxSearchBytes": 80000,
       "commandTimeoutMs": 5000
     },
+    "localWrite": {
+      "roots": ["./data/tool-notes"],
+      "deniedPaths": [],
+      "maxWriteBytes": 20000
+    },
+    "telegramSend": {
+      "allowedChatIds": []
+    },
     "github": {
       "defaultRepository": "owner/name",
       "command": "gh",

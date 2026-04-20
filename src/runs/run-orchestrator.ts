@@ -418,6 +418,7 @@ export class RunOrchestrator {
             runId: run.runId,
             requestedByUserId: params.event.fromUserId,
             chatId: params.event.chatId,
+            threadId: params.event.threadId,
           });
           executedToolResults.push(execution);
           this.transcripts.add({

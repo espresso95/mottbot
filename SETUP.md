@@ -128,6 +128,7 @@ Tool policy settings:
 - policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`
 - leave it empty for conservative defaults
 - side-effecting tool calls generate sanitized approval previews and request fingerprints before execution
+- side-effecting tools always require one-shot approval for real execution; use `dryRun:true` for preview-only validation
 - use `/tool audit [limit] [here] [tool:<name>] [code:<decision>]` as an admin to inspect bounded tool policy and approval audit records
 
 Example:
@@ -143,6 +144,19 @@ Repository tool settings:
 - `MOTTBOT_REPOSITORY_DENIED_PATHS` adds extra denied path segments or relative paths
 - default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files
 - repository tools are admin-only and read-only; they can list files, read bounded text slices, search literal text, and inspect git status/branch/commits/diffs
+
+Local write tool settings:
+
+- `MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes` approves where the model can create draft `.md` or `.txt` notes after admin approval
+- `MOTTBOT_LOCAL_WRITE_DENIED_PATHS` adds extra denied path segments or relative paths
+- `MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000` caps each created note
+- local note creation is create-only, rejects traversal and symlink escapes, and does not return written content in tool output
+
+Telegram send tool settings:
+
+- `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS=` controls cross-chat send targets for `mottbot_telegram_send_message`
+- leaving it empty still permits approved sends to the current chat only
+- target chat and text are part of the approval fingerprint, so changed arguments require a new approval
 
 GitHub read settings:
 
@@ -389,4 +403,4 @@ If `/health` works but model responses fail, inspect:
 - Keep `.env` permission-restricted with `chmod 600 .env`.
 - Keep `MOTTBOT_MASTER_KEY` stable for the same SQLite database. Changing it prevents decrypting existing auth profile tokens.
 - Do not run multiple polling instances with the same token.
-- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need admin-only, operator-approved tools such as `mottbot_restart_service`.
+- Leave `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` unless you need admin-only, operator-approved tools such as local note creation, Telegram send/reaction, or delayed restart.

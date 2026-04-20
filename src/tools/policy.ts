@@ -90,6 +90,12 @@ function sideEffectDescription(sideEffect: ToolSideEffect): string {
       return "write local files";
     case "network":
       return "call an external or Telegram network API";
+    case "network_write":
+      return "write through an external network API";
+    case "telegram_send":
+      return "send messages or reactions through the Telegram Bot API";
+    case "github_write":
+      return "write through the GitHub API";
     case "process_control":
       return "control the local Mottbot process";
     case "secret_adjacent":
@@ -115,7 +121,7 @@ function mergePolicy(definition: ToolDefinition, override: ToolPolicyConfig | un
     toolName: definition.name,
     allowedRoles: definition.requiresAdmin ? requestedRoles.filter((role) => role === "admin") : requestedRoles,
     allowedChatIds: override?.allowedChatIds?.map((chatId) => chatId.trim()).filter(Boolean) ?? base.allowedChatIds,
-    requiresApproval: definition.sideEffect === "read_only" ? false : (override?.requiresApproval ?? base.requiresApproval),
+    requiresApproval: definition.sideEffect === "read_only" ? false : true,
     dryRun: override?.dryRun ?? base.dryRun,
     maxOutputBytes: Math.min(override?.maxOutputBytes ?? base.maxOutputBytes, definition.maxOutputBytes),
   };

@@ -235,7 +235,7 @@ Implemented now:
 - native image attachment input, attachment-aware prompt construction, and transcript compaction
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
-- deny-by-default tool registry, health snapshot execution, and opt-in approved restart tool execution
+- deny-by-default tool registry, health snapshot execution, and opt-in approved local note, Telegram send/reaction, and restart tool execution
 - scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease
@@ -244,7 +244,7 @@ Implemented now:
 Not yet implemented:
 
 - native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
-- side-effecting local-write, network, or secret-adjacent model-executed tools
+- generic network-write, GitHub-write, or secret-adjacent model-executed tools
 - model-generated summarization or learned compaction
 - distributed multi-instance locks or replica coordination
 

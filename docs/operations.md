@@ -243,10 +243,30 @@ Side-effecting tools are disabled unless the host explicitly sets:
 MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
 ```
 
-Current side-effecting tool:
+Current side-effecting tools:
 
+- `mottbot_local_note_create`: creates a new `.md` or `.txt` draft note under an approved local-write root
+- `mottbot_telegram_send_message`: sends plain text to the current Telegram chat or a configured approved target
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 - `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
+
+Local write tools are scoped by:
+
+```bash
+MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes
+MOTTBOT_LOCAL_WRITE_DENIED_PATHS=
+MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000
+```
+
+Local write roots are created when the service starts. The note tool is create-only, rejects path traversal and symlink escapes, allows only `.md` and `.txt`, and never returns the written content in tool output.
+
+Telegram send tools are scoped by:
+
+```bash
+MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS=
+```
+
+When the target is omitted, `mottbot_telegram_send_message` sends to the current chat and current topic thread. Sending to any other chat requires that chat ID or username in `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS`.
 
 Optional per-tool policy:
 
@@ -254,7 +274,7 @@ Optional per-tool policy:
 MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
 ```
 
-Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Admin-only tool definitions remain admin-only even if policy config attempts to expose them to normal users.
+Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Admin-only tool definitions remain admin-only even if policy config attempts to expose them to normal users. Side-effecting tools always require approval for real execution; `requiresApproval:false` is ignored for write-capable tools.
 
 Approval flow:
 
@@ -262,12 +282,12 @@ Approval flow:
 2. An admin approves the latest pending request for the current session:
 
    ```text
-   /tool approve mottbot_restart_service planned restart
+   /tool approve mottbot_local_note_create approved draft note
    ```
 
 3. The next matching model tool call in that session consumes the approval.
 4. The bot records audit rows in SQLite.
-5. The restart tool schedules a delayed service restart, using `MOTTBOT_RESTART_TOOL_DELAY_MS` or the tool input delay.
+5. The matching tool call executes once and consumes the approval.
 
 If an approval was created from a pending preview, the approval is bound to that request fingerprint and cannot be reused for different arguments.
 
@@ -504,12 +524,12 @@ Current tool set:
 - `mottbot_service_status`, `mottbot_recent_runs`, `mottbot_recent_errors`, and `mottbot_recent_logs`: admin-only operator diagnostics
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
 - `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
-- `mottbot_restart_service` and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and approval by default
+- `mottbot_local_note_create`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
 
 Runtime controls:
 
 - unknown, disabled, and invalid tools are denied by the registry
-- side-effecting tools are disabled unless explicitly enabled and guarded by policy/approval
+- side-effecting tools are disabled unless explicitly enabled and guarded by policy and one-shot approval
 - each tool definition has a timeout and output-size limit
 - each run is limited to three tool rounds and five tool calls
 - repository tools resolve real paths, reject traversal/symlink escapes, deny secret and generated paths by default, and return bounded output
@@ -517,7 +537,7 @@ Runtime controls:
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 
-Only the delayed service restart and Telegram reaction tools have approval-backed side-effect implementations. Do not add local-write, additional network, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
+Approval-backed side-effect implementations currently cover local note creation, Telegram send/reaction, and delayed service restart. Do not add generic network, GitHub write, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
 
 ## Operator Safety Limits
 

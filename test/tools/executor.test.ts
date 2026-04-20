@@ -9,6 +9,8 @@ import { createOperatorDiagnosticToolHandlers } from "../../src/tools/operator-d
 import { createTelegramReactionToolHandlers } from "../../src/tools/telegram-reaction-handlers.js";
 import { createToolPolicyEngine, createToolRequestFingerprint } from "../../src/tools/policy.js";
 import { createRepositoryToolHandlers } from "../../src/tools/repository-handlers.js";
+import { createLocalWriteToolHandlers } from "../../src/tools/local-write-handlers.js";
+import { createTelegramSendToolHandlers } from "../../src/tools/telegram-send-handlers.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -464,6 +466,159 @@ describe("ToolExecutor", () => {
         emoji: "\u{1F44D}",
         isBig: false,
       });
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("executes approved local note writes once and audits duplicate calls as unapproved", async () => {
+    const activeStores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+      },
+    });
+    try {
+      const session = activeStores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:admin-1",
+        chatId: "chat-1",
+        userId: "admin-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const approvals = new ToolApprovalStore(activeStores.database, activeStores.clock);
+      const call = {
+        id: "call-note",
+        name: "mottbot_local_note_create",
+        arguments: {
+          path: "draft.md",
+          content: "approved draft\n",
+        },
+      };
+      approvals.approve({
+        sessionKey: session.sessionKey,
+        toolName: call.name,
+        approvedByUserId: "admin-1",
+        reason: "create test note",
+        ttlMs: 60_000,
+        requestFingerprint: createToolRequestFingerprint({
+          toolName: call.name,
+          arguments: call.arguments,
+        }),
+      });
+      const executor = new ToolExecutor(createRuntimeToolRegistry({ enableSideEffectTools: true }), {
+        clock: activeStores.clock,
+        approvals,
+        adminUserIds: ["admin-1"],
+        handlers: createLocalWriteToolHandlers(activeStores.config.tools.localWrite),
+      });
+
+      const first = await executor.execute(call, {
+        sessionKey: session.sessionKey,
+        requestedByUserId: "admin-1",
+        chatId: "chat-1",
+      });
+      const second = await executor.execute(
+        {
+          ...call,
+          id: "call-note-duplicate",
+        },
+        {
+          sessionKey: session.sessionKey,
+          requestedByUserId: "admin-1",
+          chatId: "chat-1",
+        },
+      );
+
+      expect(first.isError).toBe(false);
+      expect(first.contentText).toContain("created_file");
+      expect(first.contentText).not.toContain("approved draft");
+      expect(second.isError).toBe(true);
+      expect(second.errorCode).toBe("approval_required");
+      expect(approvals.listAudit({ sessionKey: session.sessionKey, toolName: call.name })).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ decisionCode: "approved", allowed: true }),
+          expect.objectContaining({ decisionCode: "approval_required", allowed: false }),
+        ]),
+      );
+    } finally {
+      activeStores.database.close();
+      removeTempDir(activeStores.tempDir);
+    }
+  });
+
+  it("executes the approved Telegram send tool with target-bound fingerprint", async () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:admin-1",
+        chatId: "chat-1",
+        userId: "admin-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      const api = {
+        sendMessage: vi.fn(async () => ({ message_id: 77 })),
+      };
+      const executor = new ToolExecutor(createRuntimeToolRegistry({ enableSideEffectTools: true }), {
+        clock: stores.clock,
+        approvals,
+        adminUserIds: ["admin-1"],
+        handlers: createTelegramSendToolHandlers(api as never, { allowedChatIds: ["chat-2"] }),
+      });
+      const call = {
+        id: "call-send",
+        name: "mottbot_telegram_send_message",
+        arguments: {
+          chatId: "chat-2",
+          text: "approved outbound",
+        },
+      };
+      approvals.approve({
+        sessionKey: session.sessionKey,
+        toolName: call.name,
+        approvedByUserId: "admin-1",
+        reason: "send test message",
+        ttlMs: 60_000,
+        requestFingerprint: createToolRequestFingerprint({
+          toolName: call.name,
+          arguments: {
+            chatId: "chat-3",
+            text: "approved outbound",
+          },
+        }),
+      });
+
+      const mismatched = await executor.execute(call, {
+        sessionKey: session.sessionKey,
+        requestedByUserId: "admin-1",
+        chatId: "chat-1",
+      });
+      approvals.revokeActive({ sessionKey: session.sessionKey, toolName: call.name });
+      approvals.approve({
+        sessionKey: session.sessionKey,
+        toolName: call.name,
+        approvedByUserId: "admin-1",
+        reason: "send test message",
+        ttlMs: 60_000,
+        requestFingerprint: createToolRequestFingerprint({
+          toolName: call.name,
+          arguments: call.arguments,
+        }),
+      });
+      const approved = await executor.execute(call, {
+        sessionKey: session.sessionKey,
+        requestedByUserId: "admin-1",
+        chatId: "chat-1",
+      });
+
+      expect(mismatched.isError).toBe(true);
+      expect(mismatched.errorCode).toBe("approval_mismatch");
+      expect(approved.isError).toBe(false);
+      expect(api.sendMessage).toHaveBeenCalledWith("chat-2", "approved outbound", {});
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

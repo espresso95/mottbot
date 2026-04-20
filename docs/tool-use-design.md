@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Mottbot can execute the initial read-only model tool set through the Codex provider boundary. The runtime remains deny-by-default: side-effecting tools are exposed only when the host opts in, and execution requires a fresh session-scoped admin approval unless a per-tool policy explicitly configures dry-run or no-approval behavior.
+Mottbot can execute registry-approved model tools through the Codex provider boundary. The runtime remains deny-by-default: side-effecting tools are exposed only when the host opts in, and real side-effect execution requires a fresh session-scoped admin approval. Dry-run policy can return a preview without calling a handler.
 
 ## Current State
 
@@ -23,6 +23,8 @@ Implemented:
 - persistent side-effect approval prompts, decisions, expiration, consumption, and audit records in `src/tools/approval.ts`
 - admin-only Telegram approval commands through `/tool approve`, `/tool revoke`, and `/tool status`
 - an opt-in delayed `mottbot_restart_service` process-control tool guarded by one-shot session-scoped approval
+- opt-in local note creation under approved roots
+- opt-in Telegram message and reaction tools restricted to the current chat or configured approved targets
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
 - per-tool runtime policies loaded from config or `MOTTBOT_TOOL_POLICIES_JSON`
 - sanitized approval previews and request fingerprints for side-effecting calls
@@ -30,7 +32,8 @@ Implemented:
 
 Not implemented:
 
-- local-write, network, or secret-adjacent tools
+- GitHub write tools
+- generic network-write or secret-adjacent tools
 - arbitrary sandboxed plugin execution
 
 ## Safety Requirements
@@ -40,7 +43,7 @@ Tool execution must be deny-by-default.
 Required controls:
 
 - static allowlist of tool names and schemas
-- per-tool side-effect classification: read-only, local write, network, process control, or secret-adjacent
+- per-tool side-effect classification: read-only, local write, network write, Telegram send, GitHub write, process control, or secret-adjacent
 - maximum tool-call count per model turn
 - timeout and output-size limits per tool call
 - no environment dumps, raw credential reads, or arbitrary shell by default
@@ -58,7 +61,7 @@ Keep ownership boundaries narrow:
 - `src/telegram/*` owns approval and result notifications
 - a new `src/tools/*` module owns tool definitions, validation, execution, and result normalization
 
-The default runtime supports read-only tools only. The first side-effecting implementations are opt-in delayed service restart and Telegram reaction tools with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
+The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, and local note creation with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
 
 ## Initial Tool Registry
 
@@ -90,8 +93,10 @@ Disabled reserved tools:
 
 | Tool | Side effect | Status | Reason |
 | --- | --- | --- | --- |
+| `mottbot_local_note_create` | `local_write` | opt-in | Creates only new `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution. |
+| `mottbot_telegram_send_message` | `telegram_send` | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution. |
 | `mottbot_restart_service` | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
-| `mottbot_telegram_react` | `network` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
+| `mottbot_telegram_react` | `telegram_send` | opt-in | Adds or clears Telegram reactions only after one-shot admin approval. |
 
 Registry behavior:
 
@@ -100,7 +105,51 @@ Registry behavior:
 - enabled tools with side effects are rejected at registry construction time unless the runtime explicitly opts into side-effect definitions
 - input payloads are validated against the declared JSON-schema subset before execution
 - operator diagnostics, repository, and git tools are marked admin-only even though they are read-only
-- the restart and Telegram reaction tools are admin-only in addition to requiring a fresh approval by default
+- all current side-effecting tools are admin-only and require a fresh approval for real execution
+
+## Local Write Scope
+
+Local write tools are governed separately from general tool policy by `tools.localWrite` or the `MOTTBOT_LOCAL_WRITE_*` environment variables.
+
+Defaults:
+
+```json
+{
+  "roots": ["./data/tool-notes"],
+  "deniedPaths": [],
+  "maxWriteBytes": 20000
+}
+```
+
+Safety rules:
+
+- local write roots are created on startup if missing
+- paths must be relative to an approved root
+- only `.md` and `.txt` files can be created
+- existing files are never overwritten
+- parent directories are checked after realpath resolution so symlink escapes are rejected
+- built-in denied paths include `.env`, config files, auth files, `.codex`, `.git`, `node_modules`, build output, database files, logs, and Telegram session files
+- output returns path, size, and cleanup guidance, not the written content
+
+## Telegram Send Scope
+
+Telegram send tools are governed by `tools.telegramSend` or `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS`.
+
+Defaults:
+
+```json
+{
+  "allowedChatIds": []
+}
+```
+
+Safety rules:
+
+- `mottbot_telegram_send_message` defaults to the current chat
+- sending to another chat requires that target in `allowedChatIds`
+- topic replies inherit the current Telegram thread when sending to the current chat
+- messages are plain text only and capped by the tool schema
+- the approval fingerprint includes the target chat and message text, so target or text changes cannot reuse an approval
 
 ## Repository Read Scope
 
@@ -164,7 +213,7 @@ Policy fields:
 
 - `allowedRoles`: `admin`, `user`, or both
 - `allowedChatIds`: optional Telegram chat allowlist for the tool
-- `requiresApproval`: whether side-effecting execution must consume a current approval
+- `requiresApproval`: read-only tools are always false; side-effecting tools always require approval for real execution
 - `dryRun`: return the sanitized preview without calling the handler
 - `maxOutputBytes`: output cap, never above the tool definition cap
 
@@ -191,6 +240,7 @@ Example:
 ```
 
 Admin-only tool definitions remain admin-only even if policy config tries to expose them to normal users.
+For side-effecting tools, `requiresApproval:false` is ignored; use `dryRun:true` to return a preview without executing a side effect.
 
 ## Runtime Behavior
 
@@ -199,13 +249,13 @@ Admin-only tool definitions remain admin-only even if policy config tries to exp
 - `RunOrchestrator` allows up to three tool rounds and five tool calls per run.
 - `RunOrchestrator` filters tool declarations by caller role and chat policy before sending them to the model.
 - `ToolExecutor` rechecks registry, schema, caller role, chat policy, timeout, and output limits immediately before execution.
-- `ToolExecutor` executes side-effecting tools only when the runtime exposes them and a fresh matching approval exists for the same session, unless policy configures dry-run or no-approval execution.
+- `ToolExecutor` executes side-effecting tools only when the runtime exposes them and a fresh matching approval exists for the same session. Dry-run policy returns the sanitized preview without calling the handler.
 - Tool results are sent back to the provider as `toolResult` messages in the same active turn.
 - Persisted `tool` transcript rows contain tool name, call ID, arguments, elapsed time, byte count, truncation status, and error code when present. They do not store credentials or raw auth payloads.
 - Approval audit rows record the decision, tool, side-effect type, session, optional run, approver, reason, optional request fingerprint, and sanitized approval preview without credentials.
 - Historical prompt construction excludes persisted `tool` rows; tool results are replayed only in the active provider continuation where the call ID is valid.
 - Telegram shows short status updates such as `Preparing tool: <name>...`, `Running tool: <name>...`, and `Tool <name> completed. Continuing...` or `Tool <name> failed. Continuing...`. The final assistant response remains model-authored, and smoke tests treat these messages as transient.
-- Telegram reactions use the same side-effect policy as other Telegram actions: acknowledgement reactions are runtime-owned, while model-initiated `mottbot_telegram_react` calls are admin-only and require one-shot approval.
+- Telegram actions use the same side-effect policy: acknowledgement reactions are runtime-owned, while model-initiated `mottbot_telegram_react` and `mottbot_telegram_send_message` calls are admin-only and require one-shot approval.
 
 ## Approval Previews And Audit
 

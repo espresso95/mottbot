@@ -65,6 +65,9 @@ export type ToolApprovalAuditRecord = {
 const SIDE_EFFECT_LABELS: Record<Exclude<ToolSideEffect, "read_only">, string> = {
   local_write: "write local files",
   network: "make network calls",
+  network_write: "write through external network APIs",
+  telegram_send: "send Telegram messages or reactions",
+  github_write: "write through GitHub APIs",
   process_control: "control local processes",
   secret_adjacent: "read or touch sensitive local state",
 };

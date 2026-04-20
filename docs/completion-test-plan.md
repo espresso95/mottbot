@@ -52,8 +52,7 @@ Current known gaps:
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
-- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and the admin-only opt-in delayed restart and Telegram reaction tools. Other side-effect categories remain disabled.
-- There are no GitHub write-capable or model-cost governance tools yet.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, secret-adjacent, and model-cost governance tools remain unimplemented.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -1281,6 +1280,8 @@ Verification:
 
 This phase adds useful side effects only after policy and audit controls are ready.
 
+Status: complete for side-effect class separation, mandatory approval for real side effects, local create-only note writes, approved Telegram plain-text sends, config, docs, and tests. GitHub write tools remain deferred.
+
 Dependencies and ordering:
 
 - Requires Phase 14.
@@ -1296,6 +1297,13 @@ Deliverables:
 - Keep write tools disabled by default.
 - Add registry tests for each side-effect class.
 
+Implemented:
+
+- Tool side-effect classes now include `local_write`, `network_write`, `telegram_send`, `github_write`, `process_control`, and `secret_adjacent`.
+- Real side-effect execution always requires a one-shot approval; `dryRun:true` remains the preview-only path.
+- Runtime registry keeps all write-capable tools disabled until `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
+- Tests cover registry exposure and class-specific approval previews.
+
 ### Task 20.2: Add Low-Risk Write Tools
 
 Deliverables:
@@ -1305,6 +1313,13 @@ Deliverables:
 - Add rollback or manual cleanup guidance where possible.
 - Add integration tests for approval, execution, denial, and audit persistence.
 
+Implemented:
+
+- `mottbot_local_note_create` creates only new `.md` or `.txt` files under `tools.localWrite` roots, denies traversal/symlink escapes, refuses overwrite, enforces byte limits, and returns cleanup guidance without echoing content.
+- `mottbot_telegram_send_message` sends plain text to the current chat or configured approved targets only; target and text are included in the approval fingerprint.
+- `MOTTBOT_LOCAL_WRITE_*` and `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` configure approved write targets.
+- Tests cover create-only writes, denied paths, oversized writes, target-bound Telegram sends, approval mismatch, one-shot approval consumption, duplicate-call denial, and audit persistence.
+
 ### Task 20.3: Add GitHub Write Tools Later
 
 Deliverables:
@@ -1313,6 +1328,8 @@ Deliverables:
 - Keep all writes admin-only and approval-gated.
 - Add tests with mocked API clients and no live writes by default.
 - Document live-write validation procedure.
+
+Status: deferred. The `github_write` side-effect class exists, but no GitHub write handler is exposed yet.
 
 Edge cases to cover:
 
