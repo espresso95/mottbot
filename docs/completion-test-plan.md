@@ -43,6 +43,7 @@ As of April 20, 2026:
 - Phase 28 is complete for host-local per-agent run limits: agents can cap active concurrent runs and queued backlog, runs persist `agent_id`, agent concurrency is enforced across sessions, and full queues fail fast with a Telegram-visible error.
 - Phase 29 is complete for agent observability: diagnostics can report configured and stale agents, route counts, run counts by status, configured limits, and the dashboard runtime API exposes the same sanitized agent summary.
 - Phase 30 is complete for dashboard agent visibility: the dashboard renders a dedicated read-only agent table from the runtime API instead of requiring operators to inspect raw JSON.
+- Phase 31 is complete for dashboard smoke validation: `pnpm smoke:dashboard` starts a temporary loopback dashboard against the configured database, verifies the Agents panel and runtime agent payload, and shuts down without starting Telegram polling.
 
 ## Current Baseline
 
@@ -2075,3 +2076,45 @@ Required testing:
 - Dashboard HTML tests proving the Agents panel and renderer are served.
 - Dashboard runtime API tests proving agent summaries are available and redacted.
 - Full `pnpm check`, focused dashboard tests, `pnpm test`, build, health, secret scan, and version scan.
+
+## Phase 31: Dashboard Smoke Validation
+
+This phase turns the manual dashboard agent-panel check into a repeatable local validation command. It is safe to run while the Telegram bot service is already polling because it starts only a temporary loopback dashboard server and does not start Telegram ingress.
+
+Status: complete for a reusable dashboard smoke command, tests, and operator documentation.
+
+Dependencies and ordering:
+
+- Follows Phase 30 because the smoke validates the dedicated Agents panel.
+- Uses the configured SQLite database by default so it can validate current runtime state.
+- Binds only to `127.0.0.1` and picks an available temporary port unless `MOTTBOT_DASHBOARD_SMOKE_PORT` is set.
+
+### Task 31.1: Add Dashboard Smoke Command
+
+Deliverables:
+
+- Add `pnpm smoke:dashboard`.
+- Start a dashboard-only server with the current config and database.
+- Fetch dashboard HTML and verify the Agents panel and renderer are present.
+- Fetch `/api/dashboard/runtime` and verify agent summaries are returned.
+- Stop the temporary dashboard server in all cases.
+- Return bounded JSON output without secrets.
+
+Implemented:
+
+- `src/tools/dashboard-smoke.ts` creates a temporary loopback dashboard, fetches HTML/runtime, reports agent count and the first agent summary, and shuts down cleanly.
+- The command preserves dashboard auth when configured and sends the auth header for the runtime API request.
+
+Edge cases to cover:
+
+- Config dashboard disabled in normal service config.
+- Dashboard auth token configured.
+- Temporary port allocation.
+- Existing production Telegram poller running at the same time.
+- Runtime payload missing agent summaries.
+
+Required testing:
+
+- Unit smoke test that starts a real loopback dashboard against a temporary SQLite database.
+- `pnpm smoke:dashboard` against the local configured database.
+- Full `pnpm check`, focused smoke test, `pnpm test`, build, health, secret scan, and version scan.

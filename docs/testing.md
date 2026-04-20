@@ -102,16 +102,25 @@ pnpm smoke:suite
 
 It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set. In dry-run mode it prints the planned preflight, private conversation, command, reply, group, and attachment checks without sending Telegram messages.
 
+For local dashboard validation, use:
+
+```bash
+pnpm smoke:dashboard
+```
+
+It starts only a temporary loopback dashboard server, validates the dashboard HTML and runtime agent summaries, then shuts down. It does not start Telegram polling and can run while the production service is active.
+
 ## Verified Results
 
 Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 64 test files, 269 tests passing
+- `pnpm test`: 69 test files, 301 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
+- `pnpm smoke:dashboard`: passes against a temporary loopback dashboard and the configured SQLite database
 - `pnpm smoke:local-tools`: passes against disposable local roots and test MCP server
 - `pnpm smoke:github-write`: passes in skipped mode when `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED` is unset
 - `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo pnpm smoke:github-write`: prints a write plan without touching GitHub

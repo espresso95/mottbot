@@ -285,6 +285,14 @@ corepack pnpm smoke:local-tools
 
 This creates temp roots, exercises approved local document append/replace, allowlisted local command execution, and a configured test MCP stdio call through the real tool executor and approval path, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
+Run the dashboard smoke validation:
+
+```bash
+corepack pnpm smoke:dashboard
+```
+
+This starts a temporary loopback dashboard-only server, fetches the dashboard HTML and runtime API, verifies the Agents panel and agent summary payload, then shuts the temporary server down. It does not start a Telegram poller, so it is safe to run while the service is already running. Set `MOTTBOT_DASHBOARD_SMOKE_PORT=<port>` only when you need a fixed local port.
+
 Dry-run the guarded GitHub write validation:
 
 ```bash

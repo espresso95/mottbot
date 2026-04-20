@@ -82,6 +82,7 @@ Implemented in this repo:
 - caller-aware `/help`, `/commands`, and `/tool help` filtered by role, chat type, enabled features, and per-chat command policy
 - local UTC daily and monthly usage budgets with `/usage` reporting
 - repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
+- repeatable dashboard smoke validation for the local Agents panel and runtime API
 - disposable local tool validation for document edits, allowlisted commands, and MCP stdio calls
 - guarded disposable GitHub write validation for issue/comment tools
 - agent diagnostics through `/debug agents` and the dashboard runtime API
