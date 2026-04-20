@@ -171,6 +171,8 @@ describe("DashboardServer", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.body).toContain("Mottbot Dashboard");
+    expect(response.body).toContain("id=\"agents\"");
+    expect(response.body).toContain("renderAgents");
     await dashboard.stop();
     database.close();
   });

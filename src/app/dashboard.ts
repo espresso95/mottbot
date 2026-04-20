@@ -709,6 +709,10 @@ export class DashboardServer {
     input[type="text"], input[type="number"] { width: 100%; max-width: 480px; }
     pre { background: #f5f5f5; padding: 0.75rem; overflow: auto; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
+    table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem; text-align: left; vertical-align: top; }
+    th { background: #f5f5f5; }
+    td { white-space: pre-line; }
   </style>
 </head>
 <body>
@@ -741,6 +745,9 @@ export class DashboardServer {
   <h2>Runtime</h2>
   <button type="button" id="refreshRuntime">Refresh runtime</button>
   <pre id="runtime">Loading...</pre>
+  <h2>Agents</h2>
+  <button type="button" id="refreshAgents">Refresh agents</button>
+  <div id="agents">Loading...</div>
   <h2>Logs</h2>
   <div class="row">
     <label>Stream <input type="text" id="logStream" value="both" /></label>
@@ -799,6 +806,51 @@ export class DashboardServer {
         },
       });
     }
+    function formatLimit(value) {
+      return value === undefined || value === null ? "unlimited" : String(value);
+    }
+    function renderAgents(payload) {
+      const container = byId("agents");
+      container.textContent = "";
+      const agents = Array.isArray(payload.agents) ? payload.agents : [];
+      if (agents.length === 0) {
+        container.textContent = "No agents reported.";
+        return;
+      }
+      const table = document.createElement("table");
+      const header = document.createElement("tr");
+      ["Agent", "Model", "Profile", "Limits", "Routes", "Runs"].forEach((label) => {
+        const cell = document.createElement("th");
+        cell.textContent = label;
+        header.appendChild(cell);
+      });
+      table.appendChild(header);
+      agents.forEach((agent) => {
+        const row = document.createElement("tr");
+        const labels = [];
+        labels.push(agent.configured ? "configured" : "stale");
+        if (agent.fastMode) labels.push("fast");
+        const values = [
+          agent.agentId + (agent.displayName ? " (" + agent.displayName + ")" : "") + "\\n" + labels.join(", "),
+          agent.modelRef || "",
+          agent.profileId || "",
+          "concurrent: " + formatLimit(agent.maxConcurrentRuns) + "\\nqueued: " + formatLimit(agent.maxQueuedRuns),
+          String(agent.routeCount || 0),
+          "queued: " + (agent.queuedRuns || 0) +
+            "\\nactive: " + (agent.activeRuns || 0) +
+            "\\ncompleted: " + (agent.completedRuns || 0) +
+            "\\nfailed: " + (agent.failedRuns || 0) +
+            "\\ncancelled: " + (agent.cancelledRuns || 0),
+        ];
+        values.forEach((value) => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        table.appendChild(row);
+      });
+      container.appendChild(table);
+    }
     async function loadData() {
       const [configResponse, healthResponse, runtimeResponse, logsResponse, toolsResponse] = await Promise.all([
         apiFetch("${apiPath}/config"),
@@ -821,13 +873,20 @@ export class DashboardServer {
       byId("logLevel").value = configPayload.state.logging.level;
       byId("health").textContent = JSON.stringify(healthPayload, null, 2);
       byId("runtime").textContent = JSON.stringify(runtimePayload, null, 2);
+      renderAgents(runtimePayload);
       byId("logs").textContent = logsPayload.text || JSON.stringify(logsPayload, null, 2);
       byId("tools").textContent = JSON.stringify(toolsPayload, null, 2);
       byId("profiles").textContent = JSON.stringify(configPayload.authProfiles, null, 2);
     }
     async function loadRuntime() {
       const response = await apiFetch("${apiPath}/runtime");
-      byId("runtime").textContent = JSON.stringify(await response.json(), null, 2);
+      const payload = await response.json();
+      byId("runtime").textContent = JSON.stringify(payload, null, 2);
+      renderAgents(payload);
+    }
+    async function loadAgents() {
+      const response = await apiFetch("${apiPath}/runtime");
+      renderAgents(await response.json());
     }
     async function loadLogs() {
       const stream = encodeURIComponent(byId("logStream").value || "both");
@@ -879,6 +938,11 @@ export class DashboardServer {
     });
     byId("refreshRuntime").addEventListener("click", () => {
       loadRuntime().catch((error) => {
+        byId("status").textContent = String(error);
+      });
+    });
+    byId("refreshAgents").addEventListener("click", () => {
+      loadAgents().catch((error) => {
         byId("status").textContent = String(error);
       });
     });

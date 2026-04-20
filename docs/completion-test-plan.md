@@ -42,6 +42,7 @@ As of April 20, 2026:
 - Phase 27 is complete for runtime agent controls: owner/admin users can inspect, set, and reset the current session agent; agent model changes are checked against chat governance and local usage budgets; agent tool allow-lists and per-tool policy restrictions are enforced in model tool declarations and execution.
 - Phase 28 is complete for host-local per-agent run limits: agents can cap active concurrent runs and queued backlog, runs persist `agent_id`, agent concurrency is enforced across sessions, and full queues fail fast with a Telegram-visible error.
 - Phase 29 is complete for agent observability: diagnostics can report configured and stale agents, route counts, run counts by status, configured limits, and the dashboard runtime API exposes the same sanitized agent summary.
+- Phase 30 is complete for dashboard agent visibility: the dashboard renders a dedicated read-only agent table from the runtime API instead of requiring operators to inspect raw JSON.
 
 ## Current Baseline
 
@@ -2033,3 +2034,44 @@ Required testing:
 - Dashboard tests proving runtime payloads include agent summaries without leaking secrets.
 - Telegram command tests for admin-only `/debug agents`.
 - Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.
+
+## Phase 30: Dashboard Agent Panel
+
+This phase makes the Phase 29 agent diagnostics readable in the browser dashboard. It stays read-only and reuses the existing authenticated runtime API.
+
+Status: complete for a dedicated dashboard Agents section with safe DOM rendering and refresh behavior.
+
+Dependencies and ordering:
+
+- Follows Phase 29 because the runtime API must already expose sanitized agent summaries.
+- Does not add a new API endpoint; the dashboard continues to read `/api/dashboard/runtime`.
+
+### Task 30.1: Render Agent Diagnostics In The Dashboard
+
+Deliverables:
+
+- Add a visible Agents section to the dashboard.
+- Render configured and stale agents in a table.
+- Show agent ID, display name, configured/stale state, model, profile, limits, selected route count, and run counts.
+- Add a refresh control for the agent panel.
+- Avoid injecting runtime data as HTML.
+
+Implemented:
+
+- The dashboard builds the agent table with DOM nodes and `textContent`.
+- The initial dashboard load and runtime refresh update the agent table.
+- The agent refresh button reloads the existing runtime payload.
+
+Edge cases to cover:
+
+- No reported agents.
+- Stale agents with missing model/profile.
+- Unlimited limits.
+- Paused agents with `maxQueuedRuns: 0`.
+- Runtime payloads missing the `agents` array.
+
+Required testing:
+
+- Dashboard HTML tests proving the Agents panel and renderer are served.
+- Dashboard runtime API tests proving agent summaries are available and redacted.
+- Full `pnpm check`, focused dashboard tests, `pnpm test`, build, health, secret scan, and version scan.

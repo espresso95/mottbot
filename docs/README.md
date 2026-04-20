@@ -85,6 +85,7 @@ Implemented in this repo:
 - disposable local tool validation for document edits, allowlisted commands, and MCP stdio calls
 - guarded disposable GitHub write validation for issue/comment tools
 - agent diagnostics through `/debug agents` and the dashboard runtime API
+- a read-only dashboard Agents panel for configured limits, route counts, and run counts
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 

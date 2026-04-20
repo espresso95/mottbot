@@ -209,7 +209,7 @@ When an agent defines `toolNames`, only those tools are exposed to the model and
 
 Agents can also define `maxConcurrentRuns` and `maxQueuedRuns`. Concurrent-run limits are enforced in memory across sessions for the selected agent. Queue limits are counted from persisted run records by `agent_id`; a full queue creates a failed run with `agent_queue_full` and sends a normal failed-run Telegram status.
 
-Admins can inspect agent state with `/debug agents`. The summary includes configured limits, route counts, queued runs, active runs, terminal run counts, and stale agent IDs that remain in persisted routes or runs after config edits.
+Admins can inspect agent state with `/debug agents` or the dashboard Agents panel. The summary includes configured limits, route counts, queued runs, active runs, terminal run counts, and stale agent IDs that remain in persisted routes or runs after config edits.
 
 ## Command Surface
 

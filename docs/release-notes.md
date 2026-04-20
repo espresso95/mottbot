@@ -14,6 +14,7 @@
 - Added agent `maxConcurrentRuns` and `maxQueuedRuns` for host-local active-run and backlog control.
 - Added `agent_id` to run records for agent-level queue accounting.
 - Added `/debug agents` and dashboard runtime agent summaries for route counts, run counts, limits, and stale persisted agent IDs.
+- Added a read-only dashboard Agents panel that renders those summaries without requiring raw JSON inspection.
 
 Operator checklist:
 
