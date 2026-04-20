@@ -58,7 +58,7 @@ Implemented in this repo:
 - durable queued-run recovery after restart
 - versioned SQLite migration tracking
 - native image attachment ingestion and attachment-aware prompt construction
-- capability-gated native file attachment plumbing with safe fallback while Codex file blocks remain unsupported
+- capability-gated native file attachment plumbing with classified-document guards and safe fallback while Codex file blocks remain unsupported
 - bounded text, Markdown, code, CSV, TSV, and PDF attachment extraction for active model runs
 - session file metadata inspection and forgetting through `/files`
 - operator safety limits for inbound text and attachments

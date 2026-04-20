@@ -34,6 +34,7 @@ Operator checklist:
 - Added internal native file attachment input plumbing and model capability checks.
 - Kept native file input disabled for the current Codex provider adapter because the installed provider boundary supports text and images only.
 - Added a transport fallback so accidental file blocks become safe text notices instead of image payloads.
+- Restricted dormant native file preparation to classified document types so unknown binary documents are not treated as provider file blocks when a future adapter enables file input.
 - Added tests proving native file preparation is capability-gated and raw file bytes are not passed through the current provider context.
 
 Operator checklist:

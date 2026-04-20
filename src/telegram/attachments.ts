@@ -7,6 +7,7 @@ import {
   classifyAttachmentForExtraction,
   extractAttachmentText,
   mayInspectAttachmentBytes,
+  type AttachmentExtractionKind,
   type AttachmentExtractionMetadata,
   type ExtractedAttachmentText,
 } from "./file-extraction.js";
@@ -75,6 +76,14 @@ type TelegramFile = {
 };
 
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const NATIVE_FILE_MIME_BY_KIND: Record<AttachmentExtractionKind, string> = {
+  code: "text/plain",
+  csv: "text/csv",
+  markdown: "text/markdown",
+  pdf: "application/pdf",
+  text: "text/plain",
+  tsv: "text/tab-separated-values",
+};
 
 function sanitizeFileName(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 96) || "attachment";
@@ -105,6 +114,13 @@ function inferMimeType(attachment: NormalizedAttachment, filePath?: string): str
 
 function isImageMimeType(mimeType: string | undefined): boolean {
   return Boolean(mimeType && IMAGE_MIME_TYPES.has(mimeType));
+}
+
+function nativeFileMimeType(params: {
+  mimeType?: string;
+  extractionKind: AttachmentExtractionKind;
+}): string {
+  return params.mimeType ?? NATIVE_FILE_MIME_BY_KIND[params.extractionKind];
 }
 
 function cacheFileName(attachment: NormalizedAttachment, telegramFile: TelegramFile): string {
@@ -231,9 +247,13 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
           attachment,
           mimeType,
         });
+        const nativeFileKind = extractionCandidate?.kind;
         const shouldTryNativeImage = params.allowNativeImages && isImageMimeType(mimeType);
         const shouldTryNativeFile =
-          params.allowNativeFiles && attachment.kind === "document" && !isImageMimeType(mimeType);
+          params.allowNativeFiles &&
+          attachment.kind === "document" &&
+          !isImageMimeType(mimeType) &&
+          nativeFileKind !== undefined;
         const shouldDownload =
           shouldTryNativeImage || shouldTryNativeFile || Boolean(extractionCandidate) || canInspectBytes;
 
@@ -287,11 +307,14 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
           });
           continue;
         }
-        if (shouldTryNativeFile) {
+        if (shouldTryNativeFile && nativeFileKind) {
           nativeInputs.push({
             type: "file",
             data: buffer.toString("base64"),
-            mimeType: mimeType ?? "application/octet-stream",
+            mimeType: nativeFileMimeType({
+              mimeType,
+              extractionKind: nativeFileKind,
+            }),
             ...(attachment.fileName || telegramFile.file_path
               ? {
                   fileName: sanitizeFileName(

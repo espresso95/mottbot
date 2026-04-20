@@ -164,7 +164,7 @@ describe("TelegramAttachmentIngestor", () => {
       allowNativeImages: true,
       allowNativeFiles: true,
       attachments: [
-        { kind: "document", fileId: "doc-1", fileName: "quarterly report.pdf", mimeType: "application/pdf" },
+        { kind: "document", fileId: "doc-1", fileName: "quarterly report.pdf" },
       ],
     });
 
@@ -180,11 +180,47 @@ describe("TelegramAttachmentIngestor", () => {
     expect(prepared.transcriptAttachments[0]).toMatchObject({
       ingestionStatus: "native_input",
       downloadedBytes: 8,
-      mimeType: "application/pdf",
     });
 
     await ingestor.cleanup(prepared);
     expect(fs.readdirSync(stores.config.attachments.cacheDir)).toEqual([]);
+  });
+
+  it("does not build native file inputs for unclassified binary documents", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      getFile: vi.fn(async () => ({
+        file_path: "docs/archive.bin",
+        file_size: 8,
+      })),
+    };
+    const fetchImpl = vi.fn(async () => new Response(Buffer.from("binary"), { status: 200 }));
+    const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
+
+    const prepared = await ingestor.prepare({
+      allowNativeImages: true,
+      allowNativeFiles: true,
+      attachments: [
+        {
+          kind: "document",
+          fileId: "bin-1",
+          fileName: "archive.bin",
+          mimeType: "application/octet-stream",
+        },
+      ],
+    });
+
+    expect(prepared.nativeInputs).toEqual([]);
+    expect(prepared.extractedTexts).toEqual([]);
+    expect(prepared.transcriptAttachments[0]).toMatchObject({
+      ingestionStatus: "skipped",
+      ingestionReason: "unsupported_attachment_type",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("rejects attachments that exceed configured limits", async () => {

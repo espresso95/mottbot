@@ -36,7 +36,7 @@ As of April 20, 2026:
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
-- Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, and the transport safely falls back to text rather than sending raw file bytes as an unsupported content type.
+- Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, the transport safely falls back to text rather than sending raw file bytes as an unsupported content type, and dormant native-file preparation is restricted to classified document types.
 - Phase 25 is complete for guarded tool expansion: Mottbot can read, append, and replace approved local text documents, run allowlisted local commands inside approved workspace roots, and call allowlisted tools on configured MCP stdio servers. All new side effects remain admin-only, disabled by default, approval-gated, bounded, and audited through the existing tool policy layer.
 
 ## Current Baseline
@@ -1593,7 +1593,7 @@ Verification:
 
 This phase moves beyond prompt-only non-image document handling when the provider adapter exposes a real file content type.
 
-Status: started. Mottbot now has typed native file attachment plumbing, model capability detection for native file input, and a Codex transport fallback that never passes raw file bytes through the current text/image-only Pi AI boundary. The active Codex model capability still reports native file input as unsupported, so runtime behavior remains prompt-text extraction for supported documents.
+Status: started. Mottbot now has typed native file attachment plumbing, model capability detection for native file input, classified-document gating for dormant native file preparation, and a Codex transport fallback that never passes raw file bytes through the current text/image-only Pi AI boundary. The active Codex model capability still reports native file input as unsupported, so runtime behavior remains prompt-text extraction for supported documents.
 
 Dependencies and ordering:
 
@@ -1625,6 +1625,8 @@ Deliverables:
 - Add a provider content conversion for real non-image file blocks once the provider adapter supports them.
 - Restrict enabled file MIME types and size limits to the provider-supported set.
 - Add live smoke coverage with PDF, text, CSV, code, unsupported binary, and mixed attachment messages.
+
+Status: started. The current provider remains disabled for native file input, but dormant native file preparation now only emits file blocks for classified document types such as PDF, text, Markdown, code, CSV, and TSV. Unknown binary documents remain skipped or fallback-only instead of being passed as arbitrary provider file bytes.
 
 Edge cases to cover:
 
