@@ -98,6 +98,8 @@ MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS=1000
 MOTTBOT_MEMORY_CANDIDATES_ENABLED=false
 MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES=12
 MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN=5
+MOTTBOT_USAGE_BUDGETS_JSON=
+MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT=80
 ```
 
 Local state:
@@ -106,6 +108,7 @@ Local state:
 - `MOTTBOT_ATTACHMENT_CACHE_DIR` is runtime cache storage for downloaded Telegram attachments. Keep it ignored as well.
 - `dist/`, `coverage/`, SQLite files, logs, and Telegram session files are generated local artifacts and must not be committed.
 - `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true` makes the bot ask the configured model for memory candidates after completed runs. Candidates are not used until accepted with `/memory accept <id-prefix>`.
+- `MOTTBOT_USAGE_BUDGETS_JSON` configures optional UTC daily/monthly run caps. Leave it empty for no local caps.
 
 Reaction settings:
 
@@ -190,6 +193,20 @@ Telegram send tool settings:
 - `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS=` controls cross-chat send targets for `mottbot_telegram_send_message`
 - leaving it empty still permits approved sends to the current chat only
 - target chat and text are part of the approval fingerprint, so changed arguments require a new approval
+
+Usage budget settings:
+
+- `MOTTBOT_USAGE_BUDGETS_JSON` accepts `dailyRuns`, `dailyRunsPerUser`, `dailyRunsPerChat`, `dailyRunsPerSession`, `dailyRunsPerModel`, `monthlyRuns`, `monthlyRunsPerUser`, `monthlyRunsPerChat`, `monthlyRunsPerSession`, and `monthlyRunsPerModel`
+- `MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT=80` controls when a run shows an approaching-limit warning
+- budget windows reset at UTC day/month boundaries
+- budgets use accepted local run counters as guardrails, not provider billing data
+- use `/usage` or `/usage monthly` to inspect local run counts and configured limits
+
+Example:
+
+```bash
+MOTTBOT_USAGE_BUDGETS_JSON='{"dailyRunsPerUser":25,"dailyRunsPerChat":100,"monthlyRuns":1000}'
+```
 
 GitHub read settings:
 

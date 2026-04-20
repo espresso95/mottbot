@@ -48,6 +48,7 @@ import type { RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
 import type { RunStore } from "./run-store.js";
 import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
+import { UsageBudgetExceededError, type UsageBudgetService } from "./usage-budget.js";
 
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
@@ -144,6 +145,7 @@ export class RunOrchestrator {
     private readonly reactions?: TelegramReactionService,
     private readonly attachmentRecords?: AttachmentRecordStore,
     private readonly toolPolicy?: ToolPolicyEngine,
+    private readonly usageBudget?: UsageBudgetService,
     private readonly governance?: RunGovernancePolicy,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
@@ -322,6 +324,20 @@ export class RunOrchestrator {
       });
       if (attachmentPolicyViolation) {
         throw new Error(attachmentPolicyViolation.message);
+      }
+      const budgetDecision = this.usageBudget?.evaluate({
+        session: params.session,
+        modelRef: params.session.modelRef,
+        currentRunId: run.runId,
+      });
+      if (budgetDecision && !budgetDecision.allowed) {
+        throw new UsageBudgetExceededError(budgetDecision.deniedReason ?? "Usage budget exceeded.");
+      }
+      if (budgetDecision?.warnings.length) {
+        placeholder = await this.outbox.update(
+          placeholder,
+          [RUN_STATUS_TEXT.starting, ...budgetDecision.warnings].join("\n"),
+        );
       }
       const auth = await this.tokenResolver.resolve(params.session.profileId);
       attachmentPreparation = await this.attachments.prepare({
@@ -527,7 +543,11 @@ export class RunOrchestrator {
     } catch (error) {
       await cleanupAttachments();
       const message = getErrorMessage(error);
-      const errorCode = params.signal.aborted ? "cancelled" : "run_failed";
+      const errorCode = params.signal.aborted
+        ? "cancelled"
+        : error instanceof UsageBudgetExceededError
+          ? error.code
+          : "run_failed";
       this.logger.error(
         {
           error,

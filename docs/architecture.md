@@ -90,6 +90,7 @@ Owns one model turn from start to finish.
 - `prompt-builder.ts`: rolling prompt construction from transcript history
 - `stream-collector.ts`: accumulates streamed text and thinking deltas
 - `usage-recorder.ts`: writes usage JSON back onto the run
+- `usage-budget.ts`: enforces local UTC daily/monthly run-count budgets and formats `/usage` reports
 
 ### `src/codex/*`
 
@@ -150,7 +151,7 @@ At process boot, `bootstrapApplication()` performs these steps:
 3. Create the encrypted auth profile store.
 4. Optionally import Codex CLI auth into the default profile.
 5. Create the session, transcript, run, and transport state stores.
-6. Create the token resolver and transport wrapper.
+6. Create the token resolver, transport wrapper, and usage budget service.
 7. Create a provisional bot to obtain an API object for the outbox.
 8. Create the outbox, orchestrator, and command router.
 9. Create the final Telegram bot server and return a start/stop handle.
@@ -180,6 +181,7 @@ sequenceDiagram
   B->>Q: enqueue(sessionKey)
   Q->>O: execute(signal)
   O->>X: send placeholder
+  O->>O: enforce usage budget
   O->>T: stream(model, auth, prompt)
   T-->>O: deltas
   O->>X: edit placeholder
@@ -239,6 +241,7 @@ Implemented now:
 - deny-by-default tool registry, health snapshot execution, and opt-in approved local note, Telegram send/reaction, and restart tool execution
 - scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
 - persistent Telegram roles and per-chat governance policy for commands, models, tools, memory scopes, and attachment limits
+- local UTC daily and monthly run budgets with `/usage` reporting
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
@@ -247,6 +250,7 @@ Not yet implemented:
 
 - native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
 - generic network-write, GitHub-write, or secret-adjacent model-executed tools
+- billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction
 - distributed multi-instance locks or replica coordination
 

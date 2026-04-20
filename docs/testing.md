@@ -8,6 +8,7 @@ The test suite is organized around the system boundaries that matter operational
 - SQLite-backed stores
 - auth parsing and refresh behavior
 - provider model selection and usage normalization
+- local usage budget enforcement and reporting
 - transport fallback behavior
 - Telegram command and outbox behavior
 - Telegram role governance and chat-policy enforcement
@@ -78,7 +79,7 @@ It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELE
 Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 61 test files, 249 tests passing
+- `pnpm test`: 62 test files, 255 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -94,10 +95,10 @@ Last recorded coverage run on April 20, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.56% |
-| Branches | 74.36% |
-| Functions | 93.4% |
-| Lines | 84.48% |
+| Statements | 84.8% |
+| Branches | 74.51% |
+| Functions | 93.54% |
+| Lines | 84.72% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -167,11 +168,13 @@ Covers:
 - success path and failure path
 - assistant transcript write-back
 - usage recording
+- local usage budget denial before provider transport
 - cancellation behavior through the queue
 
 Primary tests:
 
 - `test/runs/prompt-builder.test.ts`
+- `test/runs/usage-budget.test.ts`
 - `test/runs/run-store.integration.test.ts`
 - `test/runs/run-orchestrator.integration.test.ts`
 

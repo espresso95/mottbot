@@ -9,6 +9,7 @@ import { RUN_STATUS_TEXT, formatToolRunningStatus } from "../../src/shared/run-s
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
+import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 
 describe("RunOrchestrator", () => {
   const cleanup: Array<() => void> = [];
@@ -91,6 +92,78 @@ describe("RunOrchestrator", () => {
     expect(runRow.started_at).toBe(stores.clock.now());
     expect(runRow.finished_at).toBe(stores.clock.now());
     expect(outbox.finish).toHaveBeenCalled();
+  });
+
+  it("fails before model transport when usage budget is exhausted", async () => {
+    const stores = createStores({
+      usage: {
+        dailyRunsPerSession: 1,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const prior = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    stores.runs.update(prior.runId, { status: "completed", finishedAt: stores.clock.now() });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = {
+      stream: vi.fn(),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn() } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Build it" }),
+      session,
+    });
+
+    await flushAsync();
+
+    expect(transport.stream).not.toHaveBeenCalled();
+    expect(outbox.fail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("daily session run budget is 1/1"),
+    );
+    const denied = stores.runs.countByStatuses(["failed"]);
+    expect(denied).toBe(1);
   });
 
   it("removes the Telegram ack reaction after a successful reply when configured", async () => {
@@ -675,6 +748,7 @@ describe("RunOrchestrator", () => {
       undefined,
       registry,
       executor,
+      undefined,
       undefined,
       undefined,
       undefined,

@@ -20,6 +20,20 @@ type RunRow = {
   updated_at: number;
 };
 
+export type UsageBudgetRunCountScope = {
+  since: number;
+  sessionKey?: string;
+  chatId?: string;
+  userId?: string;
+  modelRef?: string;
+  excludeRunId?: string;
+};
+
+export type UsageBudgetModelCount = {
+  modelRef: string;
+  runs: number;
+};
+
 function mapRunRow(row: RunRow): RunRecord {
   return {
     runId: row.run_id,
@@ -117,6 +131,57 @@ export class RunStore {
       )
       .get(...statuses);
     return row?.count ?? 0;
+  }
+
+  countUsageBudgetRuns(params: UsageBudgetRunCountScope): number {
+    const conditions = [
+      "runs.created_at >= ?",
+      "not (runs.status = 'failed' and runs.error_code = 'usage_budget_denied')",
+    ];
+    const values: unknown[] = [params.since];
+    if (params.sessionKey) {
+      conditions.push("runs.session_key = ?");
+      values.push(params.sessionKey);
+    }
+    if (params.chatId) {
+      conditions.push("session_routes.chat_id = ?");
+      values.push(params.chatId);
+    }
+    if (params.userId) {
+      conditions.push("session_routes.user_id = ?");
+      values.push(params.userId);
+    }
+    if (params.modelRef) {
+      conditions.push("runs.model_ref = ?");
+      values.push(params.modelRef);
+    }
+    if (params.excludeRunId) {
+      conditions.push("runs.run_id <> ?");
+      values.push(params.excludeRunId);
+    }
+    const row = this.database.db
+      .prepare<unknown[], { count: number }>(
+        `select count(*) as count
+         from runs
+         left join session_routes on session_routes.session_key = runs.session_key
+         where ${conditions.join(" and ")}`,
+      )
+      .get(...values);
+    return row?.count ?? 0;
+  }
+
+  countUsageBudgetRunsByModel(params: { since: number; limit?: number }): UsageBudgetModelCount[] {
+    return this.database.db
+      .prepare<unknown[], UsageBudgetModelCount>(
+        `select runs.model_ref as modelRef, count(*) as runs
+         from runs
+         where runs.created_at >= ?
+           and not (runs.status = 'failed' and runs.error_code = 'usage_budget_denied')
+         group by runs.model_ref
+         order by runs desc, runs.model_ref asc
+         limit ?`,
+      )
+      .all(params.since, Math.min(Math.max(params.limit ?? 10, 1), 50));
   }
 
   recoverInterruptedRuns(): RunRecord[] {

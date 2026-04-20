@@ -74,6 +74,8 @@ const configEnvKeys = [
   "MOTTBOT_MEMORY_CANDIDATES_ENABLED",
   "MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES",
   "MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN",
+  "MOTTBOT_USAGE_BUDGETS_JSON",
+  "MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT",
 ];
 
 describe("loadConfig", () => {
@@ -151,6 +153,7 @@ describe("loadConfig", () => {
         },
         runtime: { instanceLeaseEnabled: false },
         memory: { autoSummaryRecentMessages: 16 },
+        usage: { dailyRuns: 5, monthlyRunsPerModel: 20 },
       }),
     );
 
@@ -190,6 +193,11 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED = "true";
     process.env.MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES = "10";
     process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN = "3";
+    process.env.MOTTBOT_USAGE_BUDGETS_JSON = JSON.stringify({
+      dailyRunsPerUser: 7,
+      monthlyRuns: 100,
+    });
+    process.env.MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT = "75";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
     process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY = "true";
 
@@ -259,5 +267,12 @@ describe("loadConfig", () => {
     expect(config.memory.candidateExtractionEnabled).toBe(true);
     expect(config.memory.candidateRecentMessages).toBe(10);
     expect(config.memory.candidateMaxPerRun).toBe(3);
+    expect(config.usage).toMatchObject({
+      dailyRuns: 5,
+      dailyRunsPerUser: 7,
+      monthlyRuns: 100,
+      monthlyRunsPerModel: 20,
+      warningThresholdPercent: 75,
+    });
   });
 });

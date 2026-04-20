@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Model And Cost Controls
+
+- Added local UTC daily/monthly run budgets for global, per-user, per-chat, per-session, and per-model scopes.
+- Added `MOTTBOT_USAGE_BUDGETS_JSON` and `MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT`.
+- Added `/usage [daily|monthly]` for local run counts and configured limits.
+- Runs denied by budget fail before auth/model transport and are recorded with `usage_budget_denied` without consuming the same budget.
+- Budget warnings are shown in the run status message when the next run reaches the configured warning threshold.
+- Budgets use local accepted-run counters, not provider billing or delayed subscription usage payloads.
+
+Operator checklist:
+
+- Leave `MOTTBOT_USAGE_BUDGETS_JSON` empty for unlimited local use.
+- Start with a soft cap such as `{"dailyRunsPerUser":25,"dailyRunsPerChat":100}` for trusted chats.
+- Use `/usage` after live validation to confirm counts and configured limits.
+
 ### Multi-User Roles And Chat Governance
 
 - Added persistent Telegram owner/admin/trusted roles, with `MOTTBOT_ADMIN_USER_IDS` treated as protected owners.

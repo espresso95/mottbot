@@ -54,6 +54,8 @@ Configuration comes from three layers:
 - `MOTTBOT_LOG_LEVEL`
 - `MOTTBOT_OAUTH_CALLBACK_HOST`
 - `MOTTBOT_OAUTH_CALLBACK_PORT`
+- `MOTTBOT_USAGE_BUDGETS_JSON`
+- `MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT`
 - `CODEX_HOME`
 
 ## Default Runtime Settings
@@ -120,6 +122,19 @@ Current defaults:
     "instanceLeaseEnabled": true,
     "instanceLeaseTtlMs": 120000,
     "instanceLeaseRefreshMs": 30000
+  },
+  "usage": {
+    "dailyRuns": 0,
+    "dailyRunsPerUser": 0,
+    "dailyRunsPerChat": 0,
+    "dailyRunsPerSession": 0,
+    "dailyRunsPerModel": 0,
+    "monthlyRuns": 0,
+    "monthlyRunsPerUser": 0,
+    "monthlyRunsPerChat": 0,
+    "monthlyRunsPerSession": 0,
+    "monthlyRunsPerModel": 0,
+    "warningThresholdPercent": 80
   }
 }
 ```
@@ -186,6 +201,8 @@ Persistent execution record:
 - optional error code and message
 - optional usage JSON
 - timestamps
+
+Usage budget enforcement reads accepted local run counts from this table joined to `session_routes`. Runs failed with `error_code = 'usage_budget_denied'` are excluded so rejected attempts do not consume the same budget that rejected them. These counters are operational guardrails, not authoritative provider billing records.
 
 ## Run Status Lifecycle
 

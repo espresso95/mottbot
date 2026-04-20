@@ -9,6 +9,7 @@ import type { CodexUsageSnapshot } from "../codex/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
+import type { UsageBudgetService } from "../runs/usage-budget.js";
 import type { RouteResolver } from "./route-resolver.js";
 import { splitTelegramText } from "./formatting.js";
 import type { InboundEvent, ParsedCommand } from "./types.js";
@@ -274,6 +275,7 @@ export class TelegramCommandRouter {
     private readonly toolPolicy?: ToolPolicyEngine,
     private readonly github?: GithubReadOperations,
     private readonly governance?: TelegramGovernanceStore,
+    private readonly usageBudget?: UsageBudgetService,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -321,6 +323,10 @@ export class TelegramCommandRouter {
       }
       case "health": {
         await sendReply(this.api, event, this.health.formatForText());
+        return true;
+      }
+      case "usage": {
+        await this.handleUsageCommand(event, session, parsed.args);
         return true;
       }
       case "tool": {
@@ -648,6 +654,7 @@ export class TelegramCommandRouter {
       formatCommandSection("Session", [
         "/status - show session, model, profile, and usage",
         "/health - show runtime health",
+        "/usage [daily|monthly] - show local run usage and configured limits",
         "/model <provider/model> - change this session model",
         "/profile [profile-id] - list or select auth profile",
         "/fast on|off - toggle priority service tier",
@@ -727,6 +734,20 @@ export class TelegramCommandRouter {
         : undefined,
     ].filter((section): section is string => Boolean(section));
     return sections.join("\n\n");
+  }
+
+  private async handleUsageCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    if (!this.usageBudget) {
+      await sendReply(this.api, event, "Usage budgets are not available.");
+      return;
+    }
+    const selectedWindow = args[0]?.toLowerCase();
+    if (selectedWindow && selectedWindow !== "daily" && selectedWindow !== "monthly") {
+      await sendReply(this.api, event, "Usage: /usage [daily|monthly]");
+      return;
+    }
+    const window = selectedWindow === "monthly" ? "monthly" : "daily";
+    await sendReply(this.api, event, this.usageBudget.formatUsageReport({ session, window }));
   }
 
   private async handleUsersCommand(event: InboundEvent, args: string[]): Promise<void> {

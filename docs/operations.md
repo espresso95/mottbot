@@ -366,6 +366,7 @@ Useful commands:
 - `/memory archive candidate <candidate-id-prefix>` archives a pending candidate
 - `/memory clear candidates` deletes pending candidates for the current session
 - `/forget <memory-id-prefix|all|auto>` removes memory
+- `/usage [daily|monthly]` shows local run counts by global/chat/session/user/model and configured limits
 
 Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default and require explicit approval before they appear in prompts:
 
@@ -657,6 +658,7 @@ Current runtime:
 Runtime controls are exposed through Telegram commands:
 
 - `/status`
+- `/usage [daily|monthly]`
 - `/health`
 - `/model`
 - `/profile`

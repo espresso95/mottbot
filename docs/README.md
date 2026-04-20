@@ -77,12 +77,14 @@ Implemented in this repo:
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`
+- local UTC daily and monthly usage budgets with `/usage` reporting
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 
 Planned hardening that is not yet implemented:
 
 - native provider file blocks for non-image attachments when the provider exposes them
+- billing-grade token or currency budgets if provider usage data becomes reliable enough to enforce
 - fully automated webhook, group, and Codex live smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - distributed multi-instance coordination beyond the host-local lease

@@ -134,6 +134,19 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       candidateRecentMessages: 12,
       candidateMaxPerRun: 5,
     },
+    usage: {
+      dailyRuns: 0,
+      dailyRunsPerUser: 0,
+      dailyRunsPerChat: 0,
+      dailyRunsPerSession: 0,
+      dailyRunsPerModel: 0,
+      monthlyRuns: 0,
+      monthlyRunsPerUser: 0,
+      monthlyRunsPerChat: 0,
+      monthlyRunsPerSession: 0,
+      monthlyRunsPerModel: 0,
+      warningThresholdPercent: 80,
+    },
     security: {
       masterKey: "test-master-key",
     },
@@ -164,6 +177,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     tools: { ...base.tools, ...overrides.tools },
     runtime: { ...base.runtime, ...overrides.runtime },
     memory: { ...base.memory, ...overrides.memory },
+    usage: { ...base.usage, ...overrides.usage },
     security: { ...base.security, ...overrides.security },
   };
 }

@@ -8,7 +8,7 @@ The goal is to move the project from a working local scaffold into a hardened si
 
 ## Implementation Status
 
-As of April 19, 2026:
+As of April 20, 2026:
 
 - Phase 0 is complete.
 - Phase 1 is complete for the documented runtime hardening scope: deterministic run timestamps, command authorization, command input validation, and operator-driven retention pruning.
@@ -34,14 +34,15 @@ As of April 19, 2026:
 - Phase 19 is complete for backup and log operations: local SQLite/config backups, backup validation, launchd log status, log archive/truncation, and restore guidance are implemented and tested.
 - Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note creation and Telegram sends are approved and scoped, and GitHub write tools remain deferred.
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
+- Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 61 test files and 249 tests.
-- `corepack pnpm test:coverage` passes with statements 84.56%, branches 74.36%, functions 93.4%, and lines 84.48%.
+- `corepack pnpm test` passes with 62 test files and 255 tests.
+- `corepack pnpm test:coverage` passes with statements 84.8%, branches 74.51%, functions 93.54%, and lines 84.72%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -55,7 +56,8 @@ Current known gaps:
 - Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex validation still require an operator-provided live environment.
-- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, secret-adjacent, and model-cost governance tools remain unimplemented.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, and secret-adjacent model tools remain unimplemented.
+- Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -1452,6 +1454,8 @@ Verification:
 
 This phase bounds usage as the bot becomes more capable and multi-user.
 
+Status: complete for host-local run-count budgets, warning/denial handling, chat/model policy reuse, `/usage` reporting, configuration docs, and tests. Currency-grade cost accounting is intentionally not treated as authoritative because subscription-provider usage payloads can be unavailable, delayed, or partial.
+
 Dependencies and ordering:
 
 - Should follow Phase 21 so budgets and model policy can be assigned by role and chat.
@@ -1462,7 +1466,7 @@ Dependencies and ordering:
 Deliverables:
 
 - Track usage by session, chat, user, model, and time window where provider data allows it.
-- Add configurable daily or monthly run caps.
+- Add configurable daily and monthly run caps.
 - Add warning thresholds and user-facing denial messages.
 - Add tests for cap enforcement and reset windows.
 
@@ -1471,22 +1475,23 @@ Deliverables:
 Deliverables:
 
 - Configure allowed models by role and chat.
-- Add default cheap-mode or fast-mode policy for non-admin users if desired.
-- Add tests for denied model changes and fallback defaults.
+- Reuse Phase 21 chat policy to restrict allowed model refs by chat.
+- Keep default cheap-mode or fast-mode policy optional; no implicit model downgrade is applied today.
+- Add tests for denied model changes and allowed chat-scoped model changes.
 
 ### Task 22.3: Add Operator Reporting
 
 Deliverables:
 
-- Add `/usage` or dashboard reporting for recent model usage, failures, and approximate cost where available.
+- Add `/usage` reporting for recent local run usage and configured limits.
 - Keep account IDs and tokens out of output.
-- Add tests for missing usage provider data and partial data.
+- Add tests for reporting output and invalid command input.
 
 Edge cases to cover:
 
-- Provider usage unavailable, delayed, partial, reset time missing, multiple usage windows, and transport reports usage differently.
-- Runs that fail before model request, fail after stream starts, are cancelled, or execute tools without final text.
-- Budget reset across time zones, daylight saving changes, clock skew, and process restart.
+- Provider usage unavailable, delayed, partial, reset time missing, multiple usage windows, and transport reports usage differently. The implemented budget path uses local run counters so these cases do not block enforcement.
+- Runs that fail before model request, fail after stream starts, are cancelled, or execute tools without final text. Local caps intentionally count accepted non-budget-denied runs as pressure against abuse, and exclude only prior `usage_budget_denied` rows.
+- Budget reset across time zones, daylight saving changes, clock skew, and process restart. Implemented windows use UTC day/month boundaries and persisted run rows.
 - Multiple users share one chat, one user uses multiple chats, and one session changes model mid-window.
 - Non-admin attempts to select expensive models or bypass caps with `/model`, `/fast`, retries, attachments, or group routes.
 - Reporting output too long for Telegram and dashboard charts with sparse or missing data.
@@ -1496,14 +1501,16 @@ Required testing:
 - Unit tests for usage aggregation, budget windows, reset calculations, and local fallback counters.
 - Store tests for persisted usage by run, user, chat, session, model, and time window.
 - Command tests for `/usage`, budget warnings, cap denial, model-policy denial, and admin override if supported.
-- Integration tests for completed, failed, cancelled, tool-using, attachment-using, and retried runs.
-- Time-control tests for reset boundaries, daylight saving transitions, and process restart.
-- Mocked provider tests for missing, partial, delayed, and malformed usage data.
+- Integration tests for completed, failed, cancelled, tool-using, attachment-using, and retried runs where budget behavior is affected.
+- Time-control tests for reset boundaries and process restart.
+- Mocked provider tests for missing, partial, delayed, and malformed usage data remain relevant to `/status`; `/usage` does not depend on provider usage payloads.
 - Optional live smoke test for usage reporting after a real model run.
 
 Verification:
 
 - `corepack pnpm check`
 - `corepack pnpm test`
+- `corepack pnpm test:coverage`
+- `corepack pnpm build`
 - Mocked usage-window tests
 - Optional live usage reporting smoke test

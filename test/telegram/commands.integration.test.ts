@@ -10,6 +10,7 @@ import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import type { GithubReadOperations } from "../../src/tools/github-read.js";
 import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
+import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -639,6 +640,68 @@ describe("TelegramCommandRouter", () => {
       expect.stringContaining("Status: ok"),
       expect.any(Object),
     );
+  });
+
+  it("handles /usage with local budget reporting", async () => {
+    const stores = createStores({
+      usage: {
+        dailyRuns: 10,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    stores.runs.update(run.runId, { status: "completed", finishedAt: stores.clock.now() });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/usage monthly", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/usage yearly", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Monthly usage since"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("No monthly limits configured."),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Usage: /usage [daily|monthly]", expect.any(Object));
   });
 
   it("handles caller-aware help for admins and non-admin users", async () => {

@@ -17,6 +17,7 @@ import { TelegramOutbox } from "../telegram/outbox.js";
 import { AccessController } from "../telegram/acl.js";
 import { RouteResolver } from "../telegram/route-resolver.js";
 import { RunOrchestrator } from "../runs/run-orchestrator.js";
+import { UsageBudgetService } from "../runs/usage-budget.js";
 import { RunQueueStore } from "../runs/run-queue-store.js";
 import { TelegramCommandRouter } from "../telegram/commands.js";
 import { TelegramBotServer } from "../telegram/bot.js";
@@ -75,6 +76,7 @@ export async function bootstrapApplication() {
   const messageStore = new TelegramMessageStore(database, systemClock);
   const health = new HealthReporter(config, database, authProfiles, systemClock);
   const diagnostics = new OperatorDiagnostics(config, database, systemClock);
+  const usageBudget = new UsageBudgetService(config, runStore, systemClock);
   const github = new GithubCliReadService(config.tools.github);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
     leaseName: "bot",
@@ -187,6 +189,7 @@ export async function bootstrapApplication() {
     reactions,
     attachmentRecordStore,
     toolPolicy,
+    usageBudget,
     {
       resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
       isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
@@ -213,6 +216,7 @@ export async function bootstrapApplication() {
     toolPolicy,
     github,
     governance,
+    usageBudget,
   );
   const bot = new TelegramBotServer(
     config,
@@ -237,6 +241,7 @@ export async function bootstrapApplication() {
     health,
     diagnostics,
     governance,
+    usageBudget,
     bot,
     dashboard,
     async start() {

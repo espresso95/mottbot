@@ -215,6 +215,7 @@ Current policy:
 
 - `/help`
 - `/status`
+- `/usage [daily|monthly]`
 - `/health`
 - `/model <provider/model>`
 - `/profile <profile_id>`
@@ -278,6 +279,7 @@ Chat policy JSON accepts:
 
 - `/help` returns caller-aware command discovery based on role and enabled runtime features
 - `/status` includes session key, model, profile, fast mode, profile count, and usage when available
+- `/usage` reports local UTC daily or monthly run counts for the current global/chat/session/user/model context and shows configured limits without exposing account identifiers or tokens
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
 - `/profile` updates `session_routes.profile_id` only when the target profile exists and the profile ID has a safe shape
@@ -339,20 +341,21 @@ Important implementation detail:
 8. Claim the queued run for execution.
 9. Send a placeholder Telegram message through the outbox.
 10. Move the run to `starting`.
-11. Resolve auth for the selected profile.
-12. Load recent transcript history.
-13. Download supported attachments.
-14. Convert supported images into native model input blocks.
-15. Extract bounded prompt-only text from supported text, Markdown, code, CSV, TSV, and PDF documents.
-16. Persist attachment metadata and extraction summaries without raw extracted text.
-17. Build the model prompt.
-18. Append prompt-only extracted file text and native image blocks to the latest user message.
-19. Start streaming through `CodexTransport`.
-20. Move the run to `streaming` on stream start.
-21. Append text deltas to the collector and edit the placeholder message.
-22. Finalize the message, persist the assistant transcript entry, and record usage.
-23. If enabled, update the deterministic automatic session summary.
-24. Mark the run `completed` and the queue row `completed`.
+11. Validate chat attachment policy and configured local usage budgets.
+12. Resolve auth for the selected profile.
+13. Load recent transcript history.
+14. Download supported attachments.
+15. Convert supported images into native model input blocks.
+16. Extract bounded prompt-only text from supported text, Markdown, code, CSV, TSV, and PDF documents.
+17. Persist attachment metadata and extraction summaries without raw extracted text.
+18. Build the model prompt.
+19. Append prompt-only extracted file text and native image blocks to the latest user message.
+20. Start streaming through `CodexTransport`.
+21. Move the run to `streaming` on stream start.
+22. Append text deltas to the collector and edit the placeholder message.
+23. Finalize the message, persist the assistant transcript entry, and record usage.
+24. If enabled, update the deterministic automatic session summary.
+25. Mark the run `completed` and the queue row `completed`.
 
 ### Failure path
 

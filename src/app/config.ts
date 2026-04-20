@@ -16,6 +16,21 @@ const toolPolicyConfigSchema = z.object({
   dryRun: z.boolean().optional(),
   maxOutputBytes: z.number().int().min(1).optional(),
 });
+const usageBudgetConfigSchema = z
+  .object({
+    dailyRuns: z.number().int().min(0).default(0),
+    dailyRunsPerUser: z.number().int().min(0).default(0),
+    dailyRunsPerChat: z.number().int().min(0).default(0),
+    dailyRunsPerSession: z.number().int().min(0).default(0),
+    dailyRunsPerModel: z.number().int().min(0).default(0),
+    monthlyRuns: z.number().int().min(0).default(0),
+    monthlyRunsPerUser: z.number().int().min(0).default(0),
+    monthlyRunsPerChat: z.number().int().min(0).default(0),
+    monthlyRunsPerSession: z.number().int().min(0).default(0),
+    monthlyRunsPerModel: z.number().int().min(0).default(0),
+    warningThresholdPercent: z.number().int().min(1).max(100).default(80),
+  })
+  .default({});
 const repositoryToolConfigSchema = z
   .object({
     roots: z.array(z.string()).default(["."]),
@@ -161,6 +176,7 @@ const rawConfigSchema = z.object({
       candidateMaxPerRun: z.number().int().min(1).max(10).default(5),
     })
     .default({}),
+  usage: usageBudgetConfigSchema,
 });
 
 export type AppConfig = {
@@ -250,6 +266,7 @@ export type AppConfig = {
     candidateRecentMessages: number;
     candidateMaxPerRun: number;
   };
+  usage: z.infer<typeof usageBudgetConfigSchema>;
   security: {
     masterKey: string;
   };
@@ -772,6 +789,16 @@ export function loadConfig(): AppConfig {
               : undefined)
           : Number(process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN),
     },
+    usage: {
+      ...(fileObject.usage && typeof fileObject.usage === "object" ? (fileObject.usage as object) : {}),
+      ...(asRecord(parseJsonEnv("MOTTBOT_USAGE_BUDGETS_JSON")) ?? {}),
+      warningThresholdPercent:
+        process.env.MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT === undefined
+          ? (fileObject.usage && typeof fileObject.usage === "object"
+              ? (fileObject.usage as any).warningThresholdPercent
+              : undefined)
+          : Number(process.env.MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT),
+    },
   });
 
   const botToken = process.env[parsed.telegram.botTokenEnv]?.trim();
@@ -818,6 +845,7 @@ export function loadConfig(): AppConfig {
     tools: parsed.tools,
     runtime: parsed.runtime,
     memory: parsed.memory,
+    usage: parsed.usage,
     security: {
       masterKey,
     },
