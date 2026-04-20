@@ -89,6 +89,31 @@ describe("memory candidate extraction", () => {
     ).toBe("high");
   });
 
+  it("parses fenced array output and skips unresolved scopes", () => {
+    const candidates = parseMemoryCandidateResponse({
+      raw: [
+        "```json",
+        JSON.stringify([
+          { contentText: "Chat prefers summaries.", scope: "chat", sensitivity: "low" },
+          { contentText: "Group-only fact.", scope: "group", sensitivity: "low" },
+        ]),
+        "```",
+      ].join("\n"),
+      context,
+      allowedSourceMessageIds: [],
+    });
+
+    expect(candidates).toEqual([
+      {
+        scope: "chat",
+        scopeKey: "chat-1",
+        contentText: "Chat prefers summaries.",
+        sourceMessageIds: [],
+        sensitivity: "low",
+      },
+    ]);
+  });
+
   it("builds a bounded extraction prompt with transcript source ids", () => {
     const prompt = buildMemoryCandidateExtractionPrompt({
       maxCandidates: 3,
@@ -101,5 +126,17 @@ describe("memory candidate extraction", () => {
     expect(prompt?.sourceMessageIds).toEqual(["m1", "m2"]);
     expect(prompt?.systemPrompt).toContain("Return strict JSON only");
     expect(prompt?.messages[0]?.content).toContain("[m1] user");
+  });
+
+  it("does not build a prompt without enough visible transcript lines", () => {
+    expect(
+      buildMemoryCandidateExtractionPrompt({
+        maxCandidates: 3,
+        messages: [
+          { id: "m1", sessionKey: "s", role: "tool", contentText: "tool output", createdAt: 1 },
+          { id: "m2", sessionKey: "s", role: "assistant", contentText: "", createdAt: 2 },
+        ],
+      }),
+    ).toBeUndefined();
   });
 });

@@ -120,11 +120,32 @@ describe("MemoryStore", () => {
         scopeKey: "chat-2",
         contentText: "Other chat fact",
       });
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "chat",
+        scopeKey: "chat-1",
+        contentText: "Chat fact",
+      });
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "project",
+        scopeKey: "mottbot",
+        contentText: "Project fact",
+      });
 
       const visible = memories.listForScopeContext(session);
+      const projectVisible = memories.listForScopeContext({ ...session, projectKey: "mottbot" });
 
       expect(visible.map((memory) => memory.contentText)).toEqual([
         "Personal fact",
+        "Chat fact",
+        "Session-only fact",
+        "Automatic summary",
+      ]);
+      expect(projectVisible.map((memory) => memory.contentText)).toEqual([
+        "Personal fact",
+        "Project fact",
+        "Chat fact",
         "Session-only fact",
         "Automatic summary",
       ]);
@@ -203,6 +224,7 @@ describe("MemoryStore", () => {
       if (rejectable.inserted) {
         expect(memories.rejectCandidate(session.sessionKey, rejectable.candidate.id.slice(0, 8), "user-1")).toBe(true);
       }
+      expect(memories.rejectCandidate(session.sessionKey, "missing", "user-1")).toBe(false);
       const archived = memories.addCandidate({
         sessionKey: session.sessionKey,
         scope: "session",
@@ -214,6 +236,7 @@ describe("MemoryStore", () => {
       if (archived.inserted) {
         expect(memories.archiveCandidate(session.sessionKey, archived.candidate.id.slice(0, 8), "user-1")).toBe(true);
       }
+      expect(memories.acceptCandidate({ sessionKey: session.sessionKey, idPrefix: "missing" })).toBeUndefined();
       memories.addCandidate({
         sessionKey: session.sessionKey,
         scope: "session",
@@ -222,6 +245,8 @@ describe("MemoryStore", () => {
         sensitivity: "low",
       });
       expect(memories.clearCandidates(session.sessionKey)).toBe(1);
+      expect(memories.listCandidates(session.sessionKey, "all")).toHaveLength(3);
+      expect(() => memories.updateCandidate(session.sessionKey, "", "x")).toThrow("Memory id prefix cannot be empty.");
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);
