@@ -242,6 +242,7 @@ Implemented now:
 - deny-by-default tool registry, health snapshot execution, and opt-in approved local note, Telegram send/reaction, and restart tool execution
 - scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
 - persistent Telegram roles and per-chat governance policy for commands, models, tools, memory scopes, and attachment limits
+- caller-aware command discovery filtered by role, chat type, enabled features, and per-chat command policy
 - local UTC daily and monthly run budgets with `/usage` reporting
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease

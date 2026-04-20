@@ -149,6 +149,25 @@ function formatCommandSection(title: string, commands: string[]): string | undef
   return [title, ...commands.map((command) => `- ${command}`)].join("\n");
 }
 
+type CommandHelpEntry = {
+  commands: readonly string[];
+  text: string;
+};
+
+type CommandVisibility =
+  | { allowed: true }
+  | {
+      allowed: false;
+      reason: "chat_not_allowed" | "role_not_allowed" | "command_not_allowed" | "group_policy_required";
+    };
+
+function commandHelp(commands: string | readonly string[], text: string): CommandHelpEntry {
+  return {
+    commands: typeof commands === "string" ? [commands] : commands,
+    text,
+  };
+}
+
 function formatAttachmentRecord(record: AttachmentRecord): string {
   const name = record.fileName?.split(/[\\/]/).at(-1)?.replace(/\s+/g, " ").trim() || record.kind;
   const extraction = [
@@ -290,6 +309,7 @@ export class TelegramCommandRouter {
     const session = this.routes.resolve(event);
 
     switch (parsed.command) {
+      case "commands":
       case "help": {
         await sendReply(this.api, event, this.formatHelp(event, session));
         return true;
@@ -334,7 +354,7 @@ export class TelegramCommandRouter {
         return true;
       }
       case "tools": {
-        await this.handleToolCommand(event, session, parsed.args.length > 0 ? parsed.args : ["help"]);
+        await this.handleToolCommand(event, session, ["help"]);
         return true;
       }
       case "runs": {
@@ -557,41 +577,63 @@ export class TelegramCommandRouter {
   }
 
   private async rejectUnauthorizedCommand(event: InboundEvent, command: string): Promise<boolean> {
-    const role = this.userRole(event);
-    const isOperator = isGovernanceOperatorRole(role);
-    if (
-      !isOperator &&
-      this.config.telegram.allowedChatIds.length > 0 &&
-      !this.config.telegram.allowedChatIds.includes(event.chatId)
-    ) {
+    const decision = this.commandVisibility(event, command);
+    if (decision.allowed) {
+      return false;
+    }
+    if (decision.reason === "chat_not_allowed") {
       await sendReply(this.api, event, "This chat is not allowed to use this bot.");
       return true;
     }
-    if (
-      !isOperator &&
-      this.governance &&
-      !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })
-    ) {
+    if (decision.reason === "role_not_allowed") {
       await sendReply(this.api, event, "Your role is not allowed to use this chat.");
       return true;
     }
-    if (
-      !isOperator &&
-      this.governance &&
-      !this.governance.isCommandAllowed({ chatId: event.chatId, userId: event.fromUserId, command })
-    ) {
+    if (decision.reason === "command_not_allowed") {
       await sendReply(this.api, event, "Your role is not allowed to run this command in this chat.");
       return true;
     }
-    if (
-      !isOperator &&
-      event.chatType !== "private" &&
-      !this.governance?.hasCommandPolicy({ chatId: event.chatId, command })
-    ) {
+    if (decision.reason === "group_policy_required") {
       await sendReply(this.api, event, "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.");
       return true;
     }
-    return false;
+    return true;
+  }
+
+  private commandVisibility(
+    event: InboundEvent,
+    command: string,
+  ): CommandVisibility {
+    const role = this.userRole(event);
+    if (isGovernanceOperatorRole(role)) {
+      return { allowed: true };
+    }
+    if (this.config.telegram.allowedChatIds.length > 0 && !this.config.telegram.allowedChatIds.includes(event.chatId)) {
+      return { allowed: false, reason: "chat_not_allowed" };
+    }
+    if (this.governance && !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })) {
+      return { allowed: false, reason: "role_not_allowed" };
+    }
+    if (
+      this.governance &&
+      !this.governance.isCommandAllowed({ chatId: event.chatId, userId: event.fromUserId, command })
+    ) {
+      return { allowed: false, reason: "command_not_allowed" };
+    }
+    if (event.chatType !== "private" && !this.governance?.hasCommandPolicy({ chatId: event.chatId, command })) {
+      return { allowed: false, reason: "group_policy_required" };
+    }
+    return { allowed: true };
+  }
+
+  private isCommandVisible(event: InboundEvent, command: string): boolean {
+    return this.commandVisibility(event, command).allowed;
+  }
+
+  private visibleCommandTexts(event: InboundEvent, entries: readonly CommandHelpEntry[]): string[] {
+    return entries
+      .filter((entry) => entry.commands.some((command) => this.isCommandVisible(event, command)))
+      .map((entry) => entry.text);
   }
 
   private userRole(event: InboundEvent): TelegramUserRole {
@@ -644,6 +686,7 @@ export class TelegramCommandRouter {
 
   private formatHelp(event: InboundEvent, session: SessionRoute): string {
     const isAdmin = this.isAdmin(event);
+    const exposedTools = this.listExposedTools(event);
     const sections = [
       [
         "Mottbot help",
@@ -651,86 +694,117 @@ export class TelegramCommandRouter {
         `Model: ${session.modelRef}`,
         `Profile: ${session.profileId}`,
       ].join("\n"),
-      formatCommandSection("Session", [
-        "/status - show session, model, profile, and usage",
-        "/health - show runtime health",
-        "/usage [daily|monthly] - show local run usage and configured limits",
-        "/model <provider/model> - change this session model",
-        "/profile [profile-id] - list or select auth profile",
-        "/fast on|off - toggle priority service tier",
-        "/new or /reset - clear this session transcript",
-        "/stop - cancel the active run for this session",
-        "/files [forget <id-prefix>|clear] - inspect or forget uploaded file metadata",
-        "/bind [name] - keep replies always on for this chat or topic",
-        "/unbind - restore default route behavior",
-      ]),
+      formatCommandSection(
+        "Discovery",
+        this.visibleCommandTexts(event, [
+          commandHelp("help", "/help - show commands available to this caller"),
+          commandHelp("commands", "/commands - same as /help"),
+        ]),
+      ),
+      formatCommandSection(
+        "Session",
+        this.visibleCommandTexts(event, [
+          commandHelp("status", "/status - show session, model, profile, and usage"),
+          commandHelp("health", "/health - show runtime health"),
+          commandHelp("usage", "/usage [daily|monthly] - show local run usage and configured limits"),
+          commandHelp("model", "/model <provider/model> - change this session model"),
+          commandHelp("profile", "/profile [profile-id] - list or select auth profile"),
+          commandHelp("fast", "/fast on|off - toggle priority service tier"),
+          commandHelp(["new", "reset"], "/new or /reset - clear this session transcript"),
+          commandHelp("stop", "/stop - cancel the active run for this session"),
+          commandHelp("files", "/files [forget <id-prefix>|clear] - inspect or forget uploaded file metadata"),
+          commandHelp("bind", "/bind [name] - keep replies always on for this chat or topic"),
+          commandHelp("unbind", "/unbind - restore default route behavior"),
+        ]),
+      ),
       this.memories
-        ? formatCommandSection("Memory", [
-            "/remember <fact> - store memory for this session",
-            "/remember scope:personal <fact> - store user-scoped memory",
-            "/memory - list approved memory for this chat",
-            "/memory candidates [pending|accepted|rejected|archived|all] - list memory candidates",
-            "/memory accept|reject|edit <candidate-id-prefix> - review candidates",
-            "/memory pin|unpin|archive <memory-id-prefix> - manage approved memory",
-            "/memory clear candidates - clear pending candidates",
-            "/forget <memory-id-prefix|all|auto> - remove memory",
-          ])
+        ? formatCommandSection(
+            "Memory",
+            this.visibleCommandTexts(event, [
+              commandHelp("remember", "/remember <fact> - store memory for this session"),
+              commandHelp("remember", "/remember scope:personal <fact> - store user-scoped memory"),
+              commandHelp("memory", "/memory - list approved memory for this chat"),
+              commandHelp("memory", "/memory candidates [pending|accepted|rejected|archived|all] - list memory candidates"),
+              commandHelp("memory", "/memory accept|reject|edit <candidate-id-prefix> - review candidates"),
+              commandHelp("memory", "/memory pin|unpin|archive <memory-id-prefix> - manage approved memory"),
+              commandHelp("memory", "/memory clear candidates - clear pending candidates"),
+              commandHelp("forget", "/forget <memory-id-prefix|all|auto> - remove memory"),
+            ]),
+          )
         : undefined,
       this.toolRegistry && this.toolApprovals
-        ? formatCommandSection("Tools", [
-            "/tool status - show model-exposed tools and approvals",
-            "/tool help or /tools - show tool command help",
-            ...(isAdmin
-              ? [
-                  "/tool approve <tool-name> <reason> - approve one side-effecting call",
-                  "/tool revoke <tool-name> - revoke active approval",
-                  "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect tool audit records",
-                ]
-              : []),
-          ])
+        ? formatCommandSection(
+            "Tools",
+            this.visibleCommandTexts(event, [
+              commandHelp("tool", "/tool status - show model-exposed tools and approvals"),
+              commandHelp("tool", "/tool help - show tool command help"),
+              commandHelp("tools", "/tools - show tool command help"),
+              ...(isAdmin
+                ? [
+                    commandHelp("tool", "/tool approve <tool-name> <reason> - approve one side-effecting call"),
+                    commandHelp("tool", "/tool revoke <tool-name> - revoke active approval"),
+                    commandHelp("tool", "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect tool audit records"),
+                  ]
+                : []),
+            ]),
+          )
         : undefined,
-      formatCommandSection("Auth", [
-        "/auth status - list configured auth profiles",
-        "/auth login - show host-local OAuth command",
-        "/auth import-cli - import Codex CLI credentials on this host",
-      ]),
+      formatCommandSection(
+        "Auth",
+        this.visibleCommandTexts(event, [
+          commandHelp("auth", "/auth status - list configured auth profiles"),
+          commandHelp("auth", "/auth login - show host-local OAuth command"),
+          commandHelp("auth", "/auth import-cli - import Codex CLI credentials on this host"),
+        ]),
+      ),
       isAdmin && this.diagnostics
-        ? formatCommandSection("Admin diagnostics", [
-            "/runs [limit] [here] - list recent runs",
-            "/debug summary|service|runs|errors|logs|config - inspect diagnostics",
-          ])
+        ? formatCommandSection(
+            "Admin diagnostics",
+            this.visibleCommandTexts(event, [
+              commandHelp("runs", "/runs [limit] [here] - list recent runs"),
+              commandHelp("debug", "/debug summary|service|runs|errors|logs|config - inspect diagnostics"),
+            ]),
+          )
         : undefined,
       isAdmin && this.github
-        ? formatCommandSection("GitHub", [
-            "/github status [repository] - show repository, open work, and latest CI",
-            "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state",
-          ])
+        ? formatCommandSection(
+            "GitHub",
+            this.visibleCommandTexts(event, [
+              commandHelp(["github", "gh"], "/github status [repository] - show repository, open work, and latest CI"),
+              commandHelp(["github", "gh"], "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state"),
+            ]),
+          )
         : undefined,
       this.governance
-        ? formatCommandSection("Governance", [
-            "/users me - show your role",
-            ...(isAdmin
-              ? [
-                  "/users list - list configured roles",
-                  "/users audit [limit] - inspect role and chat-policy audit records",
-                  "/users chat show [chat-id] - show chat policy",
-                ]
-              : []),
-            ...(this.isOwner(event)
-              ? [
-                  "/users grant <user-id> <owner|admin|trusted> [reason] - grant a role",
-                  "/users revoke <user-id> [reason] - revoke a database role",
-                  "/users chat set [chat-id] <json> - set chat policy",
-                  "/users chat clear [chat-id] - clear chat policy",
-                ]
-              : []),
-          ])
+        ? formatCommandSection(
+            "Governance",
+            this.visibleCommandTexts(event, [
+              commandHelp("users", "/users me - show your role"),
+              ...(isAdmin
+                ? [
+                    commandHelp("users", "/users list - list configured roles"),
+                    commandHelp("users", "/users audit [limit] - inspect role and chat-policy audit records"),
+                    commandHelp("users", "/users chat show [chat-id] - show chat policy"),
+                  ]
+                : []),
+              ...(this.isOwner(event)
+                ? [
+                    commandHelp("users", "/users grant <user-id> <owner|admin|trusted> [reason] - grant a role"),
+                    commandHelp("users", "/users revoke <user-id> [reason] - revoke a database role"),
+                    commandHelp("users", "/users chat set [chat-id] <json> - set chat policy"),
+                    commandHelp("users", "/users chat clear [chat-id] - clear chat policy"),
+                  ]
+                : []),
+            ]),
+          )
         : undefined,
       this.toolRegistry
-        ? [
-            "Model-exposed tools for this caller:",
-            ...this.listExposedTools(event).map((tool) => `- ${tool.name}`),
-          ].join("\n")
+        ? exposedTools.length > 0
+          ? [
+              "Model-exposed tools for this caller:",
+              ...exposedTools.map((tool) => `- ${tool.name}`),
+            ].join("\n")
+          : "No model-exposed tools for this caller."
         : undefined,
     ].filter((section): section is string => Boolean(section));
     return sections.join("\n\n");
@@ -1547,17 +1621,18 @@ export class TelegramCommandRouter {
     const isAdmin = this.isAdmin(event);
     const exposedTools = this.listExposedTools(event);
     const approvals = this.toolApprovals?.listActive(session.sessionKey) ?? [];
-    const commands = [
-      "/tool status - show model-exposed tools, enabled host tools, and active approvals",
-      "/tool help or /tools - show this help",
+    const commands = this.visibleCommandTexts(event, [
+      commandHelp("tool", "/tool status - show model-exposed tools, enabled host tools, and active approvals"),
+      commandHelp("tool", "/tool help - show this help"),
+      commandHelp("tools", "/tools - show this help"),
       ...(isAdmin
         ? [
-            "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session",
-            "/tool revoke <tool-name> - revoke active approvals for this session",
-            "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect recent tool audit records",
+            commandHelp("tool", "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session"),
+            commandHelp("tool", "/tool revoke <tool-name> - revoke active approvals for this session"),
+            commandHelp("tool", "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect recent tool audit records"),
           ]
-        : ["Approvals are admin-only."]),
-    ];
+        : []),
+    ]);
     return [
       "Tool help",
       "",
@@ -1568,11 +1643,12 @@ export class TelegramCommandRouter {
         : "No model-exposed tools for this caller.",
       "",
       `Side-effect tools: ${this.config.tools.enableSideEffectTools ? "enabled" : "disabled"}`,
+      !isAdmin ? "Approvals are admin-only." : undefined,
       approvals.length > 0
         ? `Active approvals:\n${approvals
             .map((approval) => `- ${approval.toolName}, expires ${new Date(approval.expiresAt).toISOString()}`)
             .join("\n")}`
         : "No active approvals.",
-    ].join("\n");
+    ].filter((section): section is string => Boolean(section)).join("\n");
   }
 }

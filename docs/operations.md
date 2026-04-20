@@ -342,6 +342,7 @@ If an approval was created from a pending preview, the approval is bound to that
 Useful commands:
 
 - `/help`
+- `/commands`
 - `/tool status`
 - `/tool help`
 - `/tools`
@@ -350,9 +351,9 @@ Useful commands:
 - `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 - `/runs [limit] [here]` lists recent runs for owner/admin callers; add `here` to filter to the current session
 - `/debug [summary|service|runs|errors|logs|config]` shows owner/admin diagnostics
-- `/help` shows commands available to the current caller
+- `/help` and `/commands` show commands available to the current caller after role, chat type, enabled feature, and per-chat command policy filtering
 - `/tool status` shows the model-exposed tool declarations for the caller, enabled host tools, and active approvals for the current session
-- `/tool help` and `/tools` explain tool commands for the current caller
+- `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
 - `/tool audit` lists bounded recent tool policy and approval decisions for owner/admin callers
 - `/remember <fact>` stores approved long-term memory for the current session
 - `/remember scope:personal <fact>` stores approved user-scoped memory when the current Telegram user ID is available

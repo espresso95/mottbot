@@ -23,7 +23,7 @@ As of April 20, 2026:
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
 - Phase 9 is complete for the read-only tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
 - Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination and second-provider support remain backlog items.
-- Phase 11 is complete for command discovery and conversation UX: `/help`, `/tool help`, `/tools`, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
+- Phase 11 is complete for command discovery and conversation UX: `/help`, `/commands`, `/tool help`, `/tools`, policy-aware help filtering, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
 - Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
 - Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
 - Phase 14 is complete for the tool permission model: every enabled tool has a runtime policy, model-exposed declarations are filtered by caller role and chat, side-effecting tool calls generate sanitized approval previews and request fingerprints, approvals bind to the latest pending request when available, and admins can inspect bounded tool audit records with `/tool audit`.
@@ -43,8 +43,8 @@ As of April 20, 2026:
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 64 test files and 268 tests.
-- `corepack pnpm test:coverage` passes with statements 84.8%, branches 74.62%, functions 93.34%, and lines 84.71%.
+- `corepack pnpm test` passes with 64 test files and 269 tests.
+- `corepack pnpm test:coverage` passes with statements 84.85%, branches 74.69%, functions 93.4%, and lines 84.76%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -55,7 +55,6 @@ Verified locally on April 20, 2026:
 Current known gaps:
 
 - Native provider attachment ingestion is limited to image inputs for models that advertise image support. Phase 24 adds native-file plumbing and guards, but the active Codex provider adapter still supports only text and images; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
-- Telegram command discovery is still mostly implicit; operators need docs or prior knowledge to discover caller-specific commands and tool exposure.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
 - Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, and admin-only opt-in local note creation, Telegram send/reaction, and delayed restart tools. Generic network, GitHub write, and secret-adjacent model tools remain unimplemented.
@@ -576,11 +575,13 @@ Dependencies and ordering:
 
 ### Task 11.1: Add Caller-Aware Help
 
-Status: complete for the current command surface.
+Status: complete for the current command surface, including chat-policy-aware filtering and the `/commands` alias.
 
 Deliverables:
 
 - Add `/help` output that changes by caller permission, chat type, and enabled feature set.
+- Keep `/help` output filtered by the same per-chat command policy used by command routing.
+- Add `/commands` as a plain alias for `/help`.
 - Include model/session commands, memory commands, diagnostic commands, and tool commands in separate sections.
 - Hide admin-only commands from non-admin users.
 - Add tests for admin private chat, non-admin private chat, and non-admin group behavior.
@@ -588,12 +589,13 @@ Deliverables:
 
 ### Task 11.2: Improve Tool Discovery
 
-Status: complete for `/tool status`, `/tool help`, and `/tools`.
+Status: complete for `/tool status`, `/tool help`, and `/tools`, including governed group help output that only lists tool commands the caller can actually run.
 
 Deliverables:
 
 - Keep `/tool status` focused on model-exposed tools, enabled host tools, and active approvals.
 - Add `/tools` or `/tool help` as a shorter command discovery surface if `/tool status` becomes too dense.
+- Filter `/tool help` commands through the same command policy as runtime command handling.
 - Document the difference between enabled host tools and model-exposed tools.
 - Add tests for side-effect tools disabled, side-effect tools enabled for admin, and non-admin visibility.
 
@@ -632,7 +634,7 @@ Required testing:
 
 - Unit tests for command parsing, command alias handling, and help-section filtering.
 - Integration tests for admin private, admin group/topic, non-admin private, non-admin group, allowed-chat, and disallowed-chat command behavior.
-- Integration tests that `/help`, `/tool status`, and `/tool help` reflect enabled/disabled feature state.
+- Integration tests that `/help`, `/commands`, `/tool status`, and `/tool help` reflect enabled/disabled feature state and per-chat command policy.
 - Telegram formatting tests for chunked help output near Telegram message length limits.
 - Live admin and temporary non-admin checks for `/help` and `/tool status`.
 - Live group/topic smoke test for command suffix handling and non-admin denial behavior.

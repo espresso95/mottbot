@@ -215,6 +215,7 @@ Current policy:
 ### Session and runtime commands
 
 - `/help`
+- `/commands`
 - `/status`
 - `/usage [daily|monthly]`
 - `/health`
@@ -278,7 +279,7 @@ Chat policy JSON accepts:
 
 ### Current command behavior
 
-- `/help` returns caller-aware command discovery based on role and enabled runtime features
+- `/help` and `/commands` return caller-aware command discovery based on role, chat type, enabled runtime features, and per-chat command policy
 - `/status` includes session key, model, profile, fast mode, profile count, and usage when available
 - `/usage` reports local UTC daily or monthly run counts for the current global/chat/session/user/model context and shows configured limits without exposing account identifiers or tokens
 - `/health` returns a lightweight runtime snapshot
@@ -299,7 +300,7 @@ Chat policy JSON accepts:
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
 - `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
-- `/tool help` and `/tools` explain tool commands for the current caller
+- `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`

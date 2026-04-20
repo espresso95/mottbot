@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Command Discovery
+
+- Added `/commands` as an alias for `/help`.
+- Updated `/help` and `/tool help` so governed group chats only list commands the caller can actually run.
+- Kept command discovery filtered by caller role, chat type, enabled runtime features, and per-chat command policy.
+- Added command-router tests for policy-filtered general help and tool help.
+
 ### Native File Attachment Plumbing
 
 - Added internal native file attachment input plumbing and model capability checks.

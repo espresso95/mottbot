@@ -78,6 +78,7 @@ Implemented in this repo:
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`
+- caller-aware `/help`, `/commands`, and `/tool help` filtered by role, chat type, enabled features, and per-chat command policy
 - local UTC daily and monthly usage budgets with `/usage` reporting
 - repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
 - host-local backup, restore validation, and launchd log rotation commands

@@ -754,6 +754,7 @@ describe("TelegramCommandRouter", () => {
     expect(adminHelp).toContain("/remember <fact>");
 
     expect(nonAdminHelp).toContain("Mottbot help");
+    expect(nonAdminHelp).toContain("/commands - same as /help");
     expect(nonAdminHelp).toContain("/status");
     expect(nonAdminHelp).not.toContain("Admin diagnostics");
     expect(nonAdminHelp).not.toContain("/tool approve <tool-name> <reason>");
@@ -846,10 +847,14 @@ describe("TelegramCommandRouter", () => {
     );
 
     const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    const trustedGroupHelp = replies.find((reply) => reply.includes("Mottbot help")) ?? "";
     expect(replies).toContain("Your role: user");
     expect(replies).toContain("Granted trusted to user-2.");
     expect(replies.some((reply) => reply.includes("user-2: trusted"))).toBe(true);
-    expect(replies.some((reply) => reply.includes("Mottbot help"))).toBe(true);
+    expect(trustedGroupHelp).toContain("/help - show commands available to this caller");
+    expect(trustedGroupHelp).not.toContain("/status");
+    expect(trustedGroupHelp).not.toContain("/model <provider/model>");
+    expect(trustedGroupHelp).not.toContain("/users me");
     expect(replies).toContain("Your role is not allowed to use this chat.");
     expect(replies).toContain("Model openai-codex/gpt-5.4 is not allowed in this chat.");
     expect(replies).toContain("Model set to openai-codex/gpt-5.4-mini.");
@@ -894,6 +899,78 @@ describe("TelegramCommandRouter", () => {
     expect(replies[1]).toContain("Tool help");
     expect(replies[1]).toContain("Approvals are admin-only.");
     expect(replies[1]).not.toContain("mottbot_restart_service");
+  });
+
+  it("filters tool help by governed group command policy", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
+      ownerUserIds: stores.config.telegram.adminUserIds,
+    });
+    governance.setUserRole({ userId: "user-2", role: "trusted", actorUserId: "admin-1" });
+    governance.setChatPolicy({
+      chatId: "group-1",
+      actorUserId: "admin-1",
+      policy: { commandRoles: { tools: ["trusted"] } },
+    });
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      new ToolApprovalStore(stores.database, stores.clock),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governance,
+    );
+
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/tools",
+        fromUserId: "user-2",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/tools status",
+        fromUserId: "user-2",
+        isCommand: true,
+      }),
+    );
+
+    const reply = String(vi.mocked(api.sendMessage).mock.calls[0]?.[1] ?? "");
+    const statusAliasReply = String(vi.mocked(api.sendMessage).mock.calls[1]?.[1] ?? "");
+    expect(reply).toContain("Tool help");
+    expect(reply).toContain("/tools - show this help");
+    expect(reply).not.toContain("/tool status");
+    expect(reply).not.toContain("/tool help");
+    expect(reply).toContain("Approvals are admin-only.");
+    expect(statusAliasReply).toContain("Tool help");
+    expect(statusAliasReply).not.toContain("Enabled tools:");
   });
 
   it("handles admin diagnostics commands", async () => {

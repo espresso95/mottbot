@@ -87,7 +87,7 @@ It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set. In dry-run m
 Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 64 test files, 268 tests passing
+- `pnpm test`: 64 test files, 269 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -105,10 +105,10 @@ Last recorded coverage run on April 20, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.8% |
-| Branches | 74.62% |
-| Functions | 93.34% |
-| Lines | 84.71% |
+| Statements | 84.85% |
+| Branches | 74.69% |
+| Functions | 93.4% |
+| Lines | 84.76% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
@@ -249,6 +249,7 @@ The current suite catches several subtle behaviors that matter in production:
 - usage timeouts and sparse usage payloads normalize into safe status behavior
 - the tool registry exposes only enabled read-only declarations
 - unknown tools, disabled tools, side-effecting enabled tools, and invalid tool inputs are rejected
+- `/help`, `/commands`, and `/tool help` only advertise commands available to the caller after role, chat type, enabled feature, and per-chat command policy filtering
 - Codex tool-call events are normalized before run orchestration sees them
 - read-only tool calls execute with timeout, output-size, and call-count limits
 - tool results are persisted as `tool` transcript rows and returned to the provider in the active turn
