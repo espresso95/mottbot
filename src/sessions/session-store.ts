@@ -9,6 +9,7 @@ type SessionRow = {
   user_id: string | null;
   route_mode: SessionRouteMode;
   bound_name: string | null;
+  agent_id: string;
   profile_id: string;
   model_ref: string;
   fast_mode: number;
@@ -28,6 +29,7 @@ function mapSessionRow(row: SessionRow | undefined): SessionRoute | undefined {
     ...(row.user_id ? { userId: row.user_id } : {}),
     routeMode: row.route_mode,
     ...(row.bound_name ? { boundName: row.bound_name } : {}),
+    agentId: row.agent_id,
     profileId: row.profile_id,
     modelRef: row.model_ref,
     fastMode: row.fast_mode === 1,
@@ -68,6 +70,9 @@ export class SessionStore {
     profileId: string;
     modelRef: string;
     boundName?: string;
+    agentId?: string;
+    fastMode?: boolean;
+    systemPrompt?: string;
   }): SessionRoute {
     const existing = this.get(params.sessionKey);
     if (existing) {
@@ -77,8 +82,8 @@ export class SessionStore {
     this.database.db
       .prepare(
         `insert into session_routes (
-          session_key, chat_id, thread_id, user_id, route_mode, bound_name, profile_id, model_ref, fast_mode, system_prompt, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, 0, null, ?, ?)`,
+          session_key, chat_id, thread_id, user_id, route_mode, bound_name, agent_id, profile_id, model_ref, fast_mode, system_prompt, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         params.sessionKey,
@@ -87,8 +92,11 @@ export class SessionStore {
         params.userId ?? null,
         params.routeMode,
         params.boundName ?? null,
+        params.agentId ?? "main",
         params.profileId,
         params.modelRef,
+        params.fastMode ? 1 : 0,
+        params.systemPrompt ?? null,
         now,
         now,
       );
@@ -137,6 +145,7 @@ export class SessionStore {
     patch: Partial<{
       route_mode: SessionRouteMode;
       bound_name: string | null;
+      agent_id: string;
       profile_id: string;
       model_ref: string;
       fast_mode: number;
@@ -151,6 +160,7 @@ export class SessionStore {
       route_mode: patch.route_mode ?? existing.routeMode,
       bound_name:
         patch.bound_name === undefined ? (existing.boundName ?? null) : patch.bound_name,
+      agent_id: patch.agent_id ?? existing.agentId,
       profile_id: patch.profile_id ?? existing.profileId,
       model_ref: patch.model_ref ?? existing.modelRef,
       fast_mode: patch.fast_mode ?? (existing.fastMode ? 1 : 0),
@@ -164,6 +174,7 @@ export class SessionStore {
         `update session_routes
          set route_mode = @route_mode,
              bound_name = @bound_name,
+             agent_id = @agent_id,
              profile_id = @profile_id,
              model_ref = @model_ref,
              fast_mode = @fast_mode,

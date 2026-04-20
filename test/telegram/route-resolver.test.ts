@@ -10,6 +10,7 @@ describe("RouteResolver", () => {
       const resolver = new RouteResolver(stores.config, stores.sessions);
       const session = resolver.resolve(createInboundEvent());
       expect(session.sessionKey).toBe("tg:dm:chat-1:user:user-1");
+      expect(session.agentId).toBe(stores.config.agents.defaultId);
       expect(session.modelRef).toBe(stores.config.models.default);
     } finally {
       stores.database.close();
@@ -29,6 +30,49 @@ describe("RouteResolver", () => {
       });
       const resolver = new RouteResolver(stores.config, stores.sessions);
       expect(resolver.resolve(createInboundEvent({ chatId: "chat-1", chatType: "group" }))).toEqual(existing);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("uses a configured agent binding for new routes", () => {
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+          },
+          {
+            id: "docs",
+            displayName: "Docs",
+            profileId: "openai-codex:docs",
+            modelRef: "openai-codex/gpt-5.4-mini",
+            fastMode: true,
+            systemPrompt: "Focus on concise documentation edits.",
+          },
+        ],
+        bindings: [{ agentId: "docs", chatId: "chat-1", threadId: 9 }],
+      },
+    });
+    try {
+      const resolver = new RouteResolver(stores.config, stores.sessions);
+      const session = resolver.resolve(
+        createInboundEvent({
+          chatType: "supergroup",
+          threadId: 9,
+        }),
+      );
+      expect(session.sessionKey).toBe("tg:group:chat-1:topic:9");
+      expect(session.agentId).toBe("docs");
+      expect(session.profileId).toBe("openai-codex:docs");
+      expect(session.modelRef).toBe("openai-codex/gpt-5.4-mini");
+      expect(session.fastMode).toBe(true);
+      expect(session.systemPrompt).toBe("Focus on concise documentation edits.");
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

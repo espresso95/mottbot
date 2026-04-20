@@ -39,6 +39,7 @@ Configuration comes from three layers:
 - `MOTTBOT_TRANSPORT`
 - `MOTTBOT_DEFAULT_PROFILE`
 - `MOTTBOT_PREFER_CLI_IMPORT`
+- `MOTTBOT_AGENTS_JSON`
 - `MOTTBOT_SQLITE_PATH`
 - `MOTTBOT_ATTACHMENT_CACHE_DIR`
 - `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
@@ -77,6 +78,11 @@ Current defaults:
   "auth": {
     "defaultProfile": "openai-codex:default",
     "preferCliImport": true
+  },
+  "agents": {
+    "defaultId": "main",
+    "list": [],
+    "bindings": []
   },
   "storage": {
     "sqlitePath": "./data/mottbot.sqlite"
@@ -165,6 +171,7 @@ Persistent route configuration:
 - optional user ID
 - route mode
 - optional bound name
+- agent ID
 - profile ID
 - model ref
 - fast mode
@@ -277,6 +284,7 @@ Notable fields:
 - `chat_id`
 - `thread_id`
 - `route_mode`
+- `agent_id`
 - `profile_id`
 - `model_ref`
 - `fast_mode`

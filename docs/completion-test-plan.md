@@ -38,14 +38,15 @@ As of April 20, 2026:
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
 - Phase 24 is started for native non-image file support: attachment and prompt plumbing can represent native file inputs, Codex capability detection keeps file blocks disabled because the current Pi AI provider boundary supports only text and images, the transport safely falls back to text rather than sending raw file bytes as an unsupported content type, and dormant native-file preparation is restricted to classified document types.
 - Phase 25 is complete for guarded tool expansion: Mottbot can read, append, and replace approved local text documents, run allowlisted local commands inside approved workspace roots, and call allowlisted tools on configured MCP stdio servers. All new side effects remain admin-only, disabled by default, approval-gated, bounded, and audited through the existing tool policy layer.
+- Phase 26 is complete for the first named-agent routing slice: config can define reusable agent presets, bind Telegram chats, topics, chat types, or users to an agent, persist the selected agent on the session route, and apply that agent's profile, model, fast mode, and system prompt defaults to newly created routes.
 
 ## Current Baseline
 
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 67 test files and 281 tests.
-- `corepack pnpm test:coverage` passes with statements 85.18%, branches 74.85%, functions 93.32%, and lines 85.12%.
+- `corepack pnpm test` passes with 68 test files and 294 tests.
+- `corepack pnpm test:coverage` passes with statements 85.3%, branches 75.32%, functions 93.19%, and lines 85.24%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
@@ -62,6 +63,7 @@ Current known gaps:
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
 - Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, GitHub issue/comment writes, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, broader GitHub writes, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
+- Named agents are config-bound route presets. Runtime agent switching commands, per-agent tool policy overrides, per-agent concurrency caps, and channel bindings beyond Telegram remain backlog items.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
 ## Definition Of Complete
@@ -1733,6 +1735,71 @@ Edge cases to cover:
 
 - Local document read of an oversized file, UTF-8 boundary truncation, stale SHA replacement, symlink escape, denied path, missing file, directory path, permission denied, and concurrent file edits.
 - Command allowlist by basename versus full path, cwd traversal, cwd symlink escape, missing executable, denied shell, timeout, nonzero exit, very large stdout/stderr, null-byte arguments, and command output containing sensitive-looking text.
+
+## Phase 26: Named Agents And Telegram Route Bindings
+
+This phase closes the largest OpenClaw-style gap identified from the `/openclaw/openclaw` Context7 docs: reusable named agents and channel-specific bindings. The first Mottbot slice stays Telegram-first and host-local.
+
+Status: complete for config-defined named agent presets and Telegram route binding defaults. Existing routes preserve their persisted settings; config changes affect newly created routes.
+
+Dependencies and ordering:
+
+- Follows Phase 21 because user and chat governance remain the authorization boundary.
+- Follows Phase 22 because selected agents can use distinct model refs and must still be governed by budget checks.
+- Follows Phase 25 because future per-agent tool policies should reuse the existing tool registry and approval model.
+
+### Task 26.1: Add Agent Configuration
+
+Deliverables:
+
+- Add an `agents` config section with `defaultId`, reusable agent entries, and route bindings.
+- Validate agent IDs, reject duplicate agent IDs, and fail startup when a binding references an unknown agent.
+- Synthesize a default `main` agent from `auth.defaultProfile` and `models.default` when no agents are configured.
+- Support `MOTTBOT_AGENTS_JSON` for environment-based deployment.
+- Document the operator-facing environment key.
+
+Implemented:
+
+- Agent presets include ID, optional display name, profile ID, model ref, fast mode, and system prompt.
+- Startup normalizes missing profile/model defaults from the global config.
+- Config tests cover file plus environment loading, default synthesis, and unknown binding rejection.
+
+### Task 26.2: Persist Agent Identity On Routes
+
+Deliverables:
+
+- Add `agent_id` to `session_routes` through a schema migration.
+- Preserve existing rows by defaulting migrated routes to `main`.
+- Return `agentId` from `SessionStore`.
+- Keep mutable per-route profile, model, fast mode, and system prompt settings intact.
+
+Implemented:
+
+- Migration `0008_agent_routes.sql` adds `agent_id text not null default 'main'`.
+- Migration tests cover the new migration count and unversioned-database upgrade path.
+
+### Task 26.3: Apply Agent Bindings During Route Creation
+
+Deliverables:
+
+- Match route bindings by chat ID, thread ID, chat type, and user ID.
+- Use the first matching binding, falling back to the configured default agent.
+- Apply the selected agent's profile, model, fast mode, and system prompt to newly created session routes.
+- Keep existing bound routes authoritative.
+- Add route resolver tests for default and matched-agent behavior.
+
+Implemented:
+
+- `RouteResolver` selects an agent before creating a new route and persists that agent ID.
+- Existing bound routes still win before config binding lookup.
+
+Edge cases to cover:
+
+- Duplicate agent IDs, invalid IDs, unknown binding targets, empty agent lists, bindings that match only chat type, bindings that match a topic but not the group root, user-specific private bindings, and existing routes after config changes.
+- Interaction with `/model`, `/profile`, `/fast`, and `/reset`, because those commands mutate route-local settings after the agent default is applied.
+- Chat governance conflicts where a route-bound agent uses a model or tool not allowed by the current chat policy.
+- Budget checks for routes whose selected agent uses a higher-cost model.
+- Future runtime switching commands must validate agent IDs and preserve or reset mutable route overrides intentionally.
 - MCP server startup failure, malformed JSON-RPC output, MCP error response, timeout before initialize, timeout during tool call, unallowlisted tool, oversized result, stderr with sensitive-looking text, and server process cleanup.
 - Approval preview mismatch, approval expiration, approval revocation, duplicate model tool calls, dry-run policy, chat-policy denial, and non-admin caller denial for every new side-effecting tool.
 

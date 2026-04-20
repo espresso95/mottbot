@@ -14,6 +14,7 @@ const configEnvKeys = [
   "MOTTBOT_TRANSPORT",
   "MOTTBOT_DEFAULT_PROFILE",
   "MOTTBOT_PREFER_CLI_IMPORT",
+  "MOTTBOT_AGENTS_JSON",
   "MOTTBOT_SQLITE_PATH",
   "MOTTBOT_ATTACHMENT_CACHE_DIR",
   "MOTTBOT_ATTACHMENT_MAX_FILE_BYTES",
@@ -113,6 +114,10 @@ describe("loadConfig", () => {
         },
         models: { default: "openai-codex/gpt-5.4-mini" },
         auth: { preferCliImport: false },
+        agents: {
+          defaultId: "file",
+          list: [{ id: "file", modelRef: "openai-codex/gpt-5.4-mini" }],
+        },
         storage: { sqlitePath: "./custom.sqlite" },
         attachments: {
           maxFileBytes: 1234,
@@ -238,6 +243,25 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT = "75";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
     process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY = "true";
+    process.env.MOTTBOT_AGENTS_JSON = JSON.stringify({
+      defaultId: "main",
+      list: [
+        {
+          id: "main",
+          profileId: "openai-codex:default",
+          modelRef: "openai-codex/gpt-5.4",
+        },
+        {
+          id: "ops",
+          displayName: "Operations",
+          profileId: "openai-codex:ops",
+          modelRef: "openai-codex/gpt-5.4-mini",
+          systemPrompt: "Keep operations concise.",
+          fastMode: true,
+        },
+      ],
+      bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],
+    });
 
     const config = loadConfig();
     expect(config.telegram.botToken).toBe("bot-token");
@@ -250,6 +274,26 @@ describe("loadConfig", () => {
     expect(config.telegram.reactions.notifications).toBe("all");
     expect(config.models.default).toBe("openai-codex/gpt-5.4-mini");
     expect(config.auth.preferCliImport).toBe(false);
+    expect(config.agents).toEqual({
+      defaultId: "main",
+      list: [
+        {
+          id: "main",
+          profileId: "openai-codex:default",
+          modelRef: "openai-codex/gpt-5.4",
+          fastMode: false,
+        },
+        {
+          id: "ops",
+          displayName: "Operations",
+          profileId: "openai-codex:ops",
+          modelRef: "openai-codex/gpt-5.4-mini",
+          systemPrompt: "Keep operations concise.",
+          fastMode: true,
+        },
+      ],
+      bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],
+    });
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
     expect(config.attachments.cacheDir).toBe(path.resolve("./custom-attachments"));
     expect(config.attachments.maxFileBytes).toBe(1234);
@@ -331,5 +375,58 @@ describe("loadConfig", () => {
       monthlyRunsPerModel: 20,
       warningThresholdPercent: 75,
     });
+  });
+
+  it("synthesizes the default agent when no agents are configured", () => {
+    for (const key of configEnvKeys) {
+      delete process.env[key];
+    }
+    const dir = createTempDir();
+    dirs.push(dir);
+    const file = path.join(dir, "mottbot.config.json");
+    fs.writeFileSync(file, JSON.stringify({}));
+
+    process.env.MOTTBOT_CONFIG_PATH = file;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.MOTTBOT_MASTER_KEY = "master";
+
+    const config = loadConfig();
+    expect(config.agents).toEqual({
+      defaultId: "main",
+      list: [
+        {
+          id: "main",
+          profileId: "openai-codex:default",
+          modelRef: "openai-codex/gpt-5.4",
+          fastMode: false,
+        },
+      ],
+      bindings: [],
+    });
+  });
+
+  it("rejects bindings that reference unknown agents", () => {
+    for (const key of configEnvKeys) {
+      delete process.env[key];
+    }
+    const dir = createTempDir();
+    dirs.push(dir);
+    const file = path.join(dir, "mottbot.config.json");
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        agents: {
+          defaultId: "main",
+          list: [{ id: "main" }],
+          bindings: [{ agentId: "missing", chatId: "chat-1" }],
+        },
+      }),
+    );
+
+    process.env.MOTTBOT_CONFIG_PATH = file;
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.MOTTBOT_MASTER_KEY = "master";
+
+    expect(() => loadConfig()).toThrow(/unknown agent/i);
   });
 });

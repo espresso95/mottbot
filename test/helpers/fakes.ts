@@ -60,6 +60,18 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       defaultProfile: "openai-codex:default",
       preferCliImport: true,
     },
+    agents: {
+      defaultId: "main",
+      list: [
+        {
+          id: "main",
+          profileId: "openai-codex:default",
+          modelRef: "openai-codex/gpt-5.4",
+          fastMode: false,
+        },
+      ],
+      bindings: [],
+    },
     storage: {
       sqlitePath: path.join(tempDir, "mottbot.sqlite"),
     },
@@ -178,6 +190,12 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     },
     models: { ...base.models, ...overrides.models },
     auth: { ...base.auth, ...overrides.auth },
+    agents: {
+      ...base.agents,
+      ...overrides.agents,
+      list: overrides.agents?.list ?? base.agents.list,
+      bindings: overrides.agents?.bindings ?? base.agents.bindings,
+    },
     storage: { ...base.storage, ...overrides.storage },
     attachments: { ...base.attachments, ...overrides.attachments },
     behavior: { ...base.behavior, ...overrides.behavior },

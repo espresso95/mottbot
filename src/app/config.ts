@@ -9,6 +9,30 @@ dotenv.config();
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
 const toolCallerRoleSchema = z.enum(["owner", "admin", "trusted", "user"]);
+const telegramChatTypeSchema = z.enum(["private", "group", "supergroup", "channel"]);
+const agentIdSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
+const agentConfigSchema = z.object({
+  id: agentIdSchema,
+  displayName: z.string().min(1).max(100).optional(),
+  profileId: z.string().min(1).max(100).optional(),
+  modelRef: z.string().min(1).max(200).optional(),
+  systemPrompt: z.string().min(1).max(8000).optional(),
+  fastMode: z.boolean().optional(),
+});
+const agentRoutingBindingSchema = z.object({
+  agentId: agentIdSchema,
+  chatId: z.string().min(1).max(128).optional(),
+  threadId: z.number().int().min(1).optional(),
+  chatType: telegramChatTypeSchema.optional(),
+  userId: z.string().min(1).max(128).optional(),
+});
+const agentsConfigSchema = z
+  .object({
+    defaultId: agentIdSchema.default("main"),
+    list: z.array(agentConfigSchema).default([]),
+    bindings: z.array(agentRoutingBindingSchema).default([]),
+  })
+  .default({});
 const toolPolicyConfigSchema = z.object({
   allowedRoles: z.array(toolCallerRoleSchema).optional(),
   allowedChatIds: z.array(z.string()).optional(),
@@ -123,6 +147,7 @@ const rawConfigSchema = z.object({
       preferCliImport: z.boolean().default(true),
     })
     .default({}),
+  agents: agentsConfigSchema,
   storage: z
     .object({
       sqlitePath: z.string().default("./data/mottbot.sqlite"),
@@ -233,6 +258,11 @@ export type AppConfig = {
     defaultProfile: string;
     preferCliImport: boolean;
   };
+  agents: {
+    defaultId: string;
+    list: AgentConfig[];
+    bindings: AgentRoutingBinding[];
+  };
   storage: {
     sqlitePath: string;
   };
@@ -298,6 +328,17 @@ export type AppConfig = {
   };
 };
 
+export type AgentConfig = {
+  id: string;
+  displayName?: string;
+  profileId: string;
+  modelRef: string;
+  systemPrompt?: string;
+  fastMode: boolean;
+};
+
+export type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
+
 function parseCsv(raw: string | undefined): string[] {
   if (!raw) {
     return [];
@@ -330,6 +371,44 @@ function parseJsonEnv(name: string): unknown | undefined {
     return undefined;
   }
   return JSON.parse(raw);
+}
+
+function normalizeAgents(
+  rawAgents: z.infer<typeof agentsConfigSchema>,
+  defaults: { profileId: string; modelRef: string },
+): AppConfig["agents"] {
+  const agents = new Map<string, AgentConfig>();
+  for (const rawAgent of rawAgents.list) {
+    if (agents.has(rawAgent.id)) {
+      throw new Error(`Duplicate agent id '${rawAgent.id}'.`);
+    }
+    agents.set(rawAgent.id, {
+      id: rawAgent.id,
+      ...(rawAgent.displayName ? { displayName: rawAgent.displayName } : {}),
+      profileId: rawAgent.profileId ?? defaults.profileId,
+      modelRef: rawAgent.modelRef ?? defaults.modelRef,
+      ...(rawAgent.systemPrompt ? { systemPrompt: rawAgent.systemPrompt } : {}),
+      fastMode: rawAgent.fastMode ?? false,
+    });
+  }
+  if (!agents.has(rawAgents.defaultId)) {
+    agents.set(rawAgents.defaultId, {
+      id: rawAgents.defaultId,
+      profileId: defaults.profileId,
+      modelRef: defaults.modelRef,
+      fastMode: false,
+    });
+  }
+  for (const binding of rawAgents.bindings) {
+    if (!agents.has(binding.agentId)) {
+      throw new Error(`Agent binding references unknown agent '${binding.agentId}'.`);
+    }
+  }
+  return {
+    defaultId: rawAgents.defaultId,
+    list: [...agents.values()],
+    bindings: rawAgents.bindings,
+  };
 }
 
 export function resolveConfigPath(): string {
@@ -501,6 +580,11 @@ export function loadConfig(): AppConfig {
               : undefined)
           : process.env.MOTTBOT_PREFER_CLI_IMPORT !== "false",
     },
+    agents:
+      parseJsonEnv("MOTTBOT_AGENTS_JSON") ??
+      (fileObject.agents && typeof fileObject.agents === "object"
+        ? (fileObject.agents as object)
+        : undefined),
     storage: {
       ...(fileObject.storage && typeof fileObject.storage === "object" ? (fileObject.storage as object) : {}),
       sqlitePath:
@@ -873,6 +957,10 @@ export function loadConfig(): AppConfig {
   if (!masterKey) {
     throw new Error("Missing MOTTBOT_MASTER_KEY.");
   }
+  const agents = normalizeAgents(parsed.agents, {
+    profileId: parsed.auth.defaultProfile,
+    modelRef: parsed.models.default,
+  });
 
   return {
     configPath,
@@ -887,6 +975,7 @@ export function loadConfig(): AppConfig {
     },
     models: parsed.models,
     auth: parsed.auth,
+    agents,
     storage: {
       sqlitePath: path.resolve(parsed.storage.sqlitePath),
     },

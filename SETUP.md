@@ -109,6 +109,7 @@ MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES=12
 MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN=5
 MOTTBOT_USAGE_BUDGETS_JSON=
 MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT=80
+MOTTBOT_AGENTS_JSON=
 ```
 
 Local state:
@@ -118,6 +119,7 @@ Local state:
 - `dist/`, `coverage/`, SQLite files, logs, and Telegram session files are generated local artifacts and must not be committed.
 - `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true` makes the bot ask the configured model for memory candidates after completed runs. Candidates are not used until accepted with `/memory accept <id-prefix>`.
 - `MOTTBOT_USAGE_BUDGETS_JSON` configures optional UTC daily/monthly run caps. Leave it empty for no local caps.
+- `MOTTBOT_AGENTS_JSON` can define named agents and Telegram route bindings. Leave it empty to use the synthesized `main` agent from `MOTTBOT_DEFAULT_PROFILE` and `MOTTBOT_DEFAULT_MODEL`.
 
 Reaction settings:
 

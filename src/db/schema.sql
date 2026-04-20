@@ -27,6 +27,7 @@ create table if not exists session_routes (
   user_id text,
   route_mode text not null,
   bound_name text,
+  agent_id text not null default 'main',
   profile_id text not null,
   model_ref text not null,
   fast_mode integer not null default 0,

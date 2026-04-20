@@ -190,11 +190,17 @@ tg:bound:<bound_name>
 - `topic`
 - `bound`
 
-When a new route is created, it inherits:
+When a new route is created, `RouteResolver` selects an agent from `agents.bindings` in config. Bindings may match by chat ID, thread ID, chat type, and user ID. The first matching binding wins; otherwise the configured default agent is used.
 
-- `profileId = auth.defaultProfile`
-- `modelRef = models.default`
-- `fastMode = false`
+The selected agent provides:
+
+- `agentId`
+- `profileId`
+- `modelRef`
+- `fastMode`
+- optional `systemPrompt`
+
+If no agents are configured, startup synthesizes a default `main` agent from `auth.defaultProfile` and `models.default`. Existing session routes keep their persisted agent, profile, model, fast mode, and system prompt settings; config changes apply to newly created routes.
 
 ## Command Surface
 

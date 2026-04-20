@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Named Agents And Route Bindings
+
+- Added config-defined named agents with profile, model, fast mode, and optional system prompt defaults.
+- Added `MOTTBOT_AGENTS_JSON` for deploying agent presets and Telegram route bindings from the environment.
+- Added Telegram route bindings by chat ID, thread ID, chat type, and user ID.
+- Added `agent_id` to persisted session routes so newly created routes record which agent selected their defaults.
+
+Operator checklist:
+
+- Keep the default synthesized `main` agent if you only need one bot personality.
+- Use bindings for durable chat or topic defaults instead of changing global model/profile defaults.
+- Treat config changes as defaults for new routes; existing routes keep their persisted route-local settings.
+- Keep chat governance and usage budgets aligned with any agent that uses a different model.
+
 ### Guarded Tool Expansion
 
 - Added admin-only `mottbot_local_doc_read` for bounded `.md` and `.txt` reads under approved local-write roots, including SHA-256 output for safe edits.

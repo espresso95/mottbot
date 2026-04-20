@@ -7,6 +7,7 @@ export type SessionRoute = {
   userId?: string;
   routeMode: SessionRouteMode;
   boundName?: string;
+  agentId: string;
   profileId: string;
   modelRef: string;
   fastMode: boolean;

@@ -66,7 +66,7 @@ Owns Telegram-specific behavior.
 - `update-normalizer.ts`: converts raw Telegram messages into stable `InboundEvent` records
 - `acl.ts`: decides if the bot should act on a message
 - `governance.ts`: stores Telegram user roles, chat policy, and governance audit records
-- `route-resolver.ts`: maps accepted events to a persistent session route
+- `route-resolver.ts`: maps accepted events to a persistent session route and applies configured agent defaults
 - `commands.ts`: handles operator commands without invoking the model
 - `outbox.ts`: sends placeholder messages, edits them during streaming, finalizes or fails them
 - `formatting.ts`: text splitting for Telegram message limits
@@ -227,6 +227,7 @@ Implemented now:
 - durable update dedupe using `telegram_updates`
 - mention/reply-to-bot/bound-command ACL
 - deterministic session routing
+- config-defined named agents and Telegram route bindings
 - run persistence and transcript persistence
 - local OAuth login command
 - Codex CLI auth import and refresh write-back
@@ -252,6 +253,7 @@ Implemented now:
 Not yet implemented:
 
 - enabling native provider file-block support for non-image file/media types; supported documents are currently converted into bounded prompt text
+- runtime agent switching commands and per-agent policy overrides
 - generic network-write beyond configured MCP stdio servers, GitHub-write, or secret-adjacent model-executed tools
 - billing-grade token or currency budget enforcement
 - model-generated summarization or learned compaction
