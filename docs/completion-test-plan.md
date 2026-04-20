@@ -41,6 +41,7 @@ As of April 20, 2026:
 - Phase 26 is complete for the first named-agent routing slice: config can define reusable agent presets, bind Telegram chats, topics, chat types, or users to an agent, persist the selected agent on the session route, and apply that agent's profile, model, fast mode, and system prompt defaults to newly created routes.
 - Phase 27 is complete for runtime agent controls: owner/admin users can inspect, set, and reset the current session agent; agent model changes are checked against chat governance and local usage budgets; agent tool allow-lists and per-tool policy restrictions are enforced in model tool declarations and execution.
 - Phase 28 is complete for host-local per-agent run limits: agents can cap active concurrent runs and queued backlog, runs persist `agent_id`, agent concurrency is enforced across sessions, and full queues fail fast with a Telegram-visible error.
+- Phase 29 is complete for agent observability: diagnostics can report configured and stale agents, route counts, run counts by status, configured limits, and the dashboard runtime API exposes the same sanitized agent summary.
 
 ## Current Baseline
 
@@ -48,7 +49,7 @@ Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
 - `corepack pnpm test` passes with 69 test files and 301 tests.
-- `corepack pnpm test:coverage` passes with statements 85.18%, branches 75%, functions 93.21%, and lines 85.09%.
+- `corepack pnpm test:coverage` passes with statements 85.21%, branches 74.96%, functions 93.24%, and lines 85.12%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
@@ -1974,4 +1975,61 @@ Required testing:
 - Run-store tests for `agentId` persistence and agent/status counts.
 - Limiter tests proving same-agent runs wait while other agents proceed.
 - Orchestrator tests proving queue-full failures do not call model transport and do produce a Telegram-visible failure.
+- Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.
+
+## Phase 29: Agent Observability And Operator Diagnostics
+
+This phase makes the named-agent runtime visible without direct database inspection. It is intentionally read-only: it exposes the current configured limits and live persisted state so operators can understand queue pressure, stale route selections, and recent agent behavior.
+
+Status: complete for read-only diagnostics, `/debug agents`, dashboard runtime API exposure, recent-run agent attribution, and tests.
+
+Dependencies and ordering:
+
+- Follows Phase 28 because run-level `agent_id` is required for accurate counts.
+- Uses existing operator diagnostics and dashboard surfaces rather than adding a separate admin UI.
+- Remains sanitized and token-free.
+
+### Task 29.1: Add Agent Diagnostic Snapshot
+
+Deliverables:
+
+- List all configured agents with model, profile, fast mode, and limit fields.
+- Include stale agent IDs that still exist in routes or runs after config edits.
+- Count selected session routes by agent.
+- Count queued, active, completed, failed, and cancelled runs by agent.
+- Include `agentId` in recent run diagnostics.
+
+Implemented:
+
+- `OperatorDiagnostics.agentDiagnostics()` returns configured and stale agent summaries.
+- `recentRuns()` includes `agentId`, and text formatting prints the agent for each run.
+
+### Task 29.2: Expose Agent Diagnostics To Operators
+
+Deliverables:
+
+- Add an admin-only Telegram diagnostics command for agent state.
+- Include agent diagnostics in the dashboard runtime API.
+- Keep dashboard output passing through existing sanitization.
+- Include configured run limits in `/agent show`.
+
+Implemented:
+
+- `/debug agents` returns a compact agent summary.
+- `/api/dashboard/runtime` includes an `agents` array.
+- `/agent show` displays configured concurrent and queued run limits.
+
+Edge cases to cover:
+
+- Configured agents with no routes or runs.
+- Stale agents from old routes or old runs.
+- Agents paused with `maxQueuedRuns: 0`.
+- Runs whose agent differs from the current session route because the route was switched later.
+- Dashboard sanitization of runtime payloads.
+
+Required testing:
+
+- Diagnostics unit tests for recent-run agent attribution and agent summary counts.
+- Dashboard tests proving runtime payloads include agent summaries without leaking secrets.
+- Telegram command tests for admin-only `/debug agents`.
 - Full `pnpm check`, focused tests, `pnpm test`, `pnpm test:coverage`, build, health, local tool smoke, secret scan, and version scan.

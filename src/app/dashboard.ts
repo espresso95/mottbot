@@ -339,6 +339,7 @@ export class DashboardServer {
       service: {
         statusText: diagnostics?.serviceStatus() ?? "Service diagnostics are not available.",
       },
+      agents: diagnostics?.agentDiagnostics() ?? [],
       process: {
         pid: process.pid,
         uptimeSeconds: Math.round(process.uptime()),

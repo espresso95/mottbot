@@ -886,7 +886,7 @@ describe("TelegramCommandRouter", () => {
     const nonAdminToolSection = nonAdminHelp.split("Model-exposed tools for this caller:")[1] ?? "";
 
     expect(adminHelp).toContain("Admin diagnostics");
-    expect(adminHelp).toContain("/debug summary|service|runs|errors|logs|config");
+    expect(adminHelp).toContain("/debug summary|service|runs|agents|errors|logs|config");
     expect(adminHelp).toContain("/tool approve <tool-name> <reason>");
     expect(adminHelp).toContain("mottbot_recent_runs");
     expect(adminHelp).toContain("mottbot_restart_service");
@@ -1151,6 +1151,7 @@ describe("TelegramCommandRouter", () => {
 
     await router.maybeHandle(createInboundEvent({ text: "/runs here", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/debug config", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/debug agents", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/debug service", fromUserId: "user-1", isCommand: true }));
 
     expect(api.sendMessage).toHaveBeenCalledWith(
@@ -1161,6 +1162,11 @@ describe("TelegramCommandRouter", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Runtime config:"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Agent diagnostics:"),
       expect.any(Object),
     );
     expect(api.sendMessage).toHaveBeenCalledWith(

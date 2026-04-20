@@ -282,6 +282,8 @@ function formatAgentDetails(agent: AgentConfig): string {
     `System prompt: ${agent.systemPrompt ? "configured" : "not set"}`,
     `Tool allow-list: ${agent.toolNames && agent.toolNames.length > 0 ? agent.toolNames.join(", ") : "all policy-allowed tools"}`,
     `Tool policy overrides: ${agent.toolPolicies ? Object.keys(agent.toolPolicies).join(", ") || "none" : "none"}`,
+    `Max concurrent runs: ${agent.maxConcurrentRuns ?? "unlimited"}`,
+    `Max queued runs: ${agent.maxQueuedRuns ?? "unlimited"}`,
   ].join("\n");
 }
 
@@ -799,7 +801,7 @@ export class TelegramCommandRouter {
             "Admin diagnostics",
             this.visibleCommandTexts(event, [
               commandHelp("runs", "/runs [limit] [here] - list recent runs"),
-              commandHelp("debug", "/debug summary|service|runs|errors|logs|config - inspect diagnostics"),
+              commandHelp("debug", "/debug summary|service|runs|agents|errors|logs|config - inspect diagnostics"),
             ]),
           )
         : undefined,
@@ -1426,6 +1428,10 @@ export class TelegramCommandRouter {
       );
       return;
     }
+    if (sub === "agents") {
+      await sendReply(this.api, event, this.diagnostics.agentDiagnosticsText());
+      return;
+    }
     if (sub === "errors") {
       const limit = Number(args[1] ?? 10);
       await sendReply(this.api, event, this.diagnostics.recentErrorsText(Number.isInteger(limit) ? limit : 10));
@@ -1448,7 +1454,7 @@ export class TelegramCommandRouter {
       await sendReply(this.api, event, this.diagnostics.configText());
       return;
     }
-    await sendReply(this.api, event, "Usage: /debug [summary|service|runs [limit] [here]|errors [limit]|logs [stdout|stderr|both] [lines]|config]");
+    await sendReply(this.api, event, "Usage: /debug [summary|service|runs [limit] [here]|agents|errors [limit]|logs [stdout|stderr|both] [lines]|config]");
   }
 
   private parseGithubArgs(args: string[], defaultLimit = 5): { limit: number; repository?: string } {

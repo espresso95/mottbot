@@ -7,7 +7,29 @@ import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 
 describe("OperatorDiagnostics", () => {
   it("formats service status, config, recent runs, errors, and logs", () => {
-    const stores = createStores();
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+          },
+          {
+            id: "docs",
+            displayName: "Docs",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: true,
+            maxConcurrentRuns: 1,
+            maxQueuedRuns: 2,
+          },
+        ],
+        bindings: [],
+      },
+    });
     const logDir = createTempDir();
     try {
       const stdoutPath = path.join(logDir, "out.log");
@@ -19,11 +41,14 @@ describe("OperatorDiagnostics", () => {
         chatId: "chat-1",
         userId: "user-1",
         routeMode: "dm",
+        agentId: "docs",
         profileId: "openai-codex:default",
         modelRef: "openai-codex/gpt-5.4",
+        fastMode: true,
       });
       const run = stores.runs.create({
         sessionKey: session.sessionKey,
+        agentId: "docs",
         modelRef: session.modelRef,
         profileId: session.profileId,
       });
@@ -41,6 +66,10 @@ describe("OperatorDiagnostics", () => {
       expect(diagnostics.serviceStatus()).toBe("loaded");
       expect(diagnostics.configText()).toContain("auto memory summaries: disabled");
       expect(diagnostics.recentRunsText({ limit: 1 })).toContain("run_failed");
+      expect(diagnostics.recentRunsText({ limit: 1 })).toContain("agent=docs");
+      expect(diagnostics.agentDiagnosticsText()).toContain("docs");
+      expect(diagnostics.agentDiagnosticsText()).toContain("maxQueued=2");
+      expect(diagnostics.agentDiagnosticsText()).toContain("failed=1");
       expect(diagnostics.recentErrorsText(1)).toContain("error");
       expect(diagnostics.recentLogsText({ stream: "stdout", lines: 2 })).toContain("two");
       expect(diagnostics.recentLogsText({ stream: "stderr", lines: 1 })).toContain("error");

@@ -242,6 +242,7 @@ Operational notes:
 - `/model` refuses a model not listed in `modelRefs` when a chat policy sets that list
 - `/remember` and memory candidate acceptance refuse scopes not listed in `memoryScopes`
 - selected-agent `maxConcurrentRuns` caps active execution across sessions on this host, and `maxQueuedRuns` rejects new work with a failed-run Telegram status when the persisted backlog for that agent is full
+- `/debug agents` and the dashboard runtime API show configured agent limits, selected route counts, queued runs, active runs, and stale agent IDs left behind after config edits
 
 ## Operator Tools
 

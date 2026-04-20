@@ -13,6 +13,7 @@
 - Added run-time model governance for persisted agent models before model transport.
 - Added agent `maxConcurrentRuns` and `maxQueuedRuns` for host-local active-run and backlog control.
 - Added `agent_id` to run records for agent-level queue accounting.
+- Added `/debug agents` and dashboard runtime agent summaries for route counts, run counts, limits, and stale persisted agent IDs.
 
 Operator checklist:
 

@@ -246,6 +246,7 @@ Implemented now:
 - persistent Telegram roles and per-chat governance policy for commands, models, tools, memory scopes, and attachment limits
 - caller-aware command discovery filtered by role, chat type, enabled features, and per-chat command policy
 - local UTC daily and monthly run budgets with `/usage` reporting
+- read-only agent diagnostics in Telegram and the dashboard runtime API
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection

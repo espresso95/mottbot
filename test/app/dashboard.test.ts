@@ -233,6 +233,8 @@ describe("DashboardServer", () => {
     await invokeRequest(createRequest("GET", "/api/dashboard/runtime"), runtimeResponse);
     expect(runtimeResponse.statusCode).toBe(200);
     expect(runtimeResponse.body).toContain("run_failed");
+    expect(runtimeResponse.body).toContain("\"agents\"");
+    expect(runtimeResponse.body).toContain("\"agentId\":\"main\"");
     expect(runtimeResponse.body).not.toContain("test-token");
 
     const logsResponse = createResponseCapture();
