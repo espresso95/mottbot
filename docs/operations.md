@@ -155,6 +155,7 @@ Equivalent `pnpm` scripts:
 - `pnpm run restart`
 - `pnpm smoke:preflight`
 - `pnpm smoke:telegram-user`
+- `pnpm smoke:local-tools`
 - `pnpm smoke:suite`
 
 ## Release Verification
@@ -184,6 +185,8 @@ corepack pnpm smoke:preflight
 ```
 
 No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
+
+`pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
 `pnpm smoke:suite` composes the guarded preflight and optional MTProto user-account checks into a repeatable live validation matrix. It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set, and `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
 

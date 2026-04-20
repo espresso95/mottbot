@@ -9,6 +9,7 @@
 - Added approval-gated `mottbot_local_command_run` for allowlisted commands inside approved workspace roots without shell expansion.
 - Added approval-gated `mottbot_mcp_call_tool` for one allowlisted tool call on one configured MCP stdio server.
 - Added `MOTTBOT_LOCAL_EXEC_*` and `MOTTBOT_MCP_SERVERS_JSON` configuration.
+- Added `pnpm smoke:local-tools` for disposable local validation of document edits, command execution, and MCP stdio calls through the real approval path.
 
 Operator checklist:
 
@@ -16,6 +17,7 @@ Operator checklist:
 - Set `MOTTBOT_LOCAL_WRITE_ROOTS` to a disposable document directory before testing append or replace.
 - Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve specific commands.
 - Configure MCP servers with explicit `allowedTools`; do not point the bridge at broad or destructive tool servers for first validation.
+- Run `pnpm smoke:local-tools` before live Telegram approval tests.
 - Use `/tool audit here` after approval tests to confirm previews, approvals, and execution decisions.
 
 ### Command Discovery

@@ -81,6 +81,7 @@ Implemented in this repo:
 - caller-aware `/help`, `/commands`, and `/tool help` filtered by role, chat type, enabled features, and per-chat command policy
 - local UTC daily and monthly usage budgets with `/usage` reporting
 - repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
+- disposable local tool validation for document edits, allowlisted commands, and MCP stdio calls
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 

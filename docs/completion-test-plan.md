@@ -44,10 +44,11 @@ As of April 20, 2026:
 Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 66 test files and 280 tests.
-- `corepack pnpm test:coverage` passes with statements 85.08%, branches 74.83%, functions 93.34%, and lines 85.02%.
+- `corepack pnpm test` passes with 67 test files and 281 tests.
+- `corepack pnpm test:coverage` passes with statements 85.18%, branches 74.85%, functions 93.32%, and lines 85.12%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
+- `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - `corepack pnpm smoke:telegram-user` passes in skipped mode by default and passed live against `StartupMottBot` after the persistent service was restarted.
 - `NODE_OPTIONS=--trace-deprecation corepack pnpm health` passes without the previous transitive `punycode` warning.
@@ -1646,7 +1647,7 @@ Verification:
 
 This phase gives the model practical operator capabilities without opening arbitrary host access.
 
-Status: complete for local `.md` and `.txt` document reads/edits, allowlisted local command execution, and a first MCP stdio bridge. All side-effecting tools are admin-only, disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`, require request-bound approval, and flow through existing policy and audit persistence.
+Status: complete for local `.md` and `.txt` document reads/edits, allowlisted local command execution, a first MCP stdio bridge, and a disposable local validation suite. All side-effecting tools are admin-only, disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`, require request-bound approval, and flow through existing policy and audit persistence.
 
 Dependencies and ordering:
 
@@ -1703,6 +1704,20 @@ Implemented:
 - `MOTTBOT_MCP_SERVERS_JSON` provides environment configuration for server entries.
 - Tests cover successful tool calls, denied server commands, missing server names, and nonallowlisted MCP tools.
 
+### Task 25.4: Add Disposable Local Tool Validation
+
+Deliverables:
+
+- Add a local smoke command that does not use Telegram, Codex, production tool roots, or live secrets.
+- Drive the real `ToolExecutor`, runtime registry, and approval store rather than calling handlers directly.
+- Validate document read/append/replace, allowlisted command execution, and MCP stdio calls against disposable temp roots.
+- Remove temp files after completion.
+- Document the command in setup, operations, and testing runbooks.
+
+Implemented:
+
+- `pnpm smoke:local-tools` creates temporary note/workspace roots and a test MCP stdio server, verifies approval-required denial before each side effect, approves the exact request fingerprint, executes the tool, checks the output, and cleans up.
+
 Edge cases to cover:
 
 - Local document read of an oversized file, UTF-8 boundary truncation, stale SHA replacement, symlink escape, denied path, missing file, directory path, permission denied, and concurrent file edits.
@@ -1723,6 +1738,7 @@ Verification:
 
 - `corepack pnpm check`
 - `corepack pnpm vitest run test/app/config.test.ts test/tools/registry.test.ts test/tools/local-write-handlers.test.ts test/tools/local-exec-handlers.test.ts test/tools/mcp-handlers.test.ts test/tools/executor.test.ts`
+- `corepack pnpm smoke:local-tools`
 - `corepack pnpm test`
 - `corepack pnpm test:coverage`
 - `corepack pnpm build`

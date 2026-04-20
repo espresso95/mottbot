@@ -51,6 +51,14 @@ Run the suite with coverage:
 pnpm test:coverage
 ```
 
+Run the disposable local tool smoke:
+
+```bash
+pnpm smoke:local-tools
+```
+
+This exercises the real tool executor and approval path for local document append/replace, allowlisted local command execution, and a configured test MCP stdio call using temporary local roots. It does not require Telegram, Codex, or production tool directories.
+
 ## CI Verification
 
 GitHub Actions workflow: `.github/workflows/ci.yml`.
@@ -93,6 +101,7 @@ Verified locally on April 20, 2026:
 - `pnpm build`: passes
 - built CLI health check: passes
 - `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
+- `pnpm smoke:local-tools`: passes against disposable local roots and test MCP server
 - `pnpm smoke:suite`: passes in skipped mode when `MOTTBOT_LIVE_VALIDATION_ENABLED` is unset
 - `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite`: passes without live secrets
 

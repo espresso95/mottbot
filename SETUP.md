@@ -272,6 +272,14 @@ Expected result:
 - `migrations` includes version `1`
 - `issues` is empty
 
+Run the disposable local tool validation:
+
+```bash
+corepack pnpm smoke:local-tools
+```
+
+This creates temp roots, exercises approved local document append/replace, allowlisted local command execution, and a configured test MCP stdio call through the real tool executor and approval path, then removes the temp files. It does not send Telegram messages or use production tool roots.
+
 Run the repeatable suite dry run:
 
 ```bash
