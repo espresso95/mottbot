@@ -62,6 +62,24 @@ export type GithubWorkflowRunSummary = {
   updatedAt?: string;
 };
 
+export type GithubCreatedIssue = {
+  ok: true;
+  action: "created_issue";
+  repository: string;
+  number?: number;
+  title: string;
+  url?: string;
+  labels: string[];
+};
+
+export type GithubCommentResult = {
+  ok: true;
+  action: "commented_issue" | "commented_pull_request";
+  repository: string;
+  number: number;
+  url?: string;
+};
+
 export type GithubReadOperations = {
   repository(params?: { repository?: string }): Promise<GithubRepositoryMetadata>;
   openPullRequests(params?: { repository?: string; limit?: number }): Promise<{
@@ -84,6 +102,17 @@ export type GithubReadOperations = {
     runs: GithubWorkflowRunSummary[];
     truncated: boolean;
   }>;
+};
+
+export type GithubWriteOperations = {
+  createIssue(params: {
+    repository?: string;
+    title: string;
+    body?: string;
+    labels?: string[];
+  }): Promise<GithubCreatedIssue>;
+  commentOnIssue(params: { repository?: string; number: number; body: string }): Promise<GithubCommentResult>;
+  commentOnPullRequest(params: { repository?: string; number: number; body: string }): Promise<GithubCommentResult>;
 };
 
 type CommandResult = {
@@ -170,6 +199,31 @@ function normalizeRepository(value: string): string {
     throw new Error("GitHub repository must be in owner/name form.");
   }
   return trimmed;
+}
+
+function normalizeLabels(values: string[] | undefined): string[] {
+  return [...new Set((values ?? []).map(sanitizeCliText).filter(Boolean))].slice(0, 10);
+}
+
+function parseIssueNumberFromUrl(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const match = /\/issues\/(\d+)(?:[#/?].*)?$/i.exec(value.trim());
+  return match?.[1] ? Number(match[1]) : undefined;
+}
+
+function parseGithubUrl(value: string): string | undefined {
+  const firstLine = sanitizeCliText(value).split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  if (!firstLine) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(firstLine);
+    return parsed.hostname.toLowerCase() === "github.com" ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function parseGithubRemoteUrl(value: string): string | undefined {
@@ -396,7 +450,7 @@ function parseWorkflowRun(raw: unknown): GithubWorkflowRunSummary | undefined {
   };
 }
 
-export class GithubCliReadService implements GithubReadOperations {
+export class GithubCliReadService implements GithubReadOperations, GithubWriteOperations {
   constructor(
     private readonly config: GithubToolConfig,
     private readonly runner: GithubCommandRunner = defaultRunner,
@@ -485,6 +539,66 @@ export class GithubCliReadService implements GithubReadOperations {
     };
   }
 
+  async createIssue(params: {
+    repository?: string;
+    title: string;
+    body?: string;
+    labels?: string[];
+  }): Promise<GithubCreatedIssue> {
+    const title = sanitizeCliText(params.title);
+    if (!title) {
+      throw new Error("GitHub issue title is required.");
+    }
+    const labels = normalizeLabels(params.labels);
+    const body = sanitizeCliText(params.body ?? "");
+    const repository = await this.resolveRepository(params.repository);
+    const args = [
+      "issue",
+      "create",
+      "--repo",
+      repository,
+      "--title",
+      title,
+      "--body",
+      body,
+      ...labels.flatMap((label) => ["--label", label]),
+    ];
+    const output = await this.runGh(args);
+    const url = parseGithubUrl(output.stdout);
+    const number = parseIssueNumberFromUrl(url);
+    return {
+      ok: true,
+      action: "created_issue",
+      repository,
+      ...(number ? { number } : {}),
+      title,
+      ...(url ? { url } : {}),
+      labels,
+    };
+  }
+
+  async commentOnIssue(params: { repository?: string; number: number; body: string }): Promise<GithubCommentResult> {
+    return await this.comment({
+      repository: params.repository,
+      number: params.number,
+      body: params.body,
+      kind: "issue",
+    });
+  }
+
+  async commentOnPullRequest(params: {
+    repository?: string;
+    number: number;
+    body: string;
+  }): Promise<GithubCommentResult> {
+    return await this.comment({
+      repository: params.repository,
+      number: params.number,
+      body: params.body,
+      kind: "pr",
+    });
+  }
+
   private async listWorkflowRuns(repository: string, limit: number): Promise<GithubWorkflowRunSummary[]> {
     const output = await this.runGh([
       "run",
@@ -497,6 +611,39 @@ export class GithubCliReadService implements GithubReadOperations {
       "databaseId,workflowName,status,conclusion,headBranch,headSha,event,displayTitle,url,createdAt,updatedAt",
     ]);
     return asArray(parseJson(output.stdout)).map(parseWorkflowRun).filter((item): item is GithubWorkflowRunSummary => Boolean(item));
+  }
+
+  private async comment(params: {
+    repository?: string;
+    number: number;
+    body: string;
+    kind: "issue" | "pr";
+  }): Promise<GithubCommentResult> {
+    if (!Number.isInteger(params.number) || params.number < 1) {
+      throw new Error("GitHub issue or pull request number must be a positive integer.");
+    }
+    const body = sanitizeCliText(params.body);
+    if (!body) {
+      throw new Error("GitHub comment body is required.");
+    }
+    const repository = await this.resolveRepository(params.repository);
+    const output = await this.runGh([
+      params.kind,
+      "comment",
+      String(params.number),
+      "--repo",
+      repository,
+      "--body",
+      body,
+    ]);
+    const url = parseGithubUrl(output.stdout);
+    return {
+      ok: true,
+      action: params.kind === "issue" ? "commented_issue" : "commented_pull_request",
+      repository,
+      number: params.number,
+      ...(url ? { url } : {}),
+    };
   }
 
   private async resolveRepository(input: string | undefined): Promise<string> {

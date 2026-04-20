@@ -1003,14 +1003,14 @@ Initial low-risk writes:
 
 - write a draft note in an approved local directory
 - send a Telegram message to an approved chat
-- later, create GitHub issues or draft PR/comment content
+- create GitHub issues and issue/PR comments through the host GitHub CLI
 
 Implementation status:
 
 - complete for side-effect class separation and mandatory one-shot approval for real side effects
 - complete for `mottbot_local_note_create` under approved local-write roots
 - complete for `mottbot_telegram_send_message` to the current chat or configured approved targets
-- deferred for GitHub write tools; the class exists, but no handler is exposed yet
+- complete for GitHub issue creation and issue/PR comments; broader GitHub writes remain out of scope
 
 ### Phase 21: multi-user roles and chat governance
 

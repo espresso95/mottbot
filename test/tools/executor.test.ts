@@ -11,6 +11,8 @@ import { createToolPolicyEngine, createToolRequestFingerprint } from "../../src/
 import { createRepositoryToolHandlers } from "../../src/tools/repository-handlers.js";
 import { createLocalWriteToolHandlers } from "../../src/tools/local-write-handlers.js";
 import { createTelegramSendToolHandlers } from "../../src/tools/telegram-send-handlers.js";
+import { createGithubToolHandlers } from "../../src/tools/github-handlers.js";
+import type { GithubReadOperations, GithubWriteOperations } from "../../src/tools/github-read.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -652,6 +654,89 @@ describe("ToolExecutor", () => {
       expect(mismatched.errorCode).toBe("approval_mismatch");
       expect(approved.isError).toBe(false);
       expect(api.sendMessage).toHaveBeenCalledWith("chat-2", "approved outbound", {});
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("executes approved GitHub write tools with request-bound approval", async () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:admin-1",
+        chatId: "chat-1",
+        userId: "admin-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      const github: GithubReadOperations & GithubWriteOperations = {
+        repository: vi.fn(),
+        openPullRequests: vi.fn(),
+        recentIssues: vi.fn(),
+        ciStatus: vi.fn(),
+        recentWorkflowFailures: vi.fn(),
+        createIssue: vi.fn(async () => ({
+          ok: true,
+          action: "created_issue",
+          repository: "espresso95/mottbot",
+          number: 42,
+          title: "Test issue",
+          labels: ["bug"],
+        })),
+        commentOnIssue: vi.fn(),
+        commentOnPullRequest: vi.fn(),
+      };
+      const executor = new ToolExecutor(createRuntimeToolRegistry({ enableSideEffectTools: true }), {
+        clock: stores.clock,
+        approvals,
+        adminUserIds: ["admin-1"],
+        handlers: createGithubToolHandlers(github),
+      });
+      const call = {
+        id: "call-github-issue",
+        name: "mottbot_github_issue_create",
+        arguments: {
+          repository: "espresso95/mottbot",
+          title: "Test issue",
+          body: "Test body",
+          labels: ["bug"],
+        },
+      };
+
+      const unapproved = await executor.execute(call, {
+        sessionKey: session.sessionKey,
+        requestedByUserId: "admin-1",
+        chatId: "chat-1",
+      });
+      approvals.approve({
+        sessionKey: session.sessionKey,
+        toolName: call.name,
+        approvedByUserId: "admin-1",
+        reason: "create test issue",
+        ttlMs: 60_000,
+        requestFingerprint: createToolRequestFingerprint({
+          toolName: call.name,
+          arguments: call.arguments,
+        }),
+      });
+      const approved = await executor.execute(call, {
+        sessionKey: session.sessionKey,
+        requestedByUserId: "admin-1",
+        chatId: "chat-1",
+      });
+
+      expect(unapproved.isError).toBe(true);
+      expect(unapproved.errorCode).toBe("approval_required");
+      expect(approved.isError).toBe(false);
+      expect(github.createIssue).toHaveBeenCalledWith({
+        repository: "espresso95/mottbot",
+        title: "Test issue",
+        body: "Test body",
+        labels: ["bug"],
+      });
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

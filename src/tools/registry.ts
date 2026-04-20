@@ -782,6 +782,116 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     requiresAdmin: true,
   },
   {
+    name: "mottbot_github_issue_create",
+    description: "Create a GitHub issue through the host GitHub CLI after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 256,
+          description: "Issue title.",
+        },
+        body: {
+          type: "string",
+          maxLength: 20000,
+          description: "Optional Markdown issue body.",
+        },
+        labels: {
+          type: "array",
+          description: "Optional issue labels by name.",
+          items: {
+            type: "string",
+            minLength: 1,
+            maxLength: 80,
+          },
+        },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 16_000,
+    sideEffect: "github_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_issue_comment",
+    description: "Comment on a GitHub issue through the host GitHub CLI after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        number: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10000000,
+          description: "Issue number.",
+        },
+        body: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Markdown comment body.",
+        },
+      },
+      required: ["number", "body"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 16_000,
+    sideEffect: "github_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_github_pr_comment",
+    description: "Comment on a GitHub pull request through the host GitHub CLI after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repository: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+        },
+        number: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10000000,
+          description: "Pull request number.",
+        },
+        body: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Markdown comment body.",
+        },
+      },
+      required: ["number", "body"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 16_000,
+    sideEffect: "github_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
     name: "mottbot_telegram_send_message",
     description: "Send a plain-text Telegram message to the current chat or a configured approved chat after explicit operator approval.",
     inputSchema: {

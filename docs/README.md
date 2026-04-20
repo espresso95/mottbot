@@ -74,7 +74,7 @@ Implemented in this repo:
 - read-only operator diagnostics tools and admin `/runs` and `/debug` commands
 - admin-only read-only local repository and git inspection tools
 - admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
-- admin-only approval-gated local note/document writes, allowlisted local command execution, MCP stdio calls, and Telegram send/reaction tools
+- admin-only approval-gated local note/document writes, allowlisted local command execution, MCP stdio calls, GitHub issue/comment writes, and Telegram send/reaction tools
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`

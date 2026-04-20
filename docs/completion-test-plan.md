@@ -32,7 +32,7 @@ As of April 20, 2026:
 - Phase 17 is complete for the operator dashboard: dashboard API panels expose runtime, logs, tools, approvals, memory, and delayed restart controls with auth gating, server-side validation, bounded output, and dashboard-side secret redaction.
 - Phase 18 is complete for model-assisted memory: opt-in post-run extraction stores reviewed candidates separately from approved memory, Telegram commands support candidate review and scoped memory management, and prompt construction renders only approved scoped memory.
 - Phase 19 is complete for backup and log operations: local SQLite/config backups, backup validation, launchd log status, log archive/truncation, and restore guidance are implemented and tested.
-- Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note creation and Telegram sends are approved and scoped, and GitHub write tools remain deferred.
+- Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note/document writes, local command execution, configured MCP calls, Telegram sends/reactions, delayed restarts, and GitHub issue/comment writes are approved and scoped.
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
@@ -59,7 +59,7 @@ Current known gaps:
 - Native provider attachment ingestion is limited to image inputs for models that advertise image support. Phase 24 adds native-file plumbing and guards, but the active Codex provider adapter still supports only text and images; supported non-image documents are converted into bounded prompt text rather than provider file blocks, and unsupported files remain metadata.
 - Durable queue recovery is designed for one process and one SQLite database, not multiple active replicas.
 - Inbound Telegram validation can be driven by the optional MTProto user smoke harness or composed live validation suite when the operator provides target chats and fixtures, but webhook delivery, OAuth, and full live Codex fault injection still require an operator-provided live environment.
-- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, GitHub write, and secret-adjacent model tools remain unimplemented.
+- Model-executed tools include the health snapshot, admin diagnostics, admin-only local repository inspection, admin-only GitHub read inspection, admin-only local document reads, and admin-only opt-in local note/document writes, allowlisted local command execution, configured MCP stdio calls, GitHub issue/comment writes, Telegram send/reaction, and delayed restart tools. Generic network beyond configured MCP stdio servers, broader GitHub writes, and secret-adjacent model tools remain unimplemented.
 - Usage budgets are local run-count controls. Billing-grade token or currency budgets remain a possible later enhancement because provider usage data can be delayed or partial.
 - Multi-instance coordination is limited to a host-local SQLite lease; distributed replicas remain out of scope.
 
@@ -1291,12 +1291,12 @@ Verification:
 
 This phase adds useful side effects only after policy and audit controls are ready.
 
-Status: complete for side-effect class separation, mandatory approval for real side effects, local create-only note writes, approved Telegram plain-text sends, config, docs, and tests. GitHub write tools remain deferred.
+Status: complete for side-effect class separation, mandatory approval for real side effects, local note/document writes, allowlisted local command execution, configured MCP stdio calls, GitHub issue/comment writes, approved Telegram plain-text sends and reactions, config, docs, and tests.
 
 Dependencies and ordering:
 
 - Requires Phase 14.
-- GitHub write tools should wait for Phase 16.
+- GitHub write tools depend on Phase 16 and use the same host `gh` auth boundary.
 - Telegram-send and local-write tools should start with disposable or explicitly approved targets only.
 
 ### Task 20.1: Define Write Tool Classes
@@ -1331,23 +1331,30 @@ Implemented:
 - `MOTTBOT_LOCAL_WRITE_*` and `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` configure approved write targets.
 - Tests cover create-only writes, denied paths, oversized writes, target-bound Telegram sends, approval mismatch, one-shot approval consumption, duplicate-call denial, and audit persistence.
 
-### Task 20.3: Add GitHub Write Tools Later
+### Task 20.3: Add GitHub Issue And Comment Write Tools
 
 Deliverables:
 
-- Add issue creation, draft PR description creation, and comment drafting only after read-only GitHub integration is stable.
+- Add issue creation and issue/PR comments only after read-only GitHub integration is stable.
 - Keep all writes admin-only and approval-gated.
 - Add tests with mocked API clients and no live writes by default.
 - Document live-write validation procedure.
 
-Status: deferred. The `github_write` side-effect class exists, but no GitHub write handler is exposed yet.
+Status: complete for issue creation, issue comments, and pull request conversation comments through the host GitHub CLI. Broader writes such as branch pushes, pull request creation, reviews, labels, assignees, and workflow dispatch remain out of scope.
+
+Implemented:
+
+- `mottbot_github_issue_create` creates an issue with a title, optional Markdown body, and up to ten deduplicated labels.
+- `mottbot_github_issue_comment` comments on an existing issue by number.
+- `mottbot_github_pr_comment` comments on an existing pull request by number.
+- All three tools stay disabled unless side-effect tools are enabled, require admin policy and one-shot request-bound approval, validate `owner/name` repositories, and sanitize token-like text before invoking `gh`.
 
 Edge cases to cover:
 
 - Approval preview differs from final execution arguments, target changes after approval, approval expires mid-run, and duplicate model tool calls.
 - Write target unavailable, permission denied, file already exists, race with existing file, network timeout, partial write, and idempotency retry.
 - Telegram send target not approved, blocked bot, deleted chat, topic unavailable, or message too long.
-- GitHub issue/PR/comment creation against wrong repo, archived repo, fork permissions, rate limit, duplicate submit, and API validation error.
+- GitHub issue/comment creation against wrong repo, archived repo, fork permissions, rate limit, duplicate submit, and API validation error.
 - User cancels or revokes approval while execution is queued.
 - Tool output includes created resource links but not raw request bodies or credentials.
 
@@ -1357,7 +1364,7 @@ Required testing:
 - Integration tests for approval, execute, deny, revoke, expire, duplicate-call, and audit persistence.
 - Mocked file-write tests for create-only, overwrite-denied, path traversal, permission error, and cleanup guidance.
 - Mocked Telegram-send tests for approved target, unapproved target, too-long message, and Telegram API failure.
-- Mocked GitHub-write tests for issue creation, comment drafting, validation error, rate limit, and auth failure.
+- Mocked GitHub-write tests for issue creation, issue comments, PR comments, argument sanitization, approval gating, validation error, rate limit, and auth failure.
 - Live tests only against disposable local directories, disposable Telegram chats, and disposable GitHub test repositories.
 
 Verification:

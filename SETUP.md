@@ -243,7 +243,7 @@ Example:
 MOTTBOT_USAGE_BUDGETS_JSON='{"dailyRunsPerUser":25,"dailyRunsPerChat":100,"monthlyRuns":1000}'
 ```
 
-GitHub read settings:
+GitHub settings:
 
 - install and authenticate the GitHub CLI with `gh auth login`; Mottbot does not store GitHub tokens
 - `MOTTBOT_GITHUB_REPOSITORY=` can pin a default `owner/name`; when empty, Mottbot infers the repository from local `origin`
@@ -252,6 +252,7 @@ GitHub read settings:
 - `MOTTBOT_GITHUB_MAX_ITEMS=10` caps pull request, issue, and workflow result counts
 - `MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000` caps GitHub tool output
 - admin Telegram commands: `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, and `/github failures`
+- when side-effect tools are enabled, model-requested issue creation and issue/PR comments use the same `gh` account and still require one-shot admin approval
 
 Import Codex CLI auth into the configured SQLite database:
 

@@ -277,7 +277,7 @@ MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
 
 Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
 
-GitHub tools use the host GitHub CLI. Authenticate once with `gh auth login`; Mottbot does not store GitHub tokens. Public repositories need ordinary read access; private repositories and workflow inspection require the host `gh` account to have repository and Actions read permissions.
+GitHub tools use the host GitHub CLI. Authenticate once with `gh auth login`; Mottbot does not store GitHub tokens. Public repositories need ordinary read access; private repositories and workflow inspection require the host `gh` account to have repository and Actions read permissions. Approval-gated issue creation and issue/PR comments require the same host account to have write permission on the target repository.
 
 ```bash
 MOTTBOT_GITHUB_REPOSITORY=
@@ -302,6 +302,9 @@ Current side-effecting tools:
 - `mottbot_local_doc_replace`: replaces an existing `.md` or `.txt` document only when the supplied SHA-256 matches the current file
 - `mottbot_local_command_run`: runs one configured local command in an approved workspace root
 - `mottbot_mcp_call_tool`: calls one allowlisted tool on one configured MCP stdio server
+- `mottbot_github_issue_create`: creates a GitHub issue through `gh`
+- `mottbot_github_issue_comment`: comments on a GitHub issue through `gh`
+- `mottbot_github_pr_comment`: comments on a GitHub pull request through `gh`
 - `mottbot_telegram_send_message`: sends plain text to the current Telegram chat or a configured approved target
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 - `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
@@ -603,7 +606,7 @@ Current tool set:
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
 - `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
 - `mottbot_local_doc_read`: admin-only bounded local document read plus edit checksum
-- `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
+- `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_github_issue_create`, `mottbot_github_issue_comment`, `mottbot_github_pr_comment`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
 
 Runtime controls:
 
@@ -615,11 +618,11 @@ Runtime controls:
 - local document tools stay under local-write roots, allow only `.md` and `.txt`, and reject stale full replacements by SHA-256
 - local command tools require an allowlisted command and approved cwd, run without shell expansion, and return bounded stdout/stderr
 - MCP calls require a configured stdio server and per-server MCP tool allowlist
-- GitHub tools require host `gh` auth, accept only `owner/name` repository identifiers, and return bounded sanitized summaries
+- GitHub tools require host `gh` auth, accept only `owner/name` repository identifiers, return bounded sanitized summaries, and keep issue/comment writes approval-bound
 - Telegram shows short status edits while a tool is prepared, running, completed, or failed
 - tool call and result metadata is persisted in transcript rows with role `tool`
 
-Approval-backed side-effect implementations currently cover local note/document writes, local command execution, configured MCP stdio calls, Telegram send/reaction, and delayed service restart. Do not add generic network, GitHub write, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
+Approval-backed side-effect implementations currently cover local note/document writes, local command execution, configured MCP stdio calls, GitHub issue/comment writes, Telegram send/reaction, and delayed service restart. Do not add generic network, broader GitHub writes, or secret-adjacent tools without extending approval persistence, audit retention, tests, and operator runbooks.
 
 ## Operator Safety Limits
 

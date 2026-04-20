@@ -28,6 +28,7 @@ Implemented:
 - opt-in allowlisted local command execution under approved workspace roots
 - opt-in MCP stdio bridge calls to configured servers and allowlisted MCP tools
 - opt-in Telegram message and reaction tools restricted to the current chat or configured approved targets
+- opt-in GitHub issue creation and issue/PR comments through the host GitHub CLI
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
 - per-tool runtime policies loaded from config or `MOTTBOT_TOOL_POLICIES_JSON`
 - sanitized approval previews and request fingerprints for side-effecting calls
@@ -35,7 +36,7 @@ Implemented:
 
 Not implemented:
 
-- GitHub write tools
+- broader GitHub write operations beyond issue creation and issue/PR comments
 - generic network-write beyond configured MCP servers
 - secret-adjacent tools
 - arbitrary sandboxed plugin execution
@@ -65,7 +66,7 @@ Keep ownership boundaries narrow:
 - `src/telegram/*` owns approval and result notifications
 - a new `src/tools/*` module owns tool definitions, validation, execution, and result normalization
 
-The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, local note/document writes, allowlisted local command execution, and configured MCP stdio tool calls with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
+The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, local note/document writes, allowlisted local command execution, configured MCP stdio tool calls, and GitHub issue/comment writes with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
 
 ## Initial Tool Registry
 
@@ -103,6 +104,9 @@ Disabled reserved tools:
 | `mottbot_local_doc_replace` | `local_write` | opt-in | Replaces existing `.md` or `.txt` files under approved local-write roots only when the supplied SHA-256 matches the current file; requires one-shot admin approval before execution. |
 | `mottbot_local_command_run` | `local_exec` | opt-in | Runs one host-allowlisted command in an approved workspace root without shell expansion; requires one-shot admin approval before execution. |
 | `mottbot_mcp_call_tool` | `network_write` | opt-in | Calls one allowlisted tool on one configured MCP stdio server; requires one-shot admin approval before execution. |
+| `mottbot_github_issue_create` | `github_write` | opt-in | Creates a GitHub issue through the host `gh` CLI; requires one-shot admin approval before execution. |
+| `mottbot_github_issue_comment` | `github_write` | opt-in | Adds a GitHub issue comment through the host `gh` CLI; requires one-shot admin approval before execution. |
+| `mottbot_github_pr_comment` | `github_write` | opt-in | Adds a GitHub pull request conversation comment through the host `gh` CLI; requires one-shot admin approval before execution. |
 | `mottbot_telegram_send_message` | `telegram_send` | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution. |
 | `mottbot_restart_service` | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
 | `mottbot_telegram_react` | `telegram_send` | opt-in | Adds or clears Telegram reactions only after one-shot admin approval. |
@@ -216,6 +220,25 @@ Safety rules:
 - topic replies inherit the current Telegram thread when sending to the current chat
 - messages are plain text only and capped by the tool schema
 - the approval fingerprint includes the target chat and message text, so target or text changes cannot reuse an approval
+
+## GitHub Write Scope
+
+GitHub write tools use the same host GitHub CLI boundary as read tools. Mottbot does not store GitHub tokens; the process can only do what the host `gh` account is already authorized to do.
+
+Supported writes:
+
+- `mottbot_github_issue_create`: creates an issue with a title, optional body, and up to ten labels
+- `mottbot_github_issue_comment`: comments on an existing issue by number
+- `mottbot_github_pr_comment`: comments on an existing pull request by number
+
+Safety rules:
+
+- tools are disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`
+- callers must pass admin policy checks and a matching one-shot approval
+- repository identifiers must be `owner/name`; when omitted, the configured repository or local `origin` is used
+- titles, bodies, labels, CLI output, and errors are sanitized for token-like text
+- labels are trimmed, deduplicated, and capped before calling `gh`
+- live validation should use a disposable repository or disposable issue/PR before real project use
 
 ## Repository Read Scope
 

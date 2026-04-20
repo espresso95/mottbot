@@ -66,6 +66,24 @@ function createRunner(): { runner: GithubCommandRunner; calls: Array<{ command: 
         stderr: "",
       };
     }
+    if (args.includes("issue") && args.includes("create")) {
+      return {
+        stdout: "https://github.com/espresso95/mottbot/issues/42\n",
+        stderr: "",
+      };
+    }
+    if (args[0] === "issue" && args[1] === "comment") {
+      return {
+        stdout: "https://github.com/espresso95/mottbot/issues/42#issuecomment-1\n",
+        stderr: "",
+      };
+    }
+    if (args[0] === "pr" && args[1] === "comment") {
+      return {
+        stdout: "https://github.com/espresso95/mottbot/pull/7#issuecomment-2\n",
+        stderr: "",
+      };
+    }
     if (args.includes("run") && args.includes("list")) {
       return {
         stdout: JSON.stringify([
@@ -148,6 +166,93 @@ describe("GitHub read integration", () => {
     );
 
     await expect(github.repository()).rejects.toThrow(/owner\/name/);
+  });
+
+  it("creates issues and comments through the GitHub CLI with sanitized arguments", async () => {
+    const { runner, calls } = createRunner();
+    const github = new GithubCliReadService(
+      {
+        defaultRepository: "espresso95/mottbot",
+        command: "gh",
+        commandTimeoutMs: 10_000,
+        maxItems: 5,
+        maxOutputBytes: 80_000,
+      },
+      runner,
+      "/repo",
+    );
+
+    await expect(
+      github.createIssue({
+        title: "Fix Bearer secret-value",
+        body: "Body with Authorization: secret-value",
+        labels: ["bug", " bug ", "Bearer label-secret"],
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      action: "created_issue",
+      repository: "espresso95/mottbot",
+      number: 42,
+      title: "Fix [redacted]",
+      url: "https://github.com/espresso95/mottbot/issues/42",
+      labels: ["bug", "[redacted]"],
+    });
+    await expect(github.commentOnIssue({ number: 42, body: "Looks good" })).resolves.toMatchObject({
+      action: "commented_issue",
+      number: 42,
+      url: "https://github.com/espresso95/mottbot/issues/42#issuecomment-1",
+    });
+    await expect(github.commentOnPullRequest({ number: 7, body: "Ready" })).resolves.toMatchObject({
+      action: "commented_pull_request",
+      number: 7,
+      url: "https://github.com/espresso95/mottbot/pull/7#issuecomment-2",
+    });
+
+    expect(calls).toContainEqual({
+      command: "gh",
+      args: [
+        "issue",
+        "create",
+        "--repo",
+        "espresso95/mottbot",
+        "--title",
+        "Fix [redacted]",
+        "--body",
+        "Body with [redacted]",
+        "--label",
+        "bug",
+        "--label",
+        "[redacted]",
+      ],
+    });
+    expect(calls).toContainEqual({
+      command: "gh",
+      args: ["issue", "comment", "42", "--repo", "espresso95/mottbot", "--body", "Looks good"],
+    });
+    expect(calls).toContainEqual({
+      command: "gh",
+      args: ["pr", "comment", "7", "--repo", "espresso95/mottbot", "--body", "Ready"],
+    });
+  });
+
+  it("rejects incomplete GitHub write requests before invoking gh", async () => {
+    const { runner, calls } = createRunner();
+    const github = new GithubCliReadService(
+      {
+        defaultRepository: "espresso95/mottbot",
+        command: "gh",
+        commandTimeoutMs: 10_000,
+        maxItems: 5,
+        maxOutputBytes: 80_000,
+      },
+      runner,
+      "/repo",
+    );
+
+    await expect(github.createIssue({ title: "" })).rejects.toThrow(/title is required/);
+    await expect(github.commentOnIssue({ number: 0, body: "body" })).rejects.toThrow(/positive integer/);
+    await expect(github.commentOnPullRequest({ number: 1, body: "" })).rejects.toThrow(/body is required/);
+    expect(calls.some((call) => call.command === "gh")).toBe(false);
   });
 
   it("surfaces malformed CLI responses and missing repository config clearly", async () => {
