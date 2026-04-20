@@ -32,7 +32,7 @@ As of April 20, 2026:
 - Phase 17 is complete for the operator dashboard: dashboard API panels expose runtime, logs, tools, approvals, memory, and delayed restart controls with auth gating, server-side validation, bounded output, and dashboard-side secret redaction.
 - Phase 18 is complete for model-assisted memory: opt-in post-run extraction stores reviewed candidates separately from approved memory, Telegram commands support candidate review and scoped memory management, and prompt construction renders only approved scoped memory.
 - Phase 19 is complete for backup and log operations: local SQLite/config backups, backup validation, launchd log status, log archive/truncation, and restore guidance are implemented and tested.
-- Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note/document writes, local command execution, configured MCP calls, Telegram sends/reactions, delayed restarts, and GitHub issue/comment writes are approved and scoped.
+- Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note/document writes, local command execution, configured MCP calls, Telegram sends/reactions, delayed restarts, and GitHub issue/comment writes are approved and scoped. A guarded GitHub write smoke harness can validate issue/comment writes against disposable targets.
 - Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 - Phase 22 is complete for local model and cost controls: operators can configure UTC daily and monthly run budgets globally and per user, chat, session, or model; budget checks run before auth and provider transport; warnings and denials are user-facing; `/usage` reports local run counts and configured limits.
 - Phase 23 is complete for live validation automation: `pnpm smoke:suite` composes preflight, private conversation, command, reply, optional group mention, and optional attachment fixture checks with guarded execution and dry-run planning.
@@ -49,6 +49,7 @@ Verified locally on April 20, 2026:
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:local-tools` passes against disposable local roots and a test MCP stdio server.
+- `corepack pnpm smoke:github-write` passes in skipped mode by default, and dry-run mode prints a token-free issue/comment write plan without touching GitHub.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
 - `corepack pnpm smoke:telegram-user` passes in skipped mode by default and passed live against `StartupMottBot` after the persistent service was restarted.
 - `NODE_OPTIONS=--trace-deprecation corepack pnpm health` passes without the previous transitive `punycode` warning.
@@ -1348,6 +1349,7 @@ Implemented:
 - `mottbot_github_issue_comment` comments on an existing issue by number.
 - `mottbot_github_pr_comment` comments on an existing pull request by number.
 - All three tools stay disabled unless side-effect tools are enabled, require admin policy and one-shot request-bound approval, validate `owner/name` repositories, and sanitize token-like text before invoking `gh`.
+- `pnpm smoke:github-write` dry-runs or executes the same approval path against a disposable GitHub target; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`.
 
 Edge cases to cover:
 

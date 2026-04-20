@@ -82,6 +82,7 @@ Implemented in this repo:
 - local UTC daily and monthly usage budgets with `/usage` reporting
 - repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
 - disposable local tool validation for document edits, allowlisted commands, and MCP stdio calls
+- guarded disposable GitHub write validation for issue/comment tools
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 

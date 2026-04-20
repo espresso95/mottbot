@@ -28,6 +28,7 @@
     "smoke:preflight": "tsx src/tools/live-smoke-preflight.ts",
     "smoke:telegram-user": "tsx src/tools/live-telegram-user-smoke.ts",
     "smoke:local-tools": "tsx src/tools/local-tool-validation-suite.ts",
+    "smoke:github-write": "tsx src/tools/github-write-validation-suite.ts",
     "smoke:suite": "tsx src/tools/live-validation-suite.ts"
   },
   "engines": {

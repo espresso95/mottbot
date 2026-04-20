@@ -9,6 +9,7 @@
 - Added approval-gated `mottbot_local_command_run` for allowlisted commands inside approved workspace roots without shell expansion.
 - Added approval-gated `mottbot_mcp_call_tool` for one allowlisted tool call on one configured MCP stdio server.
 - Added approval-gated `mottbot_github_issue_create`, `mottbot_github_issue_comment`, and `mottbot_github_pr_comment` through the host GitHub CLI.
+- Added `pnpm smoke:github-write` for explicitly confirmed disposable GitHub write validation through the real tool approval path.
 - Added `MOTTBOT_LOCAL_EXEC_*` and `MOTTBOT_MCP_SERVERS_JSON` configuration.
 - Added `pnpm smoke:local-tools` for disposable local validation of document edits, command execution, and MCP stdio calls through the real approval path.
 
@@ -19,6 +20,7 @@ Operator checklist:
 - Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve specific commands.
 - Configure MCP servers with explicit `allowedTools`; do not point the bridge at broad or destructive tool servers for first validation.
 - Validate GitHub writes against a disposable repository or disposable issue/PR before using them on real project work.
+- Start GitHub write validation with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true pnpm smoke:github-write`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`.
 - Run `pnpm smoke:local-tools` before live Telegram approval tests.
 - Use `/tool audit here` after approval tests to confirm previews, approvals, and execution decisions.
 

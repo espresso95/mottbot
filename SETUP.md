@@ -281,6 +281,17 @@ corepack pnpm smoke:local-tools
 
 This creates temp roots, exercises approved local document append/replace, allowlisted local command execution, and a configured test MCP stdio call through the real tool executor and approval path, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
+Dry-run the guarded GitHub write validation:
+
+```bash
+MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
+corepack pnpm smoke:github-write
+```
+
+Only run live GitHub write validation against disposable targets. Live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`.
+
 Run the repeatable suite dry run:
 
 ```bash

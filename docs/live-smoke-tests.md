@@ -148,6 +148,7 @@ Automated in this repo:
 - default auth profile presence
 - optional MTProto user-account smoke messages through `pnpm smoke:telegram-user`
 - repeatable live validation matrix through `pnpm smoke:suite`
+- explicitly confirmed disposable GitHub issue/comment writes through `pnpm smoke:github-write`
 
 Manual or environment-dependent by design:
 
@@ -156,6 +157,38 @@ Manual or environment-dependent by design:
 - `/stop` during a live model turn
 - webhook delivery from Telegram to a public endpoint
 - live Codex model behavior beyond ordinary prompted replies
+
+## Optional GitHub Write Smoke Harness
+
+GitHub write validation intentionally lives outside the normal live suite because it creates real GitHub data. Use only a disposable repository or disposable issue/PR.
+
+Dry-run plan:
+
+```bash
+MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
+pnpm smoke:github-write
+```
+
+Live issue creation and issue comment:
+
+```bash
+MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=false \
+MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue \
+MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
+MOTTBOT_GITHUB_WRITE_SMOKE_LABELS=smoke \
+pnpm smoke:github-write
+```
+
+Optional pull request comment validation:
+
+```bash
+export MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER=<disposable-pr-number>
+```
+
+The harness uses the same side-effect registry, approval store, request fingerprinting, and `mottbot_github_*` handlers that the model uses at runtime. It uses the host `gh` CLI for auth; Mottbot does not store GitHub tokens.
 
 ## Optional User-Account Smoke Harness
 

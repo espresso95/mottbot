@@ -156,6 +156,7 @@ Equivalent `pnpm` scripts:
 - `pnpm smoke:preflight`
 - `pnpm smoke:telegram-user`
 - `pnpm smoke:local-tools`
+- `pnpm smoke:github-write`
 - `pnpm smoke:suite`
 
 ## Release Verification
@@ -187,6 +188,8 @@ corepack pnpm smoke:preflight
 No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
+
+`pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. It is skipped unless `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true` is set. Start with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 
 `pnpm smoke:suite` composes the guarded preflight and optional MTProto user-account checks into a repeatable live validation matrix. It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set, and `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
 
@@ -288,6 +291,17 @@ MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
 ```
 
 When `MOTTBOT_GITHUB_REPOSITORY` is empty, Mottbot infers the default repository from local `origin`. Use `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, or `/github failures` from an admin Telegram chat for direct read-only status.
+
+Live GitHub write validation is separate from normal startup and intentionally guarded:
+
+```bash
+MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
+MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
+pnpm smoke:github-write
+```
+
+To perform real writes, set `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=false` and `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`. The harness creates one disposable issue, comments on it, and optionally comments on `MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER` when set.
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
