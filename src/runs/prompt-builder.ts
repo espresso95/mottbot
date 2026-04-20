@@ -160,18 +160,58 @@ function buildSummary(entries: TranscriptMessage[]): string | undefined {
     .join("\n");
 }
 
+function memoryPromptRank(memory: SessionMemory): number {
+  if (memory.source === "auto_summary") {
+    return 90;
+  }
+  if (memory.pinned) {
+    return 0;
+  }
+  switch (memory.scope) {
+    case "project":
+      return 10;
+    case "personal":
+      return 20;
+    case "group":
+      return 30;
+    case "chat":
+      return 40;
+    case "session":
+      return 50;
+  }
+}
+
 function buildMemoryMessage(memories: SessionMemory[]): PromptMessage | undefined {
-  const visible = memories
-    .map((memory) => memory.contentText.trim())
+  const orderedMemories = [...memories].sort((left, right) => {
+    const rank = memoryPromptRank(left) - memoryPromptRank(right);
+    if (rank !== 0) {
+      return rank;
+    }
+    return left.updatedAt - right.updatedAt;
+  });
+  const visible = orderedMemories
+    .filter((memory) => !memory.archivedAt)
+    .map((memory) => {
+      const content = memory.contentText.trim();
+      if (!content) {
+        return undefined;
+      }
+      const attributes = [
+        memory.scope,
+        memory.source === "auto_summary" ? "auto" : undefined,
+        memory.pinned ? "pinned" : undefined,
+      ].filter(Boolean);
+      return `[${attributes.join(", ")}] ${content}`;
+    })
     .filter(Boolean)
-    .slice(-20);
+    .slice(0, 20);
   if (visible.length === 0) {
     return undefined;
   }
   return {
     role: "system",
-    content: ["Long-term session memory:", ...visible.map((memory) => `- ${memory}`)].join("\n"),
-    timestamp: memories.at(-1)?.updatedAt ?? 0,
+    content: ["Long-term memory approved for this chat:", ...visible.map((memory) => `- ${memory}`)].join("\n"),
+    timestamp: orderedMemories.reduce((latest, memory) => Math.max(latest, memory.updatedAt), 0),
   };
 }
 

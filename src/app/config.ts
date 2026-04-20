@@ -142,6 +142,9 @@ const rawConfigSchema = z.object({
       autoSummariesEnabled: z.boolean().default(false),
       autoSummaryRecentMessages: z.number().int().min(4).max(40).default(12),
       autoSummaryMaxChars: z.number().int().min(200).max(4_000).default(1_000),
+      candidateExtractionEnabled: z.boolean().default(false),
+      candidateRecentMessages: z.number().int().min(4).max(40).default(12),
+      candidateMaxPerRun: z.number().int().min(1).max(10).default(5),
     })
     .default({}),
 });
@@ -227,6 +230,9 @@ export type AppConfig = {
     autoSummariesEnabled: boolean;
     autoSummaryRecentMessages: number;
     autoSummaryMaxChars: number;
+    candidateExtractionEnabled: boolean;
+    candidateRecentMessages: number;
+    candidateMaxPerRun: number;
   };
   security: {
     masterKey: string;
@@ -701,6 +707,24 @@ export function loadConfig(): AppConfig {
               ? (fileObject.memory as any).autoSummaryMaxChars
               : undefined)
           : Number(process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS),
+      candidateExtractionEnabled:
+        process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).candidateExtractionEnabled
+              : undefined)
+          : process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED === "true",
+      candidateRecentMessages:
+        process.env.MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).candidateRecentMessages
+              : undefined)
+          : Number(process.env.MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES),
+      candidateMaxPerRun:
+        process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN === undefined
+          ? (fileObject.memory && typeof fileObject.memory === "object"
+              ? (fileObject.memory as any).candidateMaxPerRun
+              : undefined)
+          : Number(process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN),
     },
   });
 

@@ -219,9 +219,17 @@ Current policy:
 - `/files clear`
 - `/bind [name]`
 - `/unbind`
-- `/remember <fact>`
+- `/remember [scope:session|personal|chat|group|project:<key>] <fact>`
 - `/memory`
-- `/forget <memory-id-prefix|all>`
+- `/memory candidates [pending|accepted|rejected|archived|all]`
+- `/memory accept <candidate-id-prefix>`
+- `/memory reject <candidate-id-prefix>`
+- `/memory edit <candidate-id-prefix> <replacement fact>`
+- `/memory pin|unpin <memory-id-prefix>`
+- `/memory archive <memory-id-prefix>`
+- `/memory archive candidate <candidate-id-prefix>`
+- `/memory clear candidates`
+- `/forget <memory-id-prefix|all|auto>`
 
 ### Auth commands
 
@@ -253,7 +261,10 @@ Current policy:
 - `/files clear` removes all retained file metadata for the session and strips attachment envelopes from transcript JSON
 - `/bind` switches the existing route into `bound` mode after validating the binding name
 - `/unbind` restores the route mode based on the session key shape
-- `/remember`, `/memory`, and `/forget` manage explicit long-term memory for the current session
+- `/remember`, `/memory`, and `/forget` manage approved long-term memory for the current route
+- memory can be scoped to the session, Telegram user, chat, group, or an explicit project key
+- model-assisted memory candidates are stored separately and require `/memory accept` before they are included in prompts
+- `/memory pin` raises accepted memory above ordinary scoped memory and automatic summaries; `/memory archive` hides it without deleting the row
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
 - `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
@@ -347,8 +358,9 @@ Current policy:
 - default system prompt is short and Telegram-specific
 - only the latest history window is sent to the model
 - tool messages are excluded from prompt construction
-- explicit session memories are injected as system context before recent transcript history
+- approved scoped memories are injected as system context before recent transcript history
 - optional automatic summaries are stored as session memory only when `MOTTBOT_AUTO_MEMORY_SUMMARIES=true`
+- model-proposed memory candidates are never injected until accepted
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text
 - native image inputs are appended only to the latest user message

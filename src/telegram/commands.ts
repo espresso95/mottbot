@@ -16,7 +16,16 @@ import type { HealthReporter } from "../app/health.js";
 import type { ToolApprovalAuditRecord, ToolApprovalDecision, ToolApprovalStore } from "../tools/approval.js";
 import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
-import type { MemoryStore } from "../sessions/memory-store.js";
+import {
+  isMemoryCandidateStatus,
+  isMemoryScope,
+  resolveMemoryScopeKey,
+  type MemoryCandidateStatus,
+  type MemoryStore,
+  type MemoryScope,
+  type SessionMemory,
+  type MemoryCandidate,
+} from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
 import type { AttachmentRecord, AttachmentRecordStore } from "../sessions/attachment-store.js";
@@ -58,6 +67,53 @@ function validateBindingName(value: string): boolean {
 
 function normalizeFreeText(args: string[]): string {
   return args.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function formatMemoryRecord(memory: SessionMemory): string {
+  const labels = [
+    memory.scope,
+    memory.source === "auto_summary" ? "auto" : memory.source === "model_candidate" ? "candidate" : "explicit",
+    memory.pinned ? "pinned" : undefined,
+  ].filter(Boolean);
+  return `- ${memory.id.slice(0, 8)} [${labels.join(", ")}]: ${memory.contentText}`;
+}
+
+function formatMemoryCandidate(candidate: MemoryCandidate): string {
+  const details = [
+    `scope=${candidate.scope}`,
+    `sensitivity=${candidate.sensitivity}`,
+    candidate.reason ? `reason=${candidate.reason}` : undefined,
+  ].filter(Boolean);
+  return `- ${candidate.id.slice(0, 8)} [${details.join(", ")}]: ${candidate.contentText}`;
+}
+
+function parseMemoryScopeArgs(
+  session: SessionRoute,
+  args: string[],
+): { scope: MemoryScope; scopeKey: string; contentArgs: string[] } | { error: string } {
+  const first = args[0];
+  if (!first?.startsWith("scope:")) {
+    return { scope: "session", scopeKey: session.sessionKey, contentArgs: args };
+  }
+  const parts = first.split(":");
+  const scope = parts[1]?.trim().toLowerCase();
+  if (!scope || !isMemoryScope(scope)) {
+    return { error: "Usage: /remember [scope:session|personal|chat|group|project:<key>] <fact>" };
+  }
+  const explicitScopeKey = parts.length > 2 ? parts.slice(2).join(":") : undefined;
+  const scopeKey = resolveMemoryScopeKey({
+    context: session,
+    scope,
+    explicitScopeKey: scope === "project" ? explicitScopeKey : undefined,
+  });
+  if (!scopeKey) {
+    return { error: `Cannot use ${scope} memory scope in this chat.` };
+  }
+  return {
+    scope,
+    scopeKey,
+    contentArgs: args.slice(1),
+  };
 }
 
 function formatReset(resetAt: number | undefined): string {
@@ -247,14 +303,24 @@ export class TelegramCommandRouter {
           await sendReply(this.api, event, "Memory is not available.");
           return true;
         }
-        const contentText = normalizeFreeText(parsed.args);
+        const scoped = parseMemoryScopeArgs(session, parsed.args);
+        if ("error" in scoped) {
+          await sendReply(this.api, event, scoped.error);
+          return true;
+        }
+        const contentText = normalizeFreeText(scoped.contentArgs);
         if (!contentText) {
-          await sendReply(this.api, event, "Usage: /remember <fact to keep for this session>");
+          await sendReply(this.api, event, "Usage: /remember [scope:session|personal|chat|group|project:<key>] <fact>");
           return true;
         }
         try {
-          const memory = this.memories.add({ sessionKey: session.sessionKey, contentText });
-          await sendReply(this.api, event, `Remembered ${memory.id.slice(0, 8)}.`);
+          const memory = this.memories.add({
+            sessionKey: session.sessionKey,
+            contentText,
+            scope: scoped.scope,
+            scopeKey: scoped.scopeKey,
+          });
+          await sendReply(this.api, event, `Remembered ${memory.id.slice(0, 8)} for ${memory.scope} scope.`);
         } catch (error) {
           await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
         }
@@ -265,20 +331,7 @@ export class TelegramCommandRouter {
           await sendReply(this.api, event, "Memory is not available.");
           return true;
         }
-        const memories = this.memories.list(session.sessionKey);
-        await sendReply(
-          this.api,
-          event,
-          memories.length > 0
-            ? [
-                "Session memory:",
-                ...memories.map((memory) => {
-                  const label = memory.source === "auto_summary" ? "auto" : "explicit";
-                  return `- ${memory.id.slice(0, 8)} [${label}]: ${memory.contentText}`;
-                }),
-              ].join("\n")
-            : "No session memory.",
-        );
+        await this.handleMemoryCommand(event, session, parsed.args);
         return true;
       }
       case "forget": {
@@ -301,7 +354,7 @@ export class TelegramCommandRouter {
           await sendReply(this.api, event, `Forgot ${removed} automatic summaries.`);
           return true;
         }
-        const removed = this.memories.remove(session.sessionKey, target);
+        const removed = this.memories.removeForScopeContext(session, target);
         await sendReply(this.api, event, removed ? "Memory forgotten." : "No matching memory found.");
         return true;
       }
@@ -504,7 +557,12 @@ export class TelegramCommandRouter {
       this.memories
         ? formatCommandSection("Memory", [
             "/remember <fact> - store memory for this session",
-            "/memory - list session memory",
+            "/remember scope:personal <fact> - store user-scoped memory",
+            "/memory - list approved memory for this chat",
+            "/memory candidates [pending|accepted|rejected|archived|all] - list memory candidates",
+            "/memory accept|reject|edit <candidate-id-prefix> - review candidates",
+            "/memory pin|unpin|archive <memory-id-prefix> - manage approved memory",
+            "/memory clear candidates - clear pending candidates",
             "/forget <memory-id-prefix|all|auto> - remove memory",
           ])
         : undefined,
@@ -546,6 +604,132 @@ export class TelegramCommandRouter {
         : undefined,
     ].filter((section): section is string => Boolean(section));
     return sections.join("\n\n");
+  }
+
+  private async handleMemoryCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
+    const memories = this.memories;
+    if (!memories) {
+      await sendReply(this.api, event, "Memory is not available.");
+      return;
+    }
+    const sub = args[0]?.toLowerCase();
+    if (!sub || sub === "list") {
+      const records = memories.listForScopeContext(session);
+      await sendReply(
+        this.api,
+        event,
+        records.length > 0 ? ["Approved memory:", ...records.map(formatMemoryRecord)].join("\n") : "No approved memory.",
+      );
+      return;
+    }
+    if (sub === "candidates") {
+      const requestedStatus = args[1]?.toLowerCase();
+      const status: MemoryCandidateStatus | "all" =
+        requestedStatus === "all"
+          ? "all"
+          : requestedStatus && isMemoryCandidateStatus(requestedStatus)
+            ? requestedStatus
+            : "pending";
+      const candidates = memories.listCandidates(session.sessionKey, status);
+      await sendReply(
+        this.api,
+        event,
+        candidates.length > 0
+          ? [`Memory candidates (${status}):`, ...candidates.map(formatMemoryCandidate)].join("\n")
+          : `No ${status} memory candidates.`,
+      );
+      return;
+    }
+    if (sub === "accept") {
+      const prefix = normalizeSingleArg(args[1]);
+      if (!prefix) {
+        await sendReply(this.api, event, "Usage: /memory accept <candidate-id-prefix>");
+        return;
+      }
+      const accepted = memories.acceptCandidate({
+        sessionKey: session.sessionKey,
+        idPrefix: prefix,
+        decidedByUserId: event.fromUserId,
+      });
+      await sendReply(
+        this.api,
+        event,
+        accepted
+          ? `Accepted ${accepted.memory.id.slice(0, 8)} for ${accepted.memory.scope} memory.`
+          : "No pending candidate found.",
+      );
+      return;
+    }
+    if (sub === "reject") {
+      const prefix = normalizeSingleArg(args[1]);
+      if (!prefix) {
+        await sendReply(this.api, event, "Usage: /memory reject <candidate-id-prefix>");
+        return;
+      }
+      const rejected = memories.rejectCandidate(session.sessionKey, prefix, event.fromUserId);
+      await sendReply(this.api, event, rejected ? "Candidate rejected." : "No pending candidate found.");
+      return;
+    }
+    if (sub === "edit") {
+      const prefix = normalizeSingleArg(args[1]);
+      const contentText = normalizeFreeText(args.slice(2));
+      if (!prefix || !contentText) {
+        await sendReply(this.api, event, "Usage: /memory edit <candidate-id-prefix> <replacement fact>");
+        return;
+      }
+      const updated = memories.updateCandidate(session.sessionKey, prefix, contentText);
+      await sendReply(
+        this.api,
+        event,
+        updated ? `Candidate ${updated.id.slice(0, 8)} updated.` : "No pending candidate found.",
+      );
+      return;
+    }
+    if (sub === "pin" || sub === "unpin") {
+      const prefix = normalizeSingleArg(args[1]);
+      if (!prefix) {
+        await sendReply(this.api, event, `Usage: /memory ${sub} <memory-id-prefix>`);
+        return;
+      }
+      const pinned = memories.pinForScopeContext(session, prefix, sub === "pin");
+      await sendReply(
+        this.api,
+        event,
+        pinned ? `Memory ${sub === "pin" ? "pinned" : "unpinned"}.` : "No matching memory found.",
+      );
+      return;
+    }
+    if (sub === "archive") {
+      const targetType = args[1]?.toLowerCase();
+      if (targetType === "candidate") {
+        const prefix = normalizeSingleArg(args[2]);
+        if (!prefix) {
+          await sendReply(this.api, event, "Usage: /memory archive candidate <candidate-id-prefix>");
+          return;
+        }
+        const archived = memories.archiveCandidate(session.sessionKey, prefix, event.fromUserId);
+        await sendReply(this.api, event, archived ? "Candidate archived." : "No pending candidate found.");
+        return;
+      }
+      const prefix = normalizeSingleArg(args[1]);
+      if (!prefix) {
+        await sendReply(this.api, event, "Usage: /memory archive <memory-id-prefix>");
+        return;
+      }
+      const archived = memories.archiveForScopeContext(session, prefix);
+      await sendReply(this.api, event, archived ? "Memory archived." : "No matching memory found.");
+      return;
+    }
+    if (sub === "clear" && args[1]?.toLowerCase() === "candidates") {
+      const removed = memories.clearCandidates(session.sessionKey);
+      await sendReply(this.api, event, `Cleared ${removed} pending memory candidates.`);
+      return;
+    }
+    await sendReply(
+      this.api,
+      event,
+      "Usage: /memory [list] | candidates [status|all] | accept <id> | reject <id> | edit <id> <text> | pin <id> | unpin <id> | archive <id> | archive candidate <id> | clear candidates",
+    );
   }
 
   private async handleRunsCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {

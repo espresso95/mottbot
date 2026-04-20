@@ -24,6 +24,10 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
+import {
+  buildMemoryCandidateExtractionPrompt,
+  parseMemoryCandidateResponse,
+} from "../sessions/memory-candidates.js";
 import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
@@ -326,7 +330,7 @@ export class RunOrchestrator {
       const prompt = buildPrompt({
         history,
         systemPrompt: params.session.systemPrompt,
-        memories: this.memories?.list(params.session.sessionKey),
+        memories: this.memories?.listForScopeContext(params.session),
       });
       const messages = appendPreparedAttachmentsToLatestUserMessage({
         messages: prompt.messages,
@@ -478,6 +482,11 @@ export class RunOrchestrator {
         contentJson: Object.keys(assistantEnvelope).length > 0 ? JSON.stringify(assistantEnvelope) : undefined,
       });
       this.updateAutomaticMemorySummary(params.session.sessionKey);
+      await this.proposeMemoryCandidates({
+        session: params.session,
+        auth,
+        signal: params.signal,
+      });
       this.usageRecorder.record(run.runId, result.usage);
       this.runs.update(run.runId, {
         status: "completed",
@@ -535,6 +544,76 @@ export class RunOrchestrator {
       sessionKey,
       contentText: summary,
     });
+  }
+
+  private async proposeMemoryCandidates(params: {
+    session: SessionRoute;
+    auth: Awaited<ReturnType<ModelTokenResolver["resolve"]>>;
+    signal: AbortSignal;
+  }): Promise<void> {
+    if (!this.config.memory.candidateExtractionEnabled || !this.memories) {
+      return;
+    }
+    const extractionPrompt = buildMemoryCandidateExtractionPrompt({
+      messages: this.transcripts.listRecent(
+        params.session.sessionKey,
+        this.config.memory.candidateRecentMessages,
+      ),
+      maxCandidates: this.config.memory.candidateMaxPerRun,
+    });
+    if (!extractionPrompt) {
+      return;
+    }
+    try {
+      const result = await this.transport.stream({
+        sessionKey: params.session.sessionKey,
+        modelRef: params.session.modelRef,
+        transport: this.config.models.transport,
+        auth: params.auth,
+        systemPrompt: extractionPrompt.systemPrompt,
+        messages: extractionPrompt.messages,
+        signal: params.signal,
+        fastMode: true,
+      });
+      const candidates = parseMemoryCandidateResponse({
+        raw: result.text,
+        context: params.session,
+        allowedSourceMessageIds: extractionPrompt.sourceMessageIds,
+      }).slice(0, this.config.memory.candidateMaxPerRun);
+      let inserted = 0;
+      for (const candidate of candidates) {
+        const outcome = this.memories.addCandidate({
+          sessionKey: params.session.sessionKey,
+          scope: candidate.scope,
+          scopeKey: candidate.scopeKey,
+          contentText: candidate.contentText,
+          reason: candidate.reason,
+          sourceMessageIds: candidate.sourceMessageIds,
+          sensitivity: candidate.sensitivity,
+          proposedBy: "model",
+        });
+        if (outcome.inserted) {
+          inserted += 1;
+        }
+      }
+      if (inserted > 0) {
+        this.logger.info(
+          {
+            sessionKey: params.session.sessionKey,
+            inserted,
+          },
+          "Stored memory candidates for review.",
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        {
+          error,
+          sessionKey: params.session.sessionKey,
+        },
+        "Failed to extract memory candidates.",
+      );
+    }
   }
 
   private async removeAckReactionAfterReply(event: InboundEvent): Promise<void> {

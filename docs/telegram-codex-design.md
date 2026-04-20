@@ -960,6 +960,13 @@ Primary user-facing additions:
 - accept/reject/edit/pin/archive commands
 - scoped memory rendering in prompts
 
+Implementation status:
+
+- `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true` enables post-run model extraction into `memory_candidates`
+- candidates require `/memory accept <id-prefix>` before becoming prompt-visible memory
+- accepted memory supports `session`, `personal`, `chat`, `group`, and explicit `project:<key>` scopes
+- prompt rendering prefers pinned memory, then project, personal, group, chat, session, and automatic summaries
+
 ### Phase 19: backup, log rotation, and recovery hardening
 
 Design intent:

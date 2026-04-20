@@ -122,6 +122,9 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       autoSummariesEnabled: false,
       autoSummaryRecentMessages: 12,
       autoSummaryMaxChars: 1_000,
+      candidateExtractionEnabled: false,
+      candidateRecentMessages: 12,
+      candidateMaxPerRun: 5,
     },
     security: {
       masterKey: "test-master-key",

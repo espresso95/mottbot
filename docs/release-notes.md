@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Model-Assisted Memory
+
+- Added opt-in post-run memory candidate extraction with `MOTTBOT_MEMORY_CANDIDATES_ENABLED`.
+- Added a separate `memory_candidates` review queue with scope, reason, source message IDs, sensitivity, status, and accepted-memory linkage.
+- Added scoped approved memory for session, personal, chat, group, and explicit project keys.
+- Added `/memory candidates`, `/memory accept`, `/memory reject`, `/memory edit`, `/memory pin`, `/memory unpin`, `/memory archive`, `/memory archive candidate`, and `/memory clear candidates`.
+- Prompt construction now includes only approved, unarchived scoped memory and gives pinned memory precedence over automatic summaries.
+
+Operator checklist:
+
+- Leave `MOTTBOT_MEMORY_CANDIDATES_ENABLED=false` until you want the model to propose reviewable memories after completed runs.
+- Use `/memory candidates` to inspect proposals and `/memory accept <id-prefix>` only after reviewing sensitive or long-lived facts.
+- Use `/memory archive <id-prefix>` or `/memory unpin <id-prefix>` to remove prompt influence without deleting the original row.
+
 ### Operator Dashboard
 
 - Added dashboard API panels for runtime health, service status, recent runs, recent failures, and bounded logs.

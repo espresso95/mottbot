@@ -407,7 +407,9 @@ export class DashboardServer {
     const sessionKey = optionalSearchString(requestUrl, "sessionKey");
     const source = optionalSearchString(requestUrl, "source");
     const parsedSource =
-      source === "explicit" || source === "auto_summary" ? (source as SessionMemorySource) : undefined;
+      source === "explicit" || source === "auto_summary" || source === "model_candidate"
+        ? (source as SessionMemorySource)
+        : undefined;
     const limit = searchInteger(requestUrl, "limit", 20, 1, 100);
     if (!memories || !sessionKey) {
       return {

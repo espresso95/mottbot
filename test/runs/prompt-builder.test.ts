@@ -87,7 +87,11 @@ describe("buildPrompt", () => {
         {
           id: "mem-1",
           sessionKey: "s",
+          source: "explicit",
+          scope: "session",
+          scopeKey: "s",
           contentText: "User prefers concise implementation notes.",
+          pinned: false,
           createdAt: 1,
           updatedAt: 1,
         },
@@ -99,9 +103,47 @@ describe("buildPrompt", () => {
 
     expect(prompt.messages[0]).toEqual({
       role: "system",
-      content: "Long-term session memory:\n- User prefers concise implementation notes.",
+      content: "Long-term memory approved for this chat:\n- [session] User prefers concise implementation notes.",
       timestamp: 1,
     });
     expect(prompt.messages[1]).toEqual({ role: "user", content: "hi", timestamp: 2 });
+  });
+
+  it("renders scoped pinned memory before automatic summaries", () => {
+    const prompt = buildPrompt({
+      memories: [
+        {
+          id: "auto",
+          sessionKey: "s",
+          source: "auto_summary",
+          scope: "session",
+          scopeKey: "s",
+          contentText: "Automatic summary.",
+          pinned: false,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "pin",
+          sessionKey: "s",
+          source: "model_candidate",
+          scope: "personal",
+          scopeKey: "user-1",
+          contentText: "Pinned preference.",
+          pinned: true,
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      history: [{ id: "1", sessionKey: "s", role: "user", contentText: "hi", createdAt: 3 }],
+    });
+
+    expect(prompt.messages[0]?.content).toBe(
+      [
+        "Long-term memory approved for this chat:",
+        "- [personal, pinned] Pinned preference.",
+        "- [session, auto] Automatic summary.",
+      ].join("\n"),
+    );
   });
 });

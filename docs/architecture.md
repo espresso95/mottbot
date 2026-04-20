@@ -236,7 +236,7 @@ Implemented now:
 - ingress safety limits for text length, attachment count, per-file size, and total known attachment size
 - health reporting with queued, active, degraded, and stale outbox counters
 - deny-by-default tool registry, health snapshot execution, and opt-in approved restart tool execution
-- explicit session memory
+- scoped approved memory with optional deterministic summaries and reviewed model-proposed candidates
 - host-local instance lease
 - CI release gate for install, native SQLite rebuild, check, tests, coverage, build, package validation, and dirty-worktree detection
 

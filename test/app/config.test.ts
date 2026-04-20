@@ -67,6 +67,9 @@ const configEnvKeys = [
   "MOTTBOT_AUTO_MEMORY_SUMMARIES",
   "MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES",
   "MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS",
+  "MOTTBOT_MEMORY_CANDIDATES_ENABLED",
+  "MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES",
+  "MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN",
 ];
 
 describe("loadConfig", () => {
@@ -168,6 +171,9 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES = "8888";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
     process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
+    process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED = "true";
+    process.env.MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES = "10";
+    process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN = "3";
     process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
     process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY = "true";
 
@@ -226,5 +232,8 @@ describe("loadConfig", () => {
     expect(config.memory.autoSummariesEnabled).toBe(true);
     expect(config.memory.autoSummaryRecentMessages).toBe(16);
     expect(config.memory.autoSummaryMaxChars).toBe(800);
+    expect(config.memory.candidateExtractionEnabled).toBe(true);
+    expect(config.memory.candidateRecentMessages).toBe(10);
+    expect(config.memory.candidateMaxPerRun).toBe(3);
   });
 });

@@ -93,6 +93,11 @@ MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000
 MOTTBOT_GITHUB_MAX_ITEMS=10
 MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
 MOTTBOT_AUTO_MEMORY_SUMMARIES=false
+MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES=12
+MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS=1000
+MOTTBOT_MEMORY_CANDIDATES_ENABLED=false
+MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES=12
+MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN=5
 ```
 
 Local state:
@@ -100,6 +105,7 @@ Local state:
 - `MOTTBOT_SQLITE_PATH` is the bot's runtime database, not test data. Keep it under an ignored directory such as `data/` so chats, sessions, runs, auth profiles, and queues survive restarts without being committed.
 - `MOTTBOT_ATTACHMENT_CACHE_DIR` is runtime cache storage for downloaded Telegram attachments. Keep it ignored as well.
 - `dist/`, `coverage/`, SQLite files, logs, and Telegram session files are generated local artifacts and must not be committed.
+- `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true` makes the bot ask the configured model for memory candidates after completed runs. Candidates are not used until accepted with `/memory accept <id-prefix>`.
 
 Reaction settings:
 

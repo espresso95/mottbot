@@ -270,6 +270,150 @@ describe("RunOrchestrator", () => {
     expect(summary?.contentText).toContain("Use pnpm");
   });
 
+  it("stores model-proposed memory candidates after successful runs when enabled", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+        candidateRecentMessages: 8,
+        candidateMaxPerRun: 2,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "Use pnpm for checks.", transport: "sse", requestIdentity: "req-answer" };
+        })
+        .mockImplementationOnce(async () => ({
+          text: JSON.stringify({
+            candidates: [
+              {
+                contentText: "User prefers pnpm for repository checks.",
+                reason: "Preference appeared in the latest conversation.",
+                scope: "personal",
+                sensitivity: "low",
+              },
+            ],
+          }),
+          transport: "sse",
+          requestIdentity: "req-memory-candidates",
+        })),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memories,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Use pnpm when checking this repo." }),
+      session,
+    });
+    await flushAsync();
+
+    expect(transport.stream).toHaveBeenCalledTimes(2);
+    expect(memories.listCandidates(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User prefers pnpm for repository checks.",
+        sensitivity: "low",
+      }),
+    ]);
+  });
+
+  it("does not fail completed runs when memory candidate extraction returns malformed JSON", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async () => ({ text: "Done.", transport: "sse", requestIdentity: "req-answer" }))
+        .mockImplementationOnce(async () => ({ text: "not json", transport: "sse", requestIdentity: "req-bad-memory" })),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memories,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Remember that I prefer direct answers." }),
+      session,
+    });
+    await flushAsync();
+
+    const row = stores.database.db.prepare<unknown[], { status: string }>("select status from runs limit 1").get();
+    expect(row?.status).toBe("completed");
+    expect(memories.listCandidates(session.sessionKey)).toEqual([]);
+  });
+
   it("persists attachment metadata for user turns", async () => {
     const stores = createStores();
     cleanup.push(() => {

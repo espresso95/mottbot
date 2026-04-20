@@ -286,19 +286,34 @@ Useful commands:
 - `/tool status` shows the model-exposed tool declarations for the caller, enabled host tools, and active approvals for the current session
 - `/tool help` and `/tools` explain tool commands for the current caller
 - `/tool audit` lists bounded recent tool policy and approval decisions for admins
-- `/remember <fact>` stores long-term memory for the current session
-- `/memory` lists current session memory
+- `/remember <fact>` stores approved long-term memory for the current session
+- `/remember scope:personal <fact>` stores approved user-scoped memory when the current Telegram user ID is available
+- `/remember scope:chat <fact>` stores approved chat-scoped memory for the current chat
+- `/remember scope:group <fact>` stores approved group-scoped memory when the route is not a private DM
+- `/remember scope:project:<key> <fact>` stores approved project-scoped memory under the supplied project key
+- `/memory` lists approved memory that applies to the current route
+- `/memory candidates [pending|accepted|rejected|archived|all]` lists model-proposed memory candidates for review
+- `/memory accept <candidate-id-prefix>` approves a pending candidate and stores it as accepted memory
+- `/memory reject <candidate-id-prefix>` rejects a pending candidate
+- `/memory edit <candidate-id-prefix> <replacement fact>` edits candidate text before approval
+- `/memory pin|unpin <memory-id-prefix>` changes prompt precedence for accepted memory
+- `/memory archive <memory-id-prefix>` hides accepted memory without deleting its row
+- `/memory archive candidate <candidate-id-prefix>` archives a pending candidate
+- `/memory clear candidates` deletes pending candidates for the current session
 - `/forget <memory-id-prefix|all|auto>` removes memory
 
-Optional automatic session summaries are deterministic and disabled by default:
+Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default and require explicit approval before they appear in prompts:
 
 ```bash
 MOTTBOT_AUTO_MEMORY_SUMMARIES=true
 MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES=12
 MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS=1000
+MOTTBOT_MEMORY_CANDIDATES_ENABLED=true
+MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES=12
+MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN=5
 ```
 
-Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`.
+Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive them before use.
 
 ## Persistent macOS Service
 

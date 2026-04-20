@@ -818,9 +818,14 @@ describe("TelegramCommandRouter", () => {
       memories,
     );
 
-    await router.maybeHandle(createInboundEvent({ text: "/remember use pnpm", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/remember scope:personal use pnpm", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/memory", isCommand: true }));
-    const memory = memories.list("tg:dm:chat-1:user:user-1")[0];
+    const memory = memories.listForScopeContext({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+    })[0];
     await router.maybeHandle(createInboundEvent({ text: `/forget ${memory?.id.slice(0, 8)}`, isCommand: true }));
 
     expect(api.sendMessage).toHaveBeenCalledWith(
@@ -833,7 +838,110 @@ describe("TelegramCommandRouter", () => {
       expect.stringContaining("use pnpm"),
       expect.any(Object),
     );
-    expect(memories.list("tg:dm:chat-1:user:user-1")).toEqual([]);
+    expect(
+      memories.listForScopeContext({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+      }),
+    ).toEqual([]);
+  });
+
+  it("handles memory candidate review commands", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      memories,
+    );
+    const session = new RouteResolver(stores.config, stores.sessions).resolve(createInboundEvent());
+    const candidate = memories.addCandidate({
+      sessionKey: session.sessionKey,
+      scope: "personal",
+      scopeKey: "user-1",
+      contentText: "User likes short answers.",
+      reason: "Preference stated by user.",
+      sourceMessageIds: ["msg-1"],
+      sensitivity: "low",
+    });
+    if (!candidate.inserted) {
+      throw new Error("expected inserted candidate");
+    }
+
+    await router.maybeHandle(createInboundEvent({ text: "/memory candidates", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({ text: `/memory edit ${candidate.candidate.id.slice(0, 8)} User likes direct answers.`, isCommand: true }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({ text: `/memory accept ${candidate.candidate.id.slice(0, 8)}`, isCommand: true }),
+    );
+    const accepted = memories.listForScopeContext(session)[0];
+    await router.maybeHandle(
+      createInboundEvent({ text: `/memory pin ${accepted?.id.slice(0, 8)}`, isCommand: true }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({ text: `/memory archive ${accepted?.id.slice(0, 8)}`, isCommand: true }),
+    );
+    const rejectable = memories.addCandidate({
+      sessionKey: session.sessionKey,
+      scope: "session",
+      scopeKey: session.sessionKey,
+      contentText: "Reject me.",
+      sensitivity: "low",
+    });
+    if (!rejectable.inserted) {
+      throw new Error("expected rejectable candidate");
+    }
+    await router.maybeHandle(
+      createInboundEvent({ text: `/memory reject ${rejectable.candidate.id.slice(0, 8)}`, isCommand: true }),
+    );
+    memories.addCandidate({
+      sessionKey: session.sessionKey,
+      scope: "session",
+      scopeKey: session.sessionKey,
+      contentText: "Clear me.",
+      sensitivity: "low",
+    });
+    await router.maybeHandle(createInboundEvent({ text: "/memory clear candidates", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("User likes short answers."),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Candidate"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Accepted"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Candidate rejected.", expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Cleared 1 pending memory candidates."),
+      expect.any(Object),
+    );
+    expect(memories.listForScopeContext(session)).toEqual([]);
   });
 
   it("lists and forgets file metadata without clearing unrelated transcript text", async () => {

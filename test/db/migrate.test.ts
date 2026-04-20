@@ -53,7 +53,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(5);
+    expect(countRows(database, "schema_migrations")).toBe(6);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -67,12 +67,13 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(5);
+    expect(migrations).toHaveLength(6);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
     expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
     expect(migrations[2]).toMatchObject({ version: 3, name: "memory sources" });
     expect(migrations[3]).toMatchObject({ version: 4, name: "attachment records" });
     expect(migrations[4]).toMatchObject({ version: 5, name: "tool policy previews" });
+    expect(migrations[5]).toMatchObject({ version: 6, name: "model assisted memory" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -132,7 +133,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(5);
+    expect(countRows(database, "schema_migrations")).toBe(6);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     expect(
@@ -186,6 +187,7 @@ describe("migrateDatabase", () => {
       "tool_approvals",
       "tool_approval_audit",
       "session_memories",
+      "memory_candidates",
       "attachment_records",
       "app_instance_leases",
     ]) {
@@ -202,6 +204,18 @@ describe("migrateDatabase", () => {
       .all()
       .map((row) => row.name);
     expect(memoryColumns).toContain("source");
+    expect(memoryColumns).toContain("scope");
+    expect(memoryColumns).toContain("scope_key");
+    expect(memoryColumns).toContain("pinned");
+    expect(memoryColumns).toContain("archived_at");
+    expect(memoryColumns).toContain("source_candidate_id");
+    const candidateColumns = database.db
+      .prepare<unknown[], { name: string }>("pragma table_info(memory_candidates)")
+      .all()
+      .map((row) => row.name);
+    expect(candidateColumns).toContain("sensitivity");
+    expect(candidateColumns).toContain("status");
+    expect(candidateColumns).toContain("accepted_memory_id");
     const attachmentColumns = database.db
       .prepare<unknown[], { name: string }>("pragma table_info(attachment_records)")
       .all()

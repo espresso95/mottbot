@@ -74,7 +74,7 @@ Implemented in this repo:
 - admin-only read-only local repository and git inspection tools
 - admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
-- explicit session memory through `/remember`, `/memory`, and `/forget`, plus optional deterministic automatic summaries
+- scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
 - host-local instance lease to reduce accidental overlapping bot processes
 
 Planned hardening that is not yet implemented:
@@ -82,5 +82,4 @@ Planned hardening that is not yet implemented:
 - native provider file blocks for non-image attachments when the provider exposes them
 - fully automated webhook, group, and Codex live smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
-- model-generated memory beyond deterministic local summaries
 - distributed multi-instance coordination beyond the host-local lease

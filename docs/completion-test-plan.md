@@ -22,7 +22,7 @@ As of April 19, 2026:
 - Phase 7.2 operator safety limits are implemented for inbound text length, attachment count, per-file attachment size, and combined known attachment size. Rejected messages receive a Telegram reply and do not create queued work.
 - Phase 8 is complete for release readiness: GitHub Actions CI installs with pnpm, rebuilds `better-sqlite3`, runs typecheck/tests/coverage/build/package validation, and fails on dirty generated output.
 - Phase 9 is complete for the read-only tool scope and the first opt-in side-effect tool: a deny-by-default registry exposes health and operator diagnostics tools, optionally exposes admin-only `mottbot_restart_service`, Codex provider tool-call events are normalized, tools execute with timeout/output/call limits, side-effecting tools require one-shot admin approval, tool result and approval metadata is persisted, and Telegram shows concise tool status.
-- Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination, model-generated memory, and second-provider support remain backlog items.
+- Phase 10 has concrete scoped implementations: explicit session memory, optional deterministic automatic summaries, admin diagnostics commands, a model-provider boundary for orchestration, and a host-local instance lease to prevent accidental overlapping bot processes. Full multi-replica coordination and second-provider support remain backlog items.
 - Phase 11 is complete for command discovery and conversation UX: `/help`, `/tool help`, `/tools`, stable run status text, smoke transient filtering, and interrupted-run transient filtering are implemented and tested.
 - Phase 12 is complete for Telegram reactions: the bot can send acknowledgement reactions while processing, optionally clear them after replies, ingest allowed `message_reaction` updates into session context, and expose an approved admin-only Telegram reaction tool.
 - Phase 13 is complete for general file understanding: text, Markdown, code, CSV, TSV, and PDF documents are downloaded within safety limits, converted into bounded prompt-only context for the active run, recorded as metadata and extraction summaries, and inspectable/forgettable through `/files`.
@@ -30,6 +30,7 @@ As of April 19, 2026:
 - Phase 15 is complete for read-only local repository tools: approved roots, default denied paths, safe realpath resolution, bounded file listing/reading/search, and bounded git status/branch/commit/diff tools are implemented behind admin-only read-only tool declarations.
 - Phase 16 is complete for read-only GitHub integration: the host GitHub CLI is the auth boundary, admin-only model tools expose bounded repository/PR/issue/CI summaries, and `/github` commands provide concise operator status without requiring model tool use.
 - Phase 17 is complete for the operator dashboard: dashboard API panels expose runtime, logs, tools, approvals, memory, and delayed restart controls with auth gating, server-side validation, bounded output, and dashboard-side secret redaction.
+- Phase 18 is complete for model-assisted memory: opt-in post-run extraction stores reviewed candidates separately from approved memory, Telegram commands support candidate review and scoped memory management, and prompt construction renders only approved scoped memory.
 
 ## Current Baseline
 
@@ -1124,6 +1125,8 @@ Verification:
 
 This phase upgrades memory from deterministic summaries to model-assisted recall with review controls.
 
+Status: complete for opt-in model candidate extraction, candidate review commands, scoped approved memory, prompt ordering, migrations, and tests.
+
 Dependencies and ordering:
 
 - Best after Phase 11 so memory review commands are discoverable.
@@ -1138,6 +1141,11 @@ Deliverables:
 - Include reason, source message IDs, sensitivity class, and proposed scope.
 - Add tests with mocked model outputs and malformed candidate payloads.
 
+Implemented:
+
+- `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true` enables post-run extraction using the configured model.
+- Candidate output is parsed as strict JSON, deduplicated, sensitivity-upgraded for secret-like text, and ignored on malformed output without failing the completed run.
+
 ### Task 18.2: Add Memory Review Workflow
 
 Deliverables:
@@ -1145,6 +1153,12 @@ Deliverables:
 - Add Telegram commands to review, accept, reject, edit, pin, archive, and clear memory candidates.
 - Require explicit user/admin approval before storing sensitive or long-lived facts.
 - Add tests for candidate lifecycle and permission boundaries.
+
+Implemented:
+
+- `/memory candidates`, `/memory accept`, `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
+- `/memory pin`, `/memory unpin`, and `/memory archive` manage approved memory.
+- Group command restrictions continue to require configured admins for review commands.
 
 ### Task 18.3: Add Memory Scopes
 
@@ -1154,6 +1168,11 @@ Deliverables:
 - Define precedence and prompt rendering order.
 - Add migration and data-model docs for scoped memories.
 - Add tests for prompt inclusion and isolation across sessions.
+
+Implemented:
+
+- `session`, `personal`, `chat`, `group`, and explicit `project:<key>` scopes are supported.
+- Prompt order is pinned memory first, then project, personal, group, chat, session, and automatic summaries.
 
 Edge cases to cover:
 
