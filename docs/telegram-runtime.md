@@ -48,7 +48,7 @@ Mottbot supports Telegram emoji reactions in three separate paths:
 
 - acknowledgement reactions while an accepted message is being processed
 - reaction notifications that become `system` transcript context for the next model turn
-- an approved admin-only model tool for adding or clearing a bot reaction
+- an approved owner/admin-only model tool for adding or clearing a bot reaction
 
 Configuration:
 
@@ -74,12 +74,12 @@ Notification behavior:
 Approved reaction tool:
 
 - `mottbot_telegram_react` adds a Unicode emoji reaction or clears the bot reaction with an empty emoji
-- it is admin-only, side-effecting, and requires the one-shot `/tool approve` flow before execution unless policy is set to dry-run
+- it is owner/admin-only, side-effecting, and requires the one-shot `/tool approve` flow before execution unless policy is set to dry-run
 
 Approved send tool:
 
 - `mottbot_telegram_send_message` sends plain text to the current chat or a configured approved target
-- it is admin-only, side-effecting, and requires the same one-shot approval flow; the target and text are bound into the approval fingerprint
+- it is owner/admin-only, side-effecting, and requires the same one-shot approval flow; the target and text are bound into the approval fingerprint
 
 ## Safety Limits
 
@@ -128,18 +128,19 @@ Current limitation:
 
 `AccessController` applies the following policy:
 
-1. Admin users listed in `telegram.adminUserIds` are always allowed.
-2. If `telegram.allowedChatIds` is non-empty, all other chats are denied unless listed.
-3. Private chats are always allowed.
-4. Commands are handled before model routing, but the command router enforces its own chat and admin policy.
-5. A previously bound route is always allowed.
-6. Replies are allowed only when the replied-to message is a known bot-authored Telegram message for the same chat/thread.
-7. In groups, if `behavior.respondInGroupsOnlyWhenMentioned` is true, only direct mentions are allowed.
+1. Owner/admin roles are always allowed. `telegram.adminUserIds` resolve as protected owner roles.
+2. If `telegram.allowedChatIds` is non-empty, all other chats are denied for non-operators unless listed.
+3. Chat governance `allowedRoles` can deny non-operator messages for a specific chat.
+4. Private chats are allowed when the global and chat governance checks pass.
+5. Commands are handled before model routing, but the command router enforces its own role, chat, and command policy.
+6. A previously bound route is always allowed when role and chat policy pass.
+7. Replies are allowed only when the replied-to message is a known bot-authored Telegram message for the same chat/thread.
+8. In groups, if `behavior.respondInGroupsOnlyWhenMentioned` is true, only direct mentions are allowed.
 
 Decision reasons returned today:
 
 - allow: `private`, `mentioned`, `reply`, `bound`, `command`
-- deny: `chat_not_allowed`, `mention_required`
+- deny: `chat_not_allowed`, `role_not_allowed`, `mention_required`
 
 Current limitation:
 
@@ -202,10 +203,12 @@ When a new route is created, it inherits:
 
 Current policy:
 
-- configured admin users can run commands in any chat, including chats outside `telegram.allowedChatIds`
-- non-admin users can run commands only in private chats
-- when `telegram.allowedChatIds` is non-empty, non-admin private commands are rejected unless the chat is listed
-- non-admin group and supergroup commands are rejected before a session route is created
+- owner/admin roles can run commands in any chat, including chats outside `telegram.allowedChatIds`
+- `telegram.adminUserIds` are treated as protected owners and cannot be revoked from Telegram
+- normal and trusted users can run commands only in private chats by default
+- when `telegram.allowedChatIds` is non-empty, non-operator private commands are rejected unless the chat is listed
+- group and supergroup commands from non-operators are rejected unless a chat policy explicitly allows the command for that role
+- chat governance can restrict allowed roles, allowed commands, allowed models, allowed model tools, memory scopes, and stricter attachment limits per chat
 - denied commands receive a short Telegram reply and are marked processed by update dedupe
 
 ### Session and runtime commands
@@ -236,6 +239,26 @@ Current policy:
 - `/memory clear candidates`
 - `/forget <memory-id-prefix|all|auto>`
 
+### Governance commands
+
+- `/users me`
+- `/users list`
+- `/users grant <user-id> <owner|admin|trusted> [reason]`
+- `/users revoke <user-id> [reason]`
+- `/users audit [limit]`
+- `/users chat show [chat-id]`
+- `/users chat set [chat-id] <json>`
+- `/users chat clear [chat-id]`
+
+Chat policy JSON accepts:
+
+- `allowedRoles`: roles allowed to use that chat for non-operator model routing
+- `commandRoles`: command-to-role allow-list, with `*` as a wildcard
+- `modelRefs`: model refs allowed by `/model`
+- `toolNames`: model tools allowed in that chat
+- `memoryScopes`: memory scopes allowed for `/remember` and candidate acceptance
+- `attachmentMaxFileBytes` and `attachmentMaxPerMessage`: stricter per-chat attachment limits
+
 ### Auth commands
 
 - `/auth status`
@@ -253,7 +276,7 @@ Current policy:
 
 ### Current command behavior
 
-- `/help` returns caller-aware command discovery based on admin status and enabled runtime features
+- `/help` returns caller-aware command discovery based on role and enabled runtime features
 - `/status` includes session key, model, profile, fast mode, profile count, and usage when available
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
@@ -274,9 +297,9 @@ Current policy:
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
 - `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
 - `/tool help` and `/tools` explain tool commands for the current caller
-- `/tool approve` and `/tool revoke` are admin-only controls for side-effecting tools
+- `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
-- `/tool audit` is admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
+- `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 
 ## Session Queue
 
@@ -344,7 +367,7 @@ If execution throws:
 When the model requests an enabled tool, the run orchestrator:
 
 - shows short Telegram status edits while the tool is prepared and running
-- executes read-only tools directly after registry and policy checks, including admin-only repository tools scoped to approved roots and admin-only GitHub tools backed by the host `gh` CLI
+- executes read-only tools directly after registry and policy checks, including owner/admin-only repository tools scoped to approved roots and owner/admin-only GitHub tools backed by the host `gh` CLI
 - executes side-effecting tools only after a fresh one-shot session approval; dry-run policy returns the preview without calling the handler
 - enforces per-run tool-round and tool-call limits
 - persists a `tool` transcript row with call/result metadata, not credentials or raw auth payloads

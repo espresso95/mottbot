@@ -53,7 +53,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(6);
+    expect(countRows(database, "schema_migrations")).toBe(7);
     expect(
       database.db
         .prepare<unknown[], NameRow>(
@@ -67,13 +67,14 @@ describe("migrateDatabase", () => {
     const migrations = database.db
       .prepare<unknown[], MigrationRow>("select version, name, checksum from schema_migrations")
       .all();
-    expect(migrations).toHaveLength(6);
+    expect(migrations).toHaveLength(7);
     expect(migrations[0]).toMatchObject({ version: 1, name: "initial" });
     expect(migrations[1]).toMatchObject({ version: 2, name: "operator tools memory leases" });
     expect(migrations[2]).toMatchObject({ version: 3, name: "memory sources" });
     expect(migrations[3]).toMatchObject({ version: 4, name: "attachment records" });
     expect(migrations[4]).toMatchObject({ version: 5, name: "tool policy previews" });
     expect(migrations[5]).toMatchObject({ version: 6, name: "model assisted memory" });
+    expect(migrations[6]).toMatchObject({ version: 7, name: "telegram governance" });
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {
@@ -133,7 +134,7 @@ describe("migrateDatabase", () => {
 
     migrateDatabase(database);
 
-    expect(countRows(database, "schema_migrations")).toBe(6);
+    expect(countRows(database, "schema_migrations")).toBe(7);
     expect(countRows(database, "session_routes")).toBe(1);
     expect(countRows(database, "runs")).toBe(1);
     expect(
@@ -174,7 +175,7 @@ describe("migrateDatabase", () => {
     );
   });
 
-  it("creates operator tool, memory, attachment, and instance lease tables", () => {
+  it("creates operator tool, memory, attachment, governance, and instance lease tables", () => {
     const { database, tempDir } = createDatabase();
     cleanup.push(() => {
       database.close();
@@ -189,6 +190,9 @@ describe("migrateDatabase", () => {
       "session_memories",
       "memory_candidates",
       "attachment_records",
+      "telegram_user_roles",
+      "telegram_chat_policies",
+      "telegram_governance_audit",
       "app_instance_leases",
     ]) {
       expect(

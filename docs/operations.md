@@ -72,7 +72,7 @@ Required items:
 
 - a Telegram bot token from BotFather stored in `TELEGRAM_BOT_TOKEN`
 - a strong local `MOTTBOT_MASTER_KEY`
-- the operator's Telegram user ID in `MOTTBOT_ADMIN_USER_IDS`
+- the owner's Telegram user ID in `MOTTBOT_ADMIN_USER_IDS`
 - optional test chat IDs in `MOTTBOT_ALLOWED_CHAT_IDS`
 - a runtime SQLite path such as `./data/mottbot.sqlite`
 - a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite` when validating without touching runtime data
@@ -188,6 +188,51 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 The harness also accepts `MOTTBOT_USER_SMOKE_TARGET`, `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE`, and `MOTTBOT_USER_SMOKE_FILE_PATH` for group, reply-gating, and attachment smoke checks.
 
+## User Roles And Chat Governance
+
+`MOTTBOT_ADMIN_USER_IDS` is the bootstrap owner list. These users resolve as protected owners and cannot be revoked from Telegram commands. Additional roles are stored in SQLite:
+
+- `owner`: full recovery and role-management authority
+- `admin`: operator authority for diagnostics, GitHub status, tool approvals, and audit reads
+- `trusted`: normal chat use plus any per-chat command permissions granted by policy
+- `user`: default role for unknown callers
+
+Telegram governance commands:
+
+- `/users me` shows the caller role
+- `/users list` lists configured and database roles for owner/admin callers
+- `/users grant <user-id> <owner|admin|trusted> [reason]` grants a database role for owner callers
+- `/users revoke <user-id> [reason]` revokes a database role for owner callers
+- `/users audit [limit]` shows bounded role and chat-policy audit records for owner/admin callers
+- `/users chat show [chat-id]` displays a chat policy
+- `/users chat set [chat-id] <json>` sets a chat policy for owner callers
+- `/users chat clear [chat-id]` clears a chat policy for owner callers
+
+Example chat policy:
+
+```json
+{
+  "allowedRoles": ["owner", "admin", "trusted"],
+  "commandRoles": {
+    "help": ["trusted"],
+    "status": ["trusted"]
+  },
+  "modelRefs": ["openai-codex/gpt-5.4-mini"],
+  "toolNames": ["mottbot_health_snapshot"],
+  "memoryScopes": ["session", "personal"],
+  "attachmentMaxPerMessage": 2,
+  "attachmentMaxFileBytes": 5242880
+}
+```
+
+Operational notes:
+
+- owners and admins can still run governance commands if a bad chat policy would otherwise block recovery
+- non-operator group commands require an explicit `commandRoles` entry for that command or wildcard
+- model tool declarations are filtered by both global tool policy and per-chat `toolNames`, and execution is rechecked before handlers run
+- `/model` refuses a model not listed in `modelRefs` when a chat policy sets that list
+- `/remember` and memory candidate acceptance refuse scopes not listed in `memoryScopes`
+
 ## Operator Tools
 
 Read-only tools are always deny-by-default and registry scoped. Enabled read-only tools:
@@ -271,15 +316,15 @@ When the target is omitted, `mottbot_telegram_send_message` sends to the current
 Optional per-tool policy:
 
 ```bash
-MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
+MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["owner","admin","trusted","user"],"maxOutputBytes":4000}}'
 ```
 
-Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Admin-only tool definitions remain admin-only even if policy config attempts to expose them to normal users. Side-effecting tools always require approval for real execution; `requiresApproval:false` is ignored for write-capable tools.
+Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Owner/admin-only tool definitions remain owner/admin-only even if policy config attempts to expose them to trusted or normal users. Side-effecting tools always require approval for real execution; `requiresApproval:false` is ignored for write-capable tools.
 
 Approval flow:
 
 1. The model requests a side-effecting tool call and receives an approval-required denial with a sanitized preview.
-2. An admin approves the latest pending request for the current session:
+2. An owner/admin approves the latest pending request for the current session:
 
    ```text
    /tool approve mottbot_local_note_create approved draft note
@@ -300,12 +345,12 @@ Useful commands:
 - `/tool approve <tool-name> <reason>`
 - `/tool revoke <tool-name>`
 - `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
-- `/runs [limit] [here]` lists recent runs for admins; add `here` to filter to the current session
-- `/debug [summary|service|runs|errors|logs|config]` shows admin diagnostics
+- `/runs [limit] [here]` lists recent runs for owner/admin callers; add `here` to filter to the current session
+- `/debug [summary|service|runs|errors|logs|config]` shows owner/admin diagnostics
 - `/help` shows commands available to the current caller
 - `/tool status` shows the model-exposed tool declarations for the caller, enabled host tools, and active approvals for the current session
 - `/tool help` and `/tools` explain tool commands for the current caller
-- `/tool audit` lists bounded recent tool policy and approval decisions for admins
+- `/tool audit` lists bounded recent tool policy and approval decisions for owner/admin callers
 - `/remember <fact>` stores approved long-term memory for the current session
 - `/remember scope:personal <fact>` stores approved user-scoped memory when the current Telegram user ID is available
 - `/remember scope:chat <fact>` stores approved chat-scoped memory for the current chat
@@ -609,7 +654,7 @@ Current runtime:
 - one placeholder message per run
 - in-place edits during streaming
 
-Admin controls are exposed through Telegram commands:
+Runtime controls are exposed through Telegram commands:
 
 - `/status`
 - `/health`
@@ -626,10 +671,11 @@ Admin controls are exposed through Telegram commands:
 
 Command authorization:
 
-- configured admin users can run commands in any chat
-- non-admin users can run commands only in private chats
-- if `MOTTBOT_ALLOWED_CHAT_IDS` is set, non-admin private commands must come from a listed chat
-- non-admin group and supergroup commands are rejected before creating or mutating a session route
+- owner/admin roles can run commands in any chat
+- non-operator users can run commands only in private chats unless chat governance explicitly allows a group command
+- if `MOTTBOT_ALLOWED_CHAT_IDS` is set, non-operator private commands must come from a listed chat
+- non-operator group and supergroup commands are rejected before creating or mutating a session route unless a chat policy allows the command
+- `/users` commands manage additional database-backed roles and per-chat policy
 
 Command validation:
 

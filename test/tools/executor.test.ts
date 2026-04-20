@@ -271,6 +271,39 @@ describe("ToolExecutor", () => {
     }
   });
 
+  it("denies execution when chat governance rejects the tool", async () => {
+    const stores = createStores();
+    try {
+      const definition = readOnlyTool();
+      const registry = new ToolRegistry([definition]);
+      const approvals = new ToolApprovalStore(stores.database, stores.clock);
+      const executor = new ToolExecutor(registry, {
+        clock: stores.clock,
+        approvals,
+        handlers: {
+          lookup_value: () => "value",
+        },
+        isToolAllowed: ({ toolName }) => toolName !== "lookup_value",
+      });
+
+      const result = await executor.execute({
+        id: "call-chat-denied",
+        name: "lookup_value",
+        arguments: {},
+      }, {
+        chatId: "chat-1",
+        requestedByUserId: "user-1",
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.errorCode).toBe("chat_denied");
+      expect(approvals.listAudit({ decisionCode: "chat_denied" })).toHaveLength(1);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
   it("uses policy output caps and dry-run mode", async () => {
     const definition = readOnlyTool();
     const registry = new ToolRegistry([definition]);

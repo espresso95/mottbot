@@ -2,6 +2,8 @@ import type { AppConfig } from "../app/config.js";
 import type { TelegramMessageStore } from "./message-store.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { InboundEvent } from "./types.js";
+import type { TelegramGovernanceStore } from "./governance.js";
+import { isGovernanceOperatorRole } from "./governance.js";
 
 export type AccessDecision =
   | { allow: true; reason: "private" | "mentioned" | "reply" | "bound" | "command" }
@@ -12,10 +14,13 @@ export class AccessController {
     private readonly config: AppConfig,
     private readonly sessions: SessionStore,
     private readonly messages: TelegramMessageStore,
+    private readonly governance?: TelegramGovernanceStore,
   ) {}
 
   evaluate(event: InboundEvent): AccessDecision {
-    if (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId)) {
+    const role = this.governance?.resolveUserRole(event.fromUserId) ??
+      (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId) ? "owner" : "user");
+    if (isGovernanceOperatorRole(role)) {
       return { allow: true, reason: event.isCommand ? "command" : "private" };
     }
 
@@ -24,6 +29,10 @@ export class AccessController {
       !this.config.telegram.allowedChatIds.includes(event.chatId)
     ) {
       return { allow: false, reason: "chat_not_allowed" };
+    }
+
+    if (this.governance && !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })) {
+      return { allow: false, reason: "role_not_allowed" };
     }
 
     if (event.chatType === "private") {

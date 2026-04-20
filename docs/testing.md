@@ -10,6 +10,7 @@ The test suite is organized around the system boundaries that matter operational
 - provider model selection and usage normalization
 - transport fallback behavior
 - Telegram command and outbox behavior
+- Telegram role governance and chat-policy enforcement
 - full run orchestration across queue, storage, transport, and rendering
 - deny-by-default tool registry behavior
 
@@ -74,10 +75,10 @@ It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELE
 
 ## Verified Results
 
-Verified locally on April 19, 2026:
+Verified locally on April 20, 2026:
 
 - `pnpm check`: passes
-- `pnpm test`: 55 test files, 214 tests passing
+- `pnpm test`: 61 test files, 249 tests passing
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
@@ -89,14 +90,14 @@ The mocked OAuth login test intentionally prints a normalized authorization URL 
 https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_access+model.request+api.responses.write
 ```
 
-Last recorded coverage run on April 19, 2026:
+Last recorded coverage run on April 20, 2026:
 
 | Metric | Result |
 | --- | ---: |
-| Statements | 84.67% |
-| Branches | 73.59% |
-| Functions | 92.74% |
-| Lines | 84.59% |
+| Statements | 84.56% |
+| Branches | 74.36% |
+| Functions | 93.4% |
+| Lines | 84.48% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

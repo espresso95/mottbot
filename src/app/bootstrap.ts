@@ -42,6 +42,7 @@ import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
 import { createLocalWriteToolHandlers } from "../tools/local-write-handlers.js";
 import { createGithubToolHandlers } from "../tools/github-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
+import { TelegramGovernanceStore } from "../telegram/governance.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -65,6 +66,9 @@ export async function bootstrapApplication() {
   const memoryStore = new MemoryStore(database, systemClock);
   const attachmentRecordStore = new AttachmentRecordStore(database, systemClock);
   const toolApprovalStore = new ToolApprovalStore(database, systemClock);
+  const governance = new TelegramGovernanceStore(database, systemClock, {
+    ownerUserIds: config.telegram.adminUserIds,
+  });
   const tokenResolver = new CodexTokenResolver(authProfiles, logger);
   const transport = new CodexTransport(database, logger);
   const updateStore = new TelegramUpdateStore(database, systemClock);
@@ -84,7 +88,7 @@ export async function bootstrapApplication() {
     systemClock,
     logger,
     updateStore,
-    new AccessController(config, sessionStore, messageStore),
+    new AccessController(config, sessionStore, messageStore, governance),
     {} as never,
     routeResolver,
     {} as never,
@@ -120,6 +124,8 @@ export async function bootstrapApplication() {
       ...createGithubToolHandlers(github),
     },
     adminUserIds: config.telegram.adminUserIds,
+    resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
+    isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
     approvals: toolApprovalStore,
     policy: toolPolicy,
     defaultRestartDelayMs: config.tools.restartDelayMs,
@@ -181,6 +187,12 @@ export async function bootstrapApplication() {
     reactions,
     attachmentRecordStore,
     toolPolicy,
+    {
+      resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
+      isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
+      validateAttachments: ({ chatId, attachments }) =>
+        governance.validateAttachments({ chatId, attachments }),
+    },
   );
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
@@ -200,13 +212,14 @@ export async function bootstrapApplication() {
     attachmentRecordStore,
     toolPolicy,
     github,
+    governance,
   );
   const bot = new TelegramBotServer(
     config,
     systemClock,
     logger,
     updateStore,
-    new AccessController(config, sessionStore, messageStore),
+    new AccessController(config, sessionStore, messageStore, governance),
     commands,
     routeResolver,
     orchestrator,
@@ -223,6 +236,7 @@ export async function bootstrapApplication() {
     tokenResolver,
     health,
     diagnostics,
+    governance,
     bot,
     dashboard,
     async start() {

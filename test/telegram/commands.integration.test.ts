@@ -9,6 +9,7 @@ import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import type { GithubReadOperations } from "../../src/tools/github-read.js";
+import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -160,7 +161,7 @@ describe("TelegramCommandRouter", () => {
     );
     expect(api.sendMessage).toHaveBeenCalledWith(
       "allowed-chat",
-      "Only configured admins can run bot commands in groups.",
+      "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.",
       expect.any(Object),
     );
   });
@@ -488,7 +489,7 @@ describe("TelegramCommandRouter", () => {
     expect(github.repository).not.toHaveBeenCalled();
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      "Only configured admins can inspect GitHub.",
+      "Only owner/admin roles can inspect GitHub.",
       expect.any(Object),
     );
   });
@@ -698,6 +699,101 @@ describe("TelegramCommandRouter", () => {
     expect(nonAdminToolSection).not.toContain("mottbot_restart_service");
   });
 
+  it("manages governance roles and enforces chat command and model policy", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
+      ownerUserIds: stores.config.telegram.adminUserIds,
+    });
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governance,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/users me", fromUserId: "user-1", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({ text: "/users grant user-2 trusted onboarding", fromUserId: "admin-1", isCommand: true }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/users list", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({
+        text: '/users chat set group-1 {"allowedRoles":["trusted"],"commandRoles":{"help":["trusted"]},"modelRefs":["openai-codex/gpt-5.4-mini"],"memoryScopes":["session"],"attachmentMaxPerMessage":1}',
+        fromUserId: "admin-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/help",
+        fromUserId: "user-2",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/help",
+        fromUserId: "user-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/model openai-codex/gpt-5.4",
+        fromUserId: "admin-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(
+      createInboundEvent({
+        chatId: "group-1",
+        chatType: "group",
+        text: "/model openai-codex/gpt-5.4-mini",
+        fromUserId: "admin-1",
+        isCommand: true,
+      }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/users audit", fromUserId: "admin-1", isCommand: true }));
+    await router.maybeHandle(
+      createInboundEvent({ text: "/users revoke user-2 cleanup", fromUserId: "admin-1", isCommand: true }),
+    );
+
+    const replies = vi.mocked(api.sendMessage).mock.calls.map(([, text]) => String(text));
+    expect(replies).toContain("Your role: user");
+    expect(replies).toContain("Granted trusted to user-2.");
+    expect(replies.some((reply) => reply.includes("user-2: trusted"))).toBe(true);
+    expect(replies.some((reply) => reply.includes("Mottbot help"))).toBe(true);
+    expect(replies).toContain("Your role is not allowed to use this chat.");
+    expect(replies).toContain("Model openai-codex/gpt-5.4 is not allowed in this chat.");
+    expect(replies).toContain("Model set to openai-codex/gpt-5.4-mini.");
+    expect(replies.some((reply) => reply.includes("grant_role"))).toBe(true);
+    expect(replies).toContain("Revoked role for user-2.");
+  });
+
   it("shows tool help through /tool help and /tools", async () => {
     const stores = createStores({
       tools: {
@@ -790,7 +886,7 @@ describe("TelegramCommandRouter", () => {
     );
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      "Only configured admins can inspect diagnostics.",
+      "Only owner/admin roles can inspect diagnostics.",
       expect.any(Object),
     );
   });
@@ -1081,7 +1177,7 @@ describe("TelegramCommandRouter", () => {
 
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      "Only configured admins can approve side-effecting tools.",
+      "Only owner/admin roles can approve side-effecting tools.",
       expect.any(Object),
     );
     expect(approvals.listActive("tg:dm:chat-1:user:admin-1")).toHaveLength(1);
@@ -1110,7 +1206,7 @@ describe("TelegramCommandRouter", () => {
     );
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
-      "Only configured admins can inspect tool audit records.",
+      "Only owner/admin roles can inspect tool audit records.",
       expect.any(Object),
     );
   });

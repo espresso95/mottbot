@@ -211,7 +211,7 @@ Every enabled tool receives a runtime policy before it can be exposed or execute
 
 Policy fields:
 
-- `allowedRoles`: `admin`, `user`, or both
+- `allowedRoles`: any of `owner`, `admin`, `trusted`, and `user`
 - `allowedChatIds`: optional Telegram chat allowlist for the tool
 - `requiresApproval`: read-only tools are always false; side-effecting tools always require approval for real execution
 - `dryRun`: return the sanitized preview without calling the handler
@@ -227,20 +227,21 @@ Example:
 ```json
 {
   "mottbot_health_snapshot": {
-    "allowedRoles": ["admin", "user"],
+    "allowedRoles": ["owner", "admin", "trusted", "user"],
     "allowedChatIds": ["123456789"],
     "maxOutputBytes": 4000
   },
   "mottbot_restart_service": {
-    "allowedRoles": ["admin"],
+    "allowedRoles": ["owner", "admin"],
     "requiresApproval": true,
     "dryRun": false
   }
 }
 ```
 
-Admin-only tool definitions remain admin-only even if policy config tries to expose them to normal users.
+Admin-only tool definitions remain owner/admin-only even if policy config tries to expose them to trusted or normal users.
 For side-effecting tools, `requiresApproval:false` is ignored; use `dryRun:true` to return a preview without executing a side effect.
+Per-chat `toolNames` governance policy further filters model-exposed tools and is rechecked immediately before tool execution.
 
 ## Runtime Behavior
 

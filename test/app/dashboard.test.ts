@@ -245,6 +245,9 @@ describe("DashboardServer", () => {
     await invokeRequest(createRequest("GET", "/api/dashboard/tools"), toolsResponse);
     const toolsPayload = JSON.parse(toolsResponse.body);
     expect(toolsPayload.enabledTools.some((tool: { name: string }) => tool.name === "mottbot_health_snapshot")).toBe(true);
+    expect(toolsPayload.modelTools.owner).toContain("mottbot_recent_runs");
+    expect(toolsPayload.modelTools.trusted).toContain("mottbot_health_snapshot");
+    expect(toolsPayload.modelTools.trusted).not.toContain("mottbot_recent_runs");
     expect(toolsResponse.body).not.toContain("tool-token");
     expect(toolsResponse.body).not.toContain("another-secret");
 

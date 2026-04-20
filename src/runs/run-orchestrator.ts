@@ -40,7 +40,7 @@ import {
   type TranscriptAttachmentMetadata,
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
-import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
+import { isToolAdminRole, type ToolCallerRole, type ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
@@ -52,6 +52,15 @@ import { UsageRecorder } from "./usage-recorder.js";
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
+
+export type RunGovernancePolicy = {
+  resolveCallerRole?: (userId: string | undefined) => ToolCallerRole;
+  isToolAllowed?: (params: { chatId: string; toolName: string }) => boolean;
+  validateAttachments?: (params: {
+    chatId: string;
+    attachments: readonly InboundEvent["attachments"][number][];
+  }) => { message: string } | undefined;
+};
 
 function buildUserTranscriptPayload(
   event: InboundEvent,
@@ -135,6 +144,7 @@ export class RunOrchestrator {
     private readonly reactions?: TelegramReactionService,
     private readonly attachmentRecords?: AttachmentRecordStore,
     private readonly toolPolicy?: ToolPolicyEngine,
+    private readonly governance?: RunGovernancePolicy,
   ) {
     this.usageRecorder = new UsageRecorder(this.runs);
   }
@@ -306,6 +316,13 @@ export class RunOrchestrator {
         status: "starting",
         startedAt: this.clock.now(),
       });
+      const attachmentPolicyViolation = this.governance?.validateAttachments?.({
+        chatId: params.event.chatId,
+        attachments: params.event.attachments,
+      });
+      if (attachmentPolicyViolation) {
+        throw new Error(attachmentPolicyViolation.message);
+      }
       const auth = await this.tokenResolver.resolve(params.session.profileId);
       attachmentPreparation = await this.attachments.prepare({
         attachments: params.event.attachments,
@@ -339,19 +356,21 @@ export class RunOrchestrator {
       });
       await cleanupAttachments();
       const collector = new StreamCollector();
-      const includeAdminTools = Boolean(
-        params.event.fromUserId && this.config.telegram.adminUserIds.includes(params.event.fromUserId),
-      );
-      const callerRole: ToolCallerRole = includeAdminTools ? "admin" : "user";
+      const callerRole = this.callerRole(params.event.fromUserId);
+      const includeAdminTools = isToolAdminRole(callerRole);
       const toolDeclarations =
         this.toolRegistry && this.toolExecutor
           ? this.toolRegistry.listModelDeclarations({
               includeAdminTools,
               filter: (definition) =>
-                this.toolPolicy?.evaluate(definition, {
+                (this.toolPolicy?.evaluate(definition, {
                   role: callerRole,
                   chatId: params.event.chatId,
-                }).allowed ?? true,
+                }).allowed ?? true) &&
+                (this.governance?.isToolAllowed?.({
+                  chatId: params.event.chatId,
+                  toolName: definition.name,
+                }) ?? true),
             })
           : undefined;
       const extraContextMessages: ProviderMessage[] = [];
@@ -545,6 +564,11 @@ export class RunOrchestrator {
       sessionKey,
       contentText: summary,
     });
+  }
+
+  private callerRole(userId: string | undefined): ToolCallerRole {
+    return this.governance?.resolveCallerRole?.(userId) ??
+      (userId && this.config.telegram.adminUserIds.includes(userId) ? "owner" : "user");
   }
 
   private async proposeMemoryCandidates(params: {

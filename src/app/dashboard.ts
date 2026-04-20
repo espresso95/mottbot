@@ -380,10 +380,12 @@ export class DashboardServer {
       enabledTools: registry?.listEnabled().map(summarizeTool) ?? [],
       modelTools: registry
         ? {
-            user: registry.listModelDeclarations().map((tool) => tool.name),
+            owner: registry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name),
             admin: registry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name),
+            trusted: registry.listModelDeclarations().map((tool) => tool.name),
+            user: registry.listModelDeclarations().map((tool) => tool.name),
           }
-        : { user: [], admin: [] },
+        : { owner: [], admin: [], trusted: [], user: [] },
       activeApprovals: approvals
         ? sessionKey
           ? approvals.listActive(sessionKey).map(summarizeApproval)

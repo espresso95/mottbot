@@ -134,7 +134,40 @@ Tool policy settings:
 Example:
 
 ```bash
-MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["admin","user"],"maxOutputBytes":4000}}'
+MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["owner","admin","trusted","user"],"maxOutputBytes":4000}}'
+```
+
+User role and chat policy setup:
+
+- `MOTTBOT_ADMIN_USER_IDS` is the bootstrap owner list; these users cannot be revoked from Telegram commands
+- use `/users me` to confirm your role after the bot starts
+- use `/users grant <user-id> <owner|admin|trusted> [reason]` from an owner chat to add another operator
+- use `/users revoke <user-id> [reason]` to remove a database-backed role
+- use `/users list` and `/users audit [limit]` to inspect the current role state and recent changes
+
+Per-chat policy is stored in SQLite and managed from Telegram:
+
+```text
+/users chat show [chat-id]
+/users chat set [chat-id] <json>
+/users chat clear [chat-id]
+```
+
+Example policy for a group that lets trusted users run only help/status, limits models and tools, and keeps attachment use small:
+
+```json
+{
+  "allowedRoles": ["owner", "admin", "trusted"],
+  "commandRoles": {
+    "help": ["trusted"],
+    "status": ["trusted"]
+  },
+  "modelRefs": ["openai-codex/gpt-5.4-mini"],
+  "toolNames": ["mottbot_health_snapshot"],
+  "memoryScopes": ["session", "personal"],
+  "attachmentMaxPerMessage": 2,
+  "attachmentMaxFileBytes": 5242880
+}
 ```
 
 Repository tool settings:

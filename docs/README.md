@@ -1,6 +1,6 @@
 # Mottbot Design Docs
 
-These documents describe the Telegram-first Codex subscription bot implemented in this repo. They are aligned to the current codebase as verified on April 19, 2026.
+These documents describe the Telegram-first Codex subscription bot implemented in this repo. They are aligned to the current codebase as verified on April 20, 2026.
 
 ## Doc Map
 
@@ -76,6 +76,7 @@ Implemented in this repo:
 - admin-only approval-gated local note creation and Telegram send/reaction tools
 - local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
 - scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
+- persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`
 - host-local backup, restore validation, and launchd log rotation commands
 - host-local instance lease to reduce accidental overlapping bot processes
 

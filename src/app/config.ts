@@ -8,7 +8,7 @@ dotenv.config();
 
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
-const toolCallerRoleSchema = z.enum(["admin", "user"]);
+const toolCallerRoleSchema = z.enum(["owner", "admin", "trusted", "user"]);
 const toolPolicyConfigSchema = z.object({
   allowedRoles: z.array(toolCallerRoleSchema).optional(),
   allowedChatIds: z.array(z.string()).optional(),

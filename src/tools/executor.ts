@@ -13,6 +13,7 @@ import {
 import {
   buildToolApprovalPreview,
   createToolPolicyEngine,
+  isToolAdminRole,
   createToolRequestFingerprint,
   type ToolCallerRole,
   type ToolPolicy,
@@ -57,6 +58,8 @@ export type ToolExecutorDependencies = {
   restartService?: RestartServiceHandler;
   defaultRestartDelayMs?: number;
   adminUserIds?: string[];
+  resolveCallerRole?: (userId: string | undefined) => ToolCallerRole;
+  isToolAllowed?: (params: { chatId: string; toolName: string }) => boolean;
 };
 
 export type ToolExecutionOptions = {
@@ -116,6 +119,25 @@ export class ToolExecutor {
       const definition = this.registry.resolve(call.name, { allowSideEffects: true });
       const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
       const role = this.callerRole(options.requestedByUserId);
+      if (
+        options.chatId &&
+        this.deps.isToolAllowed &&
+        !this.deps.isToolAllowed({ chatId: options.chatId, toolName: definition.name })
+      ) {
+        const decision: ToolApprovalDecision = {
+          allowed: false,
+          code: "chat_denied",
+          message: `Tool ${definition.name} is not allowed in this chat.`,
+        };
+        this.recordAudit({
+          definition,
+          decision,
+          requestedAt: startedAt,
+          decidedAt: this.deps.clock.now(),
+          options,
+        });
+        return this.errorResult(call, startedAt, decision.code, decision.message);
+      }
       const policyDecision = this.policy.evaluate(definition, {
         role,
         chatId: options.chatId,
@@ -134,7 +156,7 @@ export class ToolExecutor {
         });
         return this.errorResult(call, startedAt, policyDecision.code, policyDecision.message);
       }
-      if (definition.requiresAdmin && role !== "admin") {
+      if (definition.requiresAdmin && !isToolAdminRole(role)) {
         const decision: ToolApprovalDecision = {
           allowed: false,
           code: "role_denied",
@@ -224,7 +246,7 @@ export class ToolExecutor {
   }
 
   private callerRole(userId: string | undefined): ToolCallerRole {
-    return this.isAdmin(userId) ? "admin" : "user";
+    return this.deps.resolveCallerRole?.(userId) ?? (this.isAdmin(userId) ? "admin" : "user");
   }
 
   private evaluateApproval(params: {

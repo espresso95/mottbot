@@ -477,6 +477,60 @@ Notable fields:
 
 Candidates are created only when `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true`. The extraction prompt asks for strict JSON, source message IDs, proposed scope, reason, and sensitivity. Malformed output is ignored and logged without failing the user-facing run. `/memory accept <id-prefix>` copies a pending candidate into `session_memories`; `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
 
+### `telegram_user_roles`
+
+Purpose:
+
+- persistent Telegram role assignments for users not listed in bootstrap config
+- owner/admin/trusted-user governance for multi-user operation
+
+Notable fields:
+
+- `user_id`
+- `role`: `owner`, `admin`, or `trusted`
+- `granted_by_user_id`
+- `reason`
+- timestamps
+
+`telegram.adminUserIds` are treated as config-source owners and are not duplicated into this table. Telegram commands cannot revoke or downgrade configured owners. Removing the last database owner is rejected when no config owner exists.
+
+### `telegram_chat_policies`
+
+Purpose:
+
+- persistent per-chat governance policy
+- restrict non-operator chat access, group command access, model refs, model tools, memory scopes, and stricter attachment limits
+
+Policy JSON fields:
+
+- `allowedRoles`
+- `commandRoles`, including optional `*` wildcard
+- `modelRefs`
+- `toolNames`
+- `memoryScopes`
+- `attachmentMaxFileBytes`
+- `attachmentMaxPerMessage`
+
+Owner/admin users can still run governance commands for recovery if a chat policy would otherwise block command access.
+
+### `telegram_governance_audit`
+
+Purpose:
+
+- append-only audit for role grants, role revokes, chat policy changes, and chat policy clears
+
+Notable fields:
+
+- `actor_user_id`
+- `target_user_id`
+- `chat_id`
+- `action`
+- `role`
+- `previous_role`
+- `policy_json`
+- `reason`
+- `created_at`
+
 ### `app_instance_leases`
 
 Purpose:
@@ -520,7 +574,7 @@ Current retention policy is explicit but operator-driven:
 - old bot-message ACL rows can be pruned, which means replies to those old Telegram messages will no longer be accepted only by reply relationship
 - auth profiles are updated in place
 - session routes are not pruned by the retention helper
-- consumed or expired tool approvals and session memories are retained until explicit future cleanup support is added
+- consumed or expired tool approvals, session memories, and governance audit rows are retained until explicit future cleanup support is added
 
 There is no automatic compaction or archival task yet. Operators should back up SQLite before destructive pruning.
 

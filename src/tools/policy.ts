@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { ToolDefinition, ToolSideEffect } from "./registry.js";
 
-export type ToolCallerRole = "admin" | "user";
+export type ToolCallerRole = "owner" | "admin" | "trusted" | "user";
 
 export type ToolPolicyConfig = {
   allowedRoles?: ToolCallerRole[];
@@ -44,6 +44,10 @@ const MAX_PREVIEW_ARGUMENT_CHARS = 1_200;
 
 function uniqueRoles(values: ToolCallerRole[]): ToolCallerRole[] {
   return [...new Set(values)];
+}
+
+export function isToolAdminRole(role: ToolCallerRole): boolean {
+  return role === "owner" || role === "admin";
 }
 
 function sanitizeArgument(value: unknown): unknown {
@@ -106,7 +110,7 @@ function sideEffectDescription(sideEffect: ToolSideEffect): string {
 function defaultPolicy(definition: ToolDefinition): ToolPolicy {
   return {
     toolName: definition.name,
-    allowedRoles: definition.requiresAdmin ? ["admin"] : ["admin", "user"],
+    allowedRoles: definition.requiresAdmin ? ["owner", "admin"] : ["owner", "admin", "trusted", "user"],
     allowedChatIds: [],
     requiresApproval: definition.sideEffect !== "read_only",
     dryRun: false,
@@ -119,7 +123,9 @@ function mergePolicy(definition: ToolDefinition, override: ToolPolicyConfig | un
   const requestedRoles = uniqueRoles(override?.allowedRoles ?? base.allowedRoles);
   return {
     toolName: definition.name,
-    allowedRoles: definition.requiresAdmin ? requestedRoles.filter((role) => role === "admin") : requestedRoles,
+    allowedRoles: definition.requiresAdmin
+      ? uniqueRoles(["owner", ...requestedRoles.filter(isToolAdminRole)])
+      : requestedRoles,
     allowedChatIds: override?.allowedChatIds?.map((chatId) => chatId.trim()).filter(Boolean) ?? base.allowedChatIds,
     requiresApproval: definition.sideEffect === "read_only" ? false : true,
     dryRun: override?.dryRun ?? base.dryRun,

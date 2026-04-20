@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Multi-User Roles And Chat Governance
+
+- Added persistent Telegram owner/admin/trusted roles, with `MOTTBOT_ADMIN_USER_IDS` treated as protected owners.
+- Added `telegram_user_roles`, `telegram_chat_policies`, and `telegram_governance_audit` tables.
+- Added `/users me`, `/users list`, `/users grant`, `/users revoke`, `/users audit`, and `/users chat show|set|clear`.
+- Added per-chat policy for allowed roles, group command permissions, allowed models, allowed model tools, memory scopes, and stricter attachment limits.
+- Model tool declarations are filtered by per-chat policy and tool execution rechecks the same chat policy before handlers run.
+- `/model`, `/remember`, and memory candidate acceptance now honor chat governance policy when configured.
+
+Operator checklist:
+
+- Confirm your bootstrap owner with `/users me`.
+- Grant a second operator before broad rollout with `/users grant <user-id> admin <reason>`.
+- Use `/users chat set <chat-id> <json>` to limit group use for trusted users.
+- Use `/users audit` after role or chat-policy changes to confirm the expected audit rows.
+
 ### Write-Capable Approved Tools
 
 - Added admin-only `mottbot_local_note_create` for create-only `.md` and `.txt` draft notes under approved local-write roots.

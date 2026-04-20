@@ -37,6 +37,17 @@ import {
   formatGithubWorkflowRuns,
   type GithubReadOperations,
 } from "../tools/github-read.js";
+import {
+  isGovernanceOperatorRole,
+  parseChatGovernancePolicy,
+  parseTelegramUserRole,
+  type ChatGovernancePolicy,
+  type GovernanceAuditRecord,
+  type StoredChatGovernancePolicy,
+  type StoredTelegramUserRole,
+  type TelegramGovernanceStore,
+  type TelegramUserRole,
+} from "./governance.js";
 
 function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
@@ -157,6 +168,40 @@ function formatAttachmentRecord(record: AttachmentRecord): string {
   return `- ${record.id.slice(0, 8)} ${name}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
 }
 
+function formatRoleRecord(record: StoredTelegramUserRole): string {
+  const source = record.source === "config" ? "config" : "database";
+  const details = [
+    source,
+    record.grantedByUserId ? `by=${record.grantedByUserId}` : undefined,
+    record.reason ? `reason=${truncateSingleLine(record.reason, 80)}` : undefined,
+  ].filter(Boolean);
+  return `- ${record.userId}: ${record.role}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
+}
+
+function formatChatPolicy(record: StoredChatGovernancePolicy | undefined, chatId: string): string {
+  if (!record) {
+    return `No chat policy set for ${chatId}.`;
+  }
+  return [
+    `Chat policy for ${record.chatId}:`,
+    JSON.stringify(record.policy, null, 2),
+    `Updated: ${new Date(record.updatedAt).toISOString()}${record.updatedByUserId ? ` by ${record.updatedByUserId}` : ""}`,
+  ].join("\n");
+}
+
+function formatGovernanceAuditRecord(record: GovernanceAuditRecord): string {
+  const at = new Date(record.createdAt).toISOString();
+  const details = [
+    record.actorUserId ? `actor=${record.actorUserId}` : undefined,
+    record.targetUserId ? `target=${record.targetUserId}` : undefined,
+    record.chatId ? `chat=${record.chatId}` : undefined,
+    record.role ? `role=${record.role}` : undefined,
+    record.previousRole ? `previous=${record.previousRole}` : undefined,
+    record.reason ? `reason=${truncateSingleLine(record.reason, 80)}` : undefined,
+  ].filter(Boolean);
+  return `- ${at} ${record.action}${details.length > 0 ? ` ${details.join(" ")}` : ""}`;
+}
+
 const TOOL_AUDIT_DECISION_CODES: readonly ToolApprovalDecision["code"][] = [
   "read_only",
   "policy_allowed",
@@ -228,6 +273,7 @@ export class TelegramCommandRouter {
     private readonly attachments?: AttachmentRecordStore,
     private readonly toolPolicy?: ToolPolicyEngine,
     private readonly github?: GithubReadOperations,
+    private readonly governance?: TelegramGovernanceStore,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -236,7 +282,7 @@ export class TelegramCommandRouter {
       return false;
     }
     const parsed = parseCommand(raw);
-    if (await this.rejectUnauthorizedCommand(event)) {
+    if (await this.rejectUnauthorizedCommand(event, parsed.command)) {
       return true;
     }
     const session = this.routes.resolve(event);
@@ -298,6 +344,10 @@ export class TelegramCommandRouter {
         await this.handleGithubCommand(event, parsed.args);
         return true;
       }
+      case "users": {
+        await this.handleUsersCommand(event, parsed.args);
+        return true;
+      }
       case "remember": {
         if (!this.memories) {
           await sendReply(this.api, event, "Memory is not available.");
@@ -306,6 +356,13 @@ export class TelegramCommandRouter {
         const scoped = parseMemoryScopeArgs(session, parsed.args);
         if ("error" in scoped) {
           await sendReply(this.api, event, scoped.error);
+          return true;
+        }
+        if (
+          this.governance &&
+          !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: scoped.scope })
+        ) {
+          await sendReply(this.api, event, `Memory scope ${scoped.scope} is not allowed in this chat.`);
           return true;
         }
         const contentText = normalizeFreeText(scoped.contentArgs);
@@ -374,6 +431,10 @@ export class TelegramCommandRouter {
             event,
             `Unknown model ${nextModelRef}. Supported models: ${KNOWN_CODEX_MODEL_REFS_TEXT}.`,
           );
+          return true;
+        }
+        if (this.governance && !this.governance.isModelAllowed({ chatId: event.chatId, modelRef: nextModelRef })) {
+          await sendReply(this.api, event, `Model ${nextModelRef} is not allowed in this chat.`);
           return true;
         }
         this.sessions.setModelRef(session.sessionKey, nextModelRef);
@@ -489,39 +550,73 @@ export class TelegramCommandRouter {
     }
   }
 
-  private async rejectUnauthorizedCommand(event: InboundEvent): Promise<boolean> {
-    const isAdmin = Boolean(event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId));
+  private async rejectUnauthorizedCommand(event: InboundEvent, command: string): Promise<boolean> {
+    const role = this.userRole(event);
+    const isOperator = isGovernanceOperatorRole(role);
     if (
-      !isAdmin &&
+      !isOperator &&
       this.config.telegram.allowedChatIds.length > 0 &&
       !this.config.telegram.allowedChatIds.includes(event.chatId)
     ) {
       await sendReply(this.api, event, "This chat is not allowed to use this bot.");
       return true;
     }
-    if (!isAdmin && event.chatType !== "private") {
-      await sendReply(this.api, event, "Only configured admins can run bot commands in groups.");
+    if (
+      !isOperator &&
+      this.governance &&
+      !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })
+    ) {
+      await sendReply(this.api, event, "Your role is not allowed to use this chat.");
+      return true;
+    }
+    if (
+      !isOperator &&
+      this.governance &&
+      !this.governance.isCommandAllowed({ chatId: event.chatId, userId: event.fromUserId, command })
+    ) {
+      await sendReply(this.api, event, "Your role is not allowed to run this command in this chat.");
+      return true;
+    }
+    if (
+      !isOperator &&
+      event.chatType !== "private" &&
+      !this.governance?.hasCommandPolicy({ chatId: event.chatId, command })
+    ) {
+      await sendReply(this.api, event, "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.");
       return true;
     }
     return false;
   }
 
+  private userRole(event: InboundEvent): TelegramUserRole {
+    return this.governance?.resolveUserRole(event.fromUserId) ??
+      (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId) ? "owner" : "user");
+  }
+
   private isAdmin(event: InboundEvent): boolean {
-    return Boolean(event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId));
+    return isGovernanceOperatorRole(this.userRole(event));
+  }
+
+  private isOwner(event: InboundEvent): boolean {
+    return this.userRole(event) === "owner";
   }
 
   private callerRole(event: InboundEvent): ToolCallerRole {
-    return this.isAdmin(event) ? "admin" : "user";
+    return this.userRole(event);
   }
 
   private listExposedTools(event: InboundEvent) {
     return this.toolRegistry?.listModelDeclarations({
       includeAdminTools: this.isAdmin(event),
       filter: (definition) =>
-        this.toolPolicy?.evaluate(definition, {
+        (this.toolPolicy?.evaluate(definition, {
           role: this.callerRole(event),
           chatId: event.chatId,
-        }).allowed ?? true,
+        }).allowed ?? true) &&
+        (this.governance?.isToolAllowed({
+          chatId: event.chatId,
+          toolName: definition.name,
+        }) ?? true),
     }) ?? [];
   }
 
@@ -529,7 +624,15 @@ export class TelegramCommandRouter {
     if (this.isAdmin(event)) {
       return true;
     }
-    await sendReply(this.api, event, `Only configured admins can ${action}.`);
+    await sendReply(this.api, event, `Only owner/admin roles can ${action}.`);
+    return false;
+  }
+
+  private async requireOwner(event: InboundEvent, action: string): Promise<boolean> {
+    if (this.isOwner(event)) {
+      return true;
+    }
+    await sendReply(this.api, event, `Only owner roles can ${action}.`);
     return false;
   }
 
@@ -596,6 +699,26 @@ export class TelegramCommandRouter {
             "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state",
           ])
         : undefined,
+      this.governance
+        ? formatCommandSection("Governance", [
+            "/users me - show your role",
+            ...(isAdmin
+              ? [
+                  "/users list - list configured roles",
+                  "/users audit [limit] - inspect role and chat-policy audit records",
+                  "/users chat show [chat-id] - show chat policy",
+                ]
+              : []),
+            ...(this.isOwner(event)
+              ? [
+                  "/users grant <user-id> <owner|admin|trusted> [reason] - grant a role",
+                  "/users revoke <user-id> [reason] - revoke a database role",
+                  "/users chat set [chat-id] <json> - set chat policy",
+                  "/users chat clear [chat-id] - clear chat policy",
+                ]
+              : []),
+          ])
+        : undefined,
       this.toolRegistry
         ? [
             "Model-exposed tools for this caller:",
@@ -604,6 +727,192 @@ export class TelegramCommandRouter {
         : undefined,
     ].filter((section): section is string => Boolean(section));
     return sections.join("\n\n");
+  }
+
+  private async handleUsersCommand(event: InboundEvent, args: string[]): Promise<void> {
+    if (!this.governance) {
+      await sendReply(this.api, event, "User governance is not available.");
+      return;
+    }
+    const sub = args[0]?.toLowerCase() ?? "me";
+    if (sub === "me") {
+      await sendReply(this.api, event, `Your role: ${this.userRole(event)}`);
+      return;
+    }
+    if (sub === "list") {
+      if (!(await this.requireAdmin(event, "list user roles"))) {
+        return;
+      }
+      const roles = this.governance.listRoles();
+      await sendReply(
+        this.api,
+        event,
+        roles.length > 0 ? ["User roles:", ...roles.map(formatRoleRecord)].join("\n") : "No roles configured.",
+      );
+      return;
+    }
+    if (sub === "grant") {
+      if (!(await this.requireOwner(event, "grant user roles"))) {
+        return;
+      }
+      const userId = normalizeSingleArg(args[1]);
+      const role = parseTelegramUserRole(args[2]);
+      if (!userId || !role || role === "user") {
+        await sendReply(this.api, event, "Usage: /users grant <user-id> <owner|admin|trusted> [reason]");
+        return;
+      }
+      try {
+        const granted = this.governance.setUserRole({
+          userId,
+          role,
+          actorUserId: event.fromUserId,
+          reason: normalizeFreeText(args.slice(3)) || undefined,
+        });
+        await sendReply(this.api, event, granted ? `Granted ${granted.role} to ${granted.userId}.` : `Revoked ${userId}.`);
+      } catch (error) {
+        await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    if (sub === "revoke") {
+      if (!(await this.requireOwner(event, "revoke user roles"))) {
+        return;
+      }
+      const userId = normalizeSingleArg(args[1]);
+      if (!userId) {
+        await sendReply(this.api, event, "Usage: /users revoke <user-id> [reason]");
+        return;
+      }
+      try {
+        const revoked = this.governance.revokeUserRole({
+          userId,
+          actorUserId: event.fromUserId,
+          reason: normalizeFreeText(args.slice(2)) || undefined,
+        });
+        await sendReply(this.api, event, revoked ? `Revoked role for ${userId}.` : `No database role found for ${userId}.`);
+      } catch (error) {
+        await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    if (sub === "audit") {
+      if (!(await this.requireAdmin(event, "inspect user governance audit records"))) {
+        return;
+      }
+      const limit = this.parseBoundedLimit(args[1], 10);
+      const records = this.governance.listAudit(limit);
+      await sendReply(
+        this.api,
+        event,
+        records.length > 0
+          ? ["User governance audit:", ...records.map(formatGovernanceAuditRecord)].join("\n")
+          : "No governance audit records.",
+      );
+      return;
+    }
+    if (sub === "chat") {
+      await this.handleUsersChatCommand(event, args.slice(1));
+      return;
+    }
+    await sendReply(this.api, event, this.formatUsersHelp(event));
+  }
+
+  private async handleUsersChatCommand(event: InboundEvent, args: string[]): Promise<void> {
+    if (!this.governance) {
+      await sendReply(this.api, event, "User governance is not available.");
+      return;
+    }
+    const sub = args[0]?.toLowerCase() ?? "show";
+    if (sub === "show") {
+      if (!(await this.requireAdmin(event, "inspect chat policy"))) {
+        return;
+      }
+      const chatId = normalizeSingleArg(args[1]) ?? event.chatId;
+      await sendReply(this.api, event, formatChatPolicy(this.governance.getChatPolicy(chatId), chatId));
+      return;
+    }
+    if (sub === "set") {
+      if (!(await this.requireOwner(event, "set chat policy"))) {
+        return;
+      }
+      const parsed = this.parseChatPolicySetArgs(event, args.slice(1));
+      if ("error" in parsed) {
+        await sendReply(this.api, event, parsed.error);
+        return;
+      }
+      try {
+        const policy = this.governance.setChatPolicy({
+          chatId: parsed.chatId,
+          policy: parsed.policy,
+          actorUserId: event.fromUserId,
+        });
+        await sendReply(this.api, event, formatChatPolicy(policy, parsed.chatId));
+      } catch (error) {
+        await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    if (sub === "clear") {
+      if (!(await this.requireOwner(event, "clear chat policy"))) {
+        return;
+      }
+      const chatId = normalizeSingleArg(args[1]) ?? event.chatId;
+      const cleared = this.governance.clearChatPolicy({ chatId, actorUserId: event.fromUserId });
+      await sendReply(this.api, event, cleared ? `Cleared chat policy for ${chatId}.` : `No chat policy set for ${chatId}.`);
+      return;
+    }
+    await sendReply(this.api, event, "Usage: /users chat show [chat-id] | set [chat-id] <json> | clear [chat-id]");
+  }
+
+  private parseChatPolicySetArgs(
+    event: InboundEvent,
+    args: string[],
+  ): { chatId: string; policy: ChatGovernancePolicy } | { error: string } {
+    const first = args[0];
+    if (!first) {
+      return { error: "Usage: /users chat set [chat-id] <json>" };
+    }
+    const jsonStartsAt = first.trim().startsWith("{") ? 0 : 1;
+    const chatId = jsonStartsAt === 0 ? event.chatId : normalizeSingleArg(first);
+    const rawJson = normalizeFreeText(args.slice(jsonStartsAt));
+    if (!chatId || !rawJson) {
+      return { error: "Usage: /users chat set [chat-id] <json>" };
+    }
+    try {
+      return {
+        chatId,
+        policy: parseChatGovernancePolicy(rawJson),
+      };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  private parseBoundedLimit(value: string | undefined, fallback: number): number {
+    const parsed = Number(value ?? fallback);
+    return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 50) : fallback;
+  }
+
+  private formatUsersHelp(event: InboundEvent): string {
+    const commands = [
+      "/users me - show your role",
+      ...(this.isAdmin(event)
+        ? [
+            "/users list - list configured roles",
+            "/users audit [limit] - inspect role and chat-policy audit records",
+            "/users chat show [chat-id] - show chat policy",
+          ]
+        : []),
+      ...(this.isOwner(event)
+        ? [
+            "/users grant <user-id> <owner|admin|trusted> [reason] - grant a role",
+            "/users revoke <user-id> [reason] - revoke a database role",
+            "/users chat set [chat-id] <json> - set chat policy",
+            "/users chat clear [chat-id] - clear chat policy",
+          ]
+        : []),
+    ];
+    return ["User governance", ...commands.map((command) => `- ${command}`)].join("\n");
   }
 
   private async handleMemoryCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
@@ -644,6 +953,18 @@ export class TelegramCommandRouter {
       const prefix = normalizeSingleArg(args[1]);
       if (!prefix) {
         await sendReply(this.api, event, "Usage: /memory accept <candidate-id-prefix>");
+        return;
+      }
+      const candidate = memories
+        .listCandidates(session.sessionKey, "pending", 50)
+        .filter((record) => record.id.startsWith(prefix));
+      if (
+        candidate.length === 1 &&
+        candidate[0] &&
+        this.governance &&
+        !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: candidate[0].scope })
+      ) {
+        await sendReply(this.api, event, `Memory scope ${candidate[0].scope} is not allowed in this chat.`);
         return;
       }
       const accepted = memories.acceptCandidate({
@@ -1049,7 +1370,7 @@ export class TelegramCommandRouter {
     }
     if (sub === "approve") {
       if (!this.isAdmin(event) || !event.fromUserId) {
-        await sendReply(this.api, event, "Only configured admins can approve side-effecting tools.");
+        await sendReply(this.api, event, "Only owner/admin roles can approve side-effecting tools.");
         return;
       }
       if (!this.config.tools.enableSideEffectTools) {
@@ -1110,7 +1431,7 @@ export class TelegramCommandRouter {
     }
     if (sub === "revoke") {
       if (!this.isAdmin(event)) {
-        await sendReply(this.api, event, "Only configured admins can revoke side-effecting tool approvals.");
+        await sendReply(this.api, event, "Only owner/admin roles can revoke side-effecting tool approvals.");
         return;
       }
       const toolName = normalizeSingleArg(args[1]);

@@ -628,6 +628,77 @@ describe("RunOrchestrator", () => {
     expect(transport.stream).toHaveBeenCalledTimes(2);
   });
 
+  it("filters model tool declarations through run governance policy", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = {
+      stream: vi.fn(async ({ onStart, tools }) => {
+        await onStart?.();
+        expect(tools).toBeUndefined();
+        return { text: "No tools exposed.", transport: "sse", requestIdentity: "req-no-tools" };
+      }),
+    };
+    const registry = new ToolRegistry();
+    const executor = new ToolExecutor(registry, {
+      clock: stores.clock,
+      health: stores.health,
+    });
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      registry,
+      executor,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        isToolAllowed: () => false,
+      },
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Check health" }),
+      session,
+    });
+
+    await flushAsync();
+
+    expect(transport.stream).toHaveBeenCalledOnce();
+    expect(stores.transcripts.listRecent(session.sessionKey).map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+  });
+
   it("executes an approved side-effecting restart tool once", async () => {
     const stores = createStores({
       tools: {

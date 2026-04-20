@@ -38,7 +38,7 @@ describe("tool policy engine", () => {
       allowed: true,
       policy: expect.objectContaining({
         requiresApproval: false,
-        allowedRoles: ["admin", "user"],
+        allowedRoles: ["owner", "admin", "trusted", "user"],
       }),
     });
     expect(policy.evaluate(restart, { role: "user", chatId: "chat-1" })).toMatchObject({
@@ -49,7 +49,7 @@ describe("tool policy engine", () => {
       allowed: true,
       policy: expect.objectContaining({
         requiresApproval: true,
-        allowedRoles: ["admin"],
+        allowedRoles: ["owner", "admin"],
       }),
     });
   });

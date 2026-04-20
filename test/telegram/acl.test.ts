@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AccessController } from "../../src/telegram/acl.js";
 import { createInboundEvent, createStores, createTestConfig } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
+import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
 
 describe("AccessController", () => {
   it("allows private chats", () => {
@@ -59,6 +60,37 @@ describe("AccessController", () => {
         allow: true,
         reason: "bound",
       });
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("applies chat governance role allow-lists to non-operator messages", () => {
+    const stores = createStores();
+    try {
+      const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
+        ownerUserIds: ["admin-1"],
+      });
+      governance.setUserRole({ userId: "trusted-1", role: "trusted", actorUserId: "admin-1" });
+      governance.setChatPolicy({
+        chatId: "g1",
+        policy: { allowedRoles: ["trusted"] },
+        actorUserId: "admin-1",
+      });
+      const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore, governance);
+
+      expect(
+        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "user-1", mentionsBot: true })),
+      ).toEqual({ allow: false, reason: "role_not_allowed" });
+      expect(
+        acl.evaluate(
+          createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "trusted-1", mentionsBot: true }),
+        ),
+      ).toEqual({ allow: true, reason: "mentioned" });
+      expect(
+        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "admin-1" })),
+      ).toEqual({ allow: true, reason: "private" });
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

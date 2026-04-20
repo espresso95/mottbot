@@ -31,14 +31,17 @@ As of April 19, 2026:
 - Phase 16 is complete for read-only GitHub integration: the host GitHub CLI is the auth boundary, admin-only model tools expose bounded repository/PR/issue/CI summaries, and `/github` commands provide concise operator status without requiring model tool use.
 - Phase 17 is complete for the operator dashboard: dashboard API panels expose runtime, logs, tools, approvals, memory, and delayed restart controls with auth gating, server-side validation, bounded output, and dashboard-side secret redaction.
 - Phase 18 is complete for model-assisted memory: opt-in post-run extraction stores reviewed candidates separately from approved memory, Telegram commands support candidate review and scoped memory management, and prompt construction renders only approved scoped memory.
+- Phase 19 is complete for backup and log operations: local SQLite/config backups, backup validation, launchd log status, log archive/truncation, and restore guidance are implemented and tested.
+- Phase 20 is complete for approved write tools: side-effect classes are explicit, real side effects require request-bound approvals, local note creation and Telegram sends are approved and scoped, and GitHub write tools remain deferred.
+- Phase 21 is complete for multi-user roles and chat governance: config admins resolve as protected owners, additional owner/admin/trusted roles are stored in SQLite, per-chat policies can restrict non-operator access, commands, models, tools, memory scopes, and attachment limits, and role/policy changes are audited.
 
 ## Current Baseline
 
-Verified locally on April 19, 2026:
+Verified locally on April 20, 2026:
 
 - `corepack pnpm check` passes.
-- `corepack pnpm test` passes with 55 test files and 214 tests.
-- `corepack pnpm test:coverage` passes with statements 84.67%, branches 73.59%, functions 92.74%, and lines 84.59%.
+- `corepack pnpm test` passes with 61 test files and 249 tests.
+- `corepack pnpm test:coverage` passes with statements 84.56%, branches 74.36%, functions 93.4%, and lines 84.48%.
 - `corepack pnpm build` passes.
 - `node dist/index.js health` passes against a temporary local SQLite path after build.
 - `corepack pnpm smoke:preflight` passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset.
@@ -1360,12 +1363,16 @@ Verification:
 
 This phase makes the bot safe for more than one trusted operator.
 
+Status: complete for persistent roles, per-chat policy enforcement, Telegram governance commands, audit records, tests, and docs.
+
 Dependencies and ordering:
 
 - Should happen before broad non-owner rollout.
 - Cost controls in Phase 22 should build on these role and chat policies.
 
 ### Task 21.1: Add Role Model
+
+Status: complete.
 
 Deliverables:
 
@@ -1374,7 +1381,16 @@ Deliverables:
 - Add migration and store APIs if roles become persistent.
 - Add tests for role lookup and defaults.
 
+Implemented:
+
+- `telegram.adminUserIds` resolve as protected `owner` roles.
+- Database-backed roles support `owner`, `admin`, and `trusted`; unknown users resolve as `user`.
+- Last-owner protection prevents deleting the only owner when no config owner exists.
+- Tool caller roles now include owner/admin/trusted/user, with owner/admin treated as operator roles.
+
 ### Task 21.2: Add Per-Chat Policy
+
+Status: complete.
 
 Deliverables:
 
@@ -1382,13 +1398,28 @@ Deliverables:
 - Keep current single-owner behavior as the default.
 - Add tests for private chat, group, topic, and allowed-chat interactions.
 
+Implemented:
+
+- Chat policy supports `allowedRoles`, `commandRoles`, `modelRefs`, `toolNames`, `memoryScopes`, `attachmentMaxFileBytes`, and `attachmentMaxPerMessage`.
+- ACL and command authorization enforce chat role policy for non-operators.
+- Non-operator group commands require an explicit chat policy command allow-list.
+- `/model`, `/remember`, memory candidate acceptance, model tool declaration filtering, and tool execution all recheck the relevant chat policy.
+
 ### Task 21.3: Add Invite And Audit Workflows
+
+Status: complete.
 
 Deliverables:
 
 - Add admin commands to list users, grant roles, revoke roles, and inspect recent user actions.
 - Add audit records for role changes.
 - Add tests for unauthorized role changes and audit output.
+
+Implemented:
+
+- `/users me`, `/users list`, `/users grant`, `/users revoke`, `/users audit`, and `/users chat show|set|clear` manage role and chat governance.
+- Role grants, revokes, chat policy writes, and chat policy clears append governance audit records.
+- Owner-only mutation commands and owner/admin read commands are covered by command integration tests.
 
 Edge cases to cover:
 
@@ -1411,9 +1442,11 @@ Required testing:
 Verification:
 
 - `corepack pnpm check`
+- `corepack pnpm vitest run test/tools/policy.test.ts test/tools/executor.test.ts test/telegram/governance.test.ts test/telegram/commands.integration.test.ts test/telegram/acl.test.ts test/db/migrate.test.ts test/runs/run-orchestrator.integration.test.ts`
 - `corepack pnpm test`
+- `corepack pnpm test:coverage`
 - Permission matrix tests across roles and chat types
-- Live validation with at least one non-owner test user
+- Live validation with at least one non-owner test user remains recommended before broad rollout
 
 ## Phase 22: Model And Cost Controls
 
