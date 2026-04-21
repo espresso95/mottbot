@@ -99,6 +99,18 @@ const githubToolConfigSchema = z
     maxOutputBytes: z.number().int().min(1).max(500_000).default(80_000),
   })
   .default({});
+const microsoftTodoToolConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    tenantId: z.string().optional(),
+    clientId: z.string().optional(),
+    graphBaseUrl: z.string().min(1).default("https://graph.microsoft.com/v1.0"),
+    accessTokenEnv: z.string().min(1).default("MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN"),
+    defaultListId: z.string().optional(),
+    timeoutMs: z.number().int().min(100).max(30_000).default(10_000),
+    maxItems: z.number().int().min(1).max(200).default(25),
+  })
+  .default({});
 const mcpServerConfigSchema = z.object({
   name: z.string().min(1).max(64),
   command: z.string().min(1).max(500),
@@ -209,6 +221,7 @@ const rawConfigSchema = z.object({
       localExec: localExecToolConfigSchema,
       telegramSend: telegramSendToolConfigSchema,
       github: githubToolConfigSchema,
+      microsoftTodo: microsoftTodoToolConfigSchema,
       mcp: mcpToolConfigSchema,
     })
     .default({}),
@@ -311,6 +324,7 @@ export type AppConfig = {
     localExec: z.infer<typeof localExecToolConfigSchema>;
     telegramSend: z.infer<typeof telegramSendToolConfigSchema>;
     github: z.infer<typeof githubToolConfigSchema>;
+    microsoftTodo: z.infer<typeof microsoftTodoToolConfigSchema>;
     mcp: z.infer<typeof mcpToolConfigSchema>;
   };
   runtime: {
@@ -442,6 +456,7 @@ export function loadConfig(): AppConfig {
   const fileLocalExecTools = asRecord(fileTools?.localExec);
   const fileTelegramSendTools = asRecord(fileTools?.telegramSend);
   const fileGithubTools = asRecord(fileTools?.github);
+  const fileMicrosoftTodoTools = asRecord(fileTools?.microsoftTodo);
   const fileMcpTools = asRecord(fileTools?.mcp);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
@@ -880,6 +895,41 @@ export function loadConfig(): AppConfig {
           process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES === undefined
             ? fileGithubTools?.maxOutputBytes
             : Number(process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES),
+      },
+      microsoftTodo: {
+        ...(fileMicrosoftTodoTools ?? {}),
+        enabled:
+          process.env.MOTTBOT_MICROSOFT_TODO_ENABLED === undefined
+            ? fileMicrosoftTodoTools?.enabled
+            : process.env.MOTTBOT_MICROSOFT_TODO_ENABLED === "true",
+        tenantId:
+          process.env.MOTTBOT_MICROSOFT_TODO_TENANT_ID !== undefined
+            ? process.env.MOTTBOT_MICROSOFT_TODO_TENANT_ID.trim() || undefined
+            : fileMicrosoftTodoTools?.tenantId,
+        clientId:
+          process.env.MOTTBOT_MICROSOFT_TODO_CLIENT_ID !== undefined
+            ? process.env.MOTTBOT_MICROSOFT_TODO_CLIENT_ID.trim() || undefined
+            : fileMicrosoftTodoTools?.clientId,
+        graphBaseUrl:
+          process.env.MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL !== undefined
+            ? process.env.MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL.trim() || undefined
+            : fileMicrosoftTodoTools?.graphBaseUrl,
+        accessTokenEnv:
+          process.env.MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV !== undefined
+            ? process.env.MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV.trim() || undefined
+            : fileMicrosoftTodoTools?.accessTokenEnv,
+        defaultListId:
+          process.env.MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID !== undefined
+            ? process.env.MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID.trim() || undefined
+            : fileMicrosoftTodoTools?.defaultListId,
+        timeoutMs:
+          process.env.MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS === undefined
+            ? fileMicrosoftTodoTools?.timeoutMs
+            : Number(process.env.MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS),
+        maxItems:
+          process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS === undefined
+            ? fileMicrosoftTodoTools?.maxItems
+            : Number(process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS),
       },
       mcp: {
         ...(fileMcpTools ?? {}),

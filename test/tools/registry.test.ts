@@ -66,6 +66,9 @@ describe("ToolRegistry", () => {
       "mottbot_github_recent_issues",
       "mottbot_github_ci_status",
       "mottbot_github_workflow_failures",
+      "mottbot_ms_todo_lists",
+      "mottbot_ms_todo_tasks",
+      "mottbot_ms_todo_task_get",
       "mottbot_local_doc_read",
     ]);
   });
@@ -150,6 +153,8 @@ describe("ToolRegistry", () => {
         "mottbot_github_issue_create",
         "mottbot_github_issue_comment",
         "mottbot_github_pr_comment",
+        "mottbot_ms_todo_task_create",
+        "mottbot_ms_todo_task_update",
         "mottbot_telegram_send_message",
         "mottbot_restart_service",
         "mottbot_telegram_react",

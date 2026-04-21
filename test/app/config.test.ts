@@ -71,6 +71,14 @@ const configEnvKeys = [
   "MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS",
   "MOTTBOT_GITHUB_MAX_ITEMS",
   "MOTTBOT_GITHUB_MAX_OUTPUT_BYTES",
+  "MOTTBOT_MICROSOFT_TODO_ENABLED",
+  "MOTTBOT_MICROSOFT_TODO_TENANT_ID",
+  "MOTTBOT_MICROSOFT_TODO_CLIENT_ID",
+  "MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL",
+  "MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV",
+  "MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID",
+  "MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS",
+  "MOTTBOT_MICROSOFT_TODO_MAX_ITEMS",
   "MOTTBOT_MCP_SERVERS_JSON",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
@@ -168,6 +176,12 @@ describe("loadConfig", () => {
             maxItems: 6,
             maxOutputBytes: 7777,
           },
+          microsoftTodo: {
+            enabled: true,
+            tenantId: "file-tenant",
+            clientId: "file-client",
+            defaultListId: "file-list",
+          },
           mcp: {
             servers: [
               {
@@ -221,6 +235,14 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS = "6666";
     process.env.MOTTBOT_GITHUB_MAX_ITEMS = "7";
     process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES = "8888";
+    process.env.MOTTBOT_MICROSOFT_TODO_ENABLED = "false";
+    process.env.MOTTBOT_MICROSOFT_TODO_TENANT_ID = "env-tenant";
+    process.env.MOTTBOT_MICROSOFT_TODO_CLIENT_ID = "env-client";
+    process.env.MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
+    process.env.MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV = "ENV_MS_TODO_TOKEN";
+    process.env.MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID = "env-list";
+    process.env.MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS = "12345";
+    process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS = "17";
     process.env.MOTTBOT_MCP_SERVERS_JSON = JSON.stringify([
       {
         name: "env-mcp",
@@ -366,6 +388,16 @@ describe("loadConfig", () => {
       commandTimeoutMs: 6666,
       maxItems: 7,
       maxOutputBytes: 8888,
+    });
+    expect(config.tools.microsoftTodo).toEqual({
+      enabled: false,
+      tenantId: "env-tenant",
+      clientId: "env-client",
+      graphBaseUrl: "https://graph.microsoft.com/v1.0",
+      accessTokenEnv: "ENV_MS_TODO_TOKEN",
+      defaultListId: "env-list",
+      timeoutMs: 12345,
+      maxItems: 17,
     });
     expect(config.tools.mcp).toEqual({
       servers: [
