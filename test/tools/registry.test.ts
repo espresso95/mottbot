@@ -69,6 +69,8 @@ describe("ToolRegistry", () => {
       "mottbot_ms_todo_lists",
       "mottbot_ms_todo_tasks",
       "mottbot_ms_todo_task_get",
+      "mottbot_google_drive_search",
+      "mottbot_google_drive_get_file",
       "mottbot_local_doc_read",
     ]);
   });

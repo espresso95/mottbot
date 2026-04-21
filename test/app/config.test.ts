@@ -79,6 +79,13 @@ const configEnvKeys = [
   "MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID",
   "MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS",
   "MOTTBOT_MICROSOFT_TODO_MAX_ITEMS",
+  "MOTTBOT_GOOGLE_DRIVE_ENABLED",
+  "MOTTBOT_GOOGLE_DRIVE_BASE_URL",
+  "MOTTBOT_GOOGLE_DOCS_BASE_URL",
+  "MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV",
+  "MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS",
+  "MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS",
+  "MOTTBOT_GOOGLE_DRIVE_MAX_BYTES",
   "MOTTBOT_MCP_SERVERS_JSON",
   "MOTTBOT_INSTANCE_LEASE_ENABLED",
   "MOTTBOT_INSTANCE_LEASE_TTL_MS",
@@ -182,6 +189,11 @@ describe("loadConfig", () => {
             clientId: "file-client",
             defaultListId: "file-list",
           },
+          googleDrive: {
+            enabled: true,
+            accessTokenEnv: "FILE_GDRIVE_TOKEN",
+            maxBytes: 65432,
+          },
           mcp: {
             servers: [
               {
@@ -243,6 +255,13 @@ describe("loadConfig", () => {
     process.env.MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID = "env-list";
     process.env.MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS = "12345";
     process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS = "17";
+    process.env.MOTTBOT_GOOGLE_DRIVE_ENABLED = "true";
+    process.env.MOTTBOT_GOOGLE_DRIVE_BASE_URL = "https://www.googleapis.com/drive/v3";
+    process.env.MOTTBOT_GOOGLE_DOCS_BASE_URL = "https://docs.googleapis.com/v1";
+    process.env.MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV = "ENV_GDRIVE_TOKEN";
+    process.env.MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS = "23456";
+    process.env.MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS = "21";
+    process.env.MOTTBOT_GOOGLE_DRIVE_MAX_BYTES = "76543";
     process.env.MOTTBOT_MCP_SERVERS_JSON = JSON.stringify([
       {
         name: "env-mcp",
@@ -398,6 +417,15 @@ describe("loadConfig", () => {
       defaultListId: "env-list",
       timeoutMs: 12345,
       maxItems: 17,
+    });
+    expect(config.tools.googleDrive).toEqual({
+      enabled: true,
+      driveBaseUrl: "https://www.googleapis.com/drive/v3",
+      docsBaseUrl: "https://docs.googleapis.com/v1",
+      accessTokenEnv: "ENV_GDRIVE_TOKEN",
+      timeoutMs: 23456,
+      maxItems: 21,
+      maxBytes: 76543,
     });
     expect(config.tools.mcp).toEqual({
       servers: [

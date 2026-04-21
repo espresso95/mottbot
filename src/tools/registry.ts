@@ -634,6 +634,70 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     requiresAdmin: true,
   },
   {
+    name: "mottbot_google_drive_search",
+    description: "Search Google Drive files using the configured delegated access token.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional full-text query. Defaults to recently modified non-trashed files.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200,
+          description: "Maximum file summaries to return. Defaults to host config.",
+        },
+        includeTrashed: {
+          type: "boolean",
+          description: "Whether trashed files may be included. Defaults to false.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 96_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_google_drive_get_file",
+    description: "Read Google Drive file metadata and optionally inline textual document content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fileId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 256,
+          description: "Google Drive file id.",
+        },
+        includeContent: {
+          type: "boolean",
+          description: "When true, also fetch inline text content for supported file types.",
+        },
+        maxBytes: {
+          type: "integer",
+          minimum: 1,
+          maximum: 500000,
+          description: "Optional UTF-8 byte limit for inline text content, capped by host config.",
+        },
+      },
+      required: ["fileId"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 160_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
     name: "mottbot_local_doc_read",
     description: "Read a bounded Markdown or text document from an approved local-write root and return its SHA-256 for safe edits.",
     inputSchema: {
