@@ -9,95 +9,10 @@ const configEnvKeys = [
   "TELEGRAM_BOT_TOKEN",
   "MOTTBOT_MASTER_KEY",
   "MOTTBOT_ADMIN_USER_IDS",
-  "MOTTBOT_ALLOWED_CHAT_IDS",
-  "MOTTBOT_DEFAULT_MODEL",
-  "MOTTBOT_TRANSPORT",
-  "MOTTBOT_DEFAULT_PROFILE",
-  "MOTTBOT_PREFER_CLI_IMPORT",
-  "MOTTBOT_AGENTS_JSON",
   "MOTTBOT_SQLITE_PATH",
-  "MOTTBOT_ATTACHMENT_CACHE_DIR",
-  "MOTTBOT_ATTACHMENT_MAX_FILE_BYTES",
-  "MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES",
-  "MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE",
-  "MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE",
-  "MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL",
-  "MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS",
-  "MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS",
-  "MOTTBOT_ATTACHMENT_PDF_MAX_PAGES",
-  "MOTTBOT_GROUP_MENTION_ONLY",
-  "MOTTBOT_EDIT_THROTTLE_MS",
-  "MOTTBOT_MAX_INBOUND_TEXT_CHARS",
-  "MOTTBOT_LOG_LEVEL",
-  "MOTTBOT_OAUTH_CALLBACK_HOST",
-  "MOTTBOT_OAUTH_CALLBACK_PORT",
   "MOTTBOT_DASHBOARD_ENABLED",
-  "MOTTBOT_DASHBOARD_HOST",
-  "MOTTBOT_DASHBOARD_PORT",
-  "MOTTBOT_DASHBOARD_PATH",
-  "MOTTBOT_DASHBOARD_API_PATH",
-  "MOTTBOT_DASHBOARD_AUTH_TOKEN",
-  "MOTTBOT_TELEGRAM_POLLING",
-  "MOTTBOT_TELEGRAM_WEBHOOK_URL",
-  "MOTTBOT_TELEGRAM_WEBHOOK_PATH",
-  "MOTTBOT_TELEGRAM_WEBHOOK_HOST",
-  "MOTTBOT_TELEGRAM_WEBHOOK_PORT",
-  "MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN",
-  "MOTTBOT_TELEGRAM_REACTIONS_ENABLED",
-  "MOTTBOT_TELEGRAM_ACK_REACTION",
-  "MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY",
-  "MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS",
   "MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS",
-  "MOTTBOT_TOOL_APPROVAL_TTL_MS",
-  "MOTTBOT_RESTART_TOOL_DELAY_MS",
-  "MOTTBOT_TOOL_POLICIES_JSON",
-  "MOTTBOT_REPOSITORY_ROOTS",
-  "MOTTBOT_REPOSITORY_DENIED_PATHS",
-  "MOTTBOT_REPOSITORY_MAX_READ_BYTES",
-  "MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES",
-  "MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES",
-  "MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS",
-  "MOTTBOT_LOCAL_WRITE_ROOTS",
-  "MOTTBOT_LOCAL_WRITE_DENIED_PATHS",
-  "MOTTBOT_LOCAL_WRITE_MAX_BYTES",
-  "MOTTBOT_LOCAL_EXEC_ROOTS",
-  "MOTTBOT_LOCAL_EXEC_DENIED_PATHS",
-  "MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS",
-  "MOTTBOT_LOCAL_EXEC_TIMEOUT_MS",
-  "MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES",
-  "MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS",
-  "MOTTBOT_GITHUB_REPOSITORY",
-  "MOTTBOT_GITHUB_COMMAND",
-  "MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS",
-  "MOTTBOT_GITHUB_MAX_ITEMS",
-  "MOTTBOT_GITHUB_MAX_OUTPUT_BYTES",
-  "MOTTBOT_MICROSOFT_TODO_ENABLED",
-  "MOTTBOT_MICROSOFT_TODO_TENANT_ID",
-  "MOTTBOT_MICROSOFT_TODO_CLIENT_ID",
-  "MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL",
-  "MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV",
-  "MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID",
-  "MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS",
-  "MOTTBOT_MICROSOFT_TODO_MAX_ITEMS",
-  "MOTTBOT_GOOGLE_DRIVE_ENABLED",
-  "MOTTBOT_GOOGLE_DRIVE_BASE_URL",
-  "MOTTBOT_GOOGLE_DOCS_BASE_URL",
-  "MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV",
-  "MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS",
-  "MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS",
-  "MOTTBOT_GOOGLE_DRIVE_MAX_BYTES",
-  "MOTTBOT_MCP_SERVERS_JSON",
-  "MOTTBOT_INSTANCE_LEASE_ENABLED",
-  "MOTTBOT_INSTANCE_LEASE_TTL_MS",
-  "MOTTBOT_INSTANCE_LEASE_REFRESH_MS",
-  "MOTTBOT_AUTO_MEMORY_SUMMARIES",
-  "MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES",
-  "MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS",
-  "MOTTBOT_MEMORY_CANDIDATES_ENABLED",
-  "MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES",
-  "MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN",
-  "MOTTBOT_USAGE_BUDGETS_JSON",
-  "MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT",
+  "MOTTBOT_AGENTS_JSON",
 ];
 
 describe("loadConfig", () => {
@@ -111,7 +26,7 @@ describe("loadConfig", () => {
     }
   });
 
-  it("loads config from file and env", () => {
+  it("loads config from json file", () => {
     for (const key of configEnvKeys) {
       delete process.env[key];
     }
@@ -122,337 +37,78 @@ describe("loadConfig", () => {
       file,
       JSON.stringify({
         telegram: {
+          botToken: "file-bot-token",
           polling: false,
           adminUserIds: ["file-admin"],
           webhook: { publicUrl: "https://bot.example.com", port: 9000 },
-          reactions: { notifications: "all" },
+          reactions: { notifications: "all", ackEmoji: "✅", removeAckAfterReply: true },
         },
-        models: { default: "openai-codex/gpt-5.4-mini" },
-        auth: { preferCliImport: false },
+        security: { masterKey: "file-master-key" },
+        models: { default: "openai-codex/gpt-5.4-mini", transport: "sse" },
+        auth: { preferCliImport: false, defaultProfile: "openai-codex:ops" },
         agents: {
           defaultId: "file",
-          list: [{ id: "file", modelRef: "openai-codex/gpt-5.4-mini" }],
+          list: [{ id: "file", modelRef: "openai-codex/gpt-5.4-mini", profileId: "openai-codex:ops" }],
+          bindings: [{ agentId: "file", chatId: "chat-1" }],
         },
         storage: { sqlitePath: "./custom.sqlite" },
-        attachments: {
-          maxFileBytes: 1234,
-          maxTotalBytes: 4321,
-          maxExtractedTextCharsPerFile: 111,
-          maxExtractedTextCharsTotal: 222,
-          csvPreviewRows: 7,
-          csvPreviewColumns: 8,
-          pdfMaxPages: 9,
-        },
+        attachments: { cacheDir: "./custom-attachments", maxFileBytes: 1234 },
         behavior: { maxInboundTextChars: 2000 },
         dashboard: { enabled: false, port: 9091 },
         tools: {
+          enableSideEffectTools: true,
           approvalTtlMs: 10_000,
-          policies: {
-            mottbot_recent_runs: {
-              allowedRoles: ["admin"],
-              maxOutputBytes: 1_000,
-            },
-          },
-          repository: {
-            roots: ["./file-root"],
-            deniedPaths: ["file-secret"],
-            maxReadBytes: 1111,
-            maxSearchMatches: 22,
-            maxSearchBytes: 3333,
-            commandTimeoutMs: 4444,
-          },
-          localWrite: {
-            roots: ["./file-notes"],
-            deniedPaths: ["file-private"],
-            maxWriteBytes: 555,
-          },
-          localExec: {
-            roots: ["./file-workspace"],
-            deniedPaths: ["file-denied"],
-            allowedCommands: ["node"],
-            timeoutMs: 1111,
-            maxOutputBytes: 2222,
-          },
-          telegramSend: {
-            allowedChatIds: ["file-chat"],
-          },
-          github: {
-            defaultRepository: "file-owner/file-repo",
-            command: "file-gh",
-            commandTimeoutMs: 5555,
-            maxItems: 6,
-            maxOutputBytes: 7777,
-          },
-          microsoftTodo: {
-            enabled: true,
-            tenantId: "file-tenant",
-            clientId: "file-client",
-            defaultListId: "file-list",
-          },
-          googleDrive: {
-            enabled: true,
-            accessTokenEnv: "FILE_GDRIVE_TOKEN",
-            maxBytes: 65432,
-          },
-          mcp: {
-            servers: [
-              {
-                name: "file-mcp",
-                command: "node",
-                args: ["server.js"],
-                allowedTools: ["read"],
-              },
-            ],
-          },
+          restartDelayMs: 30_000,
+          repository: { roots: ["./file-root"] },
+          localWrite: { roots: ["./file-notes"] },
+          localExec: { roots: ["./file-workspace"], allowedCommands: ["node"] },
+          telegramSend: { allowedChatIds: ["file-chat"] },
+          github: { defaultRepository: "file-owner/file-repo", command: "file-gh", maxItems: 6 },
+          microsoftTodo: { enabled: true, tenantId: "file-tenant", clientId: "file-client", defaultListId: "file-list" },
+          googleDrive: { enabled: true, accessTokenEnv: "FILE_GDRIVE_TOKEN", maxBytes: 65432 },
+          mcp: { servers: [{ name: "file-mcp", command: "node", args: ["server.js"], allowedTools: ["read"] }] },
         },
         runtime: { instanceLeaseEnabled: false },
-        memory: { autoSummaryRecentMessages: 16 },
-        usage: { dailyRuns: 5, monthlyRunsPerModel: 20 },
+        memory: { autoSummariesEnabled: true, autoSummaryRecentMessages: 16 },
+        usage: { dailyRuns: 5, monthlyRunsPerModel: 20, warningThresholdPercent: 75 },
       }),
     );
 
     process.env.MOTTBOT_CONFIG_PATH = file;
-    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
-    process.env.MOTTBOT_MASTER_KEY = "master";
-    process.env.MOTTBOT_ADMIN_USER_IDS = "env-admin-1,env-admin-2";
-    process.env.MOTTBOT_ATTACHMENT_CACHE_DIR = "./custom-attachments";
-    process.env.MOTTBOT_DASHBOARD_HOST = "0.0.0.0";
-    process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS = "true";
-    process.env.MOTTBOT_RESTART_TOOL_DELAY_MS = "30000";
-    process.env.MOTTBOT_TOOL_POLICIES_JSON = JSON.stringify({
-      mottbot_health_snapshot: {
-        allowedRoles: ["admin", "user"],
-        allowedChatIds: ["chat-1"],
-        requiresApproval: false,
-        maxOutputBytes: 1234,
-      },
-    });
-    process.env.MOTTBOT_REPOSITORY_ROOTS = "./env-root,./env-root-2";
-    process.env.MOTTBOT_REPOSITORY_DENIED_PATHS = "env-secret,private";
-    process.env.MOTTBOT_REPOSITORY_MAX_READ_BYTES = "2222";
-    process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES = "33";
-    process.env.MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES = "4444";
-    process.env.MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS = "5555";
-    process.env.MOTTBOT_LOCAL_WRITE_ROOTS = "./env-notes,./env-notes-2";
-    process.env.MOTTBOT_LOCAL_WRITE_DENIED_PATHS = "env-private,blocked";
-    process.env.MOTTBOT_LOCAL_WRITE_MAX_BYTES = "6666";
-    process.env.MOTTBOT_LOCAL_EXEC_ROOTS = "./env-workspace,./env-workspace-2";
-    process.env.MOTTBOT_LOCAL_EXEC_DENIED_PATHS = "env-exec-private,blocked-exec";
-    process.env.MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS = "node,pnpm";
-    process.env.MOTTBOT_LOCAL_EXEC_TIMEOUT_MS = "7777";
-    process.env.MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES = "9999";
-    process.env.MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS = "chat-2,@channel";
-    process.env.MOTTBOT_GITHUB_REPOSITORY = "env-owner/env-repo";
-    process.env.MOTTBOT_GITHUB_COMMAND = "env-gh";
-    process.env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS = "6666";
-    process.env.MOTTBOT_GITHUB_MAX_ITEMS = "7";
-    process.env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES = "8888";
-    process.env.MOTTBOT_MICROSOFT_TODO_ENABLED = "false";
-    process.env.MOTTBOT_MICROSOFT_TODO_TENANT_ID = "env-tenant";
-    process.env.MOTTBOT_MICROSOFT_TODO_CLIENT_ID = "env-client";
-    process.env.MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
-    process.env.MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV = "ENV_MS_TODO_TOKEN";
-    process.env.MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID = "env-list";
-    process.env.MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS = "12345";
-    process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS = "17";
-    process.env.MOTTBOT_GOOGLE_DRIVE_ENABLED = "true";
-    process.env.MOTTBOT_GOOGLE_DRIVE_BASE_URL = "https://www.googleapis.com/drive/v3";
-    process.env.MOTTBOT_GOOGLE_DOCS_BASE_URL = "https://docs.googleapis.com/v1";
-    process.env.MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV = "ENV_GDRIVE_TOKEN";
-    process.env.MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS = "23456";
-    process.env.MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS = "21";
-    process.env.MOTTBOT_GOOGLE_DRIVE_MAX_BYTES = "76543";
-    process.env.MOTTBOT_MCP_SERVERS_JSON = JSON.stringify([
-      {
-        name: "env-mcp",
-        command: "node",
-        args: ["mcp.js"],
-        allowedTools: ["lookup"],
-        timeoutMs: 1234,
-        maxOutputBytes: 5678,
-      },
-    ]);
-    process.env.MOTTBOT_AUTO_MEMORY_SUMMARIES = "true";
-    process.env.MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS = "800";
-    process.env.MOTTBOT_MEMORY_CANDIDATES_ENABLED = "true";
-    process.env.MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES = "10";
-    process.env.MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN = "3";
-    process.env.MOTTBOT_USAGE_BUDGETS_JSON = JSON.stringify({
-      dailyRunsPerUser: 7,
-      monthlyRuns: 100,
-    });
-    process.env.MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT = "75";
-    process.env.MOTTBOT_TELEGRAM_ACK_REACTION = "\u{2705}";
-    process.env.MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY = "true";
-    process.env.MOTTBOT_AGENTS_JSON = JSON.stringify({
-      defaultId: "main",
-      list: [
-        {
-          id: "main",
-          profileId: "openai-codex:default",
-          modelRef: "openai-codex/gpt-5.4",
-        },
-        {
-          id: "ops",
-          displayName: "Operations",
-          profileId: "openai-codex:ops",
-          modelRef: "openai-codex/gpt-5.4-mini",
-          systemPrompt: "Keep operations concise.",
-          fastMode: true,
-          toolNames: ["mottbot_health_snapshot"],
-          toolPolicies: {
-            mottbot_health_snapshot: {
-              allowedRoles: ["admin"],
-              maxOutputBytes: 1234,
-            },
-          },
-          maxConcurrentRuns: 2,
-          maxQueuedRuns: 5,
-        },
-      ],
-      bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],
-    });
 
     const config = loadConfig();
-    expect(config.telegram.botToken).toBe("bot-token");
-    expect(config.telegram.adminUserIds).toEqual(["env-admin-1", "env-admin-2"]);
-    expect(config.telegram.webhook.publicUrl).toBe("https://bot.example.com");
-    expect(config.telegram.webhook.port).toBe(9000);
-    expect(config.telegram.reactions.enabled).toBe(true);
-    expect(config.telegram.reactions.ackEmoji).toBe("\u{2705}");
-    expect(config.telegram.reactions.removeAckAfterReply).toBe(true);
-    expect(config.telegram.reactions.notifications).toBe("all");
-    expect(config.models.default).toBe("openai-codex/gpt-5.4-mini");
-    expect(config.auth.preferCliImport).toBe(false);
-    expect(config.agents).toEqual({
-      defaultId: "main",
-      list: [
-        {
-          id: "main",
-          profileId: "openai-codex:default",
-          modelRef: "openai-codex/gpt-5.4",
-          fastMode: false,
-        },
-        {
-          id: "ops",
-          displayName: "Operations",
-          profileId: "openai-codex:ops",
-          modelRef: "openai-codex/gpt-5.4-mini",
-          systemPrompt: "Keep operations concise.",
-          fastMode: true,
-          toolNames: ["mottbot_health_snapshot"],
-          toolPolicies: {
-            mottbot_health_snapshot: {
-              allowedRoles: ["admin"],
-              maxOutputBytes: 1234,
-            },
-          },
-          maxConcurrentRuns: 2,
-          maxQueuedRuns: 5,
-        },
-      ],
-      bindings: [{ agentId: "ops", chatId: "chat-1", threadId: 3, chatType: "supergroup" }],
-    });
-    expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
-    expect(config.attachments.cacheDir).toBe(path.resolve("./custom-attachments"));
-    expect(config.attachments.maxFileBytes).toBe(1234);
-    expect(config.attachments.maxTotalBytes).toBe(4321);
-    expect(config.attachments.maxPerMessage).toBe(4);
-    expect(config.attachments.maxExtractedTextCharsPerFile).toBe(111);
-    expect(config.attachments.maxExtractedTextCharsTotal).toBe(222);
-    expect(config.attachments.csvPreviewRows).toBe(7);
-    expect(config.attachments.csvPreviewColumns).toBe(8);
-    expect(config.attachments.pdfMaxPages).toBe(9);
-    expect(config.behavior.maxInboundTextChars).toBe(2000);
+    expect(config.telegram.botToken).toBe("file-bot-token");
+    expect(config.security.masterKey).toBe("file-master-key");
+    expect(config.telegram.adminUserIds).toEqual(["file-admin"]);
     expect(config.dashboard.enabled).toBe(false);
-    expect(config.dashboard.port).toBe(9091);
-    expect(config.dashboard.host).toBe("0.0.0.0");
     expect(config.tools.enableSideEffectTools).toBe(true);
-    expect(config.tools.approvalTtlMs).toBe(10_000);
-    expect(config.tools.restartDelayMs).toBe(30_000);
-    expect(config.tools.policies).toEqual({
-      mottbot_health_snapshot: {
-        allowedRoles: ["admin", "user"],
-        allowedChatIds: ["chat-1"],
-        requiresApproval: false,
-        maxOutputBytes: 1234,
-      },
-    });
-    expect(config.tools.repository).toEqual({
-      roots: ["./env-root", "./env-root-2"],
-      deniedPaths: ["env-secret", "private"],
-      maxReadBytes: 2222,
-      maxSearchMatches: 33,
-      maxSearchBytes: 4444,
-      commandTimeoutMs: 5555,
-    });
-    expect(config.tools.localWrite).toEqual({
-      roots: ["./env-notes", "./env-notes-2"],
-      deniedPaths: ["env-private", "blocked"],
-      maxWriteBytes: 6666,
-    });
-    expect(config.tools.localExec).toEqual({
-      roots: ["./env-workspace", "./env-workspace-2"],
-      deniedPaths: ["env-exec-private", "blocked-exec"],
-      allowedCommands: ["node", "pnpm"],
-      timeoutMs: 7777,
-      maxOutputBytes: 9999,
-    });
-    expect(config.tools.telegramSend).toEqual({
-      allowedChatIds: ["chat-2", "@channel"],
-    });
-    expect(config.tools.github).toEqual({
-      defaultRepository: "env-owner/env-repo",
-      command: "env-gh",
-      commandTimeoutMs: 6666,
-      maxItems: 7,
-      maxOutputBytes: 8888,
-    });
-    expect(config.tools.microsoftTodo).toEqual({
-      enabled: false,
-      tenantId: "env-tenant",
-      clientId: "env-client",
-      graphBaseUrl: "https://graph.microsoft.com/v1.0",
-      accessTokenEnv: "ENV_MS_TODO_TOKEN",
-      defaultListId: "env-list",
-      timeoutMs: 12345,
-      maxItems: 17,
-    });
-    expect(config.tools.googleDrive).toEqual({
-      enabled: true,
-      driveBaseUrl: "https://www.googleapis.com/drive/v3",
-      docsBaseUrl: "https://docs.googleapis.com/v1",
-      accessTokenEnv: "ENV_GDRIVE_TOKEN",
-      timeoutMs: 23456,
-      maxItems: 21,
-      maxBytes: 76543,
-    });
-    expect(config.tools.mcp).toEqual({
-      servers: [
-        {
-          name: "env-mcp",
-          command: "node",
-          args: ["mcp.js"],
-          allowedTools: ["lookup"],
-          timeoutMs: 1234,
-          maxOutputBytes: 5678,
-        },
-      ],
-    });
-    expect(config.runtime.instanceLeaseEnabled).toBe(false);
-    expect(config.memory.autoSummariesEnabled).toBe(true);
-    expect(config.memory.autoSummaryRecentMessages).toBe(16);
-    expect(config.memory.autoSummaryMaxChars).toBe(800);
-    expect(config.memory.candidateExtractionEnabled).toBe(true);
-    expect(config.memory.candidateRecentMessages).toBe(10);
-    expect(config.memory.candidateMaxPerRun).toBe(3);
-    expect(config.usage).toMatchObject({
-      dailyRuns: 5,
-      dailyRunsPerUser: 7,
-      monthlyRuns: 100,
-      monthlyRunsPerModel: 20,
-      warningThresholdPercent: 75,
-    });
+    expect(config.models.transport).toBe("sse");
+    expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
+  });
+
+  it("does not use env overrides for runtime config", () => {
+    for (const key of configEnvKeys) {
+      delete process.env[key];
+    }
+    const dir = createTempDir();
+    dirs.push(dir);
+    const file = path.join(dir, "mottbot.config.json");
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        telegram: { botToken: "file-bot-token", adminUserIds: ["file-admin"] },
+        security: { masterKey: "file-master-key" },
+        dashboard: { enabled: false },
+      }),
+    );
+
+    process.env.MOTTBOT_CONFIG_PATH = file;
+    process.env.MOTTBOT_ADMIN_USER_IDS = "env-admin";
+    process.env.MOTTBOT_DASHBOARD_ENABLED = "true";
+
+    const config = loadConfig();
+    expect(config.telegram.adminUserIds).toEqual(["file-admin"]);
+    expect(config.dashboard.enabled).toBe(false);
   });
 
   it("synthesizes the default agent when no agents are configured", () => {
@@ -462,11 +118,15 @@ describe("loadConfig", () => {
     const dir = createTempDir();
     dirs.push(dir);
     const file = path.join(dir, "mottbot.config.json");
-    fs.writeFileSync(file, JSON.stringify({}));
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        telegram: { botToken: "bot-token" },
+        security: { masterKey: "master" },
+      }),
+    );
 
     process.env.MOTTBOT_CONFIG_PATH = file;
-    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
-    process.env.MOTTBOT_MASTER_KEY = "master";
 
     const config = loadConfig();
     expect(config.agents).toEqual({
@@ -493,6 +153,8 @@ describe("loadConfig", () => {
     fs.writeFileSync(
       file,
       JSON.stringify({
+        telegram: { botToken: "bot-token" },
+        security: { masterKey: "master" },
         agents: {
           defaultId: "main",
           list: [{ id: "main" }],
@@ -502,8 +164,6 @@ describe("loadConfig", () => {
     );
 
     process.env.MOTTBOT_CONFIG_PATH = file;
-    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
-    process.env.MOTTBOT_MASTER_KEY = "master";
 
     expect(() => loadConfig()).toThrow(/unknown agent/i);
   });

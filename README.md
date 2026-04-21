@@ -26,10 +26,10 @@ Telegram-first Codex subscription bot scaffold for the subscription-backed `open
 pnpm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in:
+2. Create `mottbot.config.json` (or copy from your existing template) and set:
 
-- `TELEGRAM_BOT_TOKEN`
-- `MOTTBOT_MASTER_KEY`
+- `telegram.botToken`
+- `security.masterKey`
 
 3. Import or create auth:
 

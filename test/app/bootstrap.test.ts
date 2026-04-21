@@ -50,21 +50,22 @@ describe("bootstrapApplication", () => {
     fs.writeFileSync(
       configPath,
       JSON.stringify({
+        telegram: {
+          botToken: "bot-token",
+          adminUserIds: ["admin-1"],
+        },
+        security: {
+          masterKey: "master",
+        },
         auth: { preferCliImport: false },
         storage: { sqlitePath: path.join(dir, "mottbot.sqlite") },
+        attachments: { cacheDir: path.join(dir, "attachments") },
+        tools: { enableSideEffectTools: false },
+        runtime: { instanceLeaseEnabled: true },
+        dashboard: { enabled: false },
       }),
     );
     process.env.MOTTBOT_CONFIG_PATH = configPath;
-    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
-    process.env.MOTTBOT_MASTER_KEY = "master";
-    process.env.MOTTBOT_SQLITE_PATH = path.join(dir, "mottbot.sqlite");
-    process.env.MOTTBOT_ATTACHMENT_CACHE_DIR = path.join(dir, "attachments");
-    process.env.MOTTBOT_ADMIN_USER_IDS = "admin-1";
-    process.env.MOTTBOT_ALLOWED_CHAT_IDS = "";
-    process.env.MOTTBOT_PREFER_CLI_IMPORT = "false";
-    process.env.MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS = "false";
-    process.env.MOTTBOT_INSTANCE_LEASE_ENABLED = "true";
-    process.env.MOTTBOT_DASHBOARD_ENABLED = "false";
 
     const { bootstrapApplication } = await import("../../src/app/bootstrap.js");
     const app = await bootstrapApplication();
