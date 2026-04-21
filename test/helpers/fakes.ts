@@ -34,7 +34,6 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     configPath: path.join(tempDir, "mottbot.config.json"),
     telegram: {
       botToken: "test-token",
-      botTokenEnv: "TELEGRAM_BOT_TOKEN",
       polling: true,
       adminUserIds: ["admin-1"],
       allowedChatIds: [],
