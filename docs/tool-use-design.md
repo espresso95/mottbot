@@ -93,6 +93,8 @@ Enabled read-only tools:
 | `mottbot_github_recent_issues` | `read_only` | optional `repository` and `limit` | Read recent open issue summaries. |
 | `mottbot_github_ci_status` | `read_only` | optional `repository` and `limit` | Read recent GitHub Actions workflow runs. |
 | `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit` | Read recent failed workflow runs. |
+| `mottbot_google_drive_search` | `read_only` | optional `query`, `limit`, and `includeTrashed` | Search Google Drive files with the configured delegated token. |
+| `mottbot_google_drive_get_file` | `read_only` | required `fileId`; optional `includeContent` and `maxBytes` | Read Google Drive file metadata and optionally inline textual content. |
 | `mottbot_local_doc_read` | `read_only` | required `path`; optional `root` and `maxBytes` | Read a bounded `.md` or `.txt` file from an approved local-write root and return its SHA-256 for safe edits. |
 
 Disabled reserved tools:

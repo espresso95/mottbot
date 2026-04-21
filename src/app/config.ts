@@ -111,6 +111,17 @@ const microsoftTodoToolConfigSchema = z
     maxItems: z.number().int().min(1).max(200).default(25),
   })
   .default({});
+const googleDriveToolConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    driveBaseUrl: z.string().min(1).default("https://www.googleapis.com/drive/v3"),
+    docsBaseUrl: z.string().min(1).default("https://docs.googleapis.com/v1"),
+    accessTokenEnv: z.string().min(1).default("MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN"),
+    timeoutMs: z.number().int().min(100).max(30_000).default(10_000),
+    maxItems: z.number().int().min(1).max(200).default(25),
+    maxBytes: z.number().int().min(1).max(500_000).default(120_000),
+  })
+  .default({});
 const mcpServerConfigSchema = z.object({
   name: z.string().min(1).max(64),
   command: z.string().min(1).max(500),
@@ -222,6 +233,7 @@ const rawConfigSchema = z.object({
       telegramSend: telegramSendToolConfigSchema,
       github: githubToolConfigSchema,
       microsoftTodo: microsoftTodoToolConfigSchema,
+      googleDrive: googleDriveToolConfigSchema,
       mcp: mcpToolConfigSchema,
     })
     .default({}),
@@ -325,6 +337,7 @@ export type AppConfig = {
     telegramSend: z.infer<typeof telegramSendToolConfigSchema>;
     github: z.infer<typeof githubToolConfigSchema>;
     microsoftTodo: z.infer<typeof microsoftTodoToolConfigSchema>;
+    googleDrive: z.infer<typeof googleDriveToolConfigSchema>;
     mcp: z.infer<typeof mcpToolConfigSchema>;
   };
   runtime: {
@@ -457,6 +470,7 @@ export function loadConfig(): AppConfig {
   const fileTelegramSendTools = asRecord(fileTools?.telegramSend);
   const fileGithubTools = asRecord(fileTools?.github);
   const fileMicrosoftTodoTools = asRecord(fileTools?.microsoftTodo);
+  const fileGoogleDriveTools = asRecord(fileTools?.googleDrive);
   const fileMcpTools = asRecord(fileTools?.mcp);
   const parsed = rawConfigSchema.parse({
     ...fileObject,
@@ -930,6 +944,37 @@ export function loadConfig(): AppConfig {
           process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS === undefined
             ? fileMicrosoftTodoTools?.maxItems
             : Number(process.env.MOTTBOT_MICROSOFT_TODO_MAX_ITEMS),
+      },
+      googleDrive: {
+        ...(fileGoogleDriveTools ?? {}),
+        enabled:
+          process.env.MOTTBOT_GOOGLE_DRIVE_ENABLED === undefined
+            ? fileGoogleDriveTools?.enabled
+            : process.env.MOTTBOT_GOOGLE_DRIVE_ENABLED === "true",
+        driveBaseUrl:
+          process.env.MOTTBOT_GOOGLE_DRIVE_BASE_URL !== undefined
+            ? process.env.MOTTBOT_GOOGLE_DRIVE_BASE_URL.trim() || undefined
+            : fileGoogleDriveTools?.driveBaseUrl,
+        docsBaseUrl:
+          process.env.MOTTBOT_GOOGLE_DOCS_BASE_URL !== undefined
+            ? process.env.MOTTBOT_GOOGLE_DOCS_BASE_URL.trim() || undefined
+            : fileGoogleDriveTools?.docsBaseUrl,
+        accessTokenEnv:
+          process.env.MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV !== undefined
+            ? process.env.MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV.trim() || undefined
+            : fileGoogleDriveTools?.accessTokenEnv,
+        timeoutMs:
+          process.env.MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS === undefined
+            ? fileGoogleDriveTools?.timeoutMs
+            : Number(process.env.MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS),
+        maxItems:
+          process.env.MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS === undefined
+            ? fileGoogleDriveTools?.maxItems
+            : Number(process.env.MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS),
+        maxBytes:
+          process.env.MOTTBOT_GOOGLE_DRIVE_MAX_BYTES === undefined
+            ? fileGoogleDriveTools?.maxBytes
+            : Number(process.env.MOTTBOT_GOOGLE_DRIVE_MAX_BYTES),
       },
       mcp: {
         ...(fileMcpTools ?? {}),

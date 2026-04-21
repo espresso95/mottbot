@@ -268,6 +268,8 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_ms_todo_lists`: Microsoft To Do list summaries through Microsoft Graph
 - `mottbot_ms_todo_tasks`: Microsoft To Do task summaries for one list through Microsoft Graph
 - `mottbot_ms_todo_task_get`: one Microsoft To Do task by id through Microsoft Graph
+- `mottbot_google_drive_search`: Google Drive file search summaries
+- `mottbot_google_drive_get_file`: Google Drive file metadata plus optional inline textual content
 - `mottbot_local_doc_read`: bounded `.md` or `.txt` reads from approved local-write roots with SHA-256 output for safe edits
 
 The diagnostics, repository, git, GitHub, and local document read tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, CI output, and operator documents can contain operational context.
@@ -308,6 +310,18 @@ MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV=MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN
 MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID=
 MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS=10000
 MOTTBOT_MICROSOFT_TODO_MAX_ITEMS=25
+```
+
+Google Drive tools call Google Drive and Google Docs APIs with a delegated bearer token from the host environment. Mottbot does not run an OAuth flow for Google.
+
+```bash
+MOTTBOT_GOOGLE_DRIVE_ENABLED=false
+MOTTBOT_GOOGLE_DRIVE_BASE_URL=https://www.googleapis.com/drive/v3
+MOTTBOT_GOOGLE_DOCS_BASE_URL=https://docs.googleapis.com/v1
+MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV=MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN
+MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS=10000
+MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS=25
+MOTTBOT_GOOGLE_DRIVE_MAX_BYTES=120000
 ```
 
 Live GitHub write validation is separate from normal startup and intentionally guarded:
@@ -640,6 +654,7 @@ Current tool set:
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
 - `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
 - `mottbot_ms_todo_lists`, `mottbot_ms_todo_tasks`, and `mottbot_ms_todo_task_get`: admin-only Microsoft To Do read inspection through Microsoft Graph
+- `mottbot_google_drive_search` and `mottbot_google_drive_get_file`: admin-only Google Drive read inspection through Google APIs
 - `mottbot_local_doc_read`: admin-only bounded local document read plus edit checksum
 - `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_github_issue_create`, `mottbot_github_issue_comment`, `mottbot_github_pr_comment`, `mottbot_ms_todo_task_create`, `mottbot_ms_todo_task_update`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
 

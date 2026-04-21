@@ -47,6 +47,8 @@ import { createMcpToolHandlers } from "../tools/mcp-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
 import { MicrosoftTodoService } from "../tools/microsoft-todo.js";
 import { createMicrosoftTodoToolHandlers } from "../tools/microsoft-todo-handlers.js";
+import { GoogleDriveService } from "../tools/google-drive.js";
+import { createGoogleDriveToolHandlers } from "../tools/google-drive-handlers.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
 
 export async function bootstrapApplication() {
@@ -83,6 +85,7 @@ export async function bootstrapApplication() {
   const usageBudget = new UsageBudgetService(config, runStore, systemClock);
   const github = new GithubCliReadService(config.tools.github);
   const microsoftTodo = new MicrosoftTodoService(config.tools.microsoftTodo);
+  const googleDrive = new GoogleDriveService(config.tools.googleDrive);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
     leaseName: "bot",
     enabled: config.runtime.instanceLeaseEnabled,
@@ -139,6 +142,7 @@ export async function bootstrapApplication() {
       ...createLocalExecToolHandlers(config.tools.localExec),
       ...createGithubToolHandlers(github),
       ...createMicrosoftTodoToolHandlers(microsoftTodo),
+      ...createGoogleDriveToolHandlers(googleDrive),
       ...createMcpToolHandlers(config.tools.mcp),
     },
     adminUserIds: config.telegram.adminUserIds,
