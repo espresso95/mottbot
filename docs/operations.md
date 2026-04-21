@@ -189,9 +189,9 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
-`pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. It is skipped unless `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true` is set. Start with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
+`pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 
-`pnpm smoke:suite` composes the guarded preflight and optional MTProto user-account checks into a repeatable live validation matrix. It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set, and `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
+`pnpm smoke:suite` composes preflight and optional MTProto user-account checks into a repeatable live validation matrix. `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
 
 `pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
 
@@ -695,7 +695,7 @@ Local preflight:
 pnpm smoke:preflight
 ```
 
-By default the command prints `status: skipped`. It validates a configured live environment only when `MOTTBOT_LIVE_SMOKE_ENABLED=true` is set.
+The command validates a configured live environment immediately when run.
 
 Preflight checks:
 
@@ -710,16 +710,16 @@ Preflight checks:
 Suite dry run:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite
+MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite
 ```
 
 Suite execution:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_ENABLED=true pnpm smoke:suite
+pnpm smoke:suite
 ```
 
-The suite runs the guarded preflight and, when user-account credentials are configured, private conversation, `/health`, `/usage`, reply-to-latest-bot-message, optional group mention, and optional attachment fixture checks.
+The suite runs preflight and, when user-account credentials are configured, private conversation, `/health`, `/usage`, reply-to-latest-bot-message, optional group mention, and optional attachment fixture checks.
 
 ## Auth Operations
 

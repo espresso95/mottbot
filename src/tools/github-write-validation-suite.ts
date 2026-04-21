@@ -33,7 +33,6 @@ export type GithubWriteSmokeResult = {
 };
 
 type GithubWriteSmokePlan = {
-  enabled: boolean;
   dryRun: boolean;
   confirmed: boolean;
   repository: string;
@@ -112,20 +111,18 @@ export function buildGithubWriteSmokePlan(env: NodeJS.ProcessEnv): GithubWriteSm
     optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_BODY) ??
     "This disposable issue was created by the guarded Mottbot GitHub write smoke harness.";
   const labels = labelsFromEnv(env.MOTTBOT_GITHUB_WRITE_SMOKE_LABELS);
-  const enabled = env.MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED === "true";
-  const dryRun = env.MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN === "true";
+  const dryRun = env.MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN !== "false";
   const confirmed = env.MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM === CONFIRMATION_PHRASE;
   const issues = [
-    enabled && !repository ? "MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY is required." : undefined,
-    enabled && !dryRun && !confirmed
+    !repository ? "MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY is required." : undefined,
+    !dryRun && !confirmed
       ? `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM must equal ${CONFIRMATION_PHRASE}.`
       : undefined,
-    enabled && prNumberRaw && prNumber === undefined
+    prNumberRaw && prNumber === undefined
       ? "MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER must be a positive integer when set."
       : undefined,
   ].filter((issue): issue is string => Boolean(issue));
   return {
-    enabled,
     dryRun,
     confirmed,
     repository,
@@ -243,12 +240,6 @@ export async function createGithubWriteValidationSuiteResult(params: {
 } = {}): Promise<GithubWriteSmokeResult> {
   const env = params.env ?? process.env;
   const plan = buildGithubWriteSmokePlan(env);
-  if (!plan.enabled) {
-    return {
-      status: "skipped",
-      reason: "Set MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true to validate live GitHub writes.",
-    };
-  }
   if (plan.issues.length > 0 && !plan.dryRun) {
     return {
       status: "blocked",

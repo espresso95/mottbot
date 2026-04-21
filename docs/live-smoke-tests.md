@@ -6,6 +6,25 @@ This runbook covers validation that cannot be proven by the local Vitest suite: 
 
 Run these checks only with a dedicated test bot, test chats, and a separate SQLite file.
 
+Smoke variables are intentionally separate from normal runtime configuration. They are **scenario inputs** for `pnpm smoke:*` helpers, so they do not change bot behavior unless you run those commands explicitly.
+
+## Smoke Variable Policy
+
+You do not need a permanent second `.env` file with every smoke variable set.
+
+- Export only the variables needed for the command you are about to run.
+- Unset sensitive one-time values (for example `TELEGRAM_LOGIN_CODE`) after the run.
+
+Minimal command requirements:
+
+| Command | Required variables | Optional variables |
+| --- | --- | --- |
+| `pnpm smoke:preflight` | none | `MOTTBOT_LIVE_TEST_CHAT_ID`, `MOTTBOT_LIVE_TEST_MESSAGE` |
+| `pnpm smoke:telegram-user` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `MOTTBOT_LIVE_BOT_USERNAME` | `TELEGRAM_PHONE_NUMBER`, `TELEGRAM_LOGIN_CODE`, `TELEGRAM_2FA_PASSWORD`, `TELEGRAM_USER_SESSION`, `MOTTBOT_USER_SMOKE_*` tuning values |
+| `pnpm smoke:suite` | none (plus Telegram user credentials only if user-smoke scenarios are included) | `MOTTBOT_LIVE_VALIDATION_*` scenario filters/messages/fixtures |
+| `pnpm smoke:github-write` | `MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY` | `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN`, `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM`, title/body/labels/PR number overrides |
+| `pnpm smoke:dashboard` | none | `MOTTBOT_DASHBOARD_SMOKE_PORT` |
+
 ## Safety Guard
 
 The repository includes a guarded preflight:
@@ -14,13 +33,7 @@ The repository includes a guarded preflight:
 pnpm smoke:preflight
 ```
 
-The command exits with `status: skipped` unless this variable is set:
-
-```bash
-export MOTTBOT_LIVE_SMOKE_ENABLED=true
-```
-
-When enabled, preflight loads config, validates the bot token with Telegram `getMe`, runs migrations, reads health counters, verifies the default auth profile is present, and prints a token-free JSON summary. It does not send Telegram messages or make Codex model calls.
+Preflight loads config, validates the bot token with Telegram `getMe`, runs migrations, reads health counters, verifies the default auth profile is present, and prints a token-free JSON summary. It does not send Telegram messages or make Codex model calls.
 
 Optional outbound Telegram delivery check:
 
@@ -42,16 +55,9 @@ For repeatable live validation, run the suite wrapper:
 pnpm smoke:suite
 ```
 
-It exits with `status: skipped` unless this guard is set:
-
-```bash
-export MOTTBOT_LIVE_VALIDATION_ENABLED=true
-```
-
 Start with a dry run to see exactly which checks will execute without sending Telegram messages:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_ENABLED=true \
 MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
 pnpm smoke:suite
 ```
@@ -87,7 +93,6 @@ export MOTTBOT_MASTER_KEY=...
 export MOTTBOT_ADMIN_USER_IDS=...
 export MOTTBOT_SQLITE_PATH=./data/mottbot.integration.sqlite
 export MOTTBOT_ATTACHMENT_CACHE_DIR=./data/attachments.integration
-export MOTTBOT_LIVE_SMOKE_ENABLED=true
 ```
 
 Optional filters:
@@ -165,7 +170,6 @@ GitHub write validation intentionally lives outside the normal live suite becaus
 Dry-run plan:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
 pnpm smoke:github-write
@@ -174,7 +178,6 @@ pnpm smoke:github-write
 Live issue creation and issue comment:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=false \
 MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue \
 MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
@@ -196,12 +199,6 @@ The Telegram Bot API cannot send messages as a real user. For repeatable private
 
 ```bash
 pnpm smoke:telegram-user
-```
-
-It exits with `status: skipped` unless this guard is set:
-
-```bash
-export MOTTBOT_USER_SMOKE_ENABLED=true
 ```
 
 Required Telegram user API credentials:

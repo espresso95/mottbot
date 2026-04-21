@@ -88,16 +88,6 @@ export async function createLiveValidationSuiteResult(params: {
   run?: ScenarioRunner;
 }): Promise<LiveValidationSuiteResult> {
   const plan = params.plan;
-  if (!plan.enabled) {
-    return {
-      exitCode: 0,
-      report: {
-        status: "skipped",
-        reason: "Set MOTTBOT_LIVE_VALIDATION_ENABLED=true to run the live validation suite.",
-        skipped: plan.skipped,
-      },
-    };
-  }
   if (plan.issues.length > 0) {
     return {
       exitCode: 1,

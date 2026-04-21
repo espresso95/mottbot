@@ -6,23 +6,21 @@ import {
 import { buildLiveValidationPlan, type LiveValidationScenario } from "../../src/tools/live-validation-suite-helpers.js";
 
 describe("live validation suite runner", () => {
-  it("returns skipped when the guard is disabled", async () => {
-    await expect(
-      createLiveValidationSuiteResult({ plan: buildLiveValidationPlan({}) }),
-    ).resolves.toEqual({
-      exitCode: 0,
-      report: {
-        status: "skipped",
-        reason: "Set MOTTBOT_LIVE_VALIDATION_ENABLED=true to run the live validation suite.",
-        skipped: [],
-      },
+  it("returns a dry-run plan from argv without guard variables", async () => {
+    const result = await createLiveValidationSuiteResult({
+      plan: buildLiveValidationPlan({}),
+      argv: ["--dry-run"],
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.report).toMatchObject({
+      status: "dry-run",
+      scenarios: [{ kind: "preflight", script: "smoke:preflight", envKeys: [] }],
     });
   });
 
   it("returns blocked when required user credentials are missing", async () => {
     const result = await createLiveValidationSuiteResult({
       plan: buildLiveValidationPlan({
-        MOTTBOT_LIVE_VALIDATION_ENABLED: "true",
         MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE: "true",
       }),
     });
@@ -39,7 +37,6 @@ describe("live validation suite runner", () => {
       plan: buildLiveValidationPlan({
         TELEGRAM_API_ID: "12345",
         TELEGRAM_API_HASH: "secret-hash",
-        MOTTBOT_LIVE_VALIDATION_ENABLED: "true",
         MOTTBOT_LIVE_VALIDATION_DRY_RUN: "true",
         MOTTBOT_LIVE_VALIDATION_SCENARIOS: "usage",
       }),
@@ -56,7 +53,6 @@ describe("live validation suite runner", () => {
           script: "smoke:telegram-user",
           envKeys: [
             "MOTTBOT_LIVE_BOT_USERNAME",
-            "MOTTBOT_USER_SMOKE_ENABLED",
             "MOTTBOT_USER_SMOKE_MESSAGE",
             "MOTTBOT_USER_SMOKE_TARGET",
             "MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY",
@@ -81,7 +77,6 @@ describe("live validation suite runner", () => {
     const plan = buildLiveValidationPlan({
       TELEGRAM_API_ID: "12345",
       TELEGRAM_API_HASH: "hash",
-      MOTTBOT_LIVE_VALIDATION_ENABLED: "true",
       MOTTBOT_LIVE_VALIDATION_SCENARIOS: "health,usage",
     });
 
@@ -110,7 +105,6 @@ describe("live validation suite runner", () => {
     const plan = buildLiveValidationPlan({
       TELEGRAM_API_ID: "12345",
       TELEGRAM_API_HASH: "hash",
-      MOTTBOT_LIVE_VALIDATION_ENABLED: "true",
       MOTTBOT_LIVE_VALIDATION_SCENARIOS: "health,usage",
     });
 

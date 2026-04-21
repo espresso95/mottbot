@@ -39,17 +39,20 @@ function createGithub(): GithubReadOperations & GithubWriteOperations {
 }
 
 describe("GitHub write validation suite", () => {
-  it("skips unless explicitly enabled", async () => {
-    await expect(createGithubWriteValidationSuiteResult({ env: {} })).resolves.toEqual({
-      status: "skipped",
-      reason: "Set MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true to validate live GitHub writes.",
+  it("returns a dry-run plan with repository when no enable flag is set", async () => {
+    await expect(
+      createGithubWriteValidationSuiteResult({
+        env: { MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke" },
+      }),
+    ).resolves.toMatchObject({
+      status: "dry-run",
+      issues: [],
     });
   });
 
   it("returns a dry-run plan without requiring confirmation", async () => {
     const result = await createGithubWriteValidationSuiteResult({
       env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED: "true",
         MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "true",
         MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
         MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER: "7",
@@ -82,7 +85,7 @@ describe("GitHub write validation suite", () => {
   it("blocks live writes without repository and confirmation", async () => {
     const result = await createGithubWriteValidationSuiteResult({
       env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED: "true",
+        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "false",
       },
     });
 
@@ -98,7 +101,6 @@ describe("GitHub write validation suite", () => {
   it("parses labels and pull request numbers from environment", () => {
     expect(
       buildGithubWriteSmokePlan({
-        MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED: "true",
         MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "true",
         MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
         MOTTBOT_GITHUB_WRITE_SMOKE_LABELS: "smoke, smoke ,bot",
@@ -115,7 +117,7 @@ describe("GitHub write validation suite", () => {
     const github = createGithub();
     const result = await createGithubWriteValidationSuiteResult({
       env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED: "true",
+        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "false",
         MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM: "create-live-github-issue",
         MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
         MOTTBOT_GITHUB_WRITE_SMOKE_TITLE: "Smoke issue",
