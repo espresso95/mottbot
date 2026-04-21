@@ -107,14 +107,6 @@ async function sendTelegramSmokeMessage(params: {
 }
 
 async function main(): Promise<void> {
-  if (process.env.MOTTBOT_LIVE_SMOKE_ENABLED !== "true") {
-    printJson({
-      status: "skipped",
-      reason: "Set MOTTBOT_LIVE_SMOKE_ENABLED=true to validate a configured live smoke environment.",
-    });
-    return;
-  }
-
   const config = loadConfig();
   const telegramBot = await readTelegramBot(config.telegram.botToken);
   const liveTestChatId = process.env.MOTTBOT_LIVE_TEST_CHAT_ID?.trim();

@@ -62,7 +62,6 @@ This exercises the real tool executor and approval path for local document appen
 Run the guarded GitHub write smoke in dry-run mode:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
 pnpm smoke:github-write
@@ -92,7 +91,7 @@ For private-chat live validation without manually typing in Telegram every time,
 pnpm smoke:telegram-user
 ```
 
-It is skipped unless `MOTTBOT_USER_SMOKE_ENABLED=true` is set. It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
+It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
 
 For repeatable live validation, use:
 
@@ -100,7 +99,7 @@ For repeatable live validation, use:
 pnpm smoke:suite
 ```
 
-It is skipped unless `MOTTBOT_LIVE_VALIDATION_ENABLED=true` is set. In dry-run mode it prints the planned preflight, private conversation, command, reply, group, and attachment checks without sending Telegram messages.
+In dry-run mode it prints the planned preflight, private conversation, command, reply, group, and attachment checks without sending Telegram messages.
 
 For local dashboard validation, use:
 
@@ -119,13 +118,11 @@ Verified locally on April 20, 2026:
 - `pnpm test:coverage`: passes
 - `pnpm build`: passes
 - built CLI health check: passes
-- `pnpm smoke:preflight`: passes in skipped mode when `MOTTBOT_LIVE_SMOKE_ENABLED` is unset
+- `pnpm smoke:preflight`: validates config, Telegram bot auth, migrations, and health in a live environment
 - `pnpm smoke:dashboard`: passes against a temporary loopback dashboard and the configured SQLite database
 - `pnpm smoke:local-tools`: passes against disposable local roots and test MCP server
-- `pnpm smoke:github-write`: passes in skipped mode when `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED` is unset
-- `MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo pnpm smoke:github-write`: prints a write plan without touching GitHub
-- `pnpm smoke:suite`: passes in skipped mode when `MOTTBOT_LIVE_VALIDATION_ENABLED` is unset
-- `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite`: passes without live secrets
+- `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo pnpm smoke:github-write`: prints a write plan without touching GitHub
+- `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite`: prints planned checks without sending live Telegram messages
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 

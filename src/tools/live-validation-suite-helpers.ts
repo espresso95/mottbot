@@ -52,7 +52,6 @@ function userSmokeBaseEnv(env: LiveValidationEnv): Record<string, string> {
   const apiHash = env.TELEGRAM_API_HASH?.trim();
   const botUsername = normalizeBotUsername(env.MOTTBOT_LIVE_BOT_USERNAME ?? DEFAULT_BOT_USERNAME);
   return {
-    MOTTBOT_USER_SMOKE_ENABLED: "true",
     MOTTBOT_LIVE_BOT_USERNAME: botUsername,
     MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY: "true",
     ...(apiId ? { TELEGRAM_API_ID: apiId } : {}),
@@ -91,14 +90,10 @@ function scenario(params: {
 }
 
 export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationPlan {
-  const enabled = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_ENABLED", false);
+  const enabled = true;
   const scenarios: LiveValidationScenario[] = [];
   const skipped: string[] = [];
   const issues: string[] = [];
-  if (!enabled) {
-    return { enabled, dryRun: false, scenarios, skipped, issues };
-  }
-
   const dryRun = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_DRY_RUN", false);
   const selected = selectedScenarios(env);
 
@@ -106,9 +101,9 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
     scenarios.push(
       scenario({
         kind: "preflight",
-        name: "Guarded live preflight",
+        name: "Live preflight",
         script: "smoke:preflight",
-        env: { MOTTBOT_LIVE_SMOKE_ENABLED: "true" },
+        env: {},
       }),
     );
   } else {

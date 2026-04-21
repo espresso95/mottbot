@@ -218,14 +218,6 @@ async function waitForReply(params: {
 }
 
 async function main(): Promise<void> {
-  if (process.env.MOTTBOT_USER_SMOKE_ENABLED !== "true") {
-    printJson({
-      status: "skipped",
-      reason: "Set MOTTBOT_USER_SMOKE_ENABLED=true to send a Telegram user-account smoke message.",
-    });
-    return;
-  }
-
   const appConfig = loadConfig();
   const liveConfig = buildTelegramUserSmokeConfig({
     env: process.env,
