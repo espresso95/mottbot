@@ -662,7 +662,7 @@ export class GithubCliReadService implements GithubReadOperations, GithubWriteOp
     });
     const repository = parseGithubRemoteUrl(remote.stdout);
     if (!repository) {
-      throw new Error("GitHub repository is not configured; set MOTTBOT_GITHUB_REPOSITORY or pass repository.");
+      throw new Error("GitHub repository is not configured; set tools.github.defaultRepository or pass repository.");
     }
     return repository;
   }

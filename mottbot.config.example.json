@@ -1,0 +1,163 @@
+{
+  "telegram": {
+    "botToken": "REPLACE_WITH_TELEGRAM_BOT_TOKEN",
+    "polling": true,
+    "adminUserIds": [
+      "123456789"
+    ],
+    "allowedChatIds": [],
+    "webhook": {
+      "publicUrl": "",
+      "path": "/telegram/webhook",
+      "host": "0.0.0.0",
+      "port": 8080,
+      "secretToken": ""
+    },
+    "reactions": {
+      "enabled": true,
+      "ackEmoji": "👀",
+      "removeAckAfterReply": false,
+      "notifications": "own"
+    }
+  },
+  "models": {
+    "default": "openai-codex/gpt-5.4",
+    "transport": "auto"
+  },
+  "auth": {
+    "defaultProfile": "openai-codex:default",
+    "preferCliImport": true
+  },
+  "agents": {
+    "defaultId": "main",
+    "list": [],
+    "bindings": []
+  },
+  "storage": {
+    "sqlitePath": "./data/mottbot.sqlite"
+  },
+  "attachments": {
+    "cacheDir": "./data/attachments",
+    "maxFileBytes": 20971520,
+    "maxTotalBytes": 31457280,
+    "maxPerMessage": 4,
+    "maxExtractedTextCharsPerFile": 40000,
+    "maxExtractedTextCharsTotal": 80000,
+    "csvPreviewRows": 40,
+    "csvPreviewColumns": 20,
+    "pdfMaxPages": 25
+  },
+  "behavior": {
+    "respondInGroupsOnlyWhenMentioned": true,
+    "editThrottleMs": 750,
+    "maxInboundTextChars": 12000
+  },
+  "logging": {
+    "level": "info"
+  },
+  "oauth": {
+    "callbackHost": "127.0.0.1",
+    "callbackPort": 1455
+  },
+  "dashboard": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8787,
+    "path": "/dashboard",
+    "apiPath": "/api/dashboard",
+    "authToken": ""
+  },
+  "tools": {
+    "enableSideEffectTools": false,
+    "approvalTtlMs": 300000,
+    "restartDelayMs": 60000,
+    "policies": {},
+    "repository": {
+      "roots": [
+        "."
+      ],
+      "deniedPaths": [],
+      "maxReadBytes": 40000,
+      "maxSearchMatches": 100,
+      "maxSearchBytes": 80000,
+      "commandTimeoutMs": 5000
+    },
+    "localWrite": {
+      "roots": [
+        "./data/tool-notes"
+      ],
+      "deniedPaths": [],
+      "maxWriteBytes": 20000
+    },
+    "localExec": {
+      "roots": [
+        "./data/tool-workspace"
+      ],
+      "deniedPaths": [],
+      "allowedCommands": [],
+      "timeoutMs": 5000,
+      "maxOutputBytes": 40000
+    },
+    "telegramSend": {
+      "allowedChatIds": []
+    },
+    "github": {
+      "defaultRepository": "",
+      "command": "gh",
+      "commandTimeoutMs": 10000,
+      "maxItems": 10,
+      "maxOutputBytes": 80000
+    },
+    "microsoftTodo": {
+      "enabled": false,
+      "tenantId": "",
+      "clientId": "",
+      "graphBaseUrl": "https://graph.microsoft.com/v1.0",
+      "accessTokenEnv": "MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN",
+      "defaultListId": "",
+      "timeoutMs": 10000,
+      "maxItems": 25
+    },
+    "googleDrive": {
+      "enabled": false,
+      "driveBaseUrl": "https://www.googleapis.com/drive/v3",
+      "docsBaseUrl": "https://docs.googleapis.com/v1",
+      "accessTokenEnv": "MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN",
+      "timeoutMs": 10000,
+      "maxItems": 25,
+      "maxBytes": 120000
+    },
+    "mcp": {
+      "servers": []
+    }
+  },
+  "runtime": {
+    "instanceLeaseEnabled": true,
+    "instanceLeaseTtlMs": 120000,
+    "instanceLeaseRefreshMs": 30000
+  },
+  "memory": {
+    "autoSummariesEnabled": false,
+    "autoSummaryRecentMessages": 12,
+    "autoSummaryMaxChars": 1000,
+    "candidateExtractionEnabled": false,
+    "candidateRecentMessages": 12,
+    "candidateMaxPerRun": 5
+  },
+  "usage": {
+    "dailyRuns": 0,
+    "dailyRunsPerUser": 0,
+    "dailyRunsPerChat": 0,
+    "dailyRunsPerSession": 0,
+    "dailyRunsPerModel": 0,
+    "monthlyRuns": 0,
+    "monthlyRunsPerUser": 0,
+    "monthlyRunsPerChat": 0,
+    "monthlyRunsPerSession": 0,
+    "monthlyRunsPerModel": 0,
+    "warningThresholdPercent": 80
+  },
+  "security": {
+    "masterKey": "REPLACE_WITH_STRONG_LOCAL_SECRET"
+  }
+}

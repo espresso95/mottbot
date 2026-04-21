@@ -7,7 +7,7 @@ const TAG_BYTES = 16;
 function normalizeKey(secret: string): Buffer {
   const trimmed = secret.trim();
   if (!trimmed) {
-    throw new AppError("config.master_key_missing", "Missing MOTTBOT_MASTER_KEY.");
+    throw new AppError("config.master_key_missing", "Missing security.masterKey.");
   }
   try {
     const base64 = Buffer.from(trimmed, "base64");
