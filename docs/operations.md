@@ -265,6 +265,9 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_github_recent_issues`: recent open issue summaries
 - `mottbot_github_ci_status`: recent GitHub Actions workflow runs
 - `mottbot_github_workflow_failures`: recent failed workflow runs
+- `mottbot_ms_todo_lists`: Microsoft To Do list summaries through Microsoft Graph
+- `mottbot_ms_todo_tasks`: Microsoft To Do task summaries for one list through Microsoft Graph
+- `mottbot_ms_todo_task_get`: one Microsoft To Do task by id through Microsoft Graph
 - `mottbot_local_doc_read`: bounded `.md` or `.txt` reads from approved local-write roots with SHA-256 output for safe edits
 
 The diagnostics, repository, git, GitHub, and local document read tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, CI output, and operator documents can contain operational context.
@@ -294,6 +297,19 @@ MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
 
 When `MOTTBOT_GITHUB_REPOSITORY` is empty, Mottbot infers the default repository from local `origin`. Use `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, or `/github failures` from an admin Telegram chat for direct read-only status.
 
+Microsoft To Do tools call Microsoft Graph with a delegated bearer token provided by the host environment. Mottbot does not run an OAuth login flow for Graph.
+
+```bash
+MOTTBOT_MICROSOFT_TODO_ENABLED=false
+MOTTBOT_MICROSOFT_TODO_TENANT_ID=
+MOTTBOT_MICROSOFT_TODO_CLIENT_ID=
+MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
+MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV=MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN
+MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID=
+MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS=10000
+MOTTBOT_MICROSOFT_TODO_MAX_ITEMS=25
+```
+
 Live GitHub write validation is separate from normal startup and intentionally guarded:
 
 ```bash
@@ -321,6 +337,8 @@ Current side-effecting tools:
 - `mottbot_github_issue_create`: creates a GitHub issue through `gh`
 - `mottbot_github_issue_comment`: comments on a GitHub issue through `gh`
 - `mottbot_github_pr_comment`: comments on a GitHub pull request through `gh`
+- `mottbot_ms_todo_task_create`: creates a Microsoft To Do task through Microsoft Graph
+- `mottbot_ms_todo_task_update`: modifies a Microsoft To Do task through Microsoft Graph
 - `mottbot_telegram_send_message`: sends plain text to the current Telegram chat or a configured approved target
 - `mottbot_restart_service`: schedules a delayed local launchd restart and is exposed only for admin callers
 - `mottbot_telegram_react`: adds or clears a Telegram emoji reaction and is exposed only for admin callers
@@ -621,8 +639,9 @@ Current tool set:
 - `mottbot_service_status`, `mottbot_recent_runs`, `mottbot_recent_errors`, and `mottbot_recent_logs`: admin-only operator diagnostics
 - `mottbot_repo_list_files`, `mottbot_repo_read_file`, `mottbot_repo_search`, `mottbot_git_status`, `mottbot_git_branch`, `mottbot_git_recent_commits`, and `mottbot_git_diff`: admin-only local repository inspection
 - `mottbot_github_repo`, `mottbot_github_open_prs`, `mottbot_github_recent_issues`, `mottbot_github_ci_status`, and `mottbot_github_workflow_failures`: admin-only GitHub read inspection through `gh`
+- `mottbot_ms_todo_lists`, `mottbot_ms_todo_tasks`, and `mottbot_ms_todo_task_get`: admin-only Microsoft To Do read inspection through Microsoft Graph
 - `mottbot_local_doc_read`: admin-only bounded local document read plus edit checksum
-- `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_github_issue_create`, `mottbot_github_issue_comment`, `mottbot_github_pr_comment`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
+- `mottbot_local_note_create`, `mottbot_local_doc_append`, `mottbot_local_doc_replace`, `mottbot_local_command_run`, `mottbot_mcp_call_tool`, `mottbot_github_issue_create`, `mottbot_github_issue_comment`, `mottbot_github_pr_comment`, `mottbot_ms_todo_task_create`, `mottbot_ms_todo_task_update`, `mottbot_telegram_send_message`, `mottbot_restart_service`, and `mottbot_telegram_react`: optional side-effecting tools requiring host opt-in and one-shot approval
 
 Runtime controls:
 

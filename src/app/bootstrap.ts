@@ -45,6 +45,8 @@ import { createLocalExecToolHandlers } from "../tools/local-exec-handlers.js";
 import { createGithubToolHandlers } from "../tools/github-handlers.js";
 import { createMcpToolHandlers } from "../tools/mcp-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
+import { MicrosoftTodoService } from "../tools/microsoft-todo.js";
+import { createMicrosoftTodoToolHandlers } from "../tools/microsoft-todo-handlers.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
 
 export async function bootstrapApplication() {
@@ -80,6 +82,7 @@ export async function bootstrapApplication() {
   const diagnostics = new OperatorDiagnostics(config, database, systemClock);
   const usageBudget = new UsageBudgetService(config, runStore, systemClock);
   const github = new GithubCliReadService(config.tools.github);
+  const microsoftTodo = new MicrosoftTodoService(config.tools.microsoftTodo);
   const instanceLease = new ApplicationInstanceLease(database, systemClock, logger, {
     leaseName: "bot",
     enabled: config.runtime.instanceLeaseEnabled,
@@ -135,6 +138,7 @@ export async function bootstrapApplication() {
       ...createLocalWriteToolHandlers(config.tools.localWrite),
       ...createLocalExecToolHandlers(config.tools.localExec),
       ...createGithubToolHandlers(github),
+      ...createMicrosoftTodoToolHandlers(microsoftTodo),
       ...createMcpToolHandlers(config.tools.mcp),
     },
     adminUserIds: config.telegram.adminUserIds,
