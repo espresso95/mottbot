@@ -137,9 +137,9 @@ async function main(): Promise<void> {
     const health = new HealthReporter(config, database, authStore, systemClock).snapshot();
     const issues = [
       ...(defaultProfilePresent ? [] : [`Default auth profile is missing: ${config.auth.defaultProfile}`]),
-      ...(config.telegram.adminUserIds.length > 0 ? [] : ["MOTTBOT_ADMIN_USER_IDS is empty."]),
+      ...(config.telegram.adminUserIds.length > 0 ? [] : ["telegram.adminUserIds is empty."]),
       ...(!config.telegram.polling && !config.telegram.webhook.publicUrl
-        ? ["Webhook mode requires telegram.webhook.publicUrl or MOTTBOT_TELEGRAM_WEBHOOK_URL."]
+        ? ["Webhook mode requires telegram.webhook.publicUrl."]
         : []),
     ];
 

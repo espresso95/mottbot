@@ -13,6 +13,7 @@ import { createGithubToolHandlers } from "./github-handlers.js";
 import { GithubCliReadService, type GithubReadOperations, type GithubWriteOperations } from "./github-read.js";
 import { createToolRequestFingerprint } from "./policy.js";
 import { createRuntimeToolRegistry } from "./registry.js";
+import { loadConfig } from "../app/config.js";
 
 type GithubWriteSmokeStatus = "passed" | "failed" | "skipped" | "dry-run" | "blocked";
 
@@ -62,11 +63,6 @@ function optionalString(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function numberFromEnv(value: string | undefined, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : fallback;
-}
-
 function labelsFromEnv(value: string | undefined): string[] {
   return [
     ...new Set(
@@ -76,6 +72,25 @@ function labelsFromEnv(value: string | undefined): string[] {
         .filter(Boolean),
     ),
   ].slice(0, 10);
+}
+
+function readGithubToolConfigFromRuntime(): {
+  defaultRepository?: string;
+  command: string;
+  commandTimeoutMs: number;
+  maxItems: number;
+  maxOutputBytes: number;
+} {
+  try {
+    return loadConfig().tools.github;
+  } catch {
+    return {
+      command: "gh",
+      commandTimeoutMs: 10_000,
+      maxItems: 10,
+      maxOutputBytes: 80_000,
+    };
+  }
 }
 
 function prNumberFromEnv(value: string | undefined): number | undefined {
@@ -264,14 +279,12 @@ export async function createGithubWriteValidationSuiteResult(params: {
       modelRef: "openai-codex/gpt-5.4",
     });
     const approvals = new ToolApprovalStore(database, clock);
+    const githubToolConfig = readGithubToolConfigFromRuntime();
     const github =
       params.github ??
       new GithubCliReadService({
-        defaultRepository: plan.repository,
-        command: optionalString(env.MOTTBOT_GITHUB_COMMAND) ?? "gh",
-        commandTimeoutMs: numberFromEnv(env.MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS, 10_000),
-        maxItems: numberFromEnv(env.MOTTBOT_GITHUB_MAX_ITEMS, 10),
-        maxOutputBytes: numberFromEnv(env.MOTTBOT_GITHUB_MAX_OUTPUT_BYTES, 80_000),
+        ...githubToolConfig,
+        defaultRepository: plan.repository || githubToolConfig.defaultRepository,
       });
     const executor = new ToolExecutor(createRuntimeToolRegistry({ enableSideEffectTools: true }), {
       clock,

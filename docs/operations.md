@@ -30,9 +30,9 @@ pnpm rebuild better-sqlite3
 
 2. Create configuration:
 
-- copy `.env.example` to `.env`
-- set `TELEGRAM_BOT_TOKEN`
-- set `MOTTBOT_MASTER_KEY`
+- copy `mottbot.config.example.json` to `mottbot.config.json`
+- set `telegram.botToken`
+- set `security.masterKey`
 
 3. Initialize the database:
 
@@ -60,9 +60,9 @@ pnpm dev
 
 Webhook deployments additionally need:
 
-- `MOTTBOT_TELEGRAM_POLLING=false`
-- `MOTTBOT_TELEGRAM_WEBHOOK_URL`
-- optional webhook path, host, port, and secret token overrides
+- `telegram.polling=false`
+- `telegram.webhook.publicUrl`
+- optional webhook `path`, `host`, `port`, and `secretToken` overrides
 
 ## Test Environment Checklist
 
@@ -70,11 +70,11 @@ Use a private operator-only test environment before live validation.
 
 Required items:
 
-- a Telegram bot token from BotFather stored in `TELEGRAM_BOT_TOKEN`
-- a strong local `MOTTBOT_MASTER_KEY`
-- the owner's Telegram user ID in `MOTTBOT_ADMIN_USER_IDS`
-- optional test chat IDs in `MOTTBOT_ALLOWED_CHAT_IDS`
-- a runtime SQLite path such as `./data/mottbot.sqlite`
+- a Telegram bot token from BotFather stored in `telegram.botToken`
+- a strong local secret in `security.masterKey`
+- the owner's Telegram user ID in `telegram.adminUserIds`
+- optional test chat IDs in `telegram.allowedChatIds`
+- a runtime SQLite path such as `storage.sqlitePath` (`./data/mottbot.sqlite`)
 - a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite` when validating without touching runtime data
 - a Codex auth source, either `$CODEX_HOME/auth.json` for CLI import or local OAuth through `pnpm auth:login`
 - webhook public URL and secret token values when testing webhook mode
@@ -99,14 +99,14 @@ Default endpoint:
 
 - `http://127.0.0.1:8787/dashboard`
 
-Environment overrides:
+Dashboard config keys:
 
-- `MOTTBOT_DASHBOARD_ENABLED`
-- `MOTTBOT_DASHBOARD_HOST`
-- `MOTTBOT_DASHBOARD_PORT`
-- `MOTTBOT_DASHBOARD_PATH`
-- `MOTTBOT_DASHBOARD_API_PATH`
-- `MOTTBOT_DASHBOARD_AUTH_TOKEN`
+- `dashboard.enabled`
+- `dashboard.host`
+- `dashboard.port`
+- `dashboard.path`
+- `dashboard.apiPath`
+- `dashboard.authToken`
 
 Operational panels:
 

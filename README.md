@@ -26,7 +26,13 @@ Telegram-first Codex subscription bot scaffold for the subscription-backed `open
 pnpm install
 ```
 
-2. Create `mottbot.config.json` (or copy from your existing template) and set:
+2. Create `mottbot.config.json` from the JSON template and set secrets:
+
+```bash
+cp mottbot.config.example.json mottbot.config.json
+```
+
+Then set at minimum:
 
 - `telegram.botToken`
 - `security.masterKey`
@@ -50,7 +56,7 @@ For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
 5. Open the dashboard:
 
 - `http://127.0.0.1:8787/dashboard` (defaults)
-- use `MOTTBOT_DASHBOARD_*` env vars to rebind/disable/auth-protect it
+- use `dashboard.*` keys in `mottbot.config.json` to rebind/disable/auth-protect it
 - dashboard saves to the configured config path (default: `mottbot.config.json`); restart required after changes
 
 ## Commands
