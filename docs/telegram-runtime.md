@@ -297,7 +297,7 @@ Chat policy JSON accepts:
 - `/tool revoke <tool-name>`
 - `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 
-When a run hits a side-effecting tool without an active approval, the final Telegram response includes inline approve and deny buttons for each pending request. Approving from the button creates the request-fingerprinted one-shot approval, edits the original message with an approved status, removes the stale keyboard, and continues in the same session by replaying the exact stored tool call when the transcript still contains it. If that context is unavailable, the bot falls back to a same-session continuation prompt. Denying records an operator denial, edits the source message, and does not continue. Expired pending approval buttons record `approval_expired` and ask the model to retry. The typed `/tool approve` command remains available as a fallback.
+When a run hits a side-effecting tool without an active approval, the final Telegram response includes a structured approval card plus inline approve and deny buttons for each pending request. The card summarizes the tool, action, side effect, target arguments, expiration, and request ID. Approving from the button creates the request-fingerprinted one-shot approval, edits the original message with an approved status, removes the stale keyboard, and continues in the same session by replaying the exact stored tool call when the transcript still contains it. If that context is unavailable, the bot falls back to a same-session continuation prompt. Denying records an operator denial, edits the source message, and does not continue. Expired pending approval buttons record `approval_expired` and ask the model to retry. The typed `/tool approve` command remains available as a fallback.
 
 ### Current command behavior
 
@@ -327,6 +327,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
 - inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark source messages, expire with the configured approval TTL, and treat replayed buttons as the original operator decision
+- run status messages include inline controls: active runs offer `Stop`, failed runs offer `Retry` and `New chat`, and completed runs offer `New chat`, `Usage`, and `Files`
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat, then mark the original message as approved or not applied; `/project approve <approval-id>` remains the fallback command and enforces the same originating-chat ownership check

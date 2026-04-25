@@ -425,6 +425,76 @@ export class TelegramCommandRouter {
       return true;
     }
     if (
+      action.type === "run_stop" ||
+      action.type === "run_retry" ||
+      action.type === "run_new" ||
+      action.type === "run_usage" ||
+      action.type === "run_files"
+    ) {
+      const command =
+        action.type === "run_stop"
+          ? "stop"
+          : action.type === "run_usage"
+            ? "usage"
+            : action.type === "run_files"
+              ? "files"
+              : "new";
+      if (await this.rejectUnauthorizedCallback(event, command)) {
+        return true;
+      }
+      const inbound = inboundEventFromCallback(event);
+      const session = this.routes.resolve(inbound);
+      if (action.type === "run_stop") {
+        const stopped = await this.orchestrator.stop(session.sessionKey, action.runId);
+        const message = stopped ? "Active run cancelled." : "No matching active run.";
+        await this.answerCallback(event, message, !stopped);
+        await sendReply(this.api, event, message);
+        return true;
+      }
+      if (action.type === "run_retry") {
+        const result = await this.orchestrator.retryRun({
+          event: inbound,
+          session,
+          runId: action.runId,
+        });
+        const message = this.formatRunRetryResult(result);
+        await this.answerCallback(event, message, result !== "queued");
+        await sendReply(this.api, event, message);
+        return true;
+      }
+      if (action.type === "run_new") {
+        await this.answerCallback(event, "Starting a new chat.");
+        await handleResetCommand({
+          api: this.api,
+          event: inbound,
+          session,
+          transcripts: this.transcripts,
+        });
+        return true;
+      }
+      if (action.type === "run_usage") {
+        await this.answerCallback(event, "Showing usage.");
+        await handleUsageCommand({
+          api: this.api,
+          event: inbound,
+          session,
+          args: [],
+          usageBudget: this.usageBudget,
+        });
+        return true;
+      }
+      await this.answerCallback(event, "Showing files.");
+      await handleFilesCommand({
+        api: this.api,
+        event: inbound,
+        session,
+        args: [],
+        attachments: this.attachments,
+        transcripts: this.transcripts,
+      });
+      return true;
+    }
+    if (
       action.type === "project_approve" ||
       action.type === "project_details" ||
       action.type === "project_cleanup" ||
@@ -476,6 +546,21 @@ export class TelegramCommandRouter {
       return true;
     }
     return false;
+  }
+
+  private formatRunRetryResult(result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>): string {
+    switch (result) {
+      case "queued":
+        return "Retry queued.";
+      case "not_found":
+        return "Run is no longer available.";
+      case "wrong_session":
+        return "Run is not available in this session.";
+      case "not_retryable":
+        return "Run is not retryable.";
+      case "no_user_message":
+        return "Original user message is no longer available.";
+    }
   }
 
   private async rejectUnauthorizedCommand(event: InboundEvent, command: string): Promise<boolean> {

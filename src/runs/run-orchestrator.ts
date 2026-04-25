@@ -29,7 +29,15 @@ import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { TelegramReactionService } from "../telegram/reactions.js";
-import { buildToolApprovalCallbackData, buildToolDenyCallbackData } from "../telegram/callback-data.js";
+import {
+  buildRunFilesCallbackData,
+  buildRunNewCallbackData,
+  buildRunRetryCallbackData,
+  buildRunStopCallbackData,
+  buildRunUsageCallbackData,
+  buildToolApprovalCallbackData,
+  buildToolDenyCallbackData,
+} from "../telegram/callback-data.js";
 import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import {
@@ -40,7 +48,7 @@ import {
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
 import { isToolAdminRole, type ToolCallerRole, type ToolPolicyEngine } from "../tools/policy.js";
-import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
+import type { ToolDefinition, ToolRegistry, ToolSideEffect } from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
 import type { RunQueueApprovedToolContinuation, RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
@@ -58,6 +66,8 @@ const MAX_TOOL_CALLS_PER_RUN = 5;
 type OutboxHandle = Awaited<ReturnType<TelegramOutbox["start"]>>;
 
 type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
+
+export type RunRetryResult = "queued" | "not_found" | "wrong_session" | "not_retryable" | "no_user_message";
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 type RunGovernancePolicy = {
@@ -321,10 +331,116 @@ function buildToolApprovalReplyMarkup(results: ToolExecutionResult[]): TelegramI
   return rows.length > 0 ? { inline_keyboard: rows } : undefined;
 }
 
+function buildActiveRunReplyMarkup(runId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [[{ text: "Stop", callback_data: buildRunStopCallbackData(runId) }]],
+  };
+}
+
+function buildCompletedRunReplyMarkup(runId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [
+        { text: "New chat", callback_data: buildRunNewCallbackData(runId) },
+        { text: "Usage", callback_data: buildRunUsageCallbackData(runId) },
+        { text: "Files", callback_data: buildRunFilesCallbackData(runId) },
+      ],
+    ],
+  };
+}
+
+function buildFailedRunReplyMarkup(runId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [
+        { text: "Retry", callback_data: buildRunRetryCallbackData(runId) },
+        { text: "New chat", callback_data: buildRunNewCallbackData(runId) },
+      ],
+    ],
+  };
+}
+
+const TOOL_SIDE_EFFECT_LABELS: Record<ToolSideEffect, string> = {
+  read_only: "read local runtime data",
+  local_write: "write local files",
+  local_exec: "run configured local commands",
+  network: "make network calls",
+  network_write: "write through external network APIs",
+  telegram_send: "send Telegram messages or reactions",
+  github_write: "write through GitHub APIs",
+  process_control: "control local processes",
+  secret_adjacent: "read or touch sensitive local state",
+};
+
+function compactToolName(toolName: string): string {
+  return toolName.replace(/^mottbot_/, "").replace(/_/g, " ");
+}
+
+function compactSingleLine(value: string | undefined, maxChars: number): string | undefined {
+  const clean = value?.replace(/\s+/g, " ").trim();
+  if (!clean) {
+    return undefined;
+  }
+  if (clean.length <= maxChars) {
+    return clean;
+  }
+  return `${clean.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
+}
+
+function approvalPreviewField(preview: string | undefined, label: string): string | undefined {
+  if (!preview) {
+    return undefined;
+  }
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`^${escaped}:\\s*(.+)$`, "m").exec(preview);
+  return match?.[1]?.trim();
+}
+
+function approvalPreviewArguments(preview: string | undefined): string | undefined {
+  const raw = preview?.split(/\nArguments:\n/)[1]?.trim();
+  return compactSingleLine(raw, 260);
+}
+
+function formatApprovalTtl(ttlMs: number): string {
+  const seconds = Math.max(1, Math.round(ttlMs / 1000));
+  if (seconds < 90) {
+    return `${seconds} seconds`;
+  }
+  return `${Math.round(seconds / 60)} minutes`;
+}
+
+function appendToolApprovalCards(text: string, results: ToolExecutionResult[], approvalTtlMs: number): string {
+  const pending = results.filter((result) => result.errorCode === "approval_required" && result.approvalRequestId);
+  if (pending.length === 0) {
+    return text;
+  }
+  const cards = pending.map((result, index) => {
+    const preview = result.approvalPreviewText;
+    const action = compactSingleLine(approvalPreviewField(preview, "Action"), 220);
+    const sideEffect =
+      compactSingleLine(approvalPreviewField(preview, "Side effect"), 140) ??
+      (result.approvalSideEffect ? TOOL_SIDE_EFFECT_LABELS[result.approvalSideEffect] : undefined);
+    const target = approvalPreviewArguments(preview);
+    return [
+      pending.length > 1 ? `Approval ${index + 1}` : "Approval request",
+      `Tool: ${compactToolName(result.toolName)}`,
+      action ? `Action: ${action}` : undefined,
+      sideEffect ? `Side effect: ${sideEffect}` : undefined,
+      target ? `Target: ${target}` : undefined,
+      `Expires: ${formatApprovalTtl(approvalTtlMs)}`,
+      result.approvalRequestId ? `Request: ${result.approvalRequestId.slice(0, 8)}` : undefined,
+    ]
+      .filter((line): line is string => typeof line === "string")
+      .join("\n");
+  });
+  return [text.trim(), ...cards].filter(Boolean).join("\n\n");
+}
+
 /** Coordinates queued Telegram events through prompt building, model streaming, tools, memory, and outbox writes. */
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
   private readonly agentLimiter = new AgentRunLimiter();
+  private readonly activeRunIds = new Map<string, string>();
 
   constructor(
     private readonly config: AppConfig,
@@ -494,8 +610,42 @@ export class RunOrchestrator {
     return true;
   }
 
-  async stop(sessionKey: string): Promise<boolean> {
+  async stop(sessionKey: string, runId?: string): Promise<boolean> {
+    if (runId && this.activeRunIds.get(sessionKey) !== runId) {
+      return false;
+    }
     return this.queue.cancel(sessionKey);
+  }
+
+  async retryRun(params: { event: InboundEvent; session: SessionRoute; runId: string }): Promise<RunRetryResult> {
+    const run = this.runs.get(params.runId);
+    if (!run) {
+      return "not_found";
+    }
+    if (run.sessionKey !== params.session.sessionKey) {
+      return "wrong_session";
+    }
+    if (run.status !== "failed" && run.status !== "cancelled") {
+      return "not_retryable";
+    }
+    const message = this.transcripts.getRunMessage(run.runId, "user");
+    const text = message?.contentText?.trim();
+    if (!text) {
+      return "no_user_message";
+    }
+    await this.enqueueMessage({
+      event: {
+        ...params.event,
+        text,
+        entities: [],
+        attachments: [],
+        mentionsBot: false,
+        isCommand: false,
+        replyToMessageId: params.event.messageId,
+      },
+      session: params.session,
+    });
+    return "queued";
   }
 
   recoverQueuedRuns(): { resumed: number; failed: number } {
@@ -543,14 +693,21 @@ export class RunOrchestrator {
           ) {
             return;
           }
-          await this.execute({
-            event: params.event,
-            session: params.session,
-            runId: params.runId,
-            placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
-            signal,
-            approvedToolContinuation: params.approvedToolContinuation,
-          });
+          this.activeRunIds.set(params.session.sessionKey, params.runId);
+          try {
+            await this.execute({
+              event: params.event,
+              session: params.session,
+              runId: params.runId,
+              placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
+              signal,
+              approvedToolContinuation: params.approvedToolContinuation,
+            });
+          } finally {
+            if (this.activeRunIds.get(params.session.sessionKey) === params.runId) {
+              this.activeRunIds.delete(params.session.sessionKey);
+            }
+          }
           const finalRun = this.runs.get(params.runId);
           if (!this.runQueue || !finalRun) {
             return;
@@ -615,7 +772,9 @@ export class RunOrchestrator {
         replyToMessageId: params.event.messageId,
         placeholderText: RUN_STATUS_TEXT.starting,
       });
-      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
+      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage), {
+        replyMarkup: buildFailedRunReplyMarkup(run.runId),
+      });
     } catch (error) {
       this.logger.warn({ error, runId: run.runId }, "Failed to send enqueue rejection.");
     }
@@ -647,7 +806,9 @@ export class RunOrchestrator {
         replyToMessageId: params.event.messageId,
         placeholderText: RUN_STATUS_TEXT.starting,
       });
-      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
+      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage), {
+        replyMarkup: buildFailedRunReplyMarkup(run.runId),
+      });
     } catch (error) {
       this.logger.warn({ error, runId: run.runId }, "Failed to send approved-tool continuation rejection.");
     }
@@ -687,6 +848,7 @@ export class RunOrchestrator {
     };
 
     try {
+      const activeReplyMarkup = buildActiveRunReplyMarkup(run.runId);
       this.runs.update(run.runId, {
         status: "starting",
         startedAt: this.clock.now(),
@@ -697,6 +859,7 @@ export class RunOrchestrator {
         threadId: params.event.threadId,
         replyToMessageId: params.event.messageId,
         placeholderText: params.placeholderText,
+        replyMarkup: activeReplyMarkup,
       });
       this.logger.info(
         {
@@ -733,6 +896,7 @@ export class RunOrchestrator {
         placeholder = await this.outbox.update(
           currentPlaceholder(),
           [RUN_STATUS_TEXT.starting, ...budgetDecision.warnings].join("\n"),
+          { replyMarkup: activeReplyMarkup },
         );
       }
       const auth = await this.tokenResolver.resolve(params.session.profileId);
@@ -820,6 +984,7 @@ export class RunOrchestrator {
           runId: run.runId,
           signal: params.signal,
           placeholder: currentPlaceholder(),
+          activeReplyMarkup,
           extraContextMessages,
           executedToolResults,
         });
@@ -842,14 +1007,16 @@ export class RunOrchestrator {
           },
           onTextDelta: async (delta) => {
             const nextText = collector.appendText(delta);
-            placeholder = await this.outbox.update(currentPlaceholder(), nextText);
+            placeholder = await this.outbox.update(currentPlaceholder(), nextText, { replyMarkup: activeReplyMarkup });
           },
           onThinkingDelta: async (delta) => {
             collector.appendThinking(delta);
           },
           onToolCallStart: async (toolCall) => {
             if (toolCall.name) {
-              placeholder = await this.outbox.update(currentPlaceholder(), formatToolPreparingStatus(toolCall.name));
+              placeholder = await this.outbox.update(currentPlaceholder(), formatToolPreparingStatus(toolCall.name), {
+                replyMarkup: activeReplyMarkup,
+              });
             }
           },
         });
@@ -883,6 +1050,7 @@ export class RunOrchestrator {
             runId: run.runId,
             signal: params.signal,
             placeholder: currentPlaceholder(),
+            activeReplyMarkup,
             extraContextMessages,
             executedToolResults,
           });
@@ -892,9 +1060,14 @@ export class RunOrchestrator {
         throw new Error("No model response was produced.");
       }
       const finalText = result.text.trim() || collector.getText().trim();
-      const visibleText = finalText || "No response generated.";
+      const approvalReplyMarkup = buildToolApprovalReplyMarkup(executedToolResults);
+      const visibleText = appendToolApprovalCards(
+        finalText || "No response generated.",
+        executedToolResults,
+        this.config.tools.approvalTtlMs,
+      );
       const delivery = await this.outbox.finish(currentPlaceholder(), visibleText, {
-        replyMarkup: buildToolApprovalReplyMarkup(executedToolResults),
+        replyMarkup: approvalReplyMarkup ?? buildCompletedRunReplyMarkup(run.runId),
       });
       const thinking = result.thinking || collector.getThinking();
       const assistantEnvelope = {
@@ -974,7 +1147,9 @@ export class RunOrchestrator {
       });
       if (placeholder) {
         try {
-          await this.outbox.fail(placeholder, formatRunFailedStatus(message));
+          await this.outbox.fail(placeholder, formatRunFailedStatus(message), {
+            replyMarkup: buildFailedRunReplyMarkup(run.runId),
+          });
         } catch (outboxError) {
           this.logger.warn({ error: outboxError, runId: run.runId }, "Failed to send run failure status.");
         }
@@ -1047,13 +1222,16 @@ export class RunOrchestrator {
     runId: string;
     signal: AbortSignal;
     placeholder: OutboxHandle;
+    activeReplyMarkup: TelegramInlineKeyboard;
     extraContextMessages: ProviderMessage[];
     executedToolResults: ToolExecutionResult[];
   }): Promise<OutboxHandle> {
     if (!this.toolExecutor) {
       throw new Error("Model requested tools, but tool execution is disabled.");
     }
-    let placeholder = await this.outbox.update(params.placeholder, formatToolRunningStatus(params.toolCall.name));
+    let placeholder = await this.outbox.update(params.placeholder, formatToolRunningStatus(params.toolCall.name), {
+      replyMarkup: params.activeReplyMarkup,
+    });
     const execution = await this.toolExecutor.execute(params.toolCall, {
       signal: params.signal,
       sessionKey: params.session.sessionKey,
@@ -1076,6 +1254,7 @@ export class RunOrchestrator {
     placeholder = await this.outbox.update(
       placeholder,
       formatToolCompletedStatus({ toolName: execution.toolName, isError: execution.isError }),
+      { replyMarkup: params.activeReplyMarkup },
     );
     this.logger.info(
       {
@@ -1240,7 +1419,9 @@ export class RunOrchestrator {
         placeholderText: RUN_STATUS_TEXT.unableToResumeAfterRestart,
       })
       .then(async (handle) => {
-        await this.outbox.fail(handle, formatRunFailedStatus(message));
+        await this.outbox.fail(handle, formatRunFailedStatus(message), {
+          replyMarkup: buildFailedRunReplyMarkup(record.runId),
+        });
       })
       .catch((error) => {
         this.logger.warn({ error, runId: record.runId }, "Failed to notify chat about unrecoverable queued run.");

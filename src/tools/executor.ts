@@ -3,7 +3,7 @@ import type { HealthReporter } from "../app/health.js";
 import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
-import { type ToolRegistry, ToolRegistryError, type ToolDefinition } from "./registry.js";
+import { type ToolRegistry, ToolRegistryError, type ToolDefinition, type ToolSideEffect } from "./registry.js";
 import {
   buildToolApprovalAuditRecord,
   evaluateToolApproval,
@@ -32,6 +32,8 @@ export type ToolExecutionResult = {
   truncated: boolean;
   errorCode?: string;
   approvalRequestId?: string;
+  approvalPreviewText?: string;
+  approvalSideEffect?: ToolSideEffect;
 };
 
 /** Handler used by process-control tools to schedule a local service restart. */
@@ -332,6 +334,8 @@ export class ToolExecutor {
           : decision.message;
       return this.errorResult(params.call, params.startedAt, decision.code, message, {
         approvalRequestId: decision.code === "approval_required" ? audit?.id : undefined,
+        approvalPreviewText: decision.code === "approval_required" ? params.previewText : undefined,
+        approvalSideEffect: decision.code === "approval_required" ? params.definition.sideEffect : undefined,
       });
     }
     if (activeApproval) {
@@ -445,7 +449,11 @@ export class ToolExecutor {
     startedAt: number,
     code: string,
     message: string,
-    details: { approvalRequestId?: string } = {},
+    details: {
+      approvalRequestId?: string;
+      approvalPreviewText?: string;
+      approvalSideEffect?: ToolSideEffect;
+    } = {},
   ): ToolExecutionResult {
     const contentText = `Tool ${call.name} failed: ${message}`;
     return {
@@ -458,6 +466,8 @@ export class ToolExecutor {
       truncated: false,
       errorCode: code,
       ...(details.approvalRequestId ? { approvalRequestId: details.approvalRequestId } : {}),
+      ...(details.approvalPreviewText ? { approvalPreviewText: details.approvalPreviewText } : {}),
+      ...(details.approvalSideEffect ? { approvalSideEffect: details.approvalSideEffect } : {}),
     };
   }
 }

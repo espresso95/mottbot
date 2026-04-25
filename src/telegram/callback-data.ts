@@ -4,6 +4,11 @@ type TelegramCallbackAction =
   | { type: "project_details"; taskId: string }
   | { type: "project_cleanup"; taskId: string }
   | { type: "project_publish_main"; taskId: string }
+  | { type: "run_stop"; runId: string }
+  | { type: "run_retry"; runId: string }
+  | { type: "run_new"; runId: string }
+  | { type: "run_usage"; runId: string }
+  | { type: "run_files"; runId: string }
   | { type: "tool_approve"; auditId: string }
   | { type: "tool_deny"; auditId: string }
   | { type: "memory_accept"; candidateId: string }
@@ -15,6 +20,11 @@ const PROJECT_APPROVE = "pa";
 const PROJECT_DETAILS = "pd";
 const PROJECT_CLEANUP = "pc";
 const PROJECT_PUBLISH_MAIN = "pb";
+const RUN_STOP = "rs";
+const RUN_RETRY = "rr";
+const RUN_NEW = "rn";
+const RUN_USAGE = "ru";
+const RUN_FILES = "rf";
 const TOOL_APPROVE = "ta";
 const TOOL_DENY = "td";
 const MEMORY_ACCEPT = "ma";
@@ -47,6 +57,31 @@ export function buildProjectCleanupCallbackData(taskId: string): string {
 /** Builds compact callback data for requesting a direct Project Mode publish to the base ref. */
 export function buildProjectPublishMainCallbackData(taskId: string): string {
   return assertCallbackDataFits(`${PREFIX}:${PROJECT_PUBLISH_MAIN}:${taskId}`);
+}
+
+/** Builds compact callback data for stopping the active run from its status message. */
+export function buildRunStopCallbackData(runId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${RUN_STOP}:${runId}`);
+}
+
+/** Builds compact callback data for retrying a failed run from its status message. */
+export function buildRunRetryCallbackData(runId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${RUN_RETRY}:${runId}`);
+}
+
+/** Builds compact callback data for clearing the current session from a completed run. */
+export function buildRunNewCallbackData(runId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${RUN_NEW}:${runId}`);
+}
+
+/** Builds compact callback data for showing usage from a completed run. */
+export function buildRunUsageCallbackData(runId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${RUN_USAGE}:${runId}`);
+}
+
+/** Builds compact callback data for showing retained files from a completed run. */
+export function buildRunFilesCallbackData(runId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${RUN_FILES}:${runId}`);
 }
 
 /** Builds compact callback data for approving a tool side-effect request. */
@@ -92,6 +127,21 @@ export function parseTelegramCallbackData(data: string): TelegramCallbackAction 
   }
   if (action === PROJECT_PUBLISH_MAIN) {
     return { type: "project_publish_main", taskId: id };
+  }
+  if (action === RUN_STOP) {
+    return { type: "run_stop", runId: id };
+  }
+  if (action === RUN_RETRY) {
+    return { type: "run_retry", runId: id };
+  }
+  if (action === RUN_NEW) {
+    return { type: "run_new", runId: id };
+  }
+  if (action === RUN_USAGE) {
+    return { type: "run_usage", runId: id };
+  }
+  if (action === RUN_FILES) {
+    return { type: "run_files", runId: id };
   }
   if (action === TOOL_APPROVE) {
     return { type: "tool_approve", auditId: id };

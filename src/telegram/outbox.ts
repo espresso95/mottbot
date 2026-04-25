@@ -40,12 +40,14 @@ export class TelegramOutbox {
     threadId?: number;
     replyToMessageId?: number;
     placeholderText: string;
+    replyMarkup?: TelegramInlineKeyboard;
   }): Promise<OutboxHandle> {
     const sent = await this.api.sendMessage(params.chatId, params.placeholderText, {
       ...(typeof params.threadId === "number" ? { message_thread_id: params.threadId } : {}),
       ...(typeof params.replyToMessageId === "number"
         ? { reply_parameters: { message_id: params.replyToMessageId } }
         : {}),
+      ...(params.replyMarkup ? { reply_markup: params.replyMarkup } : {}),
     });
     const now = this.clock.now();
     const handle: OutboxHandle = {
@@ -85,7 +87,11 @@ export class TelegramOutbox {
     return handle;
   }
 
-  async update(handle: OutboxHandle, text: string): Promise<OutboxHandle> {
+  async update(
+    handle: OutboxHandle,
+    text: string,
+    options: { replyMarkup?: TelegramInlineKeyboard } = {},
+  ): Promise<OutboxHandle> {
     const chunks = splitTelegramText(text);
     const nextText = chunks[0] ?? "";
     if (!nextText || nextText === handle.lastText) {
@@ -96,7 +102,9 @@ export class TelegramOutbox {
       return handle;
     }
     try {
-      await this.api.editMessageText(handle.chatId, handle.messageId, nextText);
+      await this.api.editMessageText(handle.chatId, handle.messageId, nextText, {
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+      });
       const next = {
         ...handle,
         lastText: nextText,
@@ -109,6 +117,7 @@ export class TelegramOutbox {
       try {
         const sent = await this.api.sendMessage(handle.chatId, nextText, {
           ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
         });
         const next = {
           ...handle,
@@ -190,13 +199,20 @@ export class TelegramOutbox {
     };
   }
 
-  async fail(handle: OutboxHandle, text: string): Promise<{ primaryMessageId: number }> {
+  async fail(
+    handle: OutboxHandle,
+    text: string,
+    options: { replyMarkup?: TelegramInlineKeyboard } = {},
+  ): Promise<{ primaryMessageId: number }> {
     let primaryMessageId = handle.messageId;
     try {
-      await this.api.editMessageText(handle.chatId, primaryMessageId, text);
+      await this.api.editMessageText(handle.chatId, primaryMessageId, text, {
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+      });
     } catch {
       const sent = await this.api.sendMessage(handle.chatId, text, {
         ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       });
       primaryMessageId = sent.message_id;
       this.messages.record({

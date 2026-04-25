@@ -17,6 +17,11 @@ import {
   buildProjectCleanupCallbackData,
   buildProjectDetailsCallbackData,
   buildProjectPublishMainCallbackData,
+  buildRunFilesCallbackData,
+  buildRunNewCallbackData,
+  buildRunRetryCallbackData,
+  buildRunStopCallbackData,
+  buildRunUsageCallbackData,
   buildToolApprovalCallbackData,
   buildToolDenyCallbackData,
 } from "../../src/telegram/callback-data.js";
@@ -2198,5 +2203,86 @@ describe("TelegramCommandRouter", () => {
       expect.any(Object),
     );
     expect(projects.handleApprovalCallback).not.toHaveBeenCalled();
+  });
+
+  it("handles run action callbacks", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      answerCallbackQuery: vi.fn(async () => ({})),
+      sendMessage: vi.fn(async () => ({})),
+    };
+    const orchestrator = {
+      stop: vi.fn(async () => true),
+      retryRun: vi.fn(async () => "queued" as const),
+    };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      orchestrator as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stores.attachmentRecords,
+      undefined,
+      undefined,
+      undefined,
+      new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    );
+
+    await expect(
+      router.maybeHandleCallback(createCallbackEvent({ data: buildRunStopCallbackData("run-1") })),
+    ).resolves.toBe(true);
+    expect(orchestrator.stop).toHaveBeenCalledWith("tg:dm:chat-1:user:user-1", "run-1");
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Active run cancelled.",
+      show_alert: false,
+    });
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Active run cancelled.", expect.any(Object));
+
+    await expect(
+      router.maybeHandleCallback(createCallbackEvent({ data: buildRunRetryCallbackData("run-1") })),
+    ).resolves.toBe(true);
+    expect(orchestrator.retryRun).toHaveBeenCalledWith({
+      event: expect.objectContaining({ chatId: "chat-1", messageId: 42 }),
+      session: expect.objectContaining({ sessionKey: "tg:dm:chat-1:user:user-1" }),
+      runId: "run-1",
+    });
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Retry queued.", expect.any(Object));
+
+    stores.transcripts.add({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      role: "user",
+      contentText: "old context",
+    });
+    await expect(
+      router.maybeHandleCallback(createCallbackEvent({ data: buildRunNewCallbackData("run-1") })),
+    ).resolves.toBe(true);
+    expect(stores.transcripts.listRecent("tg:dm:chat-1:user:user-1")).toEqual([]);
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Session transcript cleared.", expect.any(Object));
+
+    await expect(
+      router.maybeHandleCallback(createCallbackEvent({ data: buildRunUsageCallbackData("run-1") })),
+    ).resolves.toBe(true);
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Daily usage since"),
+      expect.any(Object),
+    );
+
+    await expect(
+      router.maybeHandleCallback(createCallbackEvent({ data: buildRunFilesCallbackData("run-1") })),
+    ).resolves.toBe(true);
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "No files recorded for this session.", expect.any(Object));
   });
 });

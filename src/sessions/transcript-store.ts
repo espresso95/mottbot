@@ -92,6 +92,16 @@ export class TranscriptStore {
     return rows.reverse().map(mapMessageRow);
   }
 
+  getRunMessage(runId: string, role: TranscriptMessageRole): TranscriptMessage | undefined {
+    const row = this.database.db
+      .prepare<
+        unknown[],
+        MessageRow
+      >("select * from messages where run_id = ? and role = ? order by created_at asc limit 1")
+      .get(runId, role);
+    return row ? mapMessageRow(row) : undefined;
+  }
+
   clearSession(sessionKey: string): void {
     this.database.db.prepare("delete from messages where session_key = ?").run(sessionKey);
   }

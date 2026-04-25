@@ -105,7 +105,30 @@ describe("RunOrchestrator", () => {
     expect(runRow.usage_json).toContain('"input":1');
     expect(runRow.started_at).toBe(stores.clock.now());
     expect(runRow.finished_at).toBe(stores.clock.now());
-    expect(outbox.finish).toHaveBeenCalled();
+    expect(outbox.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [expect.objectContaining({ text: "Stop", callback_data: expect.stringMatching(/^mb:rs:/) })],
+          ],
+        },
+      }),
+    );
+    expect(outbox.finish).toHaveBeenCalledWith(
+      expect.anything(),
+      "hello world",
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+              expect.objectContaining({ text: "Usage", callback_data: expect.stringMatching(/^mb:ru:/) }),
+              expect.objectContaining({ text: "Files", callback_data: expect.stringMatching(/^mb:rf:/) }),
+            ],
+          ],
+        },
+      }),
+    );
   });
 
   it("fails before model transport when usage budget is exhausted", async () => {
@@ -182,6 +205,16 @@ describe("RunOrchestrator", () => {
     expect(outbox.fail).toHaveBeenCalledWith(
       expect.anything(),
       expect.stringContaining("daily session run budget is 1/1"),
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({ text: "Retry", callback_data: expect.stringMatching(/^mb:rr:/) }),
+              expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+            ],
+          ],
+        },
+      }),
     );
     const denied = stores.runs.countByStatuses(["failed"]);
     expect(denied).toBe(1);
@@ -454,6 +487,88 @@ describe("RunOrchestrator", () => {
     expect(runRow.error_code).toBe("run_failed");
     expect(runRow.error_message).toContain("boom");
     expect(outbox.fail).toHaveBeenCalled();
+  });
+
+  it("retries a failed run from the original user message", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("temporary failure"))
+        .mockResolvedValueOnce({ text: "retry ok", transport: "sse", requestIdentity: "req-retry" }),
+    };
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ messageId: 41, text: "Build it again" }),
+      session,
+    });
+    await flushAsync();
+
+    const failedRun = stores.database.db
+      .prepare<unknown[], { run_id: string }>("select run_id from runs where status = 'failed' limit 1")
+      .get();
+    expect(failedRun?.run_id).toBeTruthy();
+
+    await expect(
+      orchestrator.retryRun({
+        event: createInboundEvent({ messageId: 42, text: "Retry" }),
+        session,
+        runId: failedRun!.run_id,
+      }),
+    ).resolves.toBe("queued");
+    await flushAsync();
+
+    expect(transport.stream).toHaveBeenCalledTimes(2);
+    expect(outbox.finish).toHaveBeenCalledWith(expect.anything(), "retry ok", expect.any(Object));
+    expect(stores.runs.countByStatuses(["completed"])).toBe(1);
+    expect(stores.transcripts.listRecent(session.sessionKey).map((message) => message.contentText)).toEqual([
+      "Build it again",
+      "Build it again",
+      "retry ok",
+    ]);
   });
 
   it("updates automatic session memory summaries when enabled", async () => {
@@ -936,7 +1051,17 @@ describe("RunOrchestrator", () => {
     expect(messages[1]?.contentJson).toContain("mottbot_health_snapshot");
     expect(messages[2]?.contentText).toBe("Health is ok.");
     expect(messages[2]?.contentJson).toContain('"tools"');
-    expect(outbox.update).toHaveBeenCalledWith(expect.anything(), formatToolRunningStatus("mottbot_health_snapshot"));
+    expect(outbox.update).toHaveBeenCalledWith(
+      expect.anything(),
+      formatToolRunningStatus("mottbot_health_snapshot"),
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [expect.objectContaining({ text: "Stop", callback_data: expect.stringMatching(/^mb:rs:/) })],
+          ],
+        },
+      }),
+    );
     expect(transport.stream).toHaveBeenCalledTimes(2);
   });
 
@@ -1094,7 +1219,20 @@ describe("RunOrchestrator", () => {
     await flushAsync();
 
     expect(transport.stream).not.toHaveBeenCalled();
-    expect(outbox.fail).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("not allowed in this chat"));
+    expect(outbox.fail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("not allowed in this chat"),
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({ text: "Retry", callback_data: expect.stringMatching(/^mb:rr:/) }),
+              expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+            ],
+          ],
+        },
+      }),
+    );
   });
 
   it("rejects new runs when the selected agent queue is full", async () => {
@@ -1160,7 +1298,20 @@ describe("RunOrchestrator", () => {
 
     expect(transport.stream).not.toHaveBeenCalled();
     expect(stores.runs.countByAgentStatuses("main", ["failed"])).toBe(1);
-    expect(outbox.fail).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("queue is full"));
+    expect(outbox.fail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("queue is full"),
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({ text: "Retry", callback_data: expect.stringMatching(/^mb:rr:/) }),
+              expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+            ],
+          ],
+        },
+      }),
+    );
   });
 
   it("executes an approved side-effecting restart tool once", async () => {
@@ -1422,7 +1573,7 @@ describe("RunOrchestrator", () => {
     expect(restartService).not.toHaveBeenCalled();
     expect(outbox.finish).toHaveBeenCalledWith(
       expect.anything(),
-      "Approval required before restarting.",
+      expect.stringContaining("Approval required before restarting."),
       expect.objectContaining({
         replyMarkup: {
           inline_keyboard: [
@@ -1439,6 +1590,11 @@ describe("RunOrchestrator", () => {
           ],
         },
       }),
+    );
+    expect(outbox.finish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("Approval request\nTool: restart service"),
+      expect.anything(),
     );
   });
 
@@ -1618,7 +1774,17 @@ describe("RunOrchestrator", () => {
     expect(outbox.finish).toHaveBeenCalledWith(
       expect.anything(),
       "Restart scheduled.",
-      expect.objectContaining({ replyMarkup: undefined }),
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+              expect.objectContaining({ text: "Usage", callback_data: expect.stringMatching(/^mb:ru:/) }),
+              expect.objectContaining({ text: "Files", callback_data: expect.stringMatching(/^mb:rf:/) }),
+            ],
+          ],
+        },
+      }),
     );
   });
 
