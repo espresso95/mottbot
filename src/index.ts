@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import { bootstrapApplication } from "./app/bootstrap.js";
 import { loadConfig } from "./app/config.js";
 import { systemClock } from "./shared/clock.js";

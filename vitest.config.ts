@@ -15,6 +15,7 @@ export default defineConfig({
         "src/**/types.ts",
         "src/tools/live-smoke-preflight.ts",
         "src/tools/live-telegram-user-smoke.ts",
+        "src/tools/docs-link-check.ts",
         "src/app/service.ts",
       ],
       thresholds: {

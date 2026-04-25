@@ -146,6 +146,9 @@ Equivalent `pnpm` scripts:
 - `pnpm lint`
 - `pnpm format:check`
 - `pnpm tsdoc:audit`
+- `pnpm docs:check`
+- `pnpm knip`
+- `pnpm verify`
 - `pnpm test`
 - `pnpm test:coverage`
 - `pnpm auth:login`

@@ -1,0 +1,4 @@
+{
+  "ignoreDependencies": ["punycode"],
+  "project": ["src/**/*.ts", "test/**/*.ts", "*.js", "*.ts"]
+}

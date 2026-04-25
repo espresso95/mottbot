@@ -7,9 +7,7 @@ This repo uses TypeScript strict mode, ESLint, and Prettier as the local quality
 Run these before submitting TypeScript or docs changes:
 
 ```bash
-pnpm check
-pnpm lint
-pnpm format:check
+pnpm verify
 ```
 
 Use Prettier to apply formatting:
@@ -27,7 +25,19 @@ pnpm test
 Audit exported production symbols for missing TSDoc:
 
 ```bash
-pnpm tsdoc:audit
+pnpm tsdoc:audit -- --strict
+```
+
+Check local Markdown links:
+
+```bash
+pnpm docs:check
+```
+
+Check for unused files, dependencies, and unlisted package use:
+
+```bash
+pnpm knip
 ```
 
 ## ESLint
@@ -59,7 +69,15 @@ Use TSDoc where it carries contract information that is not obvious from the typ
 
 Avoid comments that only restate an identifier. Prefer readable names and small helpers for local variables and straightforward code.
 
-`pnpm tsdoc:audit` scans `src/**/*.ts` and reports exported symbols without a leading TSDoc comment. It exits successfully by default so the report can guide incremental documentation work. Use `pnpm tsdoc:audit -- --strict` to fail when any exported production symbol is undocumented, or `pnpm tsdoc:audit -- --max-missing <count>` to ratchet coverage over time.
+`pnpm tsdoc:audit` scans `src/**/*.ts` and reports exported symbols without a leading TSDoc comment. The CI gate uses `pnpm tsdoc:audit -- --strict` so newly exported production symbols need TSDoc before merge.
+
+## Repository Hygiene
+
+`pnpm docs:check` scans checked-in Markdown files and fails on broken local links.
+
+`pnpm knip` is configured for high-signal hygiene checks: unused files, unused dependencies, unlisted dependencies, unresolved imports, and missing binaries. Export-level checks stay out of the default command because many exported types are intentional module-boundary contracts.
+
+The Knip config intentionally ignores the direct `punycode` dependency. The patched `whatwg-url` transitive package resolves `punycode/` at runtime, so package validation needs it even though application source does not import it directly.
 
 ## Naming
 

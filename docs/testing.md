@@ -134,15 +134,12 @@ Do not treat checked-in test counts as durable documentation. Use the commands a
 Recommended local gate before merging TypeScript changes:
 
 ```bash
-pnpm check
-pnpm lint
-pnpm format:check
-pnpm test
+pnpm verify
 pnpm test:coverage
 pnpm build
 ```
 
-Docs-only changes should at least run `pnpm format:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
+Docs-only changes should at least run `pnpm format:check` and `pnpm docs:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 

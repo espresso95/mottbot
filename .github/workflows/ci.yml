@@ -41,17 +41,37 @@ jobs:
       - name: Rebuild native SQLite binding
         run: pnpm rebuild better-sqlite3
 
-      - name: TypeScript check
-        run: pnpm check
+      - name: Create CI config
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = {
+            telegram: {
+              botToken: process.env.TELEGRAM_BOT_TOKEN,
+              polling: false,
+              adminUserIds: ["ci-admin"]
+            },
+            auth: {
+              preferCliImport: false
+            },
+            storage: {
+              sqlitePath: process.env.MOTTBOT_SQLITE_PATH
+            },
+            dashboard: {
+              enabled: false
+            },
+            runtime: {
+              instanceLeaseEnabled: false
+            },
+            security: {
+              masterKey: process.env.MOTTBOT_MASTER_KEY
+            }
+          };
+          fs.writeFileSync(process.env.MOTTBOT_CONFIG_PATH, JSON.stringify(config, null, 2));
+          NODE
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Test
-        run: pnpm test
+      - name: Verify
+        run: pnpm verify
 
       - name: Coverage
         run: pnpm test:coverage
