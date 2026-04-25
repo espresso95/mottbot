@@ -493,9 +493,12 @@ The supported persistent local setup is a macOS user LaunchAgent:
 - logs: `~/Library/Logs/mottbot/`
 - command: absolute Node binary plus `node_modules/tsx/dist/cli.mjs src/index.ts start`
 
+Service install and restart probe candidate Node binaries before writing the plist. The selected Node must be able to load the repo's native `better-sqlite3` binding, which prevents launchd from recording a Node binary with an incompatible ABI. To force a specific runtime, set `MOTTBOT_SERVICE_NODE_PATH` to the absolute Node binary before running service commands.
+
 Common commands:
 
 ```bash
+export MOTTBOT_SERVICE_NODE_PATH=/Users/mottbot/.local/share/fnm/node-versions/v24.13.1/installation/bin/node
 corepack pnpm service install --start
 corepack pnpm service status
 corepack pnpm run restart

@@ -7,6 +7,11 @@
 - Added inline Telegram approval buttons for side-effecting tool approval prompts, with callback handling that reuses the existing request-fingerprinted one-shot approval store.
 - Added inline approval buttons for Project Mode start and publish approvals while keeping `/tool approve` and `/project approve` as command fallbacks.
 
+### Service Runtime Hardening
+
+- LaunchAgent install and restart now probe candidate Node binaries and only write a service plist for a Node runtime that can load the repo's native `better-sqlite3` binding.
+- Added `MOTTBOT_SERVICE_NODE_PATH` as an explicit operator override for the Node binary used by the macOS service.
+
 ### Project Mode Cleanup
 
 - Added `/project cleanup <task-id>` for terminal project tasks; it removes retained Project Mode worktrees and local branches after operator review or publish.

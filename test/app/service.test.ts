@@ -1,5 +1,12 @@
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildLaunchAgentPlist, SERVICE_LABEL } from "../../src/app/service.js";
+import {
+  buildLaunchAgentPlist,
+  launchAgentNodeCandidates,
+  resolveLaunchAgentNodePath,
+  SERVICE_LABEL,
+} from "../../src/app/service.js";
 
 describe("launchd service helpers", () => {
   it("builds a LaunchAgent plist that runs the bot from the project root", () => {
@@ -18,6 +25,17 @@ describe("launchd service helpers", () => {
     expect(plist).toContain("<string>/tmp/mottbot.err.log</string>");
   });
 
+  it("embeds the resolved service Node path in the LaunchAgent command", () => {
+    const plist = buildLaunchAgentPlist({
+      projectRoot: "/Users/mottbot/mottbot",
+      nodePath: "/tmp/node-24/bin/node",
+      stdoutPath: "/tmp/mottbot.out.log",
+      stderrPath: "/tmp/mottbot.err.log",
+    });
+
+    expect(plist).toContain("&apos;/tmp/node-24/bin/node&apos;");
+  });
+
   it("escapes project roots before embedding them into shell and XML strings", () => {
     const plist = buildLaunchAgentPlist({
       projectRoot: "/tmp/mottbot's <workspace>",
@@ -27,5 +45,22 @@ describe("launchd service helpers", () => {
 
     expect(plist).toContain("/tmp/mottbot&apos;s &lt;workspace&gt;");
     expect(plist).toContain("cd &apos;/tmp/mottbot&apos;\\&apos;&apos;s &lt;workspace&gt;&apos;");
+  });
+
+  it("honors MOTTBOT_SERVICE_NODE_PATH as the only service Node candidate", () => {
+    const candidates = launchAgentNodeCandidates({
+      MOTTBOT_SERVICE_NODE_PATH: "~/bin/node",
+      PATH: path.dirname(process.execPath),
+    });
+
+    expect(candidates).toEqual([path.join(os.homedir(), "bin", "node")]);
+  });
+
+  it("rejects a service Node override that does not exist", () => {
+    expect(() =>
+      resolveLaunchAgentNodePath("/tmp", {
+        MOTTBOT_SERVICE_NODE_PATH: "/tmp/mottbot-missing-node",
+      }),
+    ).toThrow(/MOTTBOT_SERVICE_NODE_PATH/);
   });
 });
