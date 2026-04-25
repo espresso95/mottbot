@@ -1,11 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLiveValidationSuiteResult, type ScenarioResult } from "../../scripts/smoke/live-validation-suite.js";
+import {
+  buildScenarioCommandArgs,
+  createLiveValidationSuiteResult,
+  type ScenarioResult,
+} from "../../scripts/smoke/live-validation-suite.js";
 import {
   buildLiveValidationPlan,
   type LiveValidationScenario,
 } from "../../scripts/smoke/live-validation-suite-helpers.js";
 
 describe("live validation suite runner", () => {
+  it("forwards scenario flags directly to pnpm scripts", () => {
+    expect(
+      buildScenarioCommandArgs({
+        kind: "health",
+        name: "Private /health command",
+        script: "smoke:telegram-user",
+        args: ["--api-id", "12345", "--api-hash", "hash"],
+      }),
+    ).toEqual(["pnpm", "--silent", "smoke:telegram-user", "--api-id", "12345", "--api-hash", "hash"]);
+  });
+
   it("returns a dry-run plan from argv without guard variables", async () => {
     const result = await createLiveValidationSuiteResult({
       plan: buildLiveValidationPlan({}),

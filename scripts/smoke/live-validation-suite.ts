@@ -30,6 +30,11 @@ export type LiveValidationSuiteResult = {
 /** Injectable runner used to execute or test live validation scenarios. */
 export type ScenarioRunner = (item: LiveValidationScenario) => Promise<ScenarioResult>;
 
+/** Builds the pnpm command argv for one smoke scenario. */
+export function buildScenarioCommandArgs(item: LiveValidationScenario): string[] {
+  return ["pnpm", "--silent", item.script, ...item.args];
+}
+
 function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -56,14 +61,10 @@ function parseJsonOutput(stdout: string): unknown | undefined {
 
 /* v8 ignore start */
 async function runScenario(item: LiveValidationScenario): Promise<ScenarioResult> {
-  const child = spawn(
-    "corepack",
-    ["pnpm", "--silent", item.script, ...(item.args.length > 0 ? ["--", ...item.args] : [])],
-    {
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  const child = spawn("corepack", buildScenarioCommandArgs(item), {
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const stdout: Buffer[] = [];
   const stderr: Buffer[] = [];
   child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
