@@ -631,7 +631,7 @@ Optional automatic session summaries are deterministic and disabled by default. 
 }
 ```
 
-Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive pending entries before use. Keep `autoAcceptMaxSensitivity` at `low` unless the deployment is comfortable storing more personal facts without review.
+Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive pending entries before use. Durable preferences include user workflow preferences, project facts, and chat-facing assistant preferences such as the name the bot should answer to in a chat. Keep `autoAcceptMaxSensitivity` at `low` unless the deployment is comfortable storing more personal facts without review.
 
 When `extractionProvider="lmstudio"`, Mottbot calls LM Studio's local OpenAI-compatible chat completions endpoint. Pre-response extraction can make newly accepted memory available to the immediate model response. Async post-response extraction reflects on the completed turn without delaying the Telegram reply. If LM Studio is unavailable, slow, or returns malformed JSON, the chat run continues and the extraction failure is logged.
 

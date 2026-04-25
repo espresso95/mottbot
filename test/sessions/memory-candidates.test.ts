@@ -125,6 +125,8 @@ describe("memory candidate extraction", () => {
 
     expect(prompt?.sourceMessageIds).toEqual(["m1", "m2"]);
     expect(prompt?.systemPrompt).toContain("Return strict JSON only");
+    expect(prompt?.systemPrompt).toContain("assistant identity preferences");
+    expect(prompt?.messages[0]?.content).toContain("Your name is Jeff");
     expect(prompt?.messages[0]?.content).toContain("[m1] user");
   });
 
