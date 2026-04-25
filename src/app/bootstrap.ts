@@ -1,3 +1,4 @@
+import { Bot, type Context } from "grammy";
 import { loadConfig } from "./config.js";
 import { systemClock } from "../shared/clock.js";
 import { SecretBox } from "../shared/crypto.js";
@@ -96,17 +97,9 @@ export async function bootstrapApplication() {
   });
 
   const routeResolver = new RouteResolver(config, sessionStore);
-  const provisionalBot = new TelegramBotServer(
-    config,
-    systemClock,
-    logger,
-    updateStore,
-    new AccessController(config, sessionStore, messageStore, governance),
-    {} as never,
-    routeResolver,
-    {} as never,
-  );
-  const reactions = new TelegramReactionService(provisionalBot.api);
+  const telegramBot = new Bot<Context>(config.telegram.botToken);
+  const telegramApi = telegramBot.api;
+  const reactions = new TelegramReactionService(telegramApi);
   const toolRegistry = createRuntimeToolRegistry({
     enableSideEffectTools: config.tools.enableSideEffectTools,
   });
@@ -139,7 +132,7 @@ export async function bootstrapApplication() {
     handlers: {
       ...createOperatorDiagnosticToolHandlers(diagnostics),
       ...createTelegramReactionToolHandlers(reactions),
-      ...createTelegramSendToolHandlers(provisionalBot.api, config.tools.telegramSend),
+      ...createTelegramSendToolHandlers(telegramApi, config.tools.telegramSend),
       ...createRepositoryToolHandlers(config.tools.repository),
       ...createLocalWriteToolHandlers(config.tools.localWrite),
       ...createLocalExecToolHandlers(config.tools.localExec),
@@ -163,14 +156,14 @@ export async function bootstrapApplication() {
   });
 
   const outbox = new TelegramOutbox(
-    provisionalBot.api,
+    telegramApi,
     database,
     systemClock,
     logger,
     config.behavior.editThrottleMs,
     messageStore,
   );
-  const attachmentIngestor = new TelegramAttachmentIngestor(provisionalBot.api, config);
+  const attachmentIngestor = new TelegramAttachmentIngestor(telegramApi, config);
   const recoveredRuns = runStore.recoverInterruptedRuns();
   runQueueStore.failRuns(
     recoveredRuns.map((run) => run.runId),
@@ -223,7 +216,7 @@ export async function bootstrapApplication() {
   });
   orchestrator.recoverQueuedRuns();
   const commands = new TelegramCommandRouter(
-    provisionalBot.api,
+    telegramApi,
     config,
     routeResolver,
     sessionStore,
@@ -254,6 +247,7 @@ export async function bootstrapApplication() {
     reactions,
     transcriptStore,
     messageStore,
+    telegramBot,
   );
 
   return {

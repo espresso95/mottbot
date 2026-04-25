@@ -72,7 +72,7 @@ describe("bootstrapApplication", () => {
     await app.start();
     await app.stop();
 
-    expect(botCtorSpy).toHaveBeenCalledTimes(2);
+    expect(botCtorSpy).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(stopMock).toHaveBeenCalledTimes(1);
   });

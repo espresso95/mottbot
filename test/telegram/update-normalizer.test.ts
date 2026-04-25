@@ -19,7 +19,7 @@ describe("normalizeUpdate", () => {
           from: { id: 77, username: "nim" },
           reply_to_message: { message_id: 21 },
         },
-      } as any,
+      },
     });
 
     expect(event).toMatchObject({
@@ -61,7 +61,7 @@ describe("normalizeUpdate", () => {
             file_size: 4096,
           },
         },
-      } as any,
+      },
     });
 
     expect(event?.attachments).toEqual([
@@ -96,7 +96,7 @@ describe("normalizeUpdate", () => {
           chat: { id: 42, type: "private" },
           from: { id: 77 },
         },
-      } as any,
+      },
     });
 
     expect(event).toMatchObject({
@@ -118,7 +118,7 @@ describe("normalizeUpdate", () => {
           chat: { id: 42, type: "private" },
           from: { id: 77 },
         },
-      } as any,
+      },
     });
 
     expect(event).toMatchObject({
@@ -131,7 +131,7 @@ describe("normalizeUpdate", () => {
     expect(
       normalizeUpdate({
         clock: new FakeClock(),
-        ctx: { update: { update_id: 1 } } as any,
+        ctx: { update: { update_id: 1 } },
       }),
     ).toBeNull();
   });
@@ -152,7 +152,7 @@ describe("normalizeUpdate", () => {
           },
           from: { id: 77, username: "nim" },
         },
-      } as any,
+      },
     });
 
     expect(event).toEqual({
@@ -172,23 +172,23 @@ describe("normalizeUpdate", () => {
 
   it("returns null for callback queries without message-backed data", () => {
     const clock = new FakeClock();
-    expect(normalizeCallbackQuery({ clock, ctx: { update: { update_id: 1 } } as any })).toBeNull();
+    expect(normalizeCallbackQuery({ clock, ctx: { update: { update_id: 1 } } })).toBeNull();
     expect(
       normalizeCallbackQuery({
         clock,
-        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", message: { chat: { id: 1 } } } } as any,
+        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", message: { chat: { id: 1 } } } },
       }),
     ).toBeNull();
     expect(
       normalizeCallbackQuery({
         clock,
-        ctx: { update: { update_id: 1 }, callbackQuery: { data: "mb:ta:1", message: { chat: { id: 1 } } } } as any,
+        ctx: { update: { update_id: 1 }, callbackQuery: { data: "mb:ta:1", message: { chat: { id: 1 } } } },
       }),
     ).toBeNull();
     expect(
       normalizeCallbackQuery({
         clock,
-        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", data: "mb:ta:1" } } as any,
+        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", data: "mb:ta:1" } },
       }),
     ).toBeNull();
   });

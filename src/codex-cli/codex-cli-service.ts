@@ -9,7 +9,7 @@ import type { Clock } from "../shared/clock.js";
 export type CodexCliJobStatus = "starting" | "streaming" | "exited" | "failed" | "cancelled" | "timed_out";
 
 /** Runtime settings for Codex CLI job services. */
-export type CodexCliServiceConfig = {
+type CodexCliServiceConfig = {
   command: string;
   coderProfile: string;
   defaultTimeoutMs: number;

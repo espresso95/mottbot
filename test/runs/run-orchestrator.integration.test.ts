@@ -570,7 +570,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async () => ({ text: "should not run", transport: "sse", requestIdentity: "req" })),
     };
     const outbox: RunOutbox = {
@@ -593,7 +593,7 @@ describe("RunOrchestrator", () => {
       transcripts: stores.transcripts,
       runs: stores.runs,
       tokenResolver: createTokenResolver(),
-      transport: transport as any,
+      transport,
       outbox,
       clock: stores.clock,
       logger: stores.logger,

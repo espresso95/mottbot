@@ -1,8 +1,10 @@
 import type { RunStore } from "./run-store.js";
 
+type UsageRunStore = Pick<RunStore, "update">;
+
 /** Persists provider usage metadata on completed run records. */
 export class UsageRecorder {
-  constructor(private readonly runs: RunStore) {}
+  constructor(private readonly runs: UsageRunStore) {}
 
   record(runId: string, usage: Record<string, unknown> | undefined): void {
     if (!usage) {

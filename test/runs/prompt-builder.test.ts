@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPrompt } from "../../src/runs/prompt-builder.js";
+import type { TranscriptMessage } from "../../src/sessions/types.js";
 
 describe("buildPrompt", () => {
   it("keeps user/assistant/system messages and drops tool messages", () => {
@@ -65,13 +66,13 @@ describe("buildPrompt", () => {
   });
 
   it("compacts older history into a summary message", () => {
-    const history = Array.from({ length: 30 }, (_, index) => ({
+    const history: TranscriptMessage[] = Array.from({ length: 30 }, (_, index) => ({
       id: String(index + 1),
       sessionKey: "s",
       role: index % 2 === 0 ? "user" : "assistant",
       contentText: `message ${index + 1}`,
       createdAt: index + 1,
-    })) as any;
+    }));
     const prompt = buildPrompt({
       history,
       historyLimit: 4,

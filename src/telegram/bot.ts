@@ -88,8 +88,9 @@ export class TelegramBotServer {
     private readonly reactions?: TelegramReactionService,
     private readonly transcripts?: TranscriptStore,
     private readonly messages?: TelegramMessageStore,
+    bot?: Bot<Context>,
   ) {
-    this.bot = new Bot<Context>(config.telegram.botToken);
+    this.bot = bot ?? new Bot<Context>(config.telegram.botToken);
   }
 
   get api() {

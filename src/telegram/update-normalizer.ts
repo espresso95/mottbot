@@ -1,7 +1,16 @@
-import type { Context } from "grammy";
 import type { Clock } from "../shared/clock.js";
 import { parseCommand } from "./command-parsing.js";
 import type { InboundEvent, NormalizedAttachment, NormalizedEntity, TelegramCallbackEvent } from "./types.js";
+
+type TelegramUpdateContext = {
+  update: { update_id: number };
+  message?: unknown;
+};
+
+type TelegramCallbackQueryContext = {
+  update: { update_id: number };
+  callbackQuery?: unknown;
+};
 
 function collectEntities(message: Record<string, unknown>): NormalizedEntity[] {
   const rawEntities = Array.isArray(message.entities)
@@ -69,7 +78,11 @@ function normalizeBotUsername(value: string | undefined): string | undefined {
 }
 
 /** Converts a grammY message context into the normalized inbound event shape. */
-export function normalizeUpdate(params: { ctx: Context; botUsername?: string; clock: Clock }): InboundEvent | null {
+export function normalizeUpdate(params: {
+  ctx: TelegramUpdateContext;
+  botUsername?: string;
+  clock: Clock;
+}): InboundEvent | null {
   const message = params.ctx.message;
   if (!message) {
     return null;
@@ -124,8 +137,11 @@ export function normalizeUpdate(params: { ctx: Context; botUsername?: string; cl
 }
 
 /** Converts a grammY callback query context into the normalized callback event shape. */
-export function normalizeCallbackQuery(params: { ctx: Context; clock: Clock }): TelegramCallbackEvent | null {
-  const callbackQuery = params.ctx.callbackQuery as unknown;
+export function normalizeCallbackQuery(params: {
+  ctx: TelegramCallbackQueryContext;
+  clock: Clock;
+}): TelegramCallbackEvent | null {
+  const callbackQuery = params.ctx.callbackQuery;
   if (!callbackQuery || typeof callbackQuery !== "object") {
     return null;
   }

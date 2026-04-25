@@ -15,7 +15,7 @@ describe("run helpers", () => {
 
   it("records usage through the run store", () => {
     const update = vi.fn();
-    const recorder = new UsageRecorder({ update } as any);
+    const recorder = new UsageRecorder({ update });
     recorder.record("run-1", { input: 2 });
     recorder.record("run-2", undefined);
     expect(update).toHaveBeenCalledTimes(1);
