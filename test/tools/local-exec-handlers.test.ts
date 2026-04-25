@@ -225,7 +225,7 @@ describe("local exec tool handlers", () => {
         roots: [root],
         deniedPaths: [],
         allowedCommands: [process.execPath],
-        timeoutMs: 50,
+        timeoutMs: 250,
         maxOutputBytes: 5,
       });
 

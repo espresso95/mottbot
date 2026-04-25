@@ -10,6 +10,7 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { UsageBudgetService } from "../runs/usage-budget.js";
+import type { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 import type { RouteResolver } from "./route-resolver.js";
 import { splitTelegramText } from "./formatting.js";
 import type { InboundEvent, ParsedCommand } from "./types.js";
@@ -320,6 +321,7 @@ export class TelegramCommandRouter {
     private readonly github?: GithubReadOperations,
     private readonly governance?: TelegramGovernanceStore,
     private readonly usageBudget?: UsageBudgetService,
+    private readonly projects?: ProjectCommandRouter,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -373,6 +375,14 @@ export class TelegramCommandRouter {
       }
       case "usage": {
         await this.handleUsageCommand(event, session, parsed.args);
+        return true;
+      }
+      case "project": {
+        if (!this.projects) {
+          await sendReply(this.api, event, "Project mode is not available.");
+          return true;
+        }
+        await this.projects.handle(event, parsed.args);
         return true;
       }
       case "agent": {
@@ -745,6 +755,7 @@ export class TelegramCommandRouter {
           commandHelp("status", "/status - show session, model, profile, and usage"),
           commandHelp("health", "/health - show runtime health"),
           commandHelp("usage", "/usage [daily|monthly] - show local run usage and configured limits"),
+          commandHelp("project", "/project start|status|tail|cancel|approve - run long project tasks"),
           commandHelp("agent", "/agent [list|show|set|reset] - inspect or change this session agent"),
           commandHelp("model", "/model <provider/model> - change this session model"),
           commandHelp("profile", "/profile [profile-id] - list or select auth profile"),
