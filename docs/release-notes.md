@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Project Mode Phase 2 (Worktrees, Path Protections, Cleanup)
+
+- Added a dedicated `WorktreeManager` to create isolated Git worktrees per project subtask and branch each worker under `mottbot/<task>/<subtask>`.
+- Updated the project scheduler to run Codex workers inside per-subtask worktrees instead of the primary checkout.
+- Added automatic worktree and branch cleanup on subtask completion and project cancellation.
+- Added protected-path violation checks on modified files before marking a subtask successful.
+- Hardened `/project start` repository root validation with realpath checks to prevent symlink-based root escapes.
+- Added worktree-manager tests covering worktree lifecycle, approved-root enforcement, and protected-path detection.
+
 ### Named Agents And Route Bindings
 
 - Added config-defined named agents with profile, model, fast mode, and optional system prompt defaults.
