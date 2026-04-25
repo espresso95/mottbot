@@ -5,6 +5,7 @@ import type { Clock } from "../shared/clock.js";
 import type { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { WorktreeManager } from "../worktrees/worktree-manager.js";
+import type { CodexCliRun, ProjectSubtask, ProjectTask } from "./project-types.js";
 
 export class ProjectTaskScheduler {
   private timer?: NodeJS.Timeout;
@@ -38,71 +39,49 @@ export class ProjectTaskScheduler {
 
   async tick(): Promise<void> {
     const tasks = this.store.listRunnableTasks(20);
-    for (const task of tasks) {
+    let activeWorkerCount = this.store.countActiveCliRuns();
+    const activeProjectIds = new Set(this.store.listActiveCliRunTaskIds());
+    for (const originalTask of tasks) {
+      let task = originalTask;
       if (task.status === "queued") {
-        this.store.updateTask(task.taskId, { status: "running", startedAt: this.clock.now() });
+        if (!activeProjectIds.has(task.taskId) && activeProjectIds.size >= this.maxConcurrentProjects()) {
+          continue;
+        }
+        task = this.store.updateTask(task.taskId, { status: "running", startedAt: this.clock.now() });
       }
-      if (task.status !== "queued" && task.status !== "running") {
+      if (task.status !== "running") {
         continue;
       }
       const subtasks = this.store.listSubtasks(task.taskId);
       this.refreshDependencyStates(subtasks);
       const dependencyRefreshedSubtasks = this.store.listSubtasks(task.taskId);
-      const runningSubtasks = dependencyRefreshedSubtasks.filter((subtask) => subtask.status === "running");
-      const activeRuns = this.store.listActiveCliRuns(task.taskId);
-      if (runningSubtasks.length > 0 && activeRuns.length === 0) {
-        for (const subtask of runningSubtasks) {
-          const finalSummary = this.readFinalSummary(task.taskId, subtask.subtaskId);
-          const protectedChanges = subtask.worktreePath ? this.worktrees.listProtectedChanges(subtask.worktreePath) : [];
-          const protectedPathError =
-            protectedChanges.length > 0 ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}` : undefined;
-          const failureError = protectedPathError ?? finalSummary.text ?? "Worker failed";
-          this.store.updateSubtask(subtask.subtaskId, {
-            status: finalSummary.failed || !!protectedPathError ? "failed" : "completed",
-            finishedAt: this.clock.now(),
-            ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
-            ...((finalSummary.failed || protectedPathError)
-              ? { lastError: failureError }
-              : {}),
-          });
-          if (subtask.worktreePath || subtask.branchName) {
-            this.worktrees.cleanupSubtask({
-              repoRoot: task.repoRoot,
-              worktreePath: subtask.worktreePath,
-              branchName: subtask.branchName,
-            });
-          }
-          this.activeSubtasks.delete(subtask.subtaskId);
-        }
-      }
+      this.finishTerminalSubtasks(task, dependencyRefreshedSubtasks);
 
-      const nextReady = this.store
+      let activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
+      const readySubtasks = this.store
         .listReadySubtasks(task.taskId)
         .filter((subtask) => subtask.status === "ready" || subtask.status === "queued");
-      if (nextReady.length > 0 && activeRuns.length < Math.max(1, task.maxParallelWorkers)) {
-        const subtask = nextReady[0];
-        if (subtask && !this.activeSubtasks.has(subtask.subtaskId)) {
-          const prepared = this.worktrees.prepareSubtask({
-            taskId: task.taskId,
-            subtaskId: subtask.subtaskId,
-            repoRoot: task.repoRoot,
-            baseRef: task.baseRef,
-          });
-          this.store.updateSubtask(subtask.subtaskId, {
-            status: "running",
-            startedAt: this.clock.now(),
-            attempt: subtask.attempt + 1,
-            branchName: prepared.branchName,
-            worktreePath: prepared.worktreePath,
-          });
-          this.activeSubtasks.add(subtask.subtaskId);
-          this.runner.start({
-            taskId: task.taskId,
-            subtaskId: subtask.subtaskId,
-            cwd: prepared.worktreePath,
-            prompt: subtask.prompt,
-          });
+      const perProjectLimit = this.perProjectWorkerLimit(task);
+      for (const subtask of readySubtasks) {
+        if (activeRunsForTask >= perProjectLimit) {
+          break;
         }
+        if (activeWorkerCount >= this.globalWorkerLimit()) {
+          break;
+        }
+        if (!activeProjectIds.has(task.taskId) && activeProjectIds.size >= this.maxConcurrentProjects()) {
+          break;
+        }
+        if (this.activeSubtasks.has(subtask.subtaskId)) {
+          continue;
+        }
+        const started = this.startSubtask(task, subtask);
+        if (!started) {
+          continue;
+        }
+        activeRunsForTask += 1;
+        activeWorkerCount += 1;
+        activeProjectIds.add(task.taskId);
       }
 
       const refreshedSubtasks = this.store.listSubtasks(task.taskId);
@@ -127,6 +106,112 @@ export class ProjectTaskScheduler {
           finalSummary: summaries,
         });
       }
+    }
+  }
+
+  private perProjectWorkerLimit(task: ProjectTask): number {
+    const hardLimit = this.config.projectTasks.hardMaxParallelWorkersPerProject ?? task.maxParallelWorkers;
+    return Math.max(
+      1,
+      Math.min(
+        task.maxParallelWorkers,
+        hardLimit,
+      ),
+    );
+  }
+
+  private maxConcurrentProjects(): number {
+    return Math.max(1, this.config.projectTasks.maxConcurrentProjects ?? 1);
+  }
+
+  private globalWorkerLimit(): number {
+    return Math.max(1, this.config.projectTasks.maxConcurrentCodexWorkersGlobal ?? 1);
+  }
+
+  private finishTerminalSubtasks(task: ProjectTask, subtasks: ProjectSubtask[]): void {
+    const runningSubtasks = subtasks.filter((subtask) => subtask.status === "running");
+    const activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
+    for (const subtask of runningSubtasks) {
+      const latestRun = this.store.getLatestCliRunForSubtask(subtask.subtaskId);
+      if (latestRun?.status === "starting" || latestRun?.status === "streaming") {
+        continue;
+      }
+      if (!latestRun && activeRunsForTask > 0) {
+        continue;
+      }
+      this.finishSubtask(task, subtask, latestRun);
+    }
+  }
+
+  private finishSubtask(task: ProjectTask, subtask: ProjectSubtask, latestRun: CodexCliRun | undefined): void {
+    const finalSummary = this.readFinalSummary(task.taskId, subtask.subtaskId);
+    const protectedChanges = subtask.worktreePath ? this.worktrees.listProtectedChanges(subtask.worktreePath) : [];
+    const protectedPathError =
+      protectedChanges.length > 0 ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}` : undefined;
+    const runFailed =
+      latestRun?.status === "failed" ||
+      latestRun?.status === "timed_out" ||
+      latestRun?.status === "cancelled";
+    const lastError =
+      protectedPathError ??
+      latestRun?.lastError ??
+      (finalSummary.failed ? finalSummary.text : undefined) ??
+      (runFailed ? "Worker failed" : undefined);
+    this.store.updateSubtask(subtask.subtaskId, {
+      status: latestRun?.status === "cancelled" ? "cancelled" : runFailed || finalSummary.failed || !!protectedPathError ? "failed" : "completed",
+      finishedAt: this.clock.now(),
+      ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
+      ...(lastError ? { lastError } : {}),
+    });
+    if (subtask.worktreePath || subtask.branchName) {
+      this.worktrees.cleanupSubtask({
+        repoRoot: task.repoRoot,
+        worktreePath: subtask.worktreePath,
+        branchName: subtask.branchName,
+      });
+    }
+    this.activeSubtasks.delete(subtask.subtaskId);
+  }
+
+  private startSubtask(task: ProjectTask, subtask: ProjectSubtask): boolean {
+    let prepared: { worktreePath: string; branchName: string } | undefined;
+    try {
+      prepared = this.worktrees.prepareSubtask({
+        taskId: task.taskId,
+        subtaskId: subtask.subtaskId,
+        repoRoot: task.repoRoot,
+        baseRef: task.baseRef,
+      });
+      this.store.updateSubtask(subtask.subtaskId, {
+        status: "running",
+        startedAt: this.clock.now(),
+        attempt: subtask.attempt + 1,
+        branchName: prepared.branchName,
+        worktreePath: prepared.worktreePath,
+      });
+      this.activeSubtasks.add(subtask.subtaskId);
+      this.runner.start({
+        taskId: task.taskId,
+        subtaskId: subtask.subtaskId,
+        cwd: prepared.worktreePath,
+        prompt: subtask.prompt,
+      });
+      return true;
+    } catch (error) {
+      this.activeSubtasks.delete(subtask.subtaskId);
+      if (prepared) {
+        this.worktrees.cleanupSubtask({
+          repoRoot: task.repoRoot,
+          worktreePath: prepared.worktreePath,
+          branchName: prepared.branchName,
+        });
+      }
+      this.store.updateSubtask(subtask.subtaskId, {
+        status: "failed",
+        finishedAt: this.clock.now(),
+        lastError: error instanceof Error ? error.message : "Failed to start worker.",
+      });
+      return false;
     }
   }
 

@@ -8,6 +8,19 @@ import type { Clock } from "../../src/shared/clock.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 import type { AppConfig } from "../../src/app/config.js";
 
+function schedulerConfig(root: string, overrides: Partial<AppConfig["projectTasks"]> = {}): AppConfig {
+  return {
+    projectTasks: {
+      enabled: true,
+      artifactRoot: path.join(root, "artifacts"),
+      maxConcurrentProjects: 1,
+      hardMaxParallelWorkersPerProject: 2,
+      maxConcurrentCodexWorkersGlobal: 2,
+      ...overrides,
+    },
+  } as AppConfig;
+}
+
 describe("ProjectTaskScheduler", () => {
   it("starts ready subtasks and marks task complete", async () => {
     const root = createTempDir();
@@ -37,12 +50,7 @@ describe("ProjectTaskScheduler", () => {
         cleanupSubtask: () => {},
         listProtectedChanges: () => [],
       };
-      const config = {
-        projectTasks: {
-          enabled: true,
-          artifactRoot: path.join(root, "artifacts"),
-        },
-      } as AppConfig;
+      const config = schedulerConfig(root);
       const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
       await scheduler.tick();
       expect(store.getSubtask(subtask.subtaskId)?.status).toBe("running");
@@ -83,7 +91,7 @@ describe("ProjectTaskScheduler", () => {
         cleanupSubtask: () => {},
         listProtectedChanges: () => [],
       };
-      const config = { projectTasks: { enabled: true, artifactRoot: path.join(root, "artifacts") } } as AppConfig;
+      const config = schedulerConfig(root);
       const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
       const result = scheduler.cancelTask(task.taskId);
       expect(result.cancelled).toBe(true);
@@ -135,7 +143,7 @@ describe("ProjectTaskScheduler", () => {
         cleanupSubtask: () => {},
         listProtectedChanges: () => [],
       };
-      const config = { projectTasks: { enabled: true, artifactRoot: path.join(root, "artifacts") } } as AppConfig;
+      const config = schedulerConfig(root);
       const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
 
       await scheduler.tick();
@@ -147,6 +155,243 @@ describe("ProjectTaskScheduler", () => {
       expect(store.getSubtask(second.subtaskId)?.status).toBe("running");
       expect(starts).toEqual([first.subtaskId, second.subtaskId]);
 
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("starts multiple ready subtasks up to the per-project limit", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 100;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "title",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 3,
+        maxAttemptsPerSubtask: 1,
+      });
+      const first = store.createSubtask({ taskId: task.taskId, title: "first", role: "worker", prompt: "first", status: "ready" });
+      const second = store.createSubtask({ taskId: task.taskId, title: "second", role: "worker", prompt: "second", status: "ready" });
+      const third = store.createSubtask({ taskId: task.taskId, title: "third", role: "worker", prompt: "third", status: "ready" });
+      const starts: string[] = [];
+      const fakeRunner = {
+        start: ({ subtaskId }: { subtaskId: string }) => {
+          starts.push(subtaskId);
+          return `run-${subtaskId}`;
+        },
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = {
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
+      const config = schedulerConfig(root, {
+        hardMaxParallelWorkersPerProject: 2,
+        maxConcurrentCodexWorkersGlobal: 10,
+      });
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
+
+      await scheduler.tick();
+
+      expect(starts).toEqual([first.subtaskId, second.subtaskId]);
+      expect(store.getSubtask(first.subtaskId)?.status).toBe("running");
+      expect(store.getSubtask(second.subtaskId)?.status).toBe("running");
+      expect(store.getSubtask(third.subtaskId)?.status).toBe("ready");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("respects the global worker limit across active projects", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 200;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const firstTask = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "first task",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const secondTask = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "second task",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      for (const task of [firstTask, secondTask]) {
+        store.createSubtask({ taskId: task.taskId, title: `${task.title} a`, role: "worker", prompt: "a", status: "ready" });
+        store.createSubtask({ taskId: task.taskId, title: `${task.title} b`, role: "worker", prompt: "b", status: "ready" });
+      }
+      const starts: Array<{ taskId: string; subtaskId: string }> = [];
+      const fakeRunner = {
+        start: ({ taskId, subtaskId }: { taskId: string; subtaskId: string }) => {
+          starts.push({ taskId, subtaskId });
+          return `run-${subtaskId}`;
+        },
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = {
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
+      const config = schedulerConfig(root, {
+        maxConcurrentProjects: 2,
+        hardMaxParallelWorkersPerProject: 2,
+        maxConcurrentCodexWorkersGlobal: 3,
+      });
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
+
+      await scheduler.tick();
+
+      expect(starts).toHaveLength(3);
+      expect(starts.filter((entry) => entry.taskId === firstTask.taskId)).toHaveLength(2);
+      expect(starts.filter((entry) => entry.taskId === secondTask.taskId)).toHaveLength(1);
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("respects the active project limit", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 300;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const firstTask = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "first task",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const secondTask = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "second task",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      store.createSubtask({ taskId: firstTask.taskId, title: "first a", role: "worker", prompt: "a", status: "ready" });
+      store.createSubtask({ taskId: secondTask.taskId, title: "second a", role: "worker", prompt: "a", status: "ready" });
+      const starts: string[] = [];
+      const fakeRunner = {
+        start: ({ taskId }: { taskId: string }) => {
+          starts.push(taskId);
+          return `run-${taskId}`;
+        },
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = {
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
+      const config = schedulerConfig(root, {
+        maxConcurrentProjects: 1,
+        hardMaxParallelWorkersPerProject: 2,
+        maxConcurrentCodexWorkersGlobal: 4,
+      });
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
+
+      await scheduler.tick();
+
+      expect(starts).toEqual([firstTask.taskId]);
+      expect(store.getTask(secondTask.taskId)?.status).toBe("queued");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("finishes terminal subtasks while sibling workers are still active", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 400;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "running",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const finished = store.createSubtask({ taskId: task.taskId, title: "done", role: "worker", prompt: "done", status: "running" });
+      const active = store.createSubtask({ taskId: task.taskId, title: "active", role: "worker", prompt: "active", status: "running" });
+      const finishedRun = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: finished.subtaskId,
+        commandJson: "{}",
+        cwd: root,
+        stdoutLogPath: path.join(root, "finished.out"),
+        stderrLogPath: path.join(root, "finished.err"),
+        jsonlLogPath: path.join(root, "finished.jsonl"),
+      });
+      store.updateCliRun(finishedRun.cliRunId, { status: "exited", finishedAt: clock.now() });
+      const activeRun = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: active.subtaskId,
+        commandJson: "{}",
+        cwd: root,
+        stdoutLogPath: path.join(root, "active.out"),
+        stderrLogPath: path.join(root, "active.err"),
+        jsonlLogPath: path.join(root, "active.jsonl"),
+      });
+      store.updateCliRun(activeRun.cliRunId, { status: "streaming", startedAt: clock.now() });
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = {
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
+      const scheduler = new ProjectTaskScheduler(schedulerConfig(root), clock, store, fakeRunner as never, fakeWorktrees as never);
+
+      await scheduler.tick();
+
+      expect(store.getSubtask(finished.subtaskId)?.status).toBe("completed");
+      expect(store.getSubtask(active.subtaskId)?.status).toBe("running");
+      expect(store.getTask(task.taskId)?.status).toBe("running");
       db.close();
     } finally {
       removeTempDir(root);

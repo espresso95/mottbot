@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Project Mode Phase 4 (Parallel Worker Scheduling)
+
+- Updated the project scheduler to launch multiple ready subtasks in one tick when concurrency limits allow it.
+- Enforced `maxConcurrentProjects`, per-task `maxParallelWorkers`, `hardMaxParallelWorkersPerProject`, and `maxConcurrentCodexWorkersGlobal` for Codex CLI worker launch.
+- Updated running-subtask reconciliation so one completed worker can be finalized while sibling workers in the same project are still active.
+- Added scheduler tests for per-project caps, global worker caps, active-project caps, and mixed terminal/active worker state.
+
 ### Project Mode Phase 3 (Planner Output, Subtask Graph, Dependency Gating)
 
 - Added a lightweight project planner that derives a deterministic subtask plan from `/project start` prompts and stores it in `project_tasks.plan_json`.

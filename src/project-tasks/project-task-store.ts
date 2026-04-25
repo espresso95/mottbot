@@ -466,6 +466,27 @@ export class ProjectTaskStore {
       .map(mapRun);
   }
 
+  countActiveCliRuns(): number {
+    const row = this.database.db
+      .prepare<unknown[], { count: number }>("select count(*) as count from codex_cli_runs where status in ('starting', 'streaming')")
+      .get();
+    return row?.count ?? 0;
+  }
+
+  listActiveCliRunTaskIds(): string[] {
+    return this.database.db
+      .prepare<unknown[], { task_id: string }>("select distinct task_id from codex_cli_runs where status in ('starting', 'streaming')")
+      .all()
+      .map((row) => row.task_id);
+  }
+
+  getLatestCliRunForSubtask(subtaskId: string): CodexCliRun | undefined {
+    const row = this.database.db
+      .prepare<unknown[], CodexCliRunRow>("select * from codex_cli_runs where subtask_id = ? order by updated_at desc limit 1")
+      .get(subtaskId);
+    return row ? mapRun(row) : undefined;
+  }
+
   addCliEvent(input: { cliRunId: string; eventIndex: number; eventType?: string; eventJson: string }): void {
     this.database.db.prepare(`insert into codex_cli_events (
       event_id, cli_run_id, event_index, event_type, event_json, created_at
