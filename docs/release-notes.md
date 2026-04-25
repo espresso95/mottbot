@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Verification Runner
+
+- Added `pnpm verify:quick` for static local checks without the slower build and coverage run.
+- Moved the full verification sequence behind a TypeScript runner while keeping `pnpm verify` as the CI-equivalent gate.
+
 ### Automatic Service Sync
 
 - Added a guarded `sync:service` workflow that fast-forwards a clean checkout from `origin/main`, verifies the build and health check, then restarts the macOS service with the configured Node runtime.

@@ -4,7 +4,13 @@ This repo uses TypeScript strict mode, ESLint, and Prettier as the local quality
 
 ## Commands
 
-Run these before submitting TypeScript or docs changes:
+Run the quick gate while iterating on TypeScript or docs changes:
+
+```bash
+pnpm verify:quick
+```
+
+Run the full CI-equivalent gate before merging:
 
 ```bash
 pnpm verify
@@ -110,7 +116,7 @@ The Knip config intentionally ignores the direct `punycode` dependency. The patc
 
 Thresholds should track observed coverage after meaningful test additions. Keep small headroom for harmless line-count movement, then tighten the gate again when new coverage lands.
 
-`pnpm verify` runs the TypeScript build and `test:coverage`, so CI and local verification fail when generated output is stale or covered production code drops below the configured baseline.
+`pnpm verify:quick` runs typecheck, lint, format, strict TSDoc, docs links, cycle checks, and Knip. `pnpm verify` and `pnpm verify:full` add the TypeScript build and `test:coverage`, so CI and local full verification fail when generated output is stale or covered production code drops below the configured baseline.
 
 ## Naming
 

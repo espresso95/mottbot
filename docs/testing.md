@@ -144,6 +144,12 @@ Recommended local gate before merging TypeScript changes:
 pnpm verify
 ```
 
+For faster local iteration before the build and coverage run:
+
+```bash
+pnpm verify:quick
+```
+
 Docs-only changes should at least run `pnpm format:check` and `pnpm docs:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:

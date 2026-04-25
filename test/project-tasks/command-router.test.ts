@@ -488,11 +488,72 @@ describe("ProjectCommandRouter", () => {
       fixture.store.updateCliRun(run.cliRunId, { status: "streaming", startedAt: Date.now() });
       fixture.store.recoverInterruptedCliRuns("Codex CLI run was interrupted by process restart.");
 
-      await fixture.router.handle(fixture.event, ["status", task.taskId]);
+      await fixture.router.handle(fixture.event, ["status"]);
 
       expect(fixture.sent.at(-1)?.text).toContain(`${subtask.subtaskId.slice(0, 8)} worker: running`);
       expect(fixture.sent.at(-1)?.text).toContain("latest run failed");
       expect(fixture.sent.at(-1)?.text).toContain("Codex CLI run was interrupted by process restart.");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("shows persisted CLI exit and signal details in project status", async () => {
+    const fixture = createProjectRouterFixture();
+    try {
+      const task = fixture.store.createTask({
+        chatId: fixture.event.chatId,
+        repoRoot: fixture.root,
+        baseRef: "main",
+        title: "cli details",
+        originalPrompt: "show cli details",
+        status: "running",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 2,
+      });
+      const exited = fixture.store.createSubtask({
+        taskId: task.taskId,
+        title: "exited worker",
+        role: "worker",
+        prompt: "worker",
+        status: "failed",
+      });
+      const signalled = fixture.store.createSubtask({
+        taskId: task.taskId,
+        title: "signalled worker",
+        role: "worker",
+        prompt: "worker",
+        status: "failed",
+      });
+      const exitedRun = fixture.store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: exited.subtaskId,
+        commandJson: JSON.stringify(["codex", "exec"]),
+        cwd: fixture.root,
+        stdoutLogPath: path.join(fixture.root, "stdout-exited.log"),
+        stderrLogPath: path.join(fixture.root, "stderr-exited.log"),
+        jsonlLogPath: path.join(fixture.root, "events-exited.jsonl"),
+      });
+      const signalledRun = fixture.store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: signalled.subtaskId,
+        commandJson: JSON.stringify(["codex", "exec"]),
+        cwd: fixture.root,
+        stdoutLogPath: path.join(fixture.root, "stdout-signalled.log"),
+        stderrLogPath: path.join(fixture.root, "stderr-signalled.log"),
+        jsonlLogPath: path.join(fixture.root, "events-signalled.jsonl"),
+      });
+      fixture.store.updateCliRun(exitedRun.cliRunId, { status: "exited", exitCode: 2, finishedAt: Date.now() });
+      fixture.store.updateCliRun(signalledRun.cliRunId, {
+        status: "cancelled",
+        signal: "SIGTERM",
+        finishedAt: Date.now(),
+      });
+
+      await fixture.router.handle(fixture.event, ["status", task.taskId]);
+
+      expect(fixture.sent.at(-1)?.text).toContain("exited worker: failed; latest run exited: exit 2");
+      expect(fixture.sent.at(-1)?.text).toContain("signalled worker: failed; latest run cancelled: signal SIGTERM");
     } finally {
       fixture.cleanup();
     }

@@ -150,6 +150,7 @@ Equivalent `pnpm` scripts:
 - `pnpm docs:check`
 - `pnpm knip`
 - `pnpm verify`
+- `pnpm verify:quick`
 - `pnpm test`
 - `pnpm test:coverage`
 - `pnpm auth:login`
@@ -179,6 +180,8 @@ CI checks:
 - `pnpm verify`, covering TypeScript checks, ESLint, Prettier, strict TSDoc, docs links, dependency-cycle checks, Knip, TypeScript build output, and coverage thresholds from `vitest.config.ts`
 - package metadata and built CLI health command with a temporary file-backed config
 - clean worktree after verification
+
+Use `pnpm verify:quick` for local iteration when you need the static checks without the slower build and coverage run.
 
 Local equivalent:
 
