@@ -39,6 +39,13 @@ Run the TypeScript check:
 pnpm check
 ```
 
+Run only the production source or script typecheck:
+
+```bash
+pnpm check:src
+pnpm check:scripts
+```
+
 Run the linter:
 
 ```bash
@@ -63,10 +70,22 @@ Run the suite:
 pnpm test
 ```
 
+Run tests related to files changed from `origin/main`:
+
+```bash
+pnpm test:changed
+```
+
 Run the suite with coverage:
 
 ```bash
 pnpm test:coverage
+```
+
+Generate the HTML coverage report:
+
+```bash
+pnpm test:coverage:html
 ```
 
 Run the disposable local tool smoke:
@@ -102,7 +121,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - enables Corepack and uses the pinned `pnpm@10.33.0`
 - installs dependencies with `pnpm install --frozen-lockfile`
 - rebuilds the native `better-sqlite3` binding
-- runs `pnpm verify`, which covers typecheck, lint, format check, strict TSDoc, docs links, dependency-cycle checks, Knip, build, and coverage
+- runs `pnpm verify`, which covers script typecheck, lint, format check, strict TSDoc, docs links, dependency-cycle checks, Knip, production build typecheck/output, and coverage
 - verifies `dist/index.js` exists, `package.json` remains private, and `bin.mottbot` points to `./dist/index.js`
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
@@ -153,10 +172,16 @@ Recommended local gate before merging TypeScript changes:
 pnpm verify
 ```
 
-For faster local iteration before the build and coverage run:
+For faster local static iteration before the build and coverage run:
 
 ```bash
 pnpm verify:quick
+```
+
+For logic iteration, prefer targeted test files or:
+
+```bash
+pnpm test:changed
 ```
 
 Docs-only changes should at least run `pnpm format:check` and `pnpm docs:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
@@ -169,10 +194,10 @@ https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_acces
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 
-- statements: 84%
-- branches: 70%
-- functions: 88%
-- lines: 84%
+- statements: 85.2%
+- branches: 74%
+- functions: 92%
+- lines: 85.2%
 
 ## Coverage Map
 

@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "noEmit": true
+    "noEmit": true,
+    "tsBuildInfoFile": ".local/tsbuildinfo/tsconfig.scripts.tsbuildinfo"
   },
   "include": ["scripts/**/*.ts"]
 }

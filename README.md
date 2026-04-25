@@ -75,14 +75,20 @@ For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
 - `pnpm dev`
 - `pnpm build`
 - `pnpm check`
+- `pnpm check:src`
+- `pnpm check:scripts`
 - `pnpm lint`
 - `pnpm format:check`
 - `pnpm tsdoc:audit -- --strict`
 - `pnpm docs:check`
 - `pnpm knip`
 - `pnpm test`
+- `pnpm test:changed`
 - `pnpm test:coverage`
+- `pnpm test:coverage:html`
 - `pnpm verify`
+- `pnpm verify:quick`
+- `pnpm verify:static`
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`

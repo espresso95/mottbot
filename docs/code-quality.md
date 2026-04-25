@@ -25,13 +25,19 @@ pnpm format
 Logic changes should also run the relevant Vitest target, usually:
 
 ```bash
-pnpm test
+pnpm test:changed
 ```
 
 Run the coverage gate directly when changing shared runtime paths or before tightening coverage thresholds:
 
 ```bash
 pnpm test:coverage
+```
+
+Generate the HTML coverage report only when you need to inspect uncovered lines in a browser:
+
+```bash
+pnpm test:coverage:html
 ```
 
 Audit exported production symbols for missing TSDoc:
@@ -112,11 +118,11 @@ The Knip config intentionally ignores the direct `punycode` dependency. The patc
 
 ## Coverage
 
-`pnpm test:coverage` runs the Vitest suite with V8 coverage and enforces the thresholds in `vitest.config.ts`. The current gate covers production TypeScript under `src/**/*.ts` and excludes entrypoints, type-only modules, generated outputs, docs tooling, and host service wiring that is better covered by smoke checks.
+`pnpm test:coverage` runs the Vitest suite with V8 coverage, prints text output, and enforces the thresholds in `vitest.config.ts`. Use `pnpm test:coverage:html` when you need the generated HTML report. The current gate covers production TypeScript under `src/**/*.ts` and excludes entrypoints, type-only modules, generated outputs, docs tooling, and host service wiring that is better covered by smoke checks.
 
 Thresholds should track observed coverage after meaningful test additions. Keep small headroom for harmless line-count movement, then tighten the gate again when new coverage lands.
 
-`pnpm verify:quick` runs typecheck, lint, format, strict TSDoc, docs links, cycle checks, and Knip. `pnpm verify` adds the TypeScript build and `test:coverage`, so CI and local full verification fail when generated output is stale or covered production code drops below the configured baseline.
+`pnpm check` is split into `pnpm check:src` and `pnpm check:scripts` so local iteration can typecheck only the surface that changed. `pnpm verify:quick` runs both typechecks plus lint, format, strict TSDoc, docs links, cycle checks, and Knip. `pnpm verify` runs the script typecheck, static checks, TypeScript build, and `test:coverage`; the build provides the production source typecheck while also verifying generated output.
 
 ## Naming
 

@@ -15,8 +15,9 @@
 ## Verification
 
 - Run `pnpm check` after TypeScript changes.
-- Run `pnpm test` after logic changes.
-- Run `pnpm test:coverage` when changing shared runtime paths, auth flows, transport behavior, or cross-module orchestration.
+- Run targeted Vitest files, `pnpm test:changed`, or `pnpm test` after logic changes, depending on the blast radius.
+- Run `pnpm test:coverage` when changing shared runtime paths, auth flows, transport behavior, or cross-module orchestration; use `pnpm test:coverage:html` only when you need the browser report.
+- Use `pnpm verify:quick` for local static iteration and `pnpm verify` as the final full gate. Avoid running `pnpm test` immediately before `pnpm verify` unless you need a faster failure while iterating, because `verify` already runs the coverage suite.
 - Add or update tests with behavior changes. Prefer integration tests for flows that cross SQLite stores, Telegram command routing, or Codex transport fallback behavior.
 
 ## Codex-specific guidance

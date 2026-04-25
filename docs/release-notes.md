@@ -29,8 +29,12 @@
 
 ### Verification Scripts
 
+- Added `pnpm check:src` and `pnpm check:scripts`, and changed full `pnpm verify` to use the production build as the source typecheck instead of typechecking `src` twice.
+- Added `pnpm test:changed` for Vitest runs scoped to files changed from `origin/main`.
+- Enabled TypeScript incremental metadata under ignored `.local/tsbuildinfo/`.
+- Made coverage text-only by default and added `pnpm test:coverage:html` for browser coverage reports.
 - Added `pnpm verify:quick` for static local checks without the slower build and coverage run.
-- Kept `pnpm verify` as the full CI-equivalent gate without an extra wrapper script.
+- Kept `pnpm verify` as the full CI-equivalent gate.
 
 ### Callback Approval Hardening
 

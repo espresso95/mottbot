@@ -144,6 +144,8 @@ Equivalent `pnpm` scripts:
 - `pnpm build`
 - `pnpm start`
 - `pnpm check`
+- `pnpm check:src`
+- `pnpm check:scripts`
 - `pnpm lint`
 - `pnpm format:check`
 - `pnpm tsdoc:audit`
@@ -151,8 +153,11 @@ Equivalent `pnpm` scripts:
 - `pnpm knip`
 - `pnpm verify`
 - `pnpm verify:quick`
+- `pnpm verify:static`
 - `pnpm test`
+- `pnpm test:changed`
 - `pnpm test:coverage`
+- `pnpm test:coverage:html`
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
@@ -177,11 +182,11 @@ CI checks:
 
 - dependency installation with the pinned pnpm version
 - native `better-sqlite3` rebuild
-- `pnpm verify`, covering TypeScript checks, ESLint, Prettier, strict TSDoc, docs links, dependency-cycle checks, Knip, TypeScript build output, and coverage thresholds from `vitest.config.ts`
+- `pnpm verify`, covering script typecheck, ESLint, Prettier, strict TSDoc, docs links, dependency-cycle checks, Knip, TypeScript build typecheck/output, and coverage thresholds from `vitest.config.ts`
 - package metadata and built CLI health command with a temporary file-backed config
 - clean worktree after verification
 
-Use `pnpm verify:quick` for local iteration when you need the static checks without the slower build and coverage run.
+Use `pnpm verify:quick` for local iteration when you need the static checks without the slower build and coverage run. For test iteration against current branch changes, use targeted Vitest files or `pnpm test:changed`; reserve `pnpm test:coverage:html` for browser-based coverage inspection.
 
 Local equivalent:
 
