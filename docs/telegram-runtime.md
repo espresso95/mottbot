@@ -232,6 +232,7 @@ Current policy:
 - `/help`
 - `/commands`
 - `/status`
+- `/project` (feature-flagged long-running project tasks)
 - `/usage [daily|monthly]`
 - `/health`
 - `/model <provider/model>`
@@ -295,7 +296,7 @@ Chat policy JSON accepts:
 ### Current command behavior
 
 - `/help` and `/commands` return caller-aware command discovery based on role, chat type, enabled runtime features, and per-chat command policy
-- `/status` includes session key, model, profile, fast mode, profile count, and usage when available
+- `/status` includes session key, model, profile, fast mode, profile count, and usage when available; `/project` starts and monitors durable Codex CLI project tasks when enabled
 - `/usage` reports local UTC daily or monthly run counts for the current global/chat/session/user/model context and shows configured limits without exposing account identifiers or tokens
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
