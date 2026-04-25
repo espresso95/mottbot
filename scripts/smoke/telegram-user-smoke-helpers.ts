@@ -10,6 +10,7 @@ import {
 
 /** Parsed configuration for a user-account Telegram smoke test. */
 export type TelegramUserSmokeConfig = {
+  dryRun: boolean;
   apiId: number;
   apiHash: string;
   botUsername: string;
@@ -33,6 +34,7 @@ export type TelegramUserSmokeConfig = {
 
 /** CLI options consumed by Telegram user smoke helpers. */
 export type TelegramUserSmokeOptions = {
+  dryRun?: boolean;
   apiId?: number;
   apiHash?: string;
   botUsername?: string;
@@ -86,6 +88,7 @@ export function parseTelegramUserSmokeOptions(argv: readonly string[]): Telegram
 /** Builds Telegram user smoke options from parsed CLI args. */
 export function telegramUserSmokeOptionsFromArgs(args: ParsedCliArgs): TelegramUserSmokeOptions {
   return {
+    dryRun: booleanFlag(args, "dry-run", false),
     ...(positiveIntegerFlag(args, "api-id") ? { apiId: positiveIntegerFlag(args, "api-id") } : {}),
     ...(stringFlag(args, "api-hash") ? { apiHash: stringFlag(args, "api-hash") } : {}),
     ...(stringFlag(args, "bot-username") ? { botUsername: stringFlag(args, "bot-username") } : {}),
@@ -125,6 +128,7 @@ export function buildTelegramUserSmokeConfig(params: {
   }
   const botUsername = normalizeBotUsername(params.options.botUsername ?? params.fallbackBotUsername);
   return {
+    dryRun: params.options.dryRun ?? false,
     apiId,
     apiHash,
     botUsername,

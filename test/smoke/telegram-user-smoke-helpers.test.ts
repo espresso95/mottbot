@@ -33,6 +33,7 @@ describe("telegram user smoke helpers", () => {
         "--api-hash=hash",
         "--message",
         "hello",
+        "--dry-run",
         "--no-wait-for-reply",
         "--expect-reply=false",
         "--expect-reply-contains",
@@ -42,6 +43,7 @@ describe("telegram user smoke helpers", () => {
       apiId: 12345,
       apiHash: "hash",
       message: "hello",
+      dryRun: true,
       waitForReply: false,
       expectReply: false,
       expectReplyContains: "received",
@@ -63,6 +65,7 @@ describe("telegram user smoke helpers", () => {
         },
       }),
     ).toEqual({
+      dryRun: false,
       apiId: 12345,
       apiHash: "hash",
       botUsername: "StartupMottBot",

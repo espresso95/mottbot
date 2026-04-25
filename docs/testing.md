@@ -133,6 +133,7 @@ pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
 ```
 
 The lane helper sets `MOTTBOT_CONFIG_PATH` for the child command and injects the lane bot username and MTProto session path from `.local/smoke-lanes/<lane>.json`.
+Run `pnpm smoke:lane --lane lane-1 --action doctor` first to validate local lane isolation without contacting Telegram. Relative paths in lane configs are resolved from the worktree where the command runs.
 
 For local dashboard validation, use:
 

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildSmokeLaneInvocation } from "../../scripts/smoke/smoke-lane.js";
+import { buildSmokeLaneInvocation, createSmokeLaneDoctorReport } from "../../scripts/smoke/smoke-lane.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 
 function writeLaneConfig(root: string, lane: string, overrides: Record<string, unknown> = {}): string {
@@ -14,6 +14,7 @@ function writeLaneConfig(root: string, lane: string, overrides: Record<string, u
         telegram: { botToken: "secret-bot-token", adminUserIds: ["123"] },
         security: { masterKey: "secret-master-key" },
         service: { label: `ai.mottbot.bot.${lane}` },
+        dashboard: { port: 8788 },
         storage: { sqlitePath: `./data/${lane}/mottbot.sqlite` },
         attachments: { cacheDir: `./data/${lane}/attachments` },
         projectTasks: {
@@ -30,6 +31,7 @@ function writeLaneConfig(root: string, lane: string, overrides: Record<string, u
       2,
     ),
   );
+  fs.chmodSync(configPath, 0o600);
   return configPath;
 }
 
@@ -115,5 +117,49 @@ describe("smoke lane helper", () => {
     writeLaneConfig(root, "lane-1", { smoke: {} });
 
     expect(() => buildSmokeLaneInvocation(["--lane", "lane-1"], root)).toThrow(/smoke\.botUsername/);
+  });
+
+  it("reports a token-free lane doctor result", () => {
+    const root = createTempDir();
+    dirs.push(root);
+    const configPath = writeLaneConfig(root, "lane-1");
+
+    const report = createSmokeLaneDoctorReport(["--lane", "lane-1", "--action", "doctor"], root);
+
+    expect(report).toMatchObject({
+      status: "passed",
+      configPath,
+      lane: "lane-1",
+    });
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sqlite path", status: "passed" }),
+        expect.objectContaining({ name: "smoke user session path", status: "passed" }),
+        expect.objectContaining({ name: "sibling bot token uniqueness", status: "passed" }),
+      ]),
+    );
+    expect(JSON.stringify(report)).not.toContain("secret-bot-token");
+    expect(JSON.stringify(report)).not.toContain("secret-master-key");
+  });
+
+  it("fails doctor when sibling lanes share isolated values", () => {
+    const root = createTempDir();
+    dirs.push(root);
+    writeLaneConfig(root, "lane-1");
+    writeLaneConfig(root, "lane-2", {
+      service: { label: "ai.mottbot.bot.lane-1" },
+      storage: { sqlitePath: "./data/lane-1/mottbot.sqlite" },
+    });
+
+    const report = createSmokeLaneDoctorReport(["--lane", "lane-1", "--action", "doctor"], root);
+
+    expect(report.status).toBe("failed");
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sibling service label uniqueness", status: "failed" }),
+        expect.objectContaining({ name: "sibling sqlite path uniqueness", status: "failed" }),
+        expect.objectContaining({ name: "sibling bot token uniqueness", status: "failed" }),
+      ]),
+    );
   });
 });

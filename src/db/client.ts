@@ -8,13 +8,28 @@ export class DatabaseClient {
   readonly db: Database.Database;
 
   constructor(filePath: string) {
-    ensureParentDir(filePath);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (filePath !== ":memory:") {
+      ensureParentDir(filePath);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      if (!fs.existsSync(filePath)) {
+        const fd = fs.openSync(filePath, "a", 0o600);
+        fs.closeSync(fd);
+      }
+      fs.chmodSync(filePath, 0o600);
+    }
     this.db = new Database(filePath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("synchronous = NORMAL");
     this.db.pragma("busy_timeout = 5000");
     this.db.pragma("foreign_keys = ON");
+    if (filePath !== ":memory:") {
+      fs.chmodSync(filePath, 0o600);
+      for (const sidecarPath of [`${filePath}-wal`, `${filePath}-shm`]) {
+        if (fs.existsSync(sidecarPath)) {
+          fs.chmodSync(sidecarPath, 0o600);
+        }
+      }
+    }
   }
 
   close(): void {

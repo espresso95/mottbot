@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { DatabaseClient } from "../../src/db/client.js";
 import { migrateDatabase } from "../../src/db/migrate.js";
@@ -80,6 +81,20 @@ describe("migrateDatabase", () => {
     expect(migrations[7]).toMatchObject({ version: 8, name: "agent routes" });
     expect(migrations[8]).toMatchObject({ version: 9, name: "agent run limits" });
     expect(migrations[9]).toMatchObject({ version: 10, name: "project tasks" });
+  });
+
+  it("creates sqlite files with owner-only permissions", () => {
+    const tempDir = createTempDir();
+    cleanup.push(() => {
+      removeTempDir(tempDir);
+    });
+    const sqlitePath = path.join(tempDir, "mottbot.sqlite");
+    const database = new DatabaseClient(sqlitePath);
+    cleanup.push(() => {
+      database.close();
+    });
+
+    expect(fs.statSync(sqlitePath).mode & 0o777).toBe(0o600);
   });
 
   it("bootstraps an unversioned database without dropping existing rows", () => {

@@ -7,6 +7,8 @@ Configuration comes from two layers:
 1. defaults baked into `config.ts`
 2. `mottbot.config.json`
 
+Relative filesystem paths in runtime config are resolved from the process working directory, not from the config file's directory. The service commands start from the repository root, so repo-relative paths such as `./data/mottbot.sqlite` are stable for the normal launchd flow.
+
 ## Required Secrets
 
 - `telegram.botToken` in `mottbot.config.json`

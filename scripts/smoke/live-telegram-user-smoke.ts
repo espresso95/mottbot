@@ -232,6 +232,24 @@ async function main(): Promise<void> {
     fallbackBotUsername: "StartupMottBot",
   });
 
+  if (liveConfig.dryRun) {
+    printJson({
+      status: "dry-run",
+      botUsername: liveConfig.botUsername,
+      target: liveConfig.target,
+      message: liveConfig.message,
+      ...(liveConfig.filePath ? { filePath: path.resolve(liveConfig.filePath) } : {}),
+      waitForReply: liveConfig.waitForReply,
+      expectReply: liveConfig.expectReply,
+      ...(liveConfig.expectReplyContains ? { expectReplyContains: liveConfig.expectReplyContains } : {}),
+      timeoutMs: liveConfig.timeoutMs,
+      stableReplyMs: liveConfig.stableReplyMs,
+      sessionPath: path.resolve(liveConfig.sessionPath),
+      sqlitePath: appConfig.storage.sqlitePath,
+    });
+    return;
+  }
+
   const client = await startUserClient(liveConfig);
   try {
     const botUserId = entityId(await client.getEntity(liveConfig.botUsername));

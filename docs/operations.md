@@ -240,7 +240,7 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 The harness also accepts `--target`, `--reply-to-latest-bot-message`, and `--file-path` for group, reply-gating, and attachment smoke checks.
 
-`pnpm smoke:lane --lane <name>` runs preflight, suite, telegram-user, or service actions through `.local/smoke-lanes/<name>.json`. Use it when multiple worktrees need live Telegram smoke at the same time. Each lane must use a different Telegram bot token, `service.label`, SQLite path, project worktree/artifact roots, and smoke session path.
+`pnpm smoke:lane --lane <name>` runs doctor, preflight, suite, telegram-user, or service actions through `.local/smoke-lanes/<name>.json`. Use it when multiple worktrees need live Telegram smoke at the same time. Each lane must use a different Telegram bot token, `service.label`, dashboard port, SQLite path, project worktree/artifact roots, and smoke session path. Run `pnpm smoke:lane --lane <name> --action doctor` first for local token-free isolation checks. Relative paths in lane configs resolve from the worktree where the command runs.
 
 ## User Roles And Chat Governance
 

@@ -132,9 +132,12 @@ Create one ignored lane config per bot under `.local/smoke-lanes/`:
 
 The `smoke` object is read only by `pnpm smoke:lane`; the runtime ignores it. Keep these files local and uncommitted.
 
+Relative paths in lane config files resolve from the worktree where you run `pnpm smoke:lane`, not from `.local/smoke-lanes/`.
+
 Run each lane from its own worktree:
 
 ```bash
+pnpm smoke:lane --lane lane-1 --action doctor
 pnpm smoke:lane --lane lane-1 --action service-restart
 pnpm smoke:lane --lane lane-1 --action preflight
 pnpm smoke:lane --lane lane-1 --dry-run --api-id <api-id> --api-hash <api-hash>
@@ -142,6 +145,8 @@ pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
 ```
 
 `pnpm smoke:lane` sets `MOTTBOT_CONFIG_PATH` for the child command, injects the lane `smoke.botUsername` and `smoke.sessionPath` unless you pass explicit flags, and leaves the API ID/hash as one-run CLI flags. Service actions use the lane's `service.label`, so launchd plists and logs do not collide across lanes.
+
+`--action doctor` is local and token-free. It checks that the lane config file is private, required secrets are present, state paths are lane-scoped, and service labels, dashboard ports, SQLite paths, smoke session paths, and bot tokens do not duplicate sibling configs under `.local/smoke-lanes/`.
 
 ## Required Runtime Config
 

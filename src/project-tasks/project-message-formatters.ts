@@ -36,10 +36,12 @@ export function projectDisplayId(taskId: string): string {
   return `PM-${compactId(taskId)}`;
 }
 
+/** Formats the short approval ID shown in Telegram project messages. */
 function projectApprovalDisplayId(approvalId: string): string {
   return `PA-${compactId(approvalId)}`;
 }
 
+/** Normalizes a user-provided project reference for prefix matching. */
 function projectReferenceKey(value: string): string {
   const normalized = value
     .trim()
@@ -101,6 +103,7 @@ export function projectSubtaskDisplayTitle(subtask: Pick<ProjectSubtask, "title"
   return fromPrompt === "Project task" ? subtask.title : fromPrompt;
 }
 
+/** Returns the basename shown for a project repository path. */
 function repoDisplayName(repoRoot: string): string {
   return path.basename(repoRoot) || repoRoot;
 }
