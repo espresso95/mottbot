@@ -58,7 +58,7 @@ Required controls:
 - no reuse of a request-bound approval for a different tool argument payload
 - token-free logs and transcript records
 
-## Proposed Runtime Shape
+## Runtime Shape
 
 Keep ownership boundaries narrow:
 
@@ -67,9 +67,9 @@ Keep ownership boundaries narrow:
 - `src/telegram/*` owns approval and result notifications
 - a new `src/tools/*` module owns tool definitions, validation, execution, and result normalization
 
-The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, local note/document writes, allowlisted local command execution, configured MCP stdio tool calls, and GitHub issue/comment writes with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
+The default runtime supports read-only tools only. Side-effecting implementations are opt-in and currently cover delayed service restart, Telegram reactions, Telegram sends, local note/document writes, allowlisted local command execution, configured MCP stdio tool calls, GitHub issue/comment writes, and Microsoft To Do writes with admin policy, approval previews, request-bound one-shot approvals, and audit logging.
 
-## Initial Tool Registry
+## Tool Registry
 
 The current registry is sent to the model only for enabled tools. The executor resolves every requested tool through the registry again before execution.
 
@@ -96,6 +96,9 @@ Enabled read-only tools:
 | `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit`                                         | Read recent failed workflow runs.                                                                            |
 | `mottbot_google_drive_search`      | `read_only` | optional `query`, `limit`, and `includeTrashed`                           | Search Google Drive files with the configured delegated token.                                               |
 | `mottbot_google_drive_get_file`    | `read_only` | required `fileId`; optional `includeContent` and `maxBytes`               | Read Google Drive file metadata and optionally inline textual content.                                       |
+| `mottbot_ms_todo_lists`            | `read_only` | optional `limit`                                                          | Read Microsoft To Do list summaries through Microsoft Graph.                                                 |
+| `mottbot_ms_todo_tasks`            | `read_only` | optional `listId` and `limit`                                             | Read Microsoft To Do task summaries for one list through Microsoft Graph.                                    |
+| `mottbot_ms_todo_task_get`         | `read_only` | required `taskId`; optional `listId`                                      | Read one Microsoft To Do task through Microsoft Graph.                                                       |
 | `mottbot_local_doc_read`           | `read_only` | required `path`; optional `root` and `maxBytes`                           | Read a bounded `.md` or `.txt` file from an approved local-write root and return its SHA-256 for safe edits. |
 | `mottbot_codex_job_status`         | `read_only` | required `jobId`                                                          | Read status, artifact paths, and the final message for a Codex CLI job started by this process.              |
 | `mottbot_codex_job_tail`           | `read_only` | required `jobId`; optional `limit`                                        | Read recent JSONL events for a Codex CLI job started by this process.                                        |
@@ -114,6 +117,8 @@ Disabled reserved tools:
 | `mottbot_github_issue_create`   | `github_write`    | opt-in | Creates a GitHub issue through the host `gh` CLI; requires one-shot admin approval before execution.                                                                                 |
 | `mottbot_github_issue_comment`  | `github_write`    | opt-in | Adds a GitHub issue comment through the host `gh` CLI; requires one-shot admin approval before execution.                                                                            |
 | `mottbot_github_pr_comment`     | `github_write`    | opt-in | Adds a GitHub pull request conversation comment through the host `gh` CLI; requires one-shot admin approval before execution.                                                        |
+| `mottbot_ms_todo_task_create`   | `network_write`   | opt-in | Creates a Microsoft To Do task through Microsoft Graph; requires one-shot admin approval before execution.                                                                           |
+| `mottbot_ms_todo_task_update`   | `network_write`   | opt-in | Updates a Microsoft To Do task through Microsoft Graph; requires one-shot admin approval before execution.                                                                           |
 | `mottbot_telegram_send_message` | `telegram_send`   | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution.                                       |
 | `mottbot_restart_service`       | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution.                                                       |
 | `mottbot_telegram_react`        | `telegram_send`   | opt-in | Adds or clears Telegram reactions only after one-shot admin approval.                                                                                                                |

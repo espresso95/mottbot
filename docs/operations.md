@@ -143,6 +143,9 @@ Equivalent `pnpm` scripts:
 - `pnpm build`
 - `pnpm start`
 - `pnpm check`
+- `pnpm lint`
+- `pnpm format:check`
+- `pnpm tsdoc:audit`
 - `pnpm test`
 - `pnpm test:coverage`
 - `pnpm auth:login`
@@ -155,6 +158,7 @@ Equivalent `pnpm` scripts:
 - `pnpm run restart`
 - `pnpm smoke:preflight`
 - `pnpm smoke:telegram-user`
+- `pnpm smoke:dashboard`
 - `pnpm smoke:local-tools`
 - `pnpm smoke:github-write`
 - `pnpm smoke:suite`

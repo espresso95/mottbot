@@ -127,35 +127,28 @@ pnpm smoke:dashboard
 
 It starts only a temporary loopback dashboard server, validates the dashboard HTML and runtime agent summaries, then shuts down. It does not start Telegram polling and can run while the production service is active.
 
-## Verified Results
+## Verification Notes
 
-Verified locally on April 20, 2026:
+Do not treat checked-in test counts as durable documentation. Use the commands above for the current result, because the suite changes as runtime features are added.
 
-- `pnpm check`: passes
-- `pnpm test`: 69 test files, 301 tests passing
-- `pnpm test:coverage`: passes
-- `pnpm build`: passes
-- built CLI health check: passes
-- `pnpm smoke:preflight`: validates config, Telegram bot auth, migrations, and health in a live environment
-- `pnpm smoke:dashboard`: passes against a temporary loopback dashboard and the configured SQLite database
-- `pnpm smoke:local-tools`: passes against disposable local roots and test MCP server
-- `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo pnpm smoke:github-write`: prints a write plan without touching GitHub
-- `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite`: prints planned checks without sending live Telegram messages
+Recommended local gate before merging TypeScript changes:
+
+```bash
+pnpm check
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm test:coverage
+pnpm build
+```
+
+Docs-only changes should at least run `pnpm format:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
 
 The mocked OAuth login test intentionally prints a normalized authorization URL to stdout:
 
 ```text
 https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_access+model.request+api.responses.write
 ```
-
-Last recorded coverage run on April 20, 2026:
-
-| Metric     | Result |
-| ---------- | -----: |
-| Statements | 84.85% |
-| Branches   | 74.69% |
-| Functions  |  93.4% |
-| Lines      | 84.76% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

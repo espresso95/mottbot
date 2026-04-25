@@ -1,24 +1,35 @@
 # Mottbot
 
-Telegram-first Codex subscription bot scaffold for the subscription-backed `openai-codex` provider shape.
+Mottbot is a host-local Telegram control plane for subscription-backed Codex runs. It is intentionally narrow: one process owns Telegram ingress, SQLite state, Codex auth and transport, tool approvals, the local dashboard, and optional Project Mode scheduling.
 
-## What this repo implements
+This is not a generic multi-channel bot and it is not the standard OpenAI API-key path. The Codex-specific behavior stays isolated under `src/codex/*` and `src/codex-cli/*`.
 
-- Telegram polling bot via `grammY`
-- Optional webhook mode with local HTTP listener and Telegram webhook registration
-- SQLite-backed session, run, outbox, and auth profile storage
-- Subscription-backed `openai-codex` provider boundary
-- ChatGPT/Codex OAuth bootstrap command
-- Codex CLI auth reuse from `$CODEX_HOME/auth.json` or `~/.codex/auth.json`
-- Per-session run serialization
-- Durable Telegram update dedupe and bot-reply tracking
-- Restart recovery for interrupted runs
-- Attachment-aware prompt construction and transcript compaction
-- Streaming-ready run orchestration and Telegram outbox editing
-- Local dashboard for runtime health and file-backed configuration updates
-- CLI and Telegram health reporting
+## What It Does
 
-## Quick start
+- Handles Telegram polling or webhook updates through `grammY`.
+- Persists sessions, transcripts, runs, queue state, outbox messages, auth profiles, roles, chat policy, memory, tool approvals, and Project Mode task state in SQLite.
+- Reuses Codex CLI auth or creates a local ChatGPT/Codex OAuth profile.
+- Streams Codex-backed model output into Telegram with per-session serialization and restart recovery.
+- Supports named agents, route bindings, usage budgets, attachment handling, memory, admin diagnostics, and a local dashboard.
+- Exposes deny-by-default model tools. Side-effecting tools are disabled by default and require explicit admin approval for real execution.
+- Runs optional Project Mode tasks in isolated Git worktrees and requires explicit approval before publishing branches or opening pull requests.
+
+## Operating Assumptions
+
+- Use `pnpm` for installs, scripts, and lockfile changes.
+- Keep `.env` files, local config with secrets, SQLite files, `data/`, `dist/`, and `coverage/` out of git.
+- Run it as one host-local process against one SQLite database. Distributed multi-instance coordination is out of scope beyond the host-local lease guard.
+- Use a dedicated test bot, test chats, and separate SQLite path for live smoke testing.
+- Treat side-effecting tools and Project Mode publish actions as operator-controlled workflows, not autonomous deployment paths.
+
+## Known Gaps
+
+- Native provider file blocks for non-image attachments remain disabled until the active Codex provider boundary supports them; supported documents are converted into bounded prompt text.
+- Webhook delivery and live Codex fault-injection checks still require operator-provided live environments.
+- Usage budgets are local run-count controls, not billing-grade token or currency limits.
+- Channel bindings beyond Telegram and distributed replicas are not implemented.
+
+## Quick Start
 
 1. Install dependencies:
 
@@ -66,12 +77,18 @@ For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
 - `pnpm check`
 - `pnpm lint`
 - `pnpm format:check`
+- `pnpm tsdoc:audit -- --strict`
+- `pnpm test`
+- `pnpm test:coverage`
 - `pnpm auth:login`
 - `pnpm auth:import-cli`
 - `pnpm db:migrate`
 - `pnpm health`
 - `pnpm service status`
 - `pnpm run restart`
+- `pnpm smoke:dashboard`
+- `pnpm smoke:local-tools`
+- `pnpm smoke:suite`
 
 ## Docs
 
@@ -82,6 +99,8 @@ For persistent macOS service setup and CLI restarts, see [SETUP.md](./SETUP.md).
 - [Codex subscription provider](./docs/codex-subscription-provider.md)
 - [Data model](./docs/data-model.md)
 - [Testing](./docs/testing.md)
+- [Code quality](./docs/code-quality.md)
 - [Operations](./docs/operations.md)
-- [Completion and test plan](./docs/completion-test-plan.md)
-- [Single-file design brief](./docs/telegram-codex-design.md)
+- [Live smoke tests](./docs/live-smoke-tests.md)
+- [Tool use](./docs/tool-use-design.md)
+- [Release notes](./docs/release-notes.md)

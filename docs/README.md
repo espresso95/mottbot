@@ -1,6 +1,6 @@
-# Mottbot Design Docs
+# Mottbot Docs
 
-These documents describe the Telegram-first Codex subscription bot implemented in this repo. They are aligned to the current codebase as verified on April 20, 2026.
+These documents describe the current Telegram-first Codex bot runtime, operator workflows, and verification gates. Historical design briefs and phase plans are intentionally omitted once the implemented behavior is covered by source, release notes, and the current runbooks.
 
 ## Doc Map
 
@@ -22,16 +22,10 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Host-local macOS LaunchAgent setup, restart commands, logs, and Telegram polling conflict handling.
 - [Live Smoke Tests](./live-smoke-tests.md)
   Guarded polling, webhook, Codex, attachment, optional MTProto user-account, and fault-injection checks for a real test bot environment.
-- [Tool Use Design](./tool-use-design.md)
+- [Tool Use](./tool-use-design.md)
   Safety requirements and runtime behavior for read-only and approval-gated model tool execution.
-- [Completion And Test Plan](./completion-test-plan.md)
-  Phased implementation and verification roadmap for closing the remaining hardening gaps.
 - [Release Notes](./release-notes.md)
   Operator-facing notes and validation checklists for newly added runtime capabilities.
-- [Project Mode Design](./project-mode-codex-workers-design.md)
-  Implementation blueprint for durable long-running project orchestration with Codex CLI workers and Git worktree isolation.
-- [Single-File Design Brief](./telegram-codex-design.md)
-  The original one-file design brief that preceded the implementation.
 
 ## How To Read This Set
 
@@ -39,62 +33,21 @@ These documents describe the Telegram-first Codex subscription bot implemented i
 - Read `codex-subscription-provider.md` if your main interest is the subscription-backed Codex path.
 - Read `telegram-runtime.md` and `data-model.md` if you want to reproduce the runtime behavior in another codebase.
 - Read `testing.md` and `operations.md` if you want to ship or extend this repo.
-- Read `completion-test-plan.md` if you want the remaining work broken into implementation and test phases.
+- Read `tool-use-design.md` before enabling side-effecting model tools or Project Mode Codex jobs.
 
 ## Status
 
-Implemented in this repo:
+Current runtime summary:
 
-- Telegram polling bot via `grammY`
-- normalized Telegram ingress
-- ACL and route resolution
-- config-defined named agents, Telegram route bindings, runtime `/agent` switching, per-agent tool restrictions, and host-local per-agent run limits
-- per-session run serialization
-- SQLite-backed session, transcript, run, outbox, and auth storage
-- Subscription-backed `openai-codex` provider boundary
-- local OAuth login command
-- Codex CLI auth import
-- token refresh with per-profile locking
-- refresh failure handling that avoids reverting refreshed CLI-backed credentials to stale tokens
-- WebSocket-first streaming with SSE fallback
-- durable Telegram update dedupe
-- reply-to-bot gating in groups via persisted bot-message tracking
-- restart recovery for interrupted runs
-- durable queued-run recovery after restart
-- versioned SQLite migration tracking
-- native image attachment ingestion and attachment-aware prompt construction
-- capability-gated native file attachment plumbing with classified-document guards and safe fallback while Codex file blocks remain unsupported
-- bounded text, Markdown, code, CSV, TSV, and PDF attachment extraction for active model runs
-- session file metadata inspection and forgetting through `/files`
-- operator safety limits for inbound text and attachments
-- transcript compaction via deterministic history summaries
-- webhook mode
-- health reporting via `/health` and `mottbot health`
-- queued/active/stale outbox health counters and safer structured run logs
-- outbox mid-stream rebind to continuation messages when Telegram edits fail
-- unit and integration test suite with coverage reporting
-- GitHub Actions CI for install, native SQLite rebuild, typecheck, lint, format check, tests, coverage, build, package validation, and dirty-worktree guard
-- tool-use safety design documentation
-- deny-by-default tool registry, read-only health snapshot execution, and opt-in one-shot-approved restart tool execution
-- read-only operator diagnostics tools and admin `/runs` and `/debug` commands
-- admin-only read-only local repository and git inspection tools
-- admin-only read-only GitHub repository, pull request, issue, and CI inspection through the host GitHub CLI
-- admin-only approval-gated local note/document writes, allowlisted local command execution, MCP stdio calls, GitHub issue/comment writes, and Telegram send/reaction tools
-- local operator dashboard panels for runtime health, logs, tools, approvals, memory, and guarded restart controls
-- scoped approved memory through `/remember`, `/memory`, and `/forget`, optional deterministic automatic summaries, and opt-in model-proposed memory candidates with review commands
-- persistent owner/admin/trusted Telegram roles and per-chat governance policy through `/users`
-- caller-aware `/help`, `/commands`, and `/tool help` filtered by role, chat type, enabled features, and per-chat command policy
-- local UTC daily and monthly usage budgets with `/usage` reporting
-- repeatable guarded live validation suite for preflight, private-chat, command, reply, group, and attachment checks
-- repeatable dashboard smoke validation for the local Agents panel and runtime API
-- disposable local tool validation for document edits, allowlisted commands, and MCP stdio calls
-- guarded disposable GitHub write validation for issue/comment tools
-- agent diagnostics through `/debug agents` and the dashboard runtime API
-- a read-only dashboard Agents panel for configured limits, route counts, and run counts
-- host-local backup, restore validation, and launchd log rotation commands
-- host-local instance lease to reduce accidental overlapping bot processes
+- Telegram polling or webhook ingress with ACL, route resolution, per-session serialization, and durable outbox behavior.
+- SQLite-backed auth, sessions, transcripts, runs, queue state, tool approvals, memory, roles, chat policy, and Project Mode task state.
+- Subscription-backed `openai-codex` provider integration with local OAuth, Codex CLI auth import, token refresh, and transport fallback.
+- Named agents, route bindings, local usage budgets, attachment extraction, approved memory, and admin diagnostics.
+- Deny-by-default model tools with admin-only read tools and opt-in approval-gated side effects.
+- Feature-flagged Project Mode for durable Codex CLI coding tasks in isolated Git worktrees with review and publish approvals.
+- Local operator dashboard, guarded live smoke commands, disposable local tool validation, backup/restore validation, log rotation, and host-local lease protection.
 
-Planned hardening that is not yet implemented:
+Known gaps:
 
 - channel bindings beyond Telegram
 - enabling native provider file blocks for non-image attachments when the provider exposes them
@@ -102,4 +55,3 @@ Planned hardening that is not yet implemented:
 - fully automated webhook delivery and live Codex fault-injection smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - distributed multi-instance coordination beyond the host-local lease
-- durable project-task orchestration with parallel Codex CLI worktrees
