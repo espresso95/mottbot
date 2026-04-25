@@ -327,6 +327,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - inline tool approval buttons approve or deny the exact pending audit request encoded in the button and re-check the caller role and session before recording the operator decision
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons; `/project approve <approval-id>` remains the fallback command
+- `/project status` includes each subtask's latest Codex CLI run state and error, including restart-recovered interrupted runs before the scheduler has reconciled the task
 
 ## Session Queue
 

@@ -7,6 +7,10 @@
 - Added a guarded `sync:service` workflow that fast-forwards a clean checkout from `origin/main`, verifies the build and health check, then restarts the macOS service with the configured Node runtime.
 - Added install, status, and uninstall scripts for a separate `ai.mottbot.sync-main` LaunchAgent timer.
 
+### Project Mode Recovery Visibility
+
+- Updated `/project status` to show each subtask's latest Codex CLI run state and error, so restart-recovered interrupted runs are visible immediately to operators.
+
 ### Telegram Approval Buttons
 
 - Added inline Telegram approve and deny buttons for side-effecting tool approval prompts. Approve now clears the keyboard and queues a same-session continuation run; deny records `operator_denied` without continuing.

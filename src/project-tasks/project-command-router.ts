@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
 import type { InboundEvent, TelegramCallbackEvent } from "../telegram/types.js";
+import type { CodexCliRun, ProjectSubtask } from "./project-types.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { ProjectTaskActionResult, ProjectTaskScheduler } from "./project-task-scheduler.js";
 import { buildProjectPlan } from "./project-planner.js";
@@ -49,6 +50,30 @@ function projectApprovalReplyMarkup(approvalId: string, label: string): Telegram
       ],
     ],
   };
+}
+
+function formatRunDetail(run: CodexCliRun | undefined): string {
+  if (!run) {
+    return "";
+  }
+  const detail = [`latest run ${run.status}`];
+  if (run.lastError) {
+    detail.push(run.lastError);
+  } else if (typeof run.exitCode === "number") {
+    detail.push(`exit ${run.exitCode}`);
+  } else if (run.signal) {
+    detail.push(`signal ${run.signal}`);
+  }
+  return `; ${detail.join(": ")}`;
+}
+
+function formatSubtaskLine(subtask: ProjectSubtask, latestRun: CodexCliRun | undefined): string {
+  const deps =
+    subtask.dependsOnSubtaskIds.length > 0
+      ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
+      : "";
+  const error = subtask.lastError ? `; error: ${subtask.lastError}` : "";
+  return `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}${deps}${error}${formatRunDetail(latestRun)}`;
 }
 
 /** Handles Telegram /project commands and delegates task execution to the project scheduler. */
@@ -200,11 +225,8 @@ export class ProjectCommandRouter {
     const subtaskLines =
       snapshot.subtasks
         .map((subtask) => {
-          const deps =
-            subtask.dependsOnSubtaskIds.length > 0
-              ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
-              : "";
-          return `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}${deps}`;
+          const latestRun = this.store.getLatestCliRunForSubtask(subtask.subtaskId);
+          return formatSubtaskLine(subtask, latestRun);
         })
         .join("\n") || "- none";
     await sendReply(

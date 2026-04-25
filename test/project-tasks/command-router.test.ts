@@ -455,4 +455,46 @@ describe("ProjectCommandRouter", () => {
       fixture.cleanup();
     }
   });
+
+  it("shows recovered interrupted CLI run errors before scheduler reconciliation", async () => {
+    const fixture = createProjectRouterFixture();
+    try {
+      const task = fixture.store.createTask({
+        chatId: fixture.event.chatId,
+        repoRoot: fixture.root,
+        baseRef: "main",
+        title: "restart recovery",
+        originalPrompt: "recover this project",
+        status: "running",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 2,
+      });
+      const subtask = fixture.store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "worker",
+        status: "running",
+      });
+      const run = fixture.store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: subtask.subtaskId,
+        commandJson: JSON.stringify(["codex", "exec"]),
+        cwd: fixture.root,
+        stdoutLogPath: path.join(fixture.root, "stdout.log"),
+        stderrLogPath: path.join(fixture.root, "stderr.log"),
+        jsonlLogPath: path.join(fixture.root, "events.jsonl"),
+      });
+      fixture.store.updateCliRun(run.cliRunId, { status: "streaming", startedAt: Date.now() });
+      fixture.store.recoverInterruptedCliRuns("Codex CLI run was interrupted by process restart.");
+
+      await fixture.router.handle(fixture.event, ["status", task.taskId]);
+
+      expect(fixture.sent.at(-1)?.text).toContain(`${subtask.subtaskId.slice(0, 8)} worker: running`);
+      expect(fixture.sent.at(-1)?.text).toContain("latest run failed");
+      expect(fixture.sent.at(-1)?.text).toContain("Codex CLI run was interrupted by process restart.");
+    } finally {
+      fixture.cleanup();
+    }
+  });
 });
