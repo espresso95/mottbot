@@ -74,7 +74,13 @@ type OutboxHandle = Awaited<ReturnType<RunOutbox["start"]>>;
 type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
 
 /** Outcome returned when an operator asks to retry a prior run. */
-type RunRetryResult = "queued" | "not_found" | "wrong_session" | "not_retryable" | "no_user_message";
+type RunRetryResult =
+  | "queued"
+  | "not_found"
+  | "wrong_session"
+  | "not_retryable"
+  | "no_user_message"
+  | "attachments_not_retryable";
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 type RunGovernancePolicy = {
@@ -392,6 +398,29 @@ function buildFailedRunReplyMarkup(runId: string): TelegramInlineKeyboard {
   };
 }
 
+function buildCancelledRunReplyMarkup(runId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [[{ text: "New chat", callback_data: buildRunNewCallbackData(runId) }]],
+  };
+}
+
+function hasTranscriptAttachments(contentJson: string | undefined): boolean {
+  if (!contentJson) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(contentJson) as unknown;
+    return (
+      Boolean(parsed) &&
+      typeof parsed === "object" &&
+      Array.isArray((parsed as { attachments?: unknown }).attachments) &&
+      (parsed as { attachments: unknown[] }).attachments.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
 const TOOL_SIDE_EFFECT_LABELS: Record<ToolSideEffect, string> = {
   read_only: "read local runtime data",
   local_write: "write local files",
@@ -681,9 +710,15 @@ export class RunOrchestrator {
       return "not_retryable";
     }
     const message = this.transcripts.getRunMessage(run.runId, "user");
-    const text = message?.contentText?.trim();
+    if (!message) {
+      return "no_user_message";
+    }
+    const text = message.contentText?.trim();
     if (!text) {
       return "no_user_message";
+    }
+    if (hasTranscriptAttachments(message.contentJson)) {
+      return "attachments_not_retryable";
     }
     await this.enqueueMessage({
       event: {
@@ -1200,7 +1235,9 @@ export class RunOrchestrator {
       if (placeholder) {
         try {
           await this.outbox.fail(placeholder, formatRunFailedStatus(message), {
-            replyMarkup: buildFailedRunReplyMarkup(run.runId),
+            replyMarkup: params.signal.aborted
+              ? buildCancelledRunReplyMarkup(run.runId)
+              : buildFailedRunReplyMarkup(run.runId),
           });
         } catch (outboxError) {
           this.logger.warn({ error: outboxError, runId: run.runId }, "Failed to send run failure status.");

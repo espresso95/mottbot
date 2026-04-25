@@ -2265,11 +2265,13 @@ describe("TelegramCommandRouter", () => {
     });
     const api = {
       answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageReplyMarkup: vi.fn(async () => ({})),
+      editMessageText: vi.fn(async () => ({})),
       sendMessage: vi.fn(async () => ({})),
     };
     const orchestrator = {
       stop: vi.fn(async () => true),
-      retryRun: vi.fn(async () => "queued" as const),
+      retryRun: vi.fn(async () => "queued" as "queued" | "attachments_not_retryable"),
     };
     const router = new TelegramCommandRouter(
       api as any,
@@ -2293,24 +2295,71 @@ describe("TelegramCommandRouter", () => {
     );
 
     await expect(
-      router.maybeHandleCallback(createCallbackEvent({ data: buildRunStopCallbackData("run-1") })),
+      router.maybeHandleCallback(
+        createCallbackEvent({ data: buildRunStopCallbackData("run-1"), messageText: "Run is active." }),
+      ),
     ).resolves.toBe(true);
     expect(orchestrator.stop).toHaveBeenCalledWith("tg:dm:chat-1:user:user-1", "run-1");
     expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
       text: "Active run cancelled.",
       show_alert: false,
     });
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run is active.\n\nRun cancelled.");
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Active run cancelled.", expect.any(Object));
 
+    api.answerCallbackQuery.mockClear();
+    api.editMessageReplyMarkup.mockClear();
+    api.editMessageText.mockClear();
+    api.sendMessage.mockClear();
+
     await expect(
-      router.maybeHandleCallback(createCallbackEvent({ data: buildRunRetryCallbackData("run-1") })),
+      router.maybeHandleCallback(
+        createCallbackEvent({ data: buildRunRetryCallbackData("run-1"), messageText: "Run failed." }),
+      ),
     ).resolves.toBe(true);
     expect(orchestrator.retryRun).toHaveBeenCalledWith({
       event: expect.objectContaining({ chatId: "chat-1", messageId: 42 }),
       session: expect.objectContaining({ sessionKey: "tg:dm:chat-1:user:user-1" }),
       runId: "run-1",
     });
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Retry queued.",
+      show_alert: false,
+    });
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run failed.\n\nRetry queued.");
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Retry queued.", expect.any(Object));
+
+    api.answerCallbackQuery.mockClear();
+    api.editMessageReplyMarkup.mockClear();
+    api.editMessageText.mockClear();
+    api.sendMessage.mockClear();
+    orchestrator.retryRun.mockResolvedValueOnce("attachments_not_retryable" as const);
+
+    await expect(
+      router.maybeHandleCallback(
+        createCallbackEvent({ data: buildRunRetryCallbackData("run-2"), messageText: "Run failed with a file." }),
+      ),
+    ).resolves.toBe(true);
+    const attachmentRetryMessage =
+      "Attachment-backed runs cannot be retried from the button. Send the file again to retry.";
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: attachmentRetryMessage,
+      show_alert: true,
+    });
+    expect(api.editMessageText).toHaveBeenCalledWith(
+      "chat-1",
+      42,
+      `Run failed with a file.\n\nRetry could not be applied. ${attachmentRetryMessage}`,
+    );
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", attachmentRetryMessage, expect.any(Object));
+
+    api.answerCallbackQuery.mockClear();
+    api.editMessageReplyMarkup.mockClear();
+    api.editMessageText.mockClear();
+    api.sendMessage.mockClear();
 
     stores.transcripts.add({
       sessionKey: "tg:dm:chat-1:user:user-1",
@@ -2318,9 +2367,17 @@ describe("TelegramCommandRouter", () => {
       contentText: "old context",
     });
     await expect(
-      router.maybeHandleCallback(createCallbackEvent({ data: buildRunNewCallbackData("run-1") })),
+      router.maybeHandleCallback(
+        createCallbackEvent({ data: buildRunNewCallbackData("run-1"), messageText: "Run complete." }),
+      ),
     ).resolves.toBe(true);
     expect(stores.transcripts.listRecent("tg:dm:chat-1:user:user-1")).toEqual([]);
+    expect(api.editMessageText).toHaveBeenCalledWith(
+      "chat-1",
+      42,
+      "Run complete.\n\nNew chat started. Previous transcript cleared.",
+    );
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Session transcript cleared.", expect.any(Object));
 
     await expect(

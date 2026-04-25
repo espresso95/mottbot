@@ -556,6 +556,85 @@ describe("RunOrchestrator", () => {
     ]);
   });
 
+  it("refuses button retry for failed runs that used attachments", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const transport = {
+      stream: vi.fn(async () => ({ text: "should not run", transport: "sse", requestIdentity: "req" })),
+    };
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: transport as any,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
+    const run = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    stores.runs.update(run.runId, {
+      status: "failed",
+      errorCode: "run_failed",
+      errorMessage: "boom",
+      finishedAt: stores.clock.now(),
+    });
+    stores.transcripts.add({
+      sessionKey: session.sessionKey,
+      runId: run.runId,
+      role: "user",
+      telegramMessageId: 41,
+      contentText: "Review this file.",
+      contentJson: JSON.stringify({
+        attachments: [{ kind: "document", fileId: "file-1", ingestionStatus: "metadata_only" }],
+      }),
+    });
+
+    await expect(
+      orchestrator.retryRun({
+        event: createInboundEvent({ messageId: 42, text: "Retry" }),
+        session,
+        runId: run.runId,
+      }),
+    ).resolves.toBe("attachments_not_retryable");
+
+    expect(transport.stream).not.toHaveBeenCalled();
+    expect(stores.runs.countByStatuses(["queued", "starting", "streaming", "completed"])).toBe(0);
+    expect(
+      stores.database.db.prepare<unknown[], { count: number }>("select count(*) as count from runs").get()?.count,
+    ).toBe(1);
+  });
+
   it("updates automatic session memory summaries when enabled", async () => {
     const stores = createStores({
       memory: {

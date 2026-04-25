@@ -48,6 +48,8 @@ import { handleToolApprovalCallback, handleToolCommand, handleToolDenyCallback }
 import { handleUsersCommand } from "./user-commands.js";
 import { parseTelegramCallbackData } from "./callback-data.js";
 
+const TELEGRAM_TEXT_MAX_CHARS = 4096;
+
 type CommandVisibility =
   | { allowed: true }
   | {
@@ -79,6 +81,18 @@ function inboundEventFromCallback(event: TelegramCallbackEvent): InboundEvent {
 
 function callbackNotice(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+function callbackStatusText(event: TelegramCallbackEvent, status: string): string {
+  const cleanStatus = status.replace(/\s+/g, " ").trim();
+  const original = event.messageText?.trim();
+  if (!original) {
+    return cleanStatus;
+  }
+  const separator = "\n\n";
+  const suffix = `${separator}${cleanStatus}`;
+  const maxOriginalLength = Math.max(0, TELEGRAM_TEXT_MAX_CHARS - suffix.length);
+  return `${original.slice(0, maxOriginalLength).trimEnd()}${suffix}`;
 }
 
 /** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
@@ -448,6 +462,10 @@ export class TelegramCommandRouter {
         const stopped = await this.orchestrator.stop(session.sessionKey, action.runId);
         const message = stopped ? "Active run cancelled." : "No matching active run.";
         await this.answerCallback(event, message, !stopped);
+        await this.editRunCallbackStatus(
+          event,
+          stopped ? "Run cancelled." : "Stop could not be applied. No matching active run.",
+        );
         await sendReply(this.api, event, message);
         return true;
       }
@@ -459,6 +477,10 @@ export class TelegramCommandRouter {
         });
         const message = this.formatRunRetryResult(result);
         await this.answerCallback(event, message, result !== "queued");
+        await this.editRunCallbackStatus(
+          event,
+          result === "queued" ? "Retry queued." : `Retry could not be applied. ${message}`,
+        );
         await sendReply(this.api, event, message);
         return true;
       }
@@ -470,6 +492,7 @@ export class TelegramCommandRouter {
           session,
           transcripts: this.transcripts,
         });
+        await this.editRunCallbackStatus(event, "New chat started. Previous transcript cleared.");
         return true;
       }
       if (action.type === "run_usage") {
@@ -560,6 +583,8 @@ export class TelegramCommandRouter {
         return "Run is not retryable.";
       case "no_user_message":
         return "Original user message is no longer available.";
+      case "attachments_not_retryable":
+        return "Attachment-backed runs cannot be retried from the button. Send the file again to retry.";
     }
   }
 
@@ -621,6 +646,19 @@ export class TelegramCommandRouter {
       text: callbackNotice(text),
       show_alert: showAlert,
     });
+  }
+
+  private async editRunCallbackStatus(event: TelegramCallbackEvent, status: string): Promise<void> {
+    try {
+      await this.api.editMessageText(event.chatId, event.messageId, callbackStatusText(event, status));
+    } catch {
+      // Some Telegram messages cannot be edited; keyboard cleanup still prevents stale taps.
+    }
+    try {
+      await this.api.editMessageReplyMarkup(event.chatId, event.messageId);
+    } catch {
+      // Source message cleanup is best effort after the command has already been handled.
+    }
   }
 
   private commandVisibility(event: InboundEvent, command: string): CommandVisibility {

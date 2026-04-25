@@ -327,7 +327,8 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
 - inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark source messages, expire with the configured approval TTL, and treat replayed buttons as the original operator decision
-- run status messages include inline controls: active runs offer `Stop`, failed runs offer `Retry` and `New chat`, and completed runs offer `New chat`, `Usage`, and `Files`
+- run status messages include inline controls: active runs offer `Stop`, failed runs offer `Retry` and `New chat`, and completed runs offer `New chat`, `Usage`, and `Files`; state-changing run buttons mark the source message and remove the stale keyboard after use, while `Usage` and `Files` remain repeatable
+- retry buttons replay only text-backed failed or cancelled runs; attachment-backed runs ask the operator to send the file again so transient attachment cache state is not silently reused
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat, then mark the original message as approved or not applied; `/project approve <approval-id>` remains the fallback command and enforces the same originating-chat ownership check
