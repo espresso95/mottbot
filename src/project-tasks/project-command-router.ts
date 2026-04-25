@@ -62,6 +62,10 @@ export class ProjectCommandRouter {
       await this.handleCancel(event, rest[0]);
       return;
     }
+    if (sub === "cleanup") {
+      await this.handleCleanup(event, rest[0]);
+      return;
+    }
     if (sub === "publish") {
       await this.handlePublish(event, rest);
       return;
@@ -73,7 +77,7 @@ export class ProjectCommandRouter {
     await sendReply(
       this.api,
       event,
-      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | publish <task> [pr] | approve <approval>",
+      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [pr] | approve <approval>",
     );
   }
 
@@ -186,8 +190,11 @@ export class ProjectCommandRouter {
         subtaskLines,
         ...(snapshot.task.finalDiffStat ? ["Diff stat:", snapshot.task.finalDiffStat] : []),
         ...(snapshot.task.finalSummary ? ["Summary:", snapshot.task.finalSummary] : []),
-        ...(snapshot.task.status === "completed" && snapshot.task.finalBranch
+        ...(snapshot.task.status === "completed" && snapshot.task.finalBranch && snapshot.task.integrationWorktreePath
           ? [`Publish: /project publish ${snapshot.task.taskId} [pr]`]
+          : []),
+        ...(snapshot.task.status === "completed" && snapshot.task.integrationWorktreePath
+          ? [`Cleanup: /project cleanup ${snapshot.task.taskId}`]
           : []),
         ...(snapshot.task.lastError ? ["Last error:", snapshot.task.lastError] : []),
       ].join("\n"),
@@ -232,6 +239,15 @@ export class ProjectCommandRouter {
       return;
     }
     const result = this.scheduler.cancelTask(taskId.trim());
+    await sendReply(this.api, event, result.message);
+  }
+
+  private async handleCleanup(event: InboundEvent, taskId?: string): Promise<void> {
+    if (!taskId?.trim()) {
+      await sendReply(this.api, event, "Usage: /project cleanup <task-id>");
+      return;
+    }
+    const result = this.scheduler.cleanupTask(taskId.trim());
     await sendReply(this.api, event, result.message);
   }
 

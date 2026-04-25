@@ -21,6 +21,8 @@ type PublishApprovalRequest = {
   openPullRequest: boolean;
 };
 
+const CLEANUP_ALLOWED_STATUSES = new Set<ProjectTask["status"]>(["completed", "failed", "cancelled"]);
+
 function parsePublishApprovalRequest(raw: string): PublishApprovalRequest {
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -470,6 +472,7 @@ export class ProjectTaskScheduler {
       "",
       reviewSummary ? `Review: ${reviewSummary}` : task.finalSummary,
       task.finalBranch ? `Publish: /project publish ${task.taskId} [pr]` : undefined,
+      task.integrationWorktreePath ? `Cleanup: /project cleanup ${task.taskId}` : undefined,
     ]
       .filter((line): line is string => typeof line === "string" && line.length > 0)
       .join("\n")
@@ -704,6 +707,75 @@ export class ProjectTaskScheduler {
       finishedAt: this.clock.now(),
     });
     return { cancelled: true, message: `Cancelled ${taskId}.` };
+  }
+
+  /** Removes retained local worktrees and branches for a finished project task. */
+  cleanupTask(taskId: string): ProjectTaskActionResult {
+    const task = this.store.getTask(taskId);
+    if (!task) {
+      return { ok: false, message: "Unknown task id." };
+    }
+    if (!CLEANUP_ALLOWED_STATUSES.has(task.status)) {
+      return {
+        ok: false,
+        message: `Task ${task.taskId} is ${task.status}; cleanup is available after completion, failure, or cancellation.`,
+      };
+    }
+    if (this.store.listActiveCliRuns(task.taskId).length > 0) {
+      return { ok: false, message: `Task ${task.taskId} still has active Codex runs; cancel it before cleanup.` };
+    }
+
+    const subtasks = this.store.listSubtasks(task.taskId);
+    const targets = new Map<string, { worktreePath?: string; branchName?: string }>();
+    const addTarget = (worktreePath?: string, branchName?: string) => {
+      if (!worktreePath && !branchName) {
+        return;
+      }
+      targets.set(`${worktreePath ?? ""}\0${branchName ?? ""}`, { worktreePath, branchName });
+    };
+
+    addTarget(task.integrationWorktreePath, task.integrationBranch);
+    for (const subtask of subtasks) {
+      addTarget(subtask.worktreePath, subtask.branchName);
+    }
+
+    if (targets.size === 0) {
+      return { ok: true, message: `No retained project worktrees or local branches found for ${task.taskId}.` };
+    }
+
+    for (const target of targets.values()) {
+      this.worktrees.cleanupSubtask({
+        repoRoot: task.repoRoot,
+        worktreePath: target.worktreePath,
+        branchName: target.branchName,
+      });
+    }
+    for (const subtask of subtasks) {
+      if (!subtask.worktreePath && !subtask.branchName) {
+        continue;
+      }
+      this.store.updateSubtask(subtask.subtaskId, {
+        worktreePath: undefined,
+        branchName: undefined,
+      });
+    }
+
+    const cleanupSummary = [
+      `Removed retained project worktrees and local branches for ${task.taskId}.`,
+      task.finalBranch ? `Final branch reference: ${task.finalBranch}` : undefined,
+    ]
+      .filter((line): line is string => typeof line === "string")
+      .join("\n");
+    this.store.updateTask(task.taskId, {
+      integrationBranch: undefined,
+      integrationWorktreePath: undefined,
+      finalSummary: [task.finalSummary, "", "Cleanup:", cleanupSummary].filter(Boolean).join("\n"),
+      lastError: undefined,
+    });
+    return {
+      ok: true,
+      message: [`Cleaned ${task.taskId}.`, cleanupSummary].join("\n"),
+    };
   }
 
   private readFinalSummary(taskId: string, subtaskId: string): { text?: string; failed: boolean } {

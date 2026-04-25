@@ -1047,4 +1047,93 @@ describe("ProjectTaskScheduler", () => {
       removeTempDir(root);
     }
   });
+
+  it("cleans retained project worktrees and local branches for completed tasks", () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 1_200;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "completed",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const worker = store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "prompt",
+        status: "completed",
+      });
+      const reviewer = store.createSubtask({
+        taskId: task.taskId,
+        title: "reviewer",
+        role: "reviewer",
+        prompt: "prompt",
+        status: "completed",
+      });
+      const integrationBranch = `mottbot/${task.taskId}/integration`;
+      const integrationWorktree = path.join(root, "integration");
+      const workerBranch = `mottbot/${task.taskId}/${worker.subtaskId}`;
+      const workerWorktree = path.join(root, "worker");
+      store.updateTask(task.taskId, {
+        integrationBranch,
+        integrationWorktreePath: integrationWorktree,
+        finalBranch: integrationBranch,
+        finalSummary: "review complete",
+      });
+      store.updateSubtask(worker.subtaskId, {
+        branchName: workerBranch,
+        worktreePath: workerWorktree,
+      });
+      store.updateSubtask(reviewer.subtaskId, {
+        branchName: integrationBranch,
+        worktreePath: integrationWorktree,
+      });
+      const cleaned: Array<{ worktreePath?: string; branchName?: string }> = [];
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = schedulerWorktrees(root, {
+        cleanupSubtask: ({ worktreePath, branchName }) => {
+          cleaned.push({ worktreePath, branchName });
+        },
+      });
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        fakeWorktrees as never,
+      );
+
+      const result = scheduler.cleanupTask(task.taskId);
+
+      expect(result.ok).toBe(true);
+      expect(cleaned).toEqual([
+        { worktreePath: integrationWorktree, branchName: integrationBranch },
+        { worktreePath: workerWorktree, branchName: workerBranch },
+      ]);
+      const updatedTask = store.getTask(task.taskId);
+      expect(updatedTask?.integrationBranch).toBeUndefined();
+      expect(updatedTask?.integrationWorktreePath).toBeUndefined();
+      expect(updatedTask?.finalBranch).toBe(integrationBranch);
+      expect(updatedTask?.finalSummary).toContain("Cleanup:");
+      expect(store.getSubtask(worker.subtaskId)?.worktreePath).toBeUndefined();
+      expect(store.getSubtask(reviewer.subtaskId)?.branchName).toBeUndefined();
+      expect(scheduler.cleanupTask(task.taskId).message).toContain("No retained project worktrees");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
 });

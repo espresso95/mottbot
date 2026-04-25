@@ -27,6 +27,7 @@ describe("ProjectCommandRouter", () => {
       };
       const scheduler = {
         cancelTask: (taskId: string) => ({ cancelled: true, message: `Cancelled ${taskId}` }),
+        cleanupTask: () => ({ ok: false, message: "not used" }),
         approveApproval: (approvalId: string, decidedBy?: string) => {
           const approval = store.getApproval(approvalId);
           if (!approval) {
@@ -90,6 +91,7 @@ describe("ProjectCommandRouter", () => {
       };
       const scheduler = {
         cancelTask: () => ({ cancelled: true, message: "Cancelled" }),
+        cleanupTask: () => ({ ok: true, message: "Cleaned" }),
         approveApproval: () => ({ ok: false, message: "not used" }),
         requestPublishApproval: () => ({ ok: false, message: "not used" }),
       };
@@ -119,6 +121,8 @@ describe("ProjectCommandRouter", () => {
       expect(sent.at(-1)).toContain("Task ID");
       await router.handle(event, ["cancel", task!.taskId]);
       expect(sent.at(-1)).toContain("Cancelled");
+      await router.handle(event, ["cleanup", task!.taskId]);
+      expect(sent.at(-1)).toContain("Cleaned");
       db.close();
     } finally {
       removeTempDir(root);
@@ -142,6 +146,7 @@ describe("ProjectCommandRouter", () => {
       let publishArgs: { taskId: string; requestedBy?: string; openPullRequest?: boolean } | undefined;
       const scheduler = {
         cancelTask: () => ({ cancelled: true, message: "Cancelled" }),
+        cleanupTask: () => ({ ok: false, message: "not used" }),
         approveApproval: () => ({ ok: false, message: "not used" }),
         requestPublishApproval: (params: { taskId: string; requestedBy?: string; openPullRequest?: boolean }) => {
           publishArgs = params;

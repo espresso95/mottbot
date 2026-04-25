@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Project Mode Cleanup
+
+- Added `/project cleanup <task-id>` for terminal project tasks; it removes retained Project Mode worktrees and local branches after operator review or publish.
+- `/project status` now offers cleanup only while a retained integration worktree is still available, and hides publish after cleanup removes the local integration worktree.
+- Added scheduler and command-router coverage for explicit cleanup.
+
 ### Project Mode Publish Approvals
 
 - Added `/project publish <task-id> [pr]` for completed project tasks; it creates an explicit `push` approval before any remote write.
