@@ -154,6 +154,10 @@ export class CodexCliService {
   ) {}
 
   prepare(params: CodexCliJobPrepareParams): CodexCliPreparedJob {
+    const command = this.config.command.trim();
+    if (!command) {
+      throw new Error("Codex CLI command cannot be empty.");
+    }
     const profile = params.profile?.trim() || this.config.coderProfile;
     const timeoutMs = params.timeoutMs ?? this.config.defaultTimeoutMs;
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
@@ -170,9 +174,9 @@ export class CodexCliService {
       jobId: params.jobId,
       cwd: params.cwd,
       prompt: params.prompt,
-      command: this.config.command,
+      command,
       args,
-      commandJson: JSON.stringify({ command: this.config.command, args }),
+      commandJson: JSON.stringify({ command, args }),
       profile,
       timeoutMs,
       ...paths,

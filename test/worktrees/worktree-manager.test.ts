@@ -76,6 +76,30 @@ describe("WorktreeManager", () => {
     }
   });
 
+  it("rejects approved paths that are not git checkouts", () => {
+    const root = createTempDir();
+    try {
+      createRepo(root);
+      const nested = path.join(root, "not-a-repo");
+      fs.mkdirSync(nested);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+
+      expect(() =>
+        manager.prepareSubtask({
+          taskId: "task-1",
+          subtaskId: "worker-1",
+          repoRoot: nested,
+          baseRef: "main",
+        }),
+      ).toThrow(/must point to a git checkout/);
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("flags protected path edits in worktrees", () => {
     const root = createTempDir();
     try {
@@ -93,6 +117,98 @@ describe("WorktreeManager", () => {
       fs.writeFileSync(path.join(prepared.worktreePath, ".env.local"), "TOKEN=123", "utf8");
 
       expect(manager.listProtectedChanges(prepared.worktreePath)).toContain(".env.local");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("honors custom protected path patterns", () => {
+    const root = createTempDir();
+    const previousDeniedPaths = process.env.MOTTBOT_REPOSITORY_DENIED_PATHS;
+    process.env.MOTTBOT_REPOSITORY_DENIED_PATHS = "custom.secret";
+    try {
+      createRepo(root);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareSubtask({
+        taskId: "task-1",
+        subtaskId: "worker-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+      fs.writeFileSync(path.join(prepared.worktreePath, "custom.secret"), "secret", "utf8");
+
+      expect(manager.listProtectedChanges(prepared.worktreePath)).toContain("custom.secret");
+    } finally {
+      if (previousDeniedPaths === undefined) {
+        delete process.env.MOTTBOT_REPOSITORY_DENIED_PATHS;
+      } else {
+        process.env.MOTTBOT_REPOSITORY_DENIED_PATHS = previousDeniedPaths;
+      }
+      removeTempDir(root);
+    }
+  });
+
+  it("reports merge and diff failures without throwing", () => {
+    const root = createTempDir();
+    try {
+      createRepo(root);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareIntegration({
+        taskId: "task-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+
+      expect(manager.mergeBranch({ worktreePath: prepared.worktreePath, branchName: "missing-branch" })).toMatchObject({
+        ok: false,
+      });
+      expect(manager.diffStat({ worktreePath: prepared.worktreePath, baseRef: "missing-ref" })).toBe("");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("removes stale worktree directories and can preserve branches during cleanup", () => {
+    const root = createTempDir();
+    try {
+      createRepo(root);
+      const worktreeRoot = path.join(root, ".mottbot-worktrees");
+      const stalePath = path.join(worktreeRoot, "task-1", "worker-1");
+      fs.mkdirSync(stalePath, { recursive: true });
+      fs.writeFileSync(path.join(stalePath, "stale.txt"), "stale", "utf8");
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot,
+      });
+
+      const prepared = manager.prepareSubtask({
+        taskId: "task-1",
+        subtaskId: "worker-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+
+      expect(fs.existsSync(path.join(prepared.worktreePath, "stale.txt"))).toBe(false);
+
+      manager.cleanupSubtask({
+        repoRoot: root,
+        worktreePath: prepared.worktreePath,
+        branchName: prepared.branchName,
+        deleteBranch: false,
+      });
+
+      expect(fs.existsSync(prepared.worktreePath)).toBe(false);
+      expect(git(root, ["branch", "--list", prepared.branchName])).toContain(prepared.branchName);
+
+      manager.cleanupSubtask({ repoRoot: root, branchName: prepared.branchName });
+
+      expect(git(root, ["branch", "--list", prepared.branchName])).toBe("");
     } finally {
       removeTempDir(root);
     }
@@ -168,6 +284,104 @@ describe("WorktreeManager", () => {
 
       expect(git(remote, ["show", "main:README.md"])).toContain("published to main");
     } finally {
+      removeTempDir(root);
+      removeTempDir(remote);
+    }
+  });
+
+  it("rejects missing worktrees and unsafe publish refs", () => {
+    const root = createTempDir();
+    try {
+      createRepo(root);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareIntegration({
+        taskId: "task-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+
+      expect(() =>
+        manager.publishBranch({
+          repoRoot: root,
+          worktreePath: path.join(root, "missing-worktree"),
+          branchName: prepared.branchName,
+          baseRef: "main",
+          title: "Task",
+          body: "Body",
+        }),
+      ).toThrow("Integration worktree is missing");
+
+      expect(() =>
+        manager.publishBranch({
+          repoRoot: root,
+          worktreePath: prepared.worktreePath,
+          branchName: "bad..branch",
+          baseRef: "main",
+          title: "Task",
+          body: "Body",
+        }),
+      ).toThrow("Source branch is not a safe branch ref.");
+
+      expect(() =>
+        manager.publishBranch({
+          repoRoot: root,
+          worktreePath: prepared.worktreePath,
+          branchName: prepared.branchName,
+          targetRef: "bad..target",
+          baseRef: "main",
+          title: "Task",
+          body: "Body",
+        }),
+      ).toThrow("Target branch is not a safe branch ref.");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("captures pull request output when publishing with pr creation enabled", () => {
+    const root = createTempDir();
+    const remote = createTempDir();
+    const previousPath = process.env.PATH;
+    try {
+      createRepo(root);
+      git(remote, ["init", "--bare", "--initial-branch=main"]);
+      git(root, ["remote", "add", "origin", remote]);
+      const fakeBin = path.join(root, "bin");
+      fs.mkdirSync(fakeBin);
+      fs.writeFileSync(path.join(fakeBin, "gh"), "#!/bin/sh\necho https://github.com/example/mottbot/pull/123\n", {
+        mode: 0o755,
+      });
+      process.env.PATH = `${fakeBin}${path.delimiter}${previousPath ?? ""}`;
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareIntegration({
+        taskId: "task-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+      fs.writeFileSync(path.join(prepared.worktreePath, "README.md"), "# test\n\npublished with pr\n", "utf8");
+      git(prepared.worktreePath, ["add", "README.md"]);
+      git(prepared.worktreePath, ["commit", "-m", "publish with pr"]);
+
+      const result = manager.publishBranch({
+        repoRoot: root,
+        worktreePath: prepared.worktreePath,
+        branchName: prepared.branchName,
+        baseRef: "main",
+        title: "Task",
+        body: "Body",
+        openPullRequest: true,
+      });
+
+      expect(result.pullRequestOutput).toContain("https://github.com/example/mottbot/pull/123");
+      expect(result.pullRequestUrl).toBe("https://github.com/example/mottbot/pull/123");
+    } finally {
+      process.env.PATH = previousPath;
       removeTempDir(root);
       removeTempDir(remote);
     }
