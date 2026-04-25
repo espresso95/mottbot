@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { loadConfig } from "../app/config.js";
-import { HealthReporter } from "../app/health.js";
-import { AuthProfileStore } from "../codex/auth-store.js";
-import { DatabaseClient } from "../db/client.js";
-import { migrateDatabase } from "../db/migrate.js";
-import { systemClock } from "../shared/clock.js";
-import { SecretBox } from "../shared/crypto.js";
+import { loadConfig } from "../../src/app/config.js";
+import { HealthReporter } from "../../src/app/health.js";
+import { AuthProfileStore } from "../../src/codex/auth-store.js";
+import { DatabaseClient } from "../../src/db/client.js";
+import { migrateDatabase } from "../../src/db/migrate.js";
+import { systemClock } from "../../src/shared/clock.js";
+import { SecretBox } from "../../src/shared/crypto.js";
 
 type MigrationVersionRow = {
   version: number;

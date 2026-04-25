@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildGithubWriteSmokePlan,
   createGithubWriteValidationSuiteResult,
-} from "../../src/tools/github-write-validation-suite.js";
+} from "../../scripts/smoke/github-write-validation-suite.js";
 import type { GithubReadOperations, GithubWriteOperations } from "../../src/tools/github-read.js";
 
 function createGithub(): GithubReadOperations & GithubWriteOperations {

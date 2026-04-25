@@ -3,17 +3,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { DatabaseClient } from "../db/client.js";
-import { migrateDatabase } from "../db/migrate.js";
-import type { Clock } from "../shared/clock.js";
-import { SessionStore } from "../sessions/session-store.js";
-import { ToolApprovalStore } from "./approval.js";
-import { ToolExecutor, type ToolExecutionResult } from "./executor.js";
-import { createToolRequestFingerprint } from "./policy.js";
-import { createRuntimeToolRegistry } from "./registry.js";
-import { createLocalExecToolHandlers } from "./local-exec-handlers.js";
-import { createLocalWriteToolHandlers } from "./local-write-handlers.js";
-import { createMcpToolHandlers } from "./mcp-handlers.js";
+import { DatabaseClient } from "../../src/db/client.js";
+import { migrateDatabase } from "../../src/db/migrate.js";
+import type { Clock } from "../../src/shared/clock.js";
+import { SessionStore } from "../../src/sessions/session-store.js";
+import { ToolApprovalStore } from "../../src/tools/approval.js";
+import { ToolExecutor, type ToolExecutionResult } from "../../src/tools/executor.js";
+import { createLocalExecToolHandlers } from "../../src/tools/local-exec-handlers.js";
+import { createLocalWriteToolHandlers } from "../../src/tools/local-write-handlers.js";
+import { createMcpToolHandlers } from "../../src/tools/mcp-handlers.js";
+import { createToolRequestFingerprint } from "../../src/tools/policy.js";
+import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
 
 type LocalToolScenarioStatus = "passed" | "failed";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDashboardSmokeResult } from "../../src/tools/dashboard-smoke.js";
+import { createDashboardSmokeResult } from "../../scripts/smoke/dashboard-smoke.js";
 import { createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 

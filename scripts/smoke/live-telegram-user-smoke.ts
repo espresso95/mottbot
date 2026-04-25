@@ -5,7 +5,7 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { Logger, TelegramClient, sessions, type Api } from "telegram";
 import { LogLevel } from "telegram/extensions/Logger.js";
-import { loadConfig } from "../app/config.js";
+import { loadConfig } from "../../src/app/config.js";
 import {
   buildTelegramUserSmokeConfig,
   evaluateTelegramUserSmokeStatus,

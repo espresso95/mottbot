@@ -196,7 +196,7 @@ env TELEGRAM_BOT_TOKEN=local-check MOTTBOT_MASTER_KEY=local-check MOTTBOT_PREFER
 corepack pnpm smoke:preflight
 ```
 
-No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`.
+No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`. Smoke harness code lives under `scripts/smoke/`; those inputs are not runtime configuration.
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
@@ -338,7 +338,6 @@ MOTTBOT_GOOGLE_DRIVE_MAX_BYTES=120000
 Live GitHub write validation is separate from normal startup and intentionally guarded:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
 pnpm smoke:github-write

@@ -3,17 +3,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { DatabaseClient } from "../db/client.js";
-import { migrateDatabase } from "../db/migrate.js";
-import type { Clock } from "../shared/clock.js";
-import { SessionStore } from "../sessions/session-store.js";
-import { ToolApprovalStore } from "./approval.js";
-import { ToolExecutor, type ToolExecutionResult } from "./executor.js";
-import { createGithubToolHandlers } from "./github-handlers.js";
-import { GithubCliReadService, type GithubReadOperations, type GithubWriteOperations } from "./github-read.js";
-import { createToolRequestFingerprint } from "./policy.js";
-import { createRuntimeToolRegistry } from "./registry.js";
-import { loadConfig } from "../app/config.js";
+import { loadConfig } from "../../src/app/config.js";
+import { DatabaseClient } from "../../src/db/client.js";
+import { migrateDatabase } from "../../src/db/migrate.js";
+import type { Clock } from "../../src/shared/clock.js";
+import { SessionStore } from "../../src/sessions/session-store.js";
+import { ToolApprovalStore } from "../../src/tools/approval.js";
+import { ToolExecutor, type ToolExecutionResult } from "../../src/tools/executor.js";
+import { createGithubToolHandlers } from "../../src/tools/github-handlers.js";
+import {
+  GithubCliReadService,
+  type GithubReadOperations,
+  type GithubWriteOperations,
+} from "../../src/tools/github-read.js";
+import { createToolRequestFingerprint } from "../../src/tools/policy.js";
+import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
 
 type GithubWriteSmokeStatus = "passed" | "failed" | "skipped" | "dry-run" | "blocked";
 

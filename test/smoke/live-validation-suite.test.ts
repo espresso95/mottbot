@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLiveValidationSuiteResult, type ScenarioResult } from "../../src/tools/live-validation-suite.js";
-import { buildLiveValidationPlan, type LiveValidationScenario } from "../../src/tools/live-validation-suite-helpers.js";
+import { createLiveValidationSuiteResult, type ScenarioResult } from "../../scripts/smoke/live-validation-suite.js";
+import {
+  buildLiveValidationPlan,
+  type LiveValidationScenario,
+} from "../../scripts/smoke/live-validation-suite-helpers.js";
 
 describe("live validation suite runner", () => {
   it("returns a dry-run plan from argv without guard variables", async () => {

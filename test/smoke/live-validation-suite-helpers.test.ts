@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveValidationPlan } from "../../src/tools/live-validation-suite-helpers.js";
+import { buildLiveValidationPlan } from "../../scripts/smoke/live-validation-suite-helpers.js";
 
 describe("live validation suite helpers", () => {
   it("always enables the suite plan", () => {

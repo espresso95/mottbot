@@ -271,10 +271,12 @@ Import Codex CLI auth into the configured SQLite database:
 corepack pnpm auth:import-cli
 ```
 
+Smoke commands are optional operator-run checks. Their inputs are shell-only test parameters documented in `docs/live-smoke-tests.md`; they are not required app config and should not be added to `mottbot.config.json`.
+
 Run the guarded preflight:
 
 ```bash
-MOTTBOT_LIVE_SMOKE_ENABLED=true corepack pnpm smoke:preflight
+corepack pnpm smoke:preflight
 ```
 
 Expected result:
@@ -303,7 +305,6 @@ This starts a temporary loopback dashboard-only server, fetches the dashboard HT
 Dry-run the guarded GitHub write validation:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_ENABLED=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
 MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
 corepack pnpm smoke:github-write
@@ -314,7 +315,6 @@ Only run live GitHub write validation against disposable targets. Live writes re
 Run the repeatable suite dry run:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_ENABLED=true \
 MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
 corepack pnpm smoke:suite
 ```
@@ -322,7 +322,7 @@ corepack pnpm smoke:suite
 Run the suite for real:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_ENABLED=true corepack pnpm smoke:suite
+corepack pnpm smoke:suite
 ```
 
 When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are configured, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, optional group non-mention, and optional attachment fixture checks on top of preflight.
@@ -330,7 +330,6 @@ When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are
 Optional private-chat smoke without manually typing in Telegram:
 
 ```bash
-MOTTBOT_USER_SMOKE_ENABLED=true \
 TELEGRAM_API_ID=<api-id-from-my.telegram.org> \
 TELEGRAM_API_HASH=<api-hash-from-my.telegram.org> \
 MOTTBOT_LIVE_BOT_USERNAME=<bot-username-without-@> \

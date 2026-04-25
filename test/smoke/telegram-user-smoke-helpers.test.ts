@@ -12,7 +12,7 @@ import {
   normalizeBotUsername,
   parseBooleanEnv,
   parsePositiveIntegerEnv,
-} from "../../src/tools/telegram-user-smoke-helpers.js";
+} from "../../scripts/smoke/telegram-user-smoke-helpers.js";
 
 describe("telegram user smoke helpers", () => {
   it("normalizes bot usernames", () => {

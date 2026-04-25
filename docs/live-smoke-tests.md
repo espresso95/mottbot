@@ -6,7 +6,9 @@ This runbook covers validation that cannot be proven by the local Vitest suite: 
 
 Run these checks only with a dedicated test bot, test chats, and a separate SQLite file.
 
-Smoke variables are intentionally separate from normal runtime configuration. They are **scenario inputs** for `pnpm smoke:*` helpers, so they do not change bot behavior unless you run those commands explicitly.
+Smoke harnesses live under `scripts/smoke/`, not the production `src/tools/` runtime tool boundary. Their inputs are intentionally separate from normal runtime configuration: they are **operator-run scenario inputs** for `pnpm smoke:*` helpers, so they do not change bot behavior unless you run those commands explicitly.
+
+Do not add smoke-only values to `mottbot.config.json` or `.env.example`. Pass them only in the shell that runs the smoke command, or through your local shell tooling.
 
 ## Smoke Variable Policy
 
@@ -14,6 +16,7 @@ You do not need a permanent second `.env` file with every smoke variable set.
 
 - Export only the variables needed for the command you are about to run.
 - Unset sensitive one-time values (for example `TELEGRAM_LOGIN_CODE`) after the run.
+- Treat every value in the table below as a smoke script input, not application configuration.
 
 Minimal command requirements:
 

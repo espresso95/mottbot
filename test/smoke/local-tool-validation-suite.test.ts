@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createLocalToolValidationSuiteResult } from "../../src/tools/local-tool-validation-suite.js";
+import { createLocalToolValidationSuiteResult } from "../../scripts/smoke/local-tool-validation-suite.js";
 
 describe("local tool validation suite", () => {
   it("validates document, command, and MCP tool flows through approvals", async () => {

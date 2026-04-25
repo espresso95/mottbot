@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 import { createServer } from "node:net";
 import { pathToFileURL } from "node:url";
-import type { AppConfig } from "../app/config.js";
-import { loadConfig } from "../app/config.js";
-import { DashboardServer } from "../app/dashboard.js";
-import { OperatorDiagnostics } from "../app/diagnostics.js";
-import { HealthReporter } from "../app/health.js";
-import { AuthProfileStore } from "../codex/auth-store.js";
-import { DatabaseClient } from "../db/client.js";
-import { migrateDatabase } from "../db/migrate.js";
-import type { Clock } from "../shared/clock.js";
-import { systemClock } from "../shared/clock.js";
-import { SecretBox } from "../shared/crypto.js";
-import { createLogger } from "../shared/logger.js";
+import type { AppConfig } from "../../src/app/config.js";
+import { loadConfig } from "../../src/app/config.js";
+import { DashboardServer } from "../../src/app/dashboard.js";
+import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
+import { HealthReporter } from "../../src/app/health.js";
+import { AuthProfileStore } from "../../src/codex/auth-store.js";
+import { DatabaseClient } from "../../src/db/client.js";
+import { migrateDatabase } from "../../src/db/migrate.js";
+import type { Clock } from "../../src/shared/clock.js";
+import { systemClock } from "../../src/shared/clock.js";
+import { SecretBox } from "../../src/shared/crypto.js";
+import { createLogger } from "../../src/shared/logger.js";
 
 /** Result produced by the dashboard smoke test harness. */
 export type DashboardSmokeResult = {

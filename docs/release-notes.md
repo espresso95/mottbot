@@ -125,13 +125,13 @@ Operator checklist:
 ### Live Validation Automation
 
 - Added `pnpm smoke:suite` as a guarded live validation matrix.
-- Added `MOTTBOT_LIVE_VALIDATION_ENABLED` and dry-run/planning controls.
+- Added dry-run/planning controls.
 - The suite composes preflight, private conversation, `/health`, `/usage`, reply, optional group mention, and optional attachment fixture checks.
 - Suite output is token-free JSON with bounded child output for failed checks.
 
 Operator checklist:
 
-- Run `MOTTBOT_LIVE_VALIDATION_ENABLED=true MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite` before sending live messages.
+- Run `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite` before sending live messages.
 - Set `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` to include user-account scenarios.
 - Set `MOTTBOT_LIVE_VALIDATION_GROUP_TARGET` and `MOTTBOT_LIVE_VALIDATION_FILE_PATHS` only for controlled test chats and fixtures.
 

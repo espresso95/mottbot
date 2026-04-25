@@ -101,7 +101,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
 
-The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight` or the composed `pnpm smoke:suite`.
+The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight` or the composed `pnpm smoke:suite`. The smoke harness source lives under `scripts/smoke/` so smoke-only inputs stay outside the production runtime modules.
 
 For private-chat live validation without manually typing in Telegram every time, use the optional MTProto harness:
 

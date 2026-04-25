@@ -1,4 +1,4 @@
-import { isTransientRunStatus } from "../shared/run-status.js";
+import { isTransientRunStatus } from "../../src/shared/run-status.js";
 
 /** Parsed configuration for a user-account Telegram smoke test. */
 export type TelegramUserSmokeConfig = {
