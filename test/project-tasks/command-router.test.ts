@@ -9,7 +9,7 @@ import { ProjectCommandRouter } from "../../src/project-tasks/project-command-ro
 import type { Clock } from "../../src/shared/clock.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 import type { AppConfig } from "../../src/app/config.js";
-import { createInboundEvent } from "../helpers/fakes.js";
+import { createCallbackEvent, createInboundEvent } from "../helpers/fakes.js";
 
 type SentProjectMessage = {
   chatId: string;
@@ -86,6 +86,48 @@ function createProjectRouterFixture(
 }
 
 describe("ProjectCommandRouter", () => {
+  it("adds approval buttons and handles project approval callbacks", async () => {
+    let approvedBy: string | undefined;
+    const fixture = createProjectRouterFixture({
+      requireApproval: true,
+      scheduler: {
+        approveApproval: (approvalId: string, decidedBy?: string) => {
+          approvedBy = decidedBy;
+          return { message: `Approved ${approvalId}` };
+        },
+      },
+    });
+    try {
+      await fixture.router.handle(fixture.event, ["start", fixture.root, "ship", "it"]);
+      const approvalId = fixture.db.db
+        .prepare<unknown[], { approval_id: string }>("select approval_id from project_approvals limit 1")
+        .get()?.approval_id;
+
+      expect(fixture.sent.at(-1)?.options).toMatchObject({
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Approve project",
+                callback_data: `mb:pa:${approvalId}`,
+              },
+            ],
+          ],
+        },
+      });
+
+      await fixture.router.handleApprovalCallback(
+        createCallbackEvent({ fromUserId: "admin-1", data: `mb:pa:${approvalId}` }),
+        approvalId!,
+      );
+
+      expect(approvedBy).toBe("admin-1");
+      expect(fixture.sent.at(-1)?.text).toContain(`Approved ${approvalId}`);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("creates approval-gated tasks and allows approval", async () => {
     const root = createTempDir();
     try {

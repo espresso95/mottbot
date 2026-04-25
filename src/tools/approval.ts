@@ -304,6 +304,21 @@ export class ToolApprovalStore {
     return mapAuditRow(row);
   }
 
+  findPendingRequestById(params: { id: string; sessionKey: string }): ToolApprovalAuditRecord | undefined {
+    const row = this.database.db
+      .prepare<unknown[], ToolApprovalAuditRow>(
+        `select *
+         from tool_approval_audit
+         where id = ?
+           and session_key = ?
+           and decision_code = 'approval_required'
+           and request_fingerprint is not null
+         limit 1`,
+      )
+      .get(params.id, params.sessionKey);
+    return mapAuditRow(row);
+  }
+
   listActive(sessionKey: string, now = this.clock.now()): StoredToolApproval[] {
     return this.database.db
       .prepare<unknown[], ToolApprovalRow>(

@@ -31,6 +31,7 @@ export type ToolExecutionResult = {
   outputBytes: number;
   truncated: boolean;
   errorCode?: string;
+  approvalRequestId?: string;
 };
 
 /** Handler used by process-control tools to schedule a local service restart. */
@@ -313,7 +314,7 @@ export class ToolExecutor {
           })
         : undefined;
     const decision = evaluateToolApproval(params.definition, activeApproval, now, params.requestFingerprint);
-    this.recordAudit({
+    const audit = this.recordAudit({
       definition: params.definition,
       decision,
       requestedAt: params.startedAt,
@@ -328,7 +329,9 @@ export class ToolExecutor {
         decision.code === "approval_required"
           ? `${decision.message}\n\nApproval preview:\n${params.previewText}`
           : decision.message;
-      return this.errorResult(params.call, params.startedAt, decision.code, message);
+      return this.errorResult(params.call, params.startedAt, decision.code, message, {
+        approvalRequestId: decision.code === "approval_required" ? audit?.id : undefined,
+      });
     }
     if (activeApproval) {
       this.deps.approvals?.consume(activeApproval.id, now);
@@ -345,8 +348,8 @@ export class ToolExecutor {
     approval?: Parameters<typeof buildToolApprovalAuditRecord>[0]["approval"];
     requestFingerprint?: string;
     previewText?: string;
-  }): void {
-    this.deps.approvals?.recordAudit(
+  }): ReturnType<ToolApprovalStore["recordAudit"]> | undefined {
+    return this.deps.approvals?.recordAudit(
       buildToolApprovalAuditRecord({
         definition: params.definition,
         decision: params.decision,
@@ -427,7 +430,13 @@ export class ToolExecutor {
     };
   }
 
-  private errorResult(call: CodexToolCall, startedAt: number, code: string, message: string): ToolExecutionResult {
+  private errorResult(
+    call: CodexToolCall,
+    startedAt: number,
+    code: string,
+    message: string,
+    details: { approvalRequestId?: string } = {},
+  ): ToolExecutionResult {
     const contentText = `Tool ${call.name} failed: ${message}`;
     return {
       toolCallId: call.id,
@@ -438,6 +447,7 @@ export class ToolExecutor {
       outputBytes: Buffer.byteLength(contentText, "utf8"),
       truncated: false,
       errorCode: code,
+      ...(details.approvalRequestId ? { approvalRequestId: details.approvalRequestId } : {}),
     };
   }
 }

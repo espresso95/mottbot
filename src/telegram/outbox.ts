@@ -6,6 +6,7 @@ import type { Logger } from "../shared/logger.js";
 import { isTransientRunStatus } from "../shared/run-status.js";
 import { splitTelegramText } from "./formatting.js";
 import type { TelegramMessageStore } from "./message-store.js";
+import type { TelegramInlineKeyboard } from "./command-replies.js";
 
 type OutboxHandle = {
   outboxId: string;
@@ -131,18 +132,25 @@ export class TelegramOutbox {
     }
   }
 
-  async finish(handle: OutboxHandle, text: string): Promise<FinalizedOutbox> {
+  async finish(
+    handle: OutboxHandle,
+    text: string,
+    options: { replyMarkup?: TelegramInlineKeyboard } = {},
+  ): Promise<FinalizedOutbox> {
     const chunks = splitTelegramText(text);
     const [first, ...rest] = chunks;
     let primaryMessageId = handle.messageId;
     const continuationMessageIds: number[] = [];
     if (first) {
       try {
-        await this.api.editMessageText(handle.chatId, primaryMessageId, first);
+        await this.api.editMessageText(handle.chatId, primaryMessageId, first, {
+          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+        });
       } catch (error) {
         this.logger.warn({ error }, "Failed to finalize Telegram message by editing.");
         const sent = await this.api.sendMessage(handle.chatId, first, {
           ...(typeof handle.threadId === "number" ? { message_thread_id: handle.threadId } : {}),
+          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
         });
         primaryMessageId = sent.message_id;
         this.messages.record({

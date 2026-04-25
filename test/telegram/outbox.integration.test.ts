@@ -98,6 +98,65 @@ describe("TelegramOutbox", () => {
     expect(delivery.primaryMessageId).toBe(100);
   });
 
+  it("preserves inline keyboards when final edit falls back to sendMessage", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    stores.sessions.ensure({
+      sessionKey: "s1",
+      chatId: "chat-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: "s1",
+      modelRef: "openai-codex/gpt-5.4",
+      profileId: "openai-codex:default",
+    });
+    let nextMessageId = 100;
+    const api = {
+      sendMessage: vi.fn(async () => ({ message_id: nextMessageId++ })),
+      editMessageText: vi.fn(async () => {
+        throw new Error("edit failed");
+      }),
+    };
+    const outbox = new TelegramOutbox(
+      api as any,
+      stores.database,
+      stores.clock as FakeClock,
+      stores.logger,
+      0,
+      stores.messageStore,
+    );
+    const handle = await outbox.start({
+      runId: run.runId,
+      chatId: "chat-1",
+      threadId: 4,
+      placeholderText: RUN_STATUS_TEXT.starting,
+    });
+    const replyMarkup = {
+      inline_keyboard: [[{ text: "Approve", callback_data: "mb:ta:approval-1" }]],
+    };
+
+    const delivery = await outbox.finish(handle, "Needs approval", { replyMarkup });
+
+    expect(delivery.primaryMessageId).toBe(101);
+    expect(api.sendMessage).toHaveBeenLastCalledWith("chat-1", "Needs approval", {
+      message_thread_id: 4,
+      reply_markup: replyMarkup,
+    });
+    expect(
+      stores.messageStore.hasMessage({
+        chatId: "chat-1",
+        threadId: 4,
+        telegramMessageId: 101,
+      }),
+    ).toBe(true);
+  });
+
   it("splits long final responses into continuation messages", async () => {
     const stores = createStores();
     cleanup.push(() => {

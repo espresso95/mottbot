@@ -5,7 +5,7 @@ import type { Clock } from "../shared/clock.js";
 import type { Logger } from "../shared/logger.js";
 import type { AccessController } from "./acl.js";
 import type { TelegramCommandRouter } from "./commands.js";
-import { normalizeUpdate } from "./update-normalizer.js";
+import { normalizeCallbackQuery, normalizeUpdate } from "./update-normalizer.js";
 import type { RouteResolver } from "./route-resolver.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { TelegramUpdateStore } from "./update-store.js";
@@ -78,6 +78,9 @@ export class TelegramBotServer {
 
     this.bot.on("message", async (ctx) => {
       await this.handleMessage(ctx);
+    });
+    this.bot.on("callback_query:data", async (ctx) => {
+      await this.handleCallbackQuery(ctx);
     });
     if (this.acceptsReactionUpdates()) {
       this.bot.on("message_reaction", async (ctx) => {
@@ -276,6 +279,42 @@ export class TelegramBotServer {
     }
   }
 
+  private async handleCallbackQuery(ctx: Context): Promise<void> {
+    const event = normalizeCallbackQuery({
+      ctx,
+      clock: this.clock,
+    });
+    if (!event) {
+      return;
+    }
+    const begin = this.updates.begin(event.updateId);
+    if (!begin.accepted) {
+      this.logger.debug({ reason: begin.reason, updateId: event.updateId }, "Telegram callback update ignored.");
+      return;
+    }
+    let processed = false;
+    try {
+      const handled = await this.commands.maybeHandleCallback(event);
+      if (!handled) {
+        await this.bot.api.answerCallbackQuery(event.callbackQueryId, {
+          text: "Unsupported button.",
+          show_alert: true,
+        });
+      }
+      processed = true;
+    } finally {
+      if (processed) {
+        this.updates.markProcessed({
+          updateId: event.updateId,
+          chatId: event.chatId,
+          messageId: event.messageId,
+        });
+      } else {
+        this.updates.release(event.updateId);
+      }
+    }
+  }
+
   private acceptsReactionUpdates(): boolean {
     return (
       this.config.telegram.reactions.enabled &&
@@ -366,7 +405,9 @@ export class TelegramBotServer {
     });
     await this.bot.api.setWebhook(new URL(path, publicUrl).toString(), {
       secret_token: secretToken,
-      allowed_updates: this.acceptsReactionUpdates() ? ["message", "message_reaction"] : ["message"],
+      allowed_updates: this.acceptsReactionUpdates()
+        ? ["message", "message_reaction", "callback_query"]
+        : ["message", "callback_query"],
     });
   }
 }

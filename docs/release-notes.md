@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Telegram Approval Buttons
+
+- Added inline Telegram approval buttons for side-effecting tool approval prompts, with callback handling that reuses the existing request-fingerprinted one-shot approval store.
+- Added inline approval buttons for Project Mode start and publish approvals while keeping `/tool approve` and `/project approve` as command fallbacks.
+
 ### Project Mode Cleanup
 
 - Added `/project cleanup <task-id>` for terminal project tasks; it removes retained Project Mode worktrees and local branches after operator review or publish.

@@ -5,7 +5,7 @@ import { migrateDatabase } from "../../src/db/migrate.js";
 import type { Clock } from "../../src/shared/clock.js";
 import { SecretBox } from "../../src/shared/crypto.js";
 import { createLogger } from "../../src/shared/logger.js";
-import type { InboundEvent } from "../../src/telegram/types.js";
+import type { InboundEvent, TelegramCallbackEvent } from "../../src/telegram/types.js";
 import { TelegramMessageStore } from "../../src/telegram/message-store.js";
 import { TelegramUpdateStore } from "../../src/telegram/update-store.js";
 import { AuthProfileStore } from "../../src/codex/auth-store.js";
@@ -252,6 +252,21 @@ export function createInboundEvent(overrides: Partial<InboundEvent> = {}): Inbou
     attachments: [],
     mentionsBot: false,
     isCommand: false,
+    arrivedAt: 1_700_000_000_000,
+    ...overrides,
+  };
+}
+
+export function createCallbackEvent(overrides: Partial<TelegramCallbackEvent> = {}): TelegramCallbackEvent {
+  return {
+    updateId: 2,
+    callbackQueryId: "callback-1",
+    chatId: "chat-1",
+    chatType: "private",
+    messageId: 42,
+    fromUserId: "user-1",
+    fromUsername: "user1",
+    data: "mb:unknown:1",
     arrivedAt: 1_700_000_000_000,
     ...overrides,
   };

@@ -38,6 +38,20 @@ export type InboundEvent = {
   arrivedAt: number;
 };
 
+/** Application-level Telegram callback query from an inline keyboard button. */
+export type TelegramCallbackEvent = {
+  updateId: number;
+  callbackQueryId: string;
+  chatId: string;
+  chatType: "private" | "group" | "supergroup" | "channel";
+  messageId: number;
+  threadId?: number;
+  fromUserId?: string;
+  fromUsername?: string;
+  data: string;
+  arrivedAt: number;
+};
+
 /** Parsed slash command and remaining arguments from a Telegram message. */
 export type ParsedCommand = {
   command: string;

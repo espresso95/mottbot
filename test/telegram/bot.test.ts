@@ -9,6 +9,7 @@ const botApi = {
   deleteWebhook: vi.fn(async () => true),
   setWebhook: vi.fn(async () => true),
   sendMessage: vi.fn(async () => true),
+  answerCallbackQuery: vi.fn(async () => true),
   setMessageReaction: vi.fn(async () => true),
 };
 const botStart = vi.fn(async () => undefined);
@@ -111,6 +112,108 @@ describe("TelegramBotServer", () => {
     });
     await server.stop();
     expect(botStop).toHaveBeenCalled();
+  });
+
+  it("routes callback query buttons through the command router", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const commands = {
+      maybeHandle: vi.fn(async () => false),
+      maybeHandleCallback: vi.fn(async () => true),
+    };
+    const updates = {
+      begin: vi.fn(() => ({ accepted: true, reason: "new" })),
+      markProcessed: vi.fn(),
+      release: vi.fn(),
+    };
+    const server = new TelegramBotServer(
+      createTestConfig(),
+      new FakeClock(456),
+      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
+      updates as any,
+      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+      commands as any,
+      { resolve: vi.fn() } as any,
+      { enqueueMessage: vi.fn(async () => undefined) } as any,
+    );
+    await server.start();
+    await handlers.get("callback_query:data")?.({
+      update: { update_id: 77 },
+      callbackQuery: {
+        id: "callback-77",
+        data: "mb:ta:approval-1",
+        message: {
+          message_id: 55,
+          message_thread_id: 9,
+          chat: { id: -1001, type: "supergroup" },
+        },
+        from: { id: 2, username: "user" },
+      },
+    });
+
+    expect(commands.maybeHandleCallback).toHaveBeenCalledWith({
+      updateId: 77,
+      callbackQueryId: "callback-77",
+      chatId: "-1001",
+      chatType: "supergroup",
+      messageId: 55,
+      threadId: 9,
+      fromUserId: "2",
+      fromUsername: "user",
+      data: "mb:ta:approval-1",
+      arrivedAt: 456,
+    });
+    expect(updates.markProcessed).toHaveBeenCalledWith({
+      updateId: 77,
+      chatId: "-1001",
+      messageId: 55,
+    });
+    expect(updates.release).not.toHaveBeenCalled();
+  });
+
+  it("answers unsupported callback query buttons", async () => {
+    const { TelegramBotServer } = await import("../../src/telegram/bot.js");
+    const commands = {
+      maybeHandle: vi.fn(async () => false),
+      maybeHandleCallback: vi.fn(async () => false),
+    };
+    const updates = {
+      begin: vi.fn(() => ({ accepted: true, reason: "new" })),
+      markProcessed: vi.fn(),
+      release: vi.fn(),
+    };
+    const server = new TelegramBotServer(
+      createTestConfig(),
+      new FakeClock(),
+      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
+      updates as any,
+      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
+      commands as any,
+      { resolve: vi.fn() } as any,
+      { enqueueMessage: vi.fn(async () => undefined) } as any,
+    );
+    await server.start();
+    await handlers.get("callback_query:data")?.({
+      update: { update_id: 78 },
+      callbackQuery: {
+        id: "callback-78",
+        data: "unsupported",
+        message: {
+          message_id: 56,
+          chat: { id: 1, type: "private" },
+        },
+        from: { id: 2, username: "user" },
+      },
+    });
+
+    expect(botApi.answerCallbackQuery).toHaveBeenCalledWith("callback-78", {
+      text: "Unsupported button.",
+      show_alert: true,
+    });
+    expect(updates.markProcessed).toHaveBeenCalledWith({
+      updateId: 78,
+      chatId: "1",
+      messageId: 56,
+    });
   });
 
   it("records allowed Telegram reaction updates as system context", async () => {
@@ -519,7 +622,7 @@ describe("TelegramBotServer", () => {
     expect(serverListen).toHaveBeenCalledWith(9090, "127.0.0.1", expect.any(Function));
     expect(botApi.setWebhook).toHaveBeenCalledWith("https://example.com/telegram/webhook", {
       secret_token: "secret",
-      allowed_updates: ["message", "message_reaction"],
+      allowed_updates: ["message", "message_reaction", "callback_query"],
     });
     expect(requestHandler).toBeTypeOf("function");
 

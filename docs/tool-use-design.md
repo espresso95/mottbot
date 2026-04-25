@@ -390,6 +390,8 @@ The operator can approve the latest pending request in the current session:
 /tool approve mottbot_restart_service planned restart
 ```
 
+Telegram run responses also include inline buttons for pending side-effect approvals. Button callbacks approve the exact persisted pending audit request encoded in the callback data, then store the same session-scoped, request-fingerprinted one-shot approval as the slash command path.
+
 When a latest pending request exists, the stored approval includes the request fingerprint. A later call with different arguments cannot consume that approval.
 
 Audit inspection:

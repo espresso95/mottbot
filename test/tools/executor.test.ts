@@ -428,6 +428,7 @@ describe("ToolExecutor", () => {
       });
       expect(denied.isError).toBe(true);
       expect(denied.errorCode).toBe("approval_required");
+      expect(denied.approvalRequestId).toBeTruthy();
       expect(denied.contentText).toContain("Approval preview:");
       expect(denied.contentText).toContain("operator requested");
       expect(restartService).not.toHaveBeenCalled();

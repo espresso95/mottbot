@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
 import type { Clock } from "../shared/clock.js";
-import type { InboundEvent, NormalizedAttachment, NormalizedEntity } from "./types.js";
+import type { InboundEvent, NormalizedAttachment, NormalizedEntity, TelegramCallbackEvent } from "./types.js";
 
 function collectEntities(message: Record<string, unknown>): NormalizedEntity[] {
   const rawEntities = Array.isArray(message.entities)
@@ -106,6 +106,42 @@ export function normalizeUpdate(params: { ctx: Context; botUsername?: string; cl
       : {}),
     mentionsBot,
     isCommand,
+    arrivedAt: params.clock.now(),
+  };
+}
+
+/** Converts a grammY callback query context into the normalized callback event shape. */
+export function normalizeCallbackQuery(params: { ctx: Context; clock: Clock }): TelegramCallbackEvent | null {
+  const callbackQuery = params.ctx.callbackQuery as unknown;
+  if (!callbackQuery || typeof callbackQuery !== "object") {
+    return null;
+  }
+  const rawCallback = callbackQuery as Record<string, unknown>;
+  const data = typeof rawCallback.data === "string" ? rawCallback.data : undefined;
+  const callbackQueryId = typeof rawCallback.id === "string" ? rawCallback.id : undefined;
+  const message =
+    rawCallback.message && typeof rawCallback.message === "object"
+      ? (rawCallback.message as Record<string, unknown>)
+      : undefined;
+  const chat = message?.chat && typeof message.chat === "object" ? (message.chat as Record<string, unknown>) : null;
+  if (!data || !callbackQueryId || !message || !chat || (typeof chat.id !== "number" && typeof chat.id !== "string")) {
+    return null;
+  }
+  const from =
+    rawCallback.from && typeof rawCallback.from === "object" ? (rawCallback.from as Record<string, unknown>) : null;
+  return {
+    updateId: params.ctx.update.update_id,
+    callbackQueryId,
+    chatId: String(chat.id),
+    chatType:
+      chat.type === "private" || chat.type === "group" || chat.type === "supergroup" || chat.type === "channel"
+        ? chat.type
+        : "private",
+    messageId: typeof message.message_id === "number" ? message.message_id : 0,
+    ...(typeof message.message_thread_id === "number" ? { threadId: message.message_thread_id } : {}),
+    ...(from && (typeof from.id === "number" || typeof from.id === "string") ? { fromUserId: String(from.id) } : {}),
+    ...(from && typeof from.username === "string" ? { fromUsername: from.username } : {}),
+    data,
     arrivedAt: params.clock.now(),
   };
 }

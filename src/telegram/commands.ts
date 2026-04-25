@@ -10,7 +10,7 @@ import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { UsageBudgetService } from "../runs/usage-budget.js";
 import type { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 import type { RouteResolver } from "./route-resolver.js";
-import type { InboundEvent } from "./types.js";
+import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
 import type { ToolApprovalStore } from "../tools/approval.js";
 import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
@@ -42,8 +42,9 @@ import { handleFilesCommand } from "./files-commands.js";
 import { handleGithubCommand } from "./github-commands.js";
 import { isGovernanceOperatorRole, type TelegramGovernanceStore, type TelegramUserRole } from "./governance.js";
 import { handleForgetCommand, handleMemoryCommand, handleRememberCommand } from "./memory-commands.js";
-import { handleToolCommand } from "./tool-commands.js";
+import { handleToolApprovalCallback, handleToolCommand } from "./tool-commands.js";
 import { handleUsersCommand } from "./user-commands.js";
+import { parseTelegramCallbackData } from "./callback-data.js";
 
 type CommandVisibility =
   | { allowed: true }
@@ -51,6 +52,27 @@ type CommandVisibility =
       allowed: false;
       reason: "chat_not_allowed" | "role_not_allowed" | "command_not_allowed" | "group_policy_required";
     };
+
+function inboundEventFromCallback(event: TelegramCallbackEvent): InboundEvent {
+  return {
+    updateId: event.updateId,
+    chatId: event.chatId,
+    chatType: event.chatType,
+    messageId: event.messageId,
+    ...(typeof event.threadId === "number" ? { threadId: event.threadId } : {}),
+    ...(event.fromUserId ? { fromUserId: event.fromUserId } : {}),
+    ...(event.fromUsername ? { fromUsername: event.fromUsername } : {}),
+    entities: [],
+    attachments: [],
+    mentionsBot: false,
+    isCommand: false,
+    arrivedAt: event.arrivedAt,
+  };
+}
+
+function callbackNotice(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 200);
+}
 
 /** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
 export class TelegramCommandRouter {
@@ -362,6 +384,46 @@ export class TelegramCommandRouter {
     }
   }
 
+  async maybeHandleCallback(event: TelegramCallbackEvent): Promise<boolean> {
+    const action = parseTelegramCallbackData(event.data);
+    if (!action) {
+      return false;
+    }
+    if (action.type === "tool_approve") {
+      if (await this.rejectUnauthorizedCallback(event, "tool")) {
+        return true;
+      }
+      const inbound = inboundEventFromCallback(event);
+      await handleToolApprovalCallback(
+        {
+          api: this.api,
+          event,
+          session: this.routes.resolve(inbound),
+          toolsConfig: this.config.tools,
+          isAdmin: this.isAdmin(inbound),
+          toolRegistry: this.toolRegistry,
+          toolApprovals: this.toolApprovals,
+        },
+        action.auditId,
+      );
+      return true;
+    }
+    if (action.type === "project_approve") {
+      if (await this.rejectUnauthorizedCallback(event, "project")) {
+        return true;
+      }
+      if (!this.projects) {
+        await this.answerCallback(event, "Project mode is not available.", true);
+        await sendReply(this.api, event, "Project mode is not available.");
+        return true;
+      }
+      await this.answerCallback(event, "Processing project approval.");
+      await this.projects.handleApprovalCallback(event, action.approvalId);
+      return true;
+    }
+    return false;
+  }
+
   private async rejectUnauthorizedCommand(event: InboundEvent, command: string): Promise<boolean> {
     const decision = this.commandVisibility(event, command);
     if (decision.allowed) {
@@ -388,6 +450,32 @@ export class TelegramCommandRouter {
       return true;
     }
     return true;
+  }
+
+  private async rejectUnauthorizedCallback(event: TelegramCallbackEvent, command: string): Promise<boolean> {
+    const inbound = inboundEventFromCallback(event);
+    const decision = this.commandVisibility(inbound, command);
+    if (decision.allowed) {
+      return false;
+    }
+    const message =
+      decision.reason === "chat_not_allowed"
+        ? "This chat is not allowed to use this bot."
+        : decision.reason === "role_not_allowed"
+          ? "Your role is not allowed to use this chat."
+          : decision.reason === "command_not_allowed"
+            ? "Your role is not allowed to run this command in this chat."
+            : "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.";
+    await this.answerCallback(event, message, true);
+    await sendReply(this.api, event, message);
+    return true;
+  }
+
+  private async answerCallback(event: TelegramCallbackEvent, text: string, showAlert = false): Promise<void> {
+    await this.api.answerCallbackQuery(event.callbackQueryId, {
+      text: callbackNotice(text),
+      show_alert: showAlert,
+    });
   }
 
   private commandVisibility(event: InboundEvent, command: string): CommandVisibility {

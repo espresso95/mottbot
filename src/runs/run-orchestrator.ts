@@ -29,6 +29,8 @@ import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { TelegramReactionService } from "../telegram/reactions.js";
+import { buildToolApprovalCallbackData } from "../telegram/callback-data.js";
+import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import {
   NoopAttachmentIngestor,
@@ -118,8 +120,27 @@ function toolTranscriptJson(call: CodexToolCall, result: ToolExecutionResult): s
       outputBytes: result.outputBytes,
       truncated: result.truncated,
       ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+      ...(result.approvalRequestId ? { approvalRequestId: result.approvalRequestId } : {}),
     },
   });
+}
+
+function buildToolApprovalReplyMarkup(results: ToolExecutionResult[]): TelegramInlineKeyboard | undefined {
+  const rows = results.flatMap((result) => {
+    if (result.errorCode !== "approval_required" || !result.approvalRequestId) {
+      return [];
+    }
+    const shortName = result.toolName.replace(/^mottbot_/, "").replace(/_/g, " ");
+    return [
+      [
+        {
+          text: `Approve ${shortName}`.slice(0, 64),
+          callback_data: buildToolApprovalCallbackData(result.approvalRequestId),
+        },
+      ],
+    ];
+  });
+  return rows.length > 0 ? { inline_keyboard: rows } : undefined;
 }
 
 /** Coordinates queued Telegram events through prompt building, model streaming, tools, memory, and outbox writes. */
@@ -573,7 +594,9 @@ export class RunOrchestrator {
       }
       const finalText = result.text.trim() || collector.getText().trim();
       const visibleText = finalText || "No response generated.";
-      const delivery = await this.outbox.finish(placeholder, visibleText);
+      const delivery = await this.outbox.finish(placeholder, visibleText, {
+        replyMarkup: buildToolApprovalReplyMarkup(executedToolResults),
+      });
       const thinking = result.thinking || collector.getThinking();
       const assistantEnvelope = {
         ...(thinking ? { thinking } : {}),
@@ -590,6 +613,7 @@ export class RunOrchestrator {
                 outputBytes: toolResult.outputBytes,
                 truncated: toolResult.truncated,
                 ...(toolResult.errorCode ? { errorCode: toolResult.errorCode } : {}),
+                ...(toolResult.approvalRequestId ? { approvalRequestId: toolResult.approvalRequestId } : {}),
               })),
             }
           : {}),

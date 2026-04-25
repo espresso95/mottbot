@@ -2,10 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
-import type { InboundEvent } from "../telegram/types.js";
+import type { InboundEvent, TelegramCallbackEvent } from "../telegram/types.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
-import type { ProjectTaskScheduler } from "./project-task-scheduler.js";
+import type { ProjectTaskActionResult, ProjectTaskScheduler } from "./project-task-scheduler.js";
 import { buildProjectPlan } from "./project-planner.js";
+import { buildProjectApprovalCallbackData } from "../telegram/callback-data.js";
+import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
 
 function splitTelegramText(text: string): string[] {
   const maxChars = 3_900;
@@ -21,13 +23,32 @@ function splitTelegramText(text: string): string[] {
   return chunks;
 }
 
-async function sendReply(api: Api, event: InboundEvent, text: string): Promise<void> {
+async function sendReply(
+  api: Api,
+  event: Pick<InboundEvent | TelegramCallbackEvent, "chatId" | "messageId" | "threadId">,
+  text: string,
+  replyMarkup?: TelegramInlineKeyboard,
+): Promise<void> {
   for (const chunk of splitTelegramText(text)) {
     await api.sendMessage(event.chatId, chunk, {
       ...(typeof event.threadId === "number" ? { message_thread_id: event.threadId } : {}),
       reply_parameters: { message_id: event.messageId },
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     });
   }
+}
+
+function projectApprovalReplyMarkup(approvalId: string, label: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: label,
+          callback_data: buildProjectApprovalCallbackData(approvalId),
+        },
+      ],
+    ],
+  };
 }
 
 /** Handles Telegram /project commands and delegates task execution to the project scheduler. */
@@ -79,6 +100,15 @@ export class ProjectCommandRouter {
       event,
       "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [main|pr] | approve <approval>",
     );
+  }
+
+  async handleApprovalCallback(event: TelegramCallbackEvent, approvalId: string): Promise<void> {
+    if (!this.config.projectTasks.enabled) {
+      await sendReply(this.api, event, "Project mode is disabled.");
+      return;
+    }
+    const result = this.scheduler.approveApproval(approvalId.trim(), event.fromUserId);
+    await sendReply(this.api, event, result.message);
   }
 
   private async handleStart(event: InboundEvent, args: string[]): Promise<void> {
@@ -147,6 +177,7 @@ export class ProjectCommandRouter {
         this.api,
         event,
         `Created task ${task.taskId}. Awaiting approval ${approval.approvalId}. Run /project approve ${approval.approvalId}`,
+        projectApprovalReplyMarkup(approval.approvalId, "Approve project"),
       );
       return;
     }
@@ -268,7 +299,7 @@ export class ProjectCommandRouter {
       openPullRequest: publishOptions.openPullRequest,
       pushToBaseRef: publishOptions.pushToBaseRef,
     });
-    await sendReply(this.api, event, result.message);
+    await sendReply(this.api, event, result.message, this.publishApprovalReplyMarkup(result));
   }
 
   private parsePublishOptions(
@@ -307,6 +338,10 @@ export class ProjectCommandRouter {
     }
     const result = this.scheduler.approveApproval(approvalId.trim(), decidedBy);
     await sendReply(this.api, event, result.message);
+  }
+
+  private publishApprovalReplyMarkup(result: ProjectTaskActionResult): TelegramInlineKeyboard | undefined {
+    return result.approvalId ? projectApprovalReplyMarkup(result.approvalId, "Approve publish") : undefined;
   }
 
   private resolveRepoRoot(raw: string): string | undefined {

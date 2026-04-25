@@ -1180,6 +1180,139 @@ describe("RunOrchestrator", () => {
     ]);
   });
 
+  it("adds approval buttons when side-effecting tools need approval", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const outbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const assistantToolMessage = {
+      role: "assistant" as const,
+      content: [
+        {
+          type: "toolCall" as const,
+          id: "call-restart",
+          name: "mottbot_restart_service",
+          arguments: { reason: "planned restart" },
+        },
+      ],
+      api: "openai-codex-responses" as const,
+      provider: "openai-codex" as const,
+      model: "gpt-5.4",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "toolUse" as const,
+      timestamp: stores.clock.now(),
+    };
+    const transport = {
+      stream: vi
+        .fn()
+        .mockResolvedValueOnce({
+          text: "",
+          transport: "sse",
+          requestIdentity: "req-restart-1",
+          toolCalls: [
+            { id: "call-restart", name: "mottbot_restart_service", arguments: { reason: "planned restart" } },
+          ],
+          assistantMessage: assistantToolMessage,
+          stopReason: "toolUse",
+        })
+        .mockResolvedValueOnce({
+          text: "Approval required before restarting.",
+          transport: "sse",
+          requestIdentity: "req-restart-2",
+        }),
+    };
+    const restartService = vi.fn(() => ({ scheduled: true }));
+    const registry = createRuntimeToolRegistry({ enableSideEffectTools: true });
+    const executor = new ToolExecutor(registry, {
+      clock: stores.clock,
+      approvals,
+      restartService,
+      adminUserIds: stores.config.telegram.adminUserIds,
+    });
+    const orchestrator = new RunOrchestrator(
+      stores.config,
+      new SessionQueue(),
+      stores.sessions,
+      stores.transcripts,
+      stores.runs,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
+      transport as any,
+      outbox as any,
+      stores.clock,
+      stores.logger,
+      undefined,
+      undefined,
+      registry,
+      executor,
+    );
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ fromUserId: "admin-1", text: "Restart after this response" }),
+      session,
+    });
+    await flushAsync();
+
+    expect(restartService).not.toHaveBeenCalled();
+    expect(outbox.finish).toHaveBeenCalledWith(
+      expect.anything(),
+      "Approval required before restarting.",
+      expect.objectContaining({
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              expect.objectContaining({
+                text: "Approve restart service",
+                callback_data: expect.stringMatching(/^mb:ta:/),
+              }),
+            ],
+          ],
+        },
+      }),
+    );
+  });
+
   it("recovers durable queued runs after restart", async () => {
     const stores = createStores();
     cleanup.push(() => {

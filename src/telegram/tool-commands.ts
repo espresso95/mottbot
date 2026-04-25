@@ -13,7 +13,7 @@ import {
 } from "./command-formatters.js";
 import { normalizeFreeText, normalizeSingleArg } from "./command-parsing.js";
 import { sendReply } from "./command-replies.js";
-import type { InboundEvent } from "./types.js";
+import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram tool approval command handler. */
 export type ToolCommandDependencies = {
@@ -25,6 +25,17 @@ export type ToolCommandDependencies = {
   exposedTools: readonly ModelToolDeclaration[];
   isAdmin: boolean;
   visibleCommandTexts: (entries: readonly CommandHelpEntry[]) => string[];
+  toolRegistry?: ToolRegistry;
+  toolApprovals?: ToolApprovalStore;
+};
+
+/** Dependencies needed by Telegram tool approval callback buttons. */
+export type ToolApprovalCallbackDependencies = {
+  api: Api;
+  event: TelegramCallbackEvent;
+  session: SessionRoute;
+  toolsConfig: AppConfig["tools"];
+  isAdmin: boolean;
   toolRegistry?: ToolRegistry;
   toolApprovals?: ToolApprovalStore;
 };
@@ -153,6 +164,113 @@ function recordRevocationAudit(params: {
     requestedAt: now,
     decidedAt: now,
   });
+}
+
+function callbackNotice(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+async function answerCallback(api: Api, event: TelegramCallbackEvent, text: string, showAlert = false): Promise<void> {
+  await api.answerCallbackQuery(event.callbackQueryId, {
+    text: callbackNotice(text),
+    show_alert: showAlert,
+  });
+}
+
+/** Handles inline approval button callbacks for pending side-effecting tool requests. */
+export async function handleToolApprovalCallback(
+  params: ToolApprovalCallbackDependencies,
+  auditId: string,
+): Promise<void> {
+  const { api, event, session, toolApprovals, toolRegistry, toolsConfig, isAdmin } = params;
+  if (!toolRegistry || !toolApprovals) {
+    await answerCallback(api, event, "Tool approvals are not available.", true);
+    await sendReply(api, event, "Tool approvals are not available.");
+    return;
+  }
+  if (!isAdmin || !event.fromUserId) {
+    const message = "Only owner/admin roles can approve side-effecting tools.";
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+  if (!toolsConfig.enableSideEffectTools) {
+    await answerCallback(api, event, "Side-effecting tools are disabled on this host.", true);
+    await sendReply(api, event, "Side-effecting tools are disabled on this host.");
+    return;
+  }
+
+  const pending = toolApprovals.findPendingRequestById({
+    id: auditId,
+    sessionKey: session.sessionKey,
+  });
+  if (!pending) {
+    const message = "No matching pending approval request found for this session.";
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+
+  let definition: ToolDefinition;
+  try {
+    definition = toolRegistry.resolve(pending.toolName, { allowSideEffects: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+  if (definition.sideEffect === "read_only") {
+    const message = `Tool ${definition.name} is read-only and does not need approval.`;
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+
+  const activeApproval = toolApprovals.findActive({
+    sessionKey: session.sessionKey,
+    toolName: definition.name,
+  });
+  if (activeApproval && activeApproval.requestFingerprint === pending.requestFingerprint) {
+    const message = `Approval for ${definition.name} is already active until ${new Date(
+      activeApproval.expiresAt,
+    ).toISOString()}.`;
+    await answerCallback(api, event, "Already approved.");
+    await sendReply(api, event, message);
+    return;
+  }
+
+  const reason = "telegram button approval";
+  const approval = toolApprovals.approve({
+    sessionKey: session.sessionKey,
+    toolName: definition.name,
+    approvedByUserId: event.fromUserId,
+    reason,
+    ttlMs: toolsConfig.approvalTtlMs,
+    requestFingerprint: pending.requestFingerprint,
+    previewText: pending.previewText,
+  });
+  toolApprovals.recordAudit({
+    sessionKey: session.sessionKey,
+    toolName: definition.name,
+    sideEffect: definition.sideEffect,
+    allowed: true,
+    decisionCode: "operator_approved",
+    requestedAt: pending.requestedAt,
+    decidedAt: approval.approvedAt,
+    approvedByUserId: event.fromUserId,
+    reason,
+    requestFingerprint: pending.requestFingerprint,
+    previewText: pending.previewText,
+  });
+  await answerCallback(api, event, `Approved ${approval.toolName}.`);
+  await sendReply(
+    api,
+    event,
+    `Approved ${approval.toolName} for this session and requested preview until ${new Date(
+      approval.expiresAt,
+    ).toISOString()}.`,
+  );
 }
 
 /** Handles /tool and /tools approval, audit, and status subcommands. */

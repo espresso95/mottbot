@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FakeClock } from "../helpers/fakes.js";
-import { normalizeUpdate } from "../../src/telegram/update-normalizer.js";
+import { normalizeCallbackQuery, normalizeUpdate } from "../../src/telegram/update-normalizer.js";
 
 describe("normalizeUpdate", () => {
   it("normalizes a text message with mentions and reply", () => {
@@ -89,6 +89,61 @@ describe("normalizeUpdate", () => {
       normalizeUpdate({
         clock: new FakeClock(),
         ctx: { update: { update_id: 1 } } as any,
+      }),
+    ).toBeNull();
+  });
+
+  it("normalizes callback query button data", () => {
+    const event = normalizeCallbackQuery({
+      clock: new FakeClock(456),
+      ctx: {
+        update: { update_id: 12 },
+        callbackQuery: {
+          id: "callback-12",
+          data: "mb:ta:approval-1",
+          message: {
+            message_id: 24,
+            message_thread_id: 8,
+            chat: { id: -1001, type: "supergroup" },
+          },
+          from: { id: 77, username: "nim" },
+        },
+      } as any,
+    });
+
+    expect(event).toEqual({
+      updateId: 12,
+      callbackQueryId: "callback-12",
+      chatId: "-1001",
+      chatType: "supergroup",
+      messageId: 24,
+      threadId: 8,
+      fromUserId: "77",
+      fromUsername: "nim",
+      data: "mb:ta:approval-1",
+      arrivedAt: 456,
+    });
+  });
+
+  it("returns null for callback queries without message-backed data", () => {
+    const clock = new FakeClock();
+    expect(normalizeCallbackQuery({ clock, ctx: { update: { update_id: 1 } } as any })).toBeNull();
+    expect(
+      normalizeCallbackQuery({
+        clock,
+        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", message: { chat: { id: 1 } } } } as any,
+      }),
+    ).toBeNull();
+    expect(
+      normalizeCallbackQuery({
+        clock,
+        ctx: { update: { update_id: 1 }, callbackQuery: { data: "mb:ta:1", message: { chat: { id: 1 } } } } as any,
+      }),
+    ).toBeNull();
+    expect(
+      normalizeCallbackQuery({
+        clock,
+        ctx: { update: { update_id: 1 }, callbackQuery: { id: "cb", data: "mb:ta:1" } } as any,
       }),
     ).toBeNull();
   });
