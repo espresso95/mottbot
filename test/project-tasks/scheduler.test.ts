@@ -32,13 +32,18 @@ describe("ProjectTaskScheduler", () => {
         start: () => "run-1",
         cancelSubtask: () => true,
       };
+      const fakeWorktrees = {
+        prepareSubtask: () => ({ worktreePath: root, branchName: "mottbot/test/worker" }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
       const config = {
         projectTasks: {
           enabled: true,
           artifactRoot: path.join(root, "artifacts"),
         },
       } as AppConfig;
-      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never);
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
       await scheduler.tick();
       expect(store.getSubtask(subtask.subtaskId)?.status).toBe("running");
       await scheduler.tick();
@@ -73,8 +78,13 @@ describe("ProjectTaskScheduler", () => {
         start: () => "run-1",
         cancelSubtask: (_id: string) => true,
       };
+      const fakeWorktrees = {
+        prepareSubtask: () => ({ worktreePath: root, branchName: "mottbot/test/worker" }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
       const config = { projectTasks: { enabled: true, artifactRoot: path.join(root, "artifacts") } } as AppConfig;
-      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never);
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
       const result = scheduler.cancelTask(task.taskId);
       expect(result.cancelled).toBe(true);
       expect(store.getTask(task.taskId)?.status).toBe("cancelled");

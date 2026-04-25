@@ -54,6 +54,7 @@ import { ProjectTaskStore } from "../project-tasks/project-task-store.js";
 import { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
 import { ProjectTaskScheduler } from "../project-tasks/project-task-scheduler.js";
 import { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
+import { WorktreeManager } from "../worktrees/worktree-manager.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -103,7 +104,11 @@ export async function bootstrapApplication() {
     defaultTimeoutMs: config.projectTasks.codex.defaultTimeoutMs,
     artifactRoot: config.projectTasks.artifactRoot,
   });
-  const projectScheduler = new ProjectTaskScheduler(config, systemClock, projectTaskStore, codexCliRunner);
+  const worktrees = new WorktreeManager({
+    repoRoots: config.projectTasks.repoRoots,
+    worktreeRoot: config.projectTasks.worktreeRoot,
+  });
+  const projectScheduler = new ProjectTaskScheduler(config, systemClock, projectTaskStore, codexCliRunner, worktrees);
 
   const routeResolver = new RouteResolver(config, sessionStore);
   const provisionalBot = new TelegramBotServer(

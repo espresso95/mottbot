@@ -205,9 +205,16 @@ export class ProjectCommandRouter {
   }
 
   private resolveRepoRoot(raw: string): string | undefined {
-    const input = path.resolve(raw.startsWith("~") ? path.join(process.env.HOME ?? "", raw.slice(1)) : raw);
+    const expanded = path.resolve(raw.startsWith("~") ? path.join(process.env.HOME ?? "", raw.slice(1)) : raw);
+    if (!fs.existsSync(expanded)) {
+      return undefined;
+    }
+    const input = fs.realpathSync(expanded);
     for (const root of this.config.projectTasks.repoRoots) {
-      const normalizedRoot = path.resolve(root);
+      if (!fs.existsSync(root)) {
+        continue;
+      }
+      const normalizedRoot = fs.realpathSync(path.resolve(root));
       if (input === normalizedRoot || input.startsWith(`${normalizedRoot}${path.sep}`)) {
         return input;
       }

@@ -4,6 +4,7 @@ import type { AppConfig } from "../app/config.js";
 import type { Clock } from "../shared/clock.js";
 import type { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
+import type { WorktreeManager } from "../worktrees/worktree-manager.js";
 
 export class ProjectTaskScheduler {
   private timer?: NodeJS.Timeout;
@@ -14,6 +15,7 @@ export class ProjectTaskScheduler {
     private readonly clock: Clock,
     private readonly store: ProjectTaskStore,
     private readonly runner: CodexCliRunner,
+    private readonly worktrees: WorktreeManager,
   ) {}
 
   start(): void {
@@ -49,12 +51,25 @@ export class ProjectTaskScheduler {
       if (runningSubtasks.length > 0 && activeRuns.length === 0) {
         for (const subtask of runningSubtasks) {
           const finalSummary = this.readFinalSummary(task.taskId, subtask.subtaskId);
+          const protectedChanges = subtask.worktreePath ? this.worktrees.listProtectedChanges(subtask.worktreePath) : [];
+          const protectedPathError =
+            protectedChanges.length > 0 ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}` : undefined;
+          const failureError = protectedPathError ?? finalSummary.text ?? "Worker failed";
           this.store.updateSubtask(subtask.subtaskId, {
-            status: finalSummary.failed ? "failed" : "completed",
+            status: finalSummary.failed || !!protectedPathError ? "failed" : "completed",
             finishedAt: this.clock.now(),
             ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
-            ...(finalSummary.failed ? { lastError: finalSummary.text || "Worker failed" } : {}),
+            ...((finalSummary.failed || protectedPathError)
+              ? { lastError: failureError }
+              : {}),
           });
+          if (subtask.worktreePath || subtask.branchName) {
+            this.worktrees.cleanupSubtask({
+              repoRoot: task.repoRoot,
+              worktreePath: subtask.worktreePath,
+              branchName: subtask.branchName,
+            });
+          }
           this.activeSubtasks.delete(subtask.subtaskId);
         }
       }
@@ -65,16 +80,24 @@ export class ProjectTaskScheduler {
       if (nextReady.length > 0 && activeRuns.length < Math.max(1, task.maxParallelWorkers)) {
         const subtask = nextReady[0];
         if (subtask && !this.activeSubtasks.has(subtask.subtaskId)) {
+          const prepared = this.worktrees.prepareSubtask({
+            taskId: task.taskId,
+            subtaskId: subtask.subtaskId,
+            repoRoot: task.repoRoot,
+            baseRef: task.baseRef,
+          });
           this.store.updateSubtask(subtask.subtaskId, {
             status: "running",
             startedAt: this.clock.now(),
             attempt: subtask.attempt + 1,
+            branchName: prepared.branchName,
+            worktreePath: prepared.worktreePath,
           });
           this.activeSubtasks.add(subtask.subtaskId);
           this.runner.start({
             taskId: task.taskId,
             subtaskId: subtask.subtaskId,
-            cwd: task.repoRoot,
+            cwd: prepared.worktreePath,
             prompt: subtask.prompt,
           });
         }
@@ -119,6 +142,13 @@ export class ProjectTaskScheduler {
         this.store.updateSubtask(subtask.subtaskId, {
           status: "cancelled",
           finishedAt: this.clock.now(),
+        });
+      }
+      if (subtask.worktreePath || subtask.branchName) {
+        this.worktrees.cleanupSubtask({
+          repoRoot: task.repoRoot,
+          worktreePath: subtask.worktreePath,
+          branchName: subtask.branchName,
         });
       }
       this.activeSubtasks.delete(subtask.subtaskId);
