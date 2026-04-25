@@ -209,7 +209,7 @@ All long-lived state lives in sessions, transcripts, runs, auth profiles, and tr
 
 ### 2. Sessions are the concurrency boundary
 
-`SessionQueue` serializes work per `session_key`. `AgentRunLimiter` can additionally cap active execution per selected agent across sessions. `run_queue` persists accepted queued work so a restarted process can resume runs that never reached `starting`.
+`SessionQueue` serializes work per `session_key`. `AgentRunLimiter` can additionally cap active execution per selected agent across sessions. `run_queue` persists accepted queued work, including approved tool continuations from inline buttons, so a restarted process can resume runs that never reached `starting`.
 
 ### 3. Provider logic is isolated
 

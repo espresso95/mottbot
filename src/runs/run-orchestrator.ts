@@ -43,7 +43,7 @@ import { isToolAdminRole, type ToolCallerRole, type ToolPolicyEngine } from "../
 import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
-import type { RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
+import type { RunQueueApprovedToolContinuation, RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
 import type { RunStore } from "./run-store.js";
 import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
@@ -57,10 +57,7 @@ const MAX_TOOL_CALLS_PER_RUN = 5;
 
 type OutboxHandle = Awaited<ReturnType<TelegramOutbox["start"]>>;
 
-type ApprovedToolContinuation = {
-  pending: ToolApprovalAuditRecord;
-  toolCall: CodexToolCall;
-};
+type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 export type RunGovernancePolicy = {
@@ -154,6 +151,11 @@ function toolCallFromTranscriptJson(
     return undefined;
   }
   const toolCall = parsed.toolCall;
+  return codexToolCallFromUnknown(toolCall);
+}
+
+function codexToolCallFromUnknown(value: unknown): CodexToolCall | undefined {
+  const toolCall = value;
   if (!isRecord(toolCall) || typeof toolCall.id !== "string" || typeof toolCall.name !== "string") {
     return undefined;
   }
@@ -161,6 +163,68 @@ function toolCallFromTranscriptJson(
     id: toolCall.id,
     name: toolCall.name,
     arguments: isRecord(toolCall.arguments) ? toolCall.arguments : {},
+  };
+}
+
+function toolApprovalAuditRecordFromUnknown(value: unknown): ToolApprovalAuditRecord | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (
+    typeof value.toolName !== "string" ||
+    typeof value.sideEffect !== "string" ||
+    typeof value.allowed !== "boolean" ||
+    typeof value.decisionCode !== "string" ||
+    typeof value.requestedAt !== "number" ||
+    typeof value.decidedAt !== "number"
+  ) {
+    return undefined;
+  }
+  return {
+    ...(typeof value.id === "string" ? { id: value.id } : {}),
+    ...(typeof value.sessionKey === "string" ? { sessionKey: value.sessionKey } : {}),
+    ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
+    toolName: value.toolName,
+    sideEffect: value.sideEffect as ToolApprovalAuditRecord["sideEffect"],
+    allowed: value.allowed,
+    decisionCode: value.decisionCode as ToolApprovalAuditRecord["decisionCode"],
+    requestedAt: value.requestedAt,
+    decidedAt: value.decidedAt,
+    ...(typeof value.approvedByUserId === "string" ? { approvedByUserId: value.approvedByUserId } : {}),
+    ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
+    ...(typeof value.requestFingerprint === "string" ? { requestFingerprint: value.requestFingerprint } : {}),
+    ...(typeof value.previewText === "string" ? { previewText: value.previewText } : {}),
+    ...(typeof value.createdAt === "number" ? { createdAt: value.createdAt } : {}),
+  };
+}
+
+function runQueueEventJson(record: RunQueueRecord): Record<string, unknown> {
+  if (!record.eventJson) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(record.eventJson) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function approvedToolContinuationFromRecord(record: RunQueueRecord): ApprovedToolContinuation | undefined {
+  const parsed = runQueueEventJson(record);
+  const continuation = parsed.approvedToolContinuation;
+  if (!isRecord(continuation) || continuation.type !== "approved_tool") {
+    return undefined;
+  }
+  const pending = toolApprovalAuditRecordFromUnknown(continuation.pending);
+  const toolCall = codexToolCallFromUnknown(continuation.toolCall);
+  if (!pending || !toolCall) {
+    return undefined;
+  }
+  return {
+    type: "approved_tool",
+    pending,
+    toolCall,
   };
 }
 
@@ -364,6 +428,12 @@ export class RunOrchestrator {
       modelRef: params.session.modelRef,
       profileId: params.session.profileId,
     });
+    this.runQueue?.create({
+      runId: run.runId,
+      sessionKey: params.session.sessionKey,
+      event: params.event,
+      approvedToolContinuation: continuation,
+    });
     this.logger.info(
       {
         runId: run.runId,
@@ -397,7 +467,9 @@ export class RunOrchestrator {
     for (const record of this.runQueue.listRecoverableQueued()) {
       const run = this.runs.get(record.runId);
       const session = this.sessions.get(record.sessionKey);
-      if (!run || !session || !this.transcripts.hasRunMessage(record.runId, "user")) {
+      const approvedToolContinuation = approvedToolContinuationFromRecord(record);
+      const canRecoverRunMessage = this.transcripts.hasRunMessage(record.runId, "user");
+      if (!run || !session || (!approvedToolContinuation && !canRecoverRunMessage)) {
         failed += 1;
         this.markQueuedRunUnrecoverable(record, "Queued run could not be recovered after restart.");
         continue;
@@ -407,6 +479,7 @@ export class RunOrchestrator {
         session,
         runId: record.runId,
         recovered: true,
+        ...(approvedToolContinuation ? { approvedToolContinuation } : {}),
       });
       resumed += 1;
     }
@@ -426,7 +499,6 @@ export class RunOrchestrator {
         await this.agentLimiter.run(params.session.agentId, agent?.maxConcurrentRuns, async () => {
           if (
             this.runQueue &&
-            !params.approvedToolContinuation &&
             !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
           ) {
             return;
@@ -440,7 +512,7 @@ export class RunOrchestrator {
             approvedToolContinuation: params.approvedToolContinuation,
           });
           const finalRun = this.runs.get(params.runId);
-          if (!this.runQueue || !finalRun || params.approvedToolContinuation) {
+          if (!this.runQueue || !finalRun) {
             return;
           }
           if (finalRun.status === "completed") {
@@ -922,7 +994,7 @@ export class RunOrchestrator {
       }
       const toolCall = toolCallFromTranscriptJson(message.contentJson, pending);
       if (toolCall?.name === pending.toolName) {
-        return { pending, toolCall };
+        return { type: "approved_tool", pending, toolCall };
       }
     }
     return undefined;
@@ -1069,12 +1141,7 @@ export class RunOrchestrator {
   }
 
   private rebuildEvent(record: RunQueueRecord, session: SessionRoute): InboundEvent {
-    let parsed: Partial<InboundEvent>;
-    try {
-      parsed = record.eventJson ? (JSON.parse(record.eventJson) as Partial<InboundEvent>) : {};
-    } catch {
-      parsed = {};
-    }
+    const parsed = runQueueEventJson(record);
     const chatType =
       parsed.chatType === "private" ||
       parsed.chatType === "group" ||

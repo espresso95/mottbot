@@ -327,7 +327,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark source messages, expire with the configured approval TTL, and treat replayed buttons as the original operator decision
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
-- Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat; `/project approve <approval-id>` remains the fallback command
+- Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat, then mark the original message as approved or not applied; `/project approve <approval-id>` remains the fallback command
 - `/project status` includes each subtask's latest Codex CLI run state and error, including restart-recovered interrupted runs before the scheduler has reconciled the task
 
 ## Session Queue
@@ -339,7 +339,7 @@ Behavior:
 - one active task per `session_key`
 - later tasks chain behind the current tail
 - cancellation aborts only the active task
-- accepted run queue metadata is persisted in `run_queue`
+- accepted run queue metadata is persisted in `run_queue`, including approved-tool continuations created from inline approval buttons
 - execution claims use a single-process lease to avoid duplicate execution after restart
 
 Current behavior:
@@ -347,6 +347,7 @@ Current behavior:
 - accepted updates are persisted into transcript and `runs` before the queued execution phase starts
 - the in-memory queue owns execution ordering, while `run_queue` owns restart recovery metadata
 - queued runs are resumed on restart when their session route and user transcript record still exist
+- approved-tool continuation runs are resumed on restart from the persisted callback continuation payload instead of requiring a user transcript row for the continuation run
 
 Important implementation detail:
 

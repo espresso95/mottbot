@@ -10,6 +10,8 @@ import { buildProjectPlan } from "./project-planner.js";
 import { buildProjectApprovalCallbackData } from "../telegram/callback-data.js";
 import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
 
+const TELEGRAM_TEXT_MAX_CHARS = 4096;
+
 function splitTelegramText(text: string): string[] {
   const maxChars = 3_900;
   if (text.length <= maxChars) {
@@ -50,6 +52,35 @@ function projectApprovalReplyMarkup(approvalId: string, label: string): Telegram
       ],
     ],
   };
+}
+
+async function clearCallbackKeyboard(api: Api, event: TelegramCallbackEvent): Promise<void> {
+  try {
+    await api.editMessageReplyMarkup(event.chatId, event.messageId);
+  } catch {
+    // The project decision reply is authoritative; stale keyboard cleanup is best effort.
+  }
+}
+
+function callbackStatusText(event: TelegramCallbackEvent, status: string): string {
+  const cleanStatus = status.replace(/\s+/g, " ").trim();
+  const original = event.messageText?.trim();
+  if (!original) {
+    return cleanStatus;
+  }
+  const separator = "\n\n";
+  const suffix = `${separator}${cleanStatus}`;
+  const maxOriginalLength = Math.max(0, TELEGRAM_TEXT_MAX_CHARS - suffix.length);
+  return `${original.slice(0, maxOriginalLength).trimEnd()}${suffix}`;
+}
+
+async function editCallbackStatus(api: Api, event: TelegramCallbackEvent, status: string): Promise<void> {
+  try {
+    await api.editMessageText(event.chatId, event.messageId, callbackStatusText(event, status));
+  } catch {
+    // Some Telegram messages cannot be edited; keyboard cleanup below still prevents stale taps.
+  }
+  await clearCallbackKeyboard(api, event);
 }
 
 function formatRunDetail(run: CodexCliRun | undefined): string {
@@ -129,6 +160,7 @@ export class ProjectCommandRouter {
 
   async handleApprovalCallback(event: TelegramCallbackEvent, approvalId: string): Promise<void> {
     if (!this.config.projectTasks.enabled) {
+      await editCallbackStatus(this.api, event, "Project mode is disabled.");
       await sendReply(this.api, event, "Project mode is disabled.");
       return;
     }
@@ -142,6 +174,13 @@ export class ProjectCommandRouter {
       }
     }
     const result = this.scheduler.approveApproval(normalizedApprovalId, event.fromUserId);
+    await editCallbackStatus(
+      this.api,
+      event,
+      result.ok
+        ? `Approved project request. ${result.message}`
+        : `Project approval could not be applied. ${result.message}`,
+    );
     await sendReply(this.api, event, result.message);
   }
 

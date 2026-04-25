@@ -319,6 +319,7 @@ Notable fields:
 Purpose:
 
 - durable restart metadata for accepted but not-yet-completed runs
+- stores the inbound event envelope and, for inline-approved tools, the approved tool continuation payload needed to replay the exact stored tool call after restart
 
 Notable fields:
 

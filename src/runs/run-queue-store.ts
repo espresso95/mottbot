@@ -1,6 +1,8 @@
 import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 import type { InboundEvent } from "../telegram/types.js";
+import type { CodexToolCall } from "../codex/tool-calls.js";
+import type { ToolApprovalAuditRecord } from "../tools/approval.js";
 
 /** Durable queue state for inbound Telegram events waiting on run processing. */
 export type RunQueueState = "queued" | "claimed" | "completed" | "failed";
@@ -21,6 +23,13 @@ export type RunQueueRecord = {
   errorMessage?: string;
   createdAt: number;
   updatedAt: number;
+};
+
+/** Durable continuation payload for an approved tool callback waiting in the run queue. */
+export type RunQueueApprovedToolContinuation = {
+  type: "approved_tool";
+  pending: ToolApprovalAuditRecord;
+  toolCall: CodexToolCall;
 };
 
 type RunQueueRow = {
@@ -69,7 +78,12 @@ export class RunQueueStore {
     private readonly clock: Clock,
   ) {}
 
-  create(params: { runId: string; sessionKey: string; event: InboundEvent }): RunQueueRecord {
+  create(params: {
+    runId: string;
+    sessionKey: string;
+    event: InboundEvent;
+    approvedToolContinuation?: RunQueueApprovedToolContinuation;
+  }): RunQueueRecord {
     const now = this.clock.now();
     const eventJson = JSON.stringify({
       chatType: params.event.chatType,
@@ -81,6 +95,7 @@ export class RunQueueStore {
       mentionsBot: params.event.mentionsBot,
       isCommand: params.event.isCommand,
       arrivedAt: params.event.arrivedAt,
+      ...(params.approvedToolContinuation ? { approvedToolContinuation: params.approvedToolContinuation } : {}),
     });
     this.database.db
       .prepare(

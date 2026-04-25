@@ -17,6 +17,12 @@ type SentProjectMessage = {
   options: unknown;
 };
 
+type EditedProjectMessage = {
+  chatId: string;
+  messageId: number;
+  text?: string;
+};
+
 function createProjectRouterFixture(
   options: {
     enabled?: boolean;
@@ -25,7 +31,7 @@ function createProjectRouterFixture(
     scheduler?: Partial<{
       cancelTask: (taskId: string) => { message: string };
       cleanupTask: (taskId: string) => { message: string };
-      approveApproval: (approvalId: string, decidedBy?: string) => { message: string };
+      approveApproval: (approvalId: string, decidedBy?: string) => { ok?: boolean; message: string };
       requestPublishApproval: (params: {
         taskId: string;
         requestedBy?: string;
@@ -42,15 +48,22 @@ function createProjectRouterFixture(
   const clock: Clock = { now: () => Date.now() };
   const store = new ProjectTaskStore(db, clock);
   const sent: SentProjectMessage[] = [];
+  const edited: EditedProjectMessage[] = [];
   const api = {
     sendMessage: async (chatId: string, text: string, messageOptions: unknown) => {
       sent.push({ chatId, text, options: messageOptions });
+    },
+    editMessageText: async (chatId: string, messageId: number, text: string) => {
+      edited.push({ chatId, messageId, text });
+    },
+    editMessageReplyMarkup: async (chatId: string, messageId: number) => {
+      edited.push({ chatId, messageId });
     },
   };
   const scheduler = {
     cancelTask: (taskId: string) => ({ message: `Cancelled ${taskId}` }),
     cleanupTask: (taskId: string) => ({ message: `Cleaned ${taskId}` }),
-    approveApproval: (approvalId: string) => ({ message: `Approved ${approvalId}` }),
+    approveApproval: (approvalId: string) => ({ ok: true, message: `Approved ${approvalId}` }),
     requestPublishApproval: () => ({ message: "Created publish approval" }),
     ...options.scheduler,
   };
@@ -76,6 +89,7 @@ function createProjectRouterFixture(
     db,
     store,
     sent,
+    edited,
     router,
     event,
     cleanup: () => {
@@ -95,7 +109,7 @@ describe("ProjectCommandRouter", () => {
         approveApproval: (approvalId: string, decidedBy?: string) => {
           approvalCalls += 1;
           approvedBy = decidedBy;
-          return { message: `Approved ${approvalId}` };
+          return { ok: true, message: `Approved ${approvalId}` };
         },
       },
     });
@@ -119,12 +133,24 @@ describe("ProjectCommandRouter", () => {
       });
 
       await fixture.router.handleApprovalCallback(
-        createCallbackEvent({ chatId: "chat", fromUserId: "admin-1", data: `mb:pa:${approvalId}` }),
+        createCallbackEvent({
+          chatId: "chat",
+          messageId: 2,
+          fromUserId: "admin-1",
+          data: `mb:pa:${approvalId}`,
+          messageText: `Created task task-1. Awaiting approval ${approvalId}.`,
+        }),
         approvalId!,
       );
 
       expect(approvedBy).toBe("admin-1");
       expect(approvalCalls).toBe(1);
+      expect(fixture.edited).toContainEqual({
+        chatId: "chat",
+        messageId: 2,
+        text: expect.stringContaining(`Approved project request. Approved ${approvalId}`),
+      });
+      expect(fixture.edited).toContainEqual({ chatId: "chat", messageId: 2 });
       expect(fixture.sent.at(-1)?.text).toContain(`Approved ${approvalId}`);
 
       await fixture.router.handleApprovalCallback(
@@ -141,6 +167,45 @@ describe("ProjectCommandRouter", () => {
         chatId: "other-chat",
         text: "Project approval is not available in this chat.",
       });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("marks project approval callbacks that cannot be applied", async () => {
+    const fixture = createProjectRouterFixture({
+      requireApproval: true,
+      scheduler: {
+        approveApproval: (approvalId: string) => ({
+          ok: false,
+          message: `Approval ${approvalId} is already expired.`,
+        }),
+      },
+    });
+    try {
+      await fixture.router.handle(fixture.event, ["start", fixture.root, "ship", "it"]);
+      const approvalId = fixture.db.db
+        .prepare<unknown[], { approval_id: string }>("select approval_id from project_approvals limit 1")
+        .get()?.approval_id;
+
+      await fixture.router.handleApprovalCallback(
+        createCallbackEvent({
+          chatId: "chat",
+          messageId: 2,
+          fromUserId: "admin-1",
+          data: `mb:pa:${approvalId}`,
+          messageText: `Created task task-1. Awaiting approval ${approvalId}.`,
+        }),
+        approvalId!,
+      );
+
+      expect(fixture.edited).toContainEqual({
+        chatId: "chat",
+        messageId: 2,
+        text: expect.stringContaining("Project approval could not be applied."),
+      });
+      expect(fixture.edited).toContainEqual({ chatId: "chat", messageId: 2 });
+      expect(fixture.sent.at(-1)?.text).toContain("already expired");
     } finally {
       fixture.cleanup();
     }
