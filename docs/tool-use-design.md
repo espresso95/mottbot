@@ -31,7 +31,7 @@ Implemented:
 - opt-in GitHub issue creation and issue/PR comments through the host GitHub CLI
 - opt-in Codex CLI job tools for approved project repositories, using the same reusable CLI service as Project Mode
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
-- per-tool runtime policies loaded from config or `MOTTBOT_TOOL_POLICIES_JSON`
+- per-tool runtime policies loaded from `tools.policies`
 - sanitized approval previews and request fingerprints for side-effecting calls
 - admin `/tool audit` inspection with bounded session, tool, and decision-code filters
 
@@ -120,7 +120,7 @@ Disabled reserved tools:
 | `mottbot_ms_todo_task_create`   | `network_write`   | opt-in | Creates a Microsoft To Do task through Microsoft Graph; requires one-shot admin approval before execution.                                                                           |
 | `mottbot_ms_todo_task_update`   | `network_write`   | opt-in | Updates a Microsoft To Do task through Microsoft Graph; requires one-shot admin approval before execution.                                                                           |
 | `mottbot_telegram_send_message` | `telegram_send`   | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution.                                       |
-| `mottbot_restart_service`       | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution.                                                       |
+| `mottbot_restart_service`       | `process_control` | opt-in | Exposed only to admin callers when `tools.enableSideEffectTools=true`; requires one-shot admin approval before execution.                                                            |
 | `mottbot_telegram_react`        | `telegram_send`   | opt-in | Adds or clears Telegram reactions only after one-shot admin approval.                                                                                                                |
 
 Registry behavior:
@@ -134,7 +134,7 @@ Registry behavior:
 
 ## Local Write Scope
 
-Local write tools are governed separately from general tool policy by `tools.localWrite` or the `MOTTBOT_LOCAL_WRITE_*` environment variables.
+Local write tools are governed separately from general tool policy by `tools.localWrite` in `mottbot.config.json`.
 
 Defaults:
 
@@ -159,7 +159,7 @@ Safety rules:
 
 ## Local Command Scope
 
-Local command execution is governed separately from general tool policy by `tools.localExec` or the `MOTTBOT_LOCAL_EXEC_*` environment variables.
+Local command execution is governed separately from general tool policy by `tools.localExec` in `mottbot.config.json`.
 
 Defaults:
 
@@ -200,7 +200,7 @@ Project Mode uses the same `CodexCliService` process/log/event implementation th
 
 ## MCP Stdio Bridge
 
-MCP tool calls are governed by `tools.mcp.servers` or `MOTTBOT_MCP_SERVERS_JSON`.
+MCP tool calls are governed by `tools.mcp.servers` in `mottbot.config.json`.
 
 Example:
 
@@ -231,7 +231,7 @@ Safety rules:
 
 ## Telegram Send Scope
 
-Telegram send tools are governed by `tools.telegramSend` or `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS`.
+Telegram send tools are governed by `tools.telegramSend` in `mottbot.config.json`.
 
 Defaults:
 
@@ -261,7 +261,7 @@ Supported writes:
 
 Safety rules:
 
-- tools are disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`
+- tools are disabled unless `tools.enableSideEffectTools=true`
 - callers must pass admin policy checks and a matching one-shot approval
 - repository identifiers must be `owner/name`; when omitted, the configured repository or local `origin` is used
 - titles, bodies, labels, CLI output, and errors are sanitized for token-like text
@@ -270,7 +270,7 @@ Safety rules:
 
 ## Repository Read Scope
 
-Repository tools are governed separately from general tool policy by `tools.repository` or the `MOTTBOT_REPOSITORY_*` environment variables.
+Repository tools are governed separately from general tool policy by `tools.repository` in `mottbot.config.json`.
 
 Defaults:
 
@@ -317,7 +317,7 @@ Safety rules:
 
 - GitHub tools are admin-only read-only tools.
 - Repository identifiers must be `owner/name`.
-- When no repository is provided, the service uses `MOTTBOT_GITHUB_REPOSITORY` or infers from local `origin`.
+- When no repository is provided, the service uses `tools.github.defaultRepository` or infers from local `origin`.
 - Pull request, issue, and workflow lists are bounded by `maxItems`.
 - CLI errors and GitHub response strings are sanitized for token-looking values before returning to Telegram or the model.
 - Rate limits, missing auth, and inaccessible repositories surface as bounded tool errors rather than raw API payloads.
@@ -334,10 +334,9 @@ Policy fields:
 - `dryRun`: return the sanitized preview without calling the handler
 - `maxOutputBytes`: output cap, never above the tool definition cap
 
-Configuration sources:
+Configuration source:
 
 - `tools.policies` in `mottbot.config.json`
-- `MOTTBOT_TOOL_POLICIES_JSON` as a JSON object, which takes precedence over file config
 
 Example:
 
@@ -458,7 +457,7 @@ Deliverables:
 - Define approval prompts for local writes, network calls, and process-control tools.
 - Add expiration for pending approvals.
 - Add audit records for approved and denied calls.
-- Keep side-effecting tools disabled by default unless the host opts in with `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
+- Keep side-effecting tools disabled by default unless the host opts in with `tools.enableSideEffectTools=true`.
 
 ## Non-Goals For The First Tool Phase
 

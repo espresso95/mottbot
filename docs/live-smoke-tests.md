@@ -145,7 +145,18 @@ pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
 
 ## Required Runtime Config
 
-Use a dedicated ignored config JSON for live validation. At minimum it needs `telegram.botToken`, `security.masterKey`, `telegram.adminUserIds`, and a SQLite path under an ignored directory such as `data/`.
+Use a dedicated ignored config JSON for live validation. You can copy `mottbot.config.example.json` to `/tmp/mottbot-live-smoke.config.json` or create an ignored lane config under `.local/smoke-lanes/`.
+
+At minimum, configure:
+
+- `telegram.botToken`
+- `security.masterKey`
+- `telegram.adminUserIds`
+- `telegram.allowedChatIds`, when you want to limit test chats
+- `auth.defaultProfile`
+- `models.default`
+- `storage.sqlitePath`, for example `./data/mottbot.integration.sqlite`
+- `attachments.cacheDir`, for example `./data/attachments.integration`
 
 Set `MOTTBOT_CONFIG_PATH` only when you want a command to use a non-default config file. The lane wrapper sets it automatically for child commands.
 
@@ -345,10 +356,16 @@ Confirm no unexpected interrupted runs remain.
 
 Use a public HTTPS endpoint that reaches the local or test host, then configure:
 
-```bash
-export MOTTBOT_TELEGRAM_POLLING=false
-export MOTTBOT_TELEGRAM_WEBHOOK_URL=https://example.test
-export MOTTBOT_TELEGRAM_WEBHOOK_SECRET_TOKEN=...
+```json
+{
+  "telegram": {
+    "polling": false,
+    "webhook": {
+      "publicUrl": "https://example.test",
+      "secretToken": "REPLACE_WITH_SECRET"
+    }
+  }
+}
 ```
 
 Start the bot and verify:

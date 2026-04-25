@@ -120,10 +120,10 @@ Operational panels:
 Operational notes:
 
 - dashboard writes updates to the configured config path (default: `mottbot.config.json`, overridden by `MOTTBOT_CONFIG_PATH`)
-- environment variables still override file values
+- runtime configuration values come from the config file; `.env` is only loaded for `MOTTBOT_CONFIG_PATH` and delegated access-token variables referenced by the config
 - restart the process after saving config updates
-- non-loopback dashboard binding requires `MOTTBOT_DASHBOARD_AUTH_TOKEN`
-- service restart from the dashboard requires `MOTTBOT_DASHBOARD_AUTH_TOKEN` even on loopback
+- non-loopback dashboard binding requires `dashboard.authToken`
+- service restart from the dashboard requires `dashboard.authToken` even on loopback
 - dashboard API responses redact token-like strings, but operators should still avoid putting secrets in memory entries, tool reasons, or logs
 
 ## CLI Entry Points
@@ -176,25 +176,50 @@ CI checks:
 
 - dependency installation with the pinned pnpm version
 - native `better-sqlite3` rebuild
-- TypeScript check
-- ESLint
-- Prettier format check
-- unit and integration tests
-- coverage thresholds from `vitest.config.ts`
-- TypeScript build output
-- package metadata and built CLI health command
+- `pnpm verify`, covering TypeScript checks, ESLint, Prettier, strict TSDoc, docs links, dependency-cycle checks, Knip, TypeScript build output, and coverage thresholds from `vitest.config.ts`
+- package metadata and built CLI health command with a temporary file-backed config
 - clean worktree after verification
 
 Local equivalent:
 
 ```bash
-corepack pnpm check
-corepack pnpm lint
-corepack pnpm format:check
-corepack pnpm test
-corepack pnpm test:coverage
-corepack pnpm build
-env TELEGRAM_BOT_TOKEN=local-check MOTTBOT_MASTER_KEY=local-check MOTTBOT_PREFER_CLI_IMPORT=false MOTTBOT_SQLITE_PATH=/tmp/mottbot-release-check.sqlite node dist/index.js health
+corepack pnpm verify
+
+tmp_config="$(mktemp /tmp/mottbot-release-check.XXXXXX.json)"
+node - "$tmp_config" <<'NODE'
+const fs = require("node:fs");
+fs.writeFileSync(
+  process.argv[2],
+  JSON.stringify(
+    {
+      telegram: {
+        botToken: "local-check",
+        polling: false,
+        adminUserIds: ["local-check"],
+      },
+      auth: {
+        preferCliImport: false,
+      },
+      storage: {
+        sqlitePath: "/tmp/mottbot-release-check.sqlite",
+      },
+      dashboard: {
+        enabled: false,
+      },
+      runtime: {
+        instanceLeaseEnabled: false,
+      },
+      security: {
+        masterKey: "local-check",
+      },
+    },
+    null,
+    2,
+  ),
+);
+NODE
+MOTTBOT_CONFIG_PATH="$tmp_config" node dist/index.js health
+rm -f "$tmp_config"
 corepack pnpm smoke:preflight
 ```
 
@@ -214,7 +239,7 @@ The harness also accepts `--target`, `--reply-to-latest-bot-message`, and `--fil
 
 ## User Roles And Chat Governance
 
-`MOTTBOT_ADMIN_USER_IDS` is the bootstrap owner list. These users resolve as protected owners and cannot be revoked from Telegram commands. Additional roles are stored in SQLite:
+`telegram.adminUserIds` is the bootstrap owner list. These users resolve as protected owners and cannot be revoked from Telegram commands. Additional roles are stored in SQLite:
 
 - `owner`: full recovery and role-management authority
 - `admin`: operator authority for diagnostics, GitHub status, tool approvals, and audit reads
@@ -291,52 +316,76 @@ The diagnostics, repository, git, GitHub, and local document read tools are read
 
 Repository tools are scoped by:
 
-```bash
-MOTTBOT_REPOSITORY_ROOTS=.
-MOTTBOT_REPOSITORY_DENIED_PATHS=
-MOTTBOT_REPOSITORY_MAX_READ_BYTES=40000
-MOTTBOT_REPOSITORY_MAX_SEARCH_MATCHES=100
-MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
-MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
+```json
+{
+  "tools": {
+    "repository": {
+      "roots": ["."],
+      "deniedPaths": [],
+      "maxReadBytes": 40000,
+      "maxSearchMatches": 100,
+      "maxSearchBytes": 80000,
+      "commandTimeoutMs": 5000
+    }
+  }
+}
 ```
 
-Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.local`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
+Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.local`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add entries to `tools.repository.deniedPaths` for project-specific private paths.
 
 GitHub tools use the host GitHub CLI. Authenticate once with `gh auth login`; Mottbot does not store GitHub tokens. Public repositories need ordinary read access; private repositories and workflow inspection require the host `gh` account to have repository and Actions read permissions. Approval-gated issue creation and issue/PR comments require the same host account to have write permission on the target repository.
 
-```bash
-MOTTBOT_GITHUB_REPOSITORY=
-MOTTBOT_GITHUB_COMMAND=gh
-MOTTBOT_GITHUB_COMMAND_TIMEOUT_MS=10000
-MOTTBOT_GITHUB_MAX_ITEMS=10
-MOTTBOT_GITHUB_MAX_OUTPUT_BYTES=80000
+```json
+{
+  "tools": {
+    "github": {
+      "defaultRepository": "",
+      "command": "gh",
+      "commandTimeoutMs": 10000,
+      "maxItems": 10,
+      "maxOutputBytes": 80000
+    }
+  }
+}
 ```
 
-When `MOTTBOT_GITHUB_REPOSITORY` is empty, Mottbot infers the default repository from local `origin`. Use `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, or `/github failures` from an admin Telegram chat for direct read-only status.
+When `tools.github.defaultRepository` is empty, Mottbot infers the default repository from local `origin`. Use `/github status`, `/github repo`, `/github prs`, `/github issues`, `/github runs`, or `/github failures` from an admin Telegram chat for direct read-only status.
 
 Microsoft To Do tools call Microsoft Graph with a delegated bearer token provided by the host environment. Mottbot does not run an OAuth login flow for Graph.
 
-```bash
-MOTTBOT_MICROSOFT_TODO_ENABLED=false
-MOTTBOT_MICROSOFT_TODO_TENANT_ID=
-MOTTBOT_MICROSOFT_TODO_CLIENT_ID=
-MOTTBOT_MICROSOFT_TODO_GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
-MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN_ENV=MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN
-MOTTBOT_MICROSOFT_TODO_DEFAULT_LIST_ID=
-MOTTBOT_MICROSOFT_TODO_TIMEOUT_MS=10000
-MOTTBOT_MICROSOFT_TODO_MAX_ITEMS=25
+```json
+{
+  "tools": {
+    "microsoftTodo": {
+      "enabled": false,
+      "tenantId": "",
+      "clientId": "",
+      "graphBaseUrl": "https://graph.microsoft.com/v1.0",
+      "accessTokenEnv": "MOTTBOT_MICROSOFT_TODO_ACCESS_TOKEN",
+      "defaultListId": "",
+      "timeoutMs": 10000,
+      "maxItems": 25
+    }
+  }
+}
 ```
 
 Google Drive tools call Google Drive and Google Docs APIs with a delegated bearer token from the host environment. Mottbot does not run an OAuth flow for Google.
 
-```bash
-MOTTBOT_GOOGLE_DRIVE_ENABLED=false
-MOTTBOT_GOOGLE_DRIVE_BASE_URL=https://www.googleapis.com/drive/v3
-MOTTBOT_GOOGLE_DOCS_BASE_URL=https://docs.googleapis.com/v1
-MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN_ENV=MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN
-MOTTBOT_GOOGLE_DRIVE_TIMEOUT_MS=10000
-MOTTBOT_GOOGLE_DRIVE_MAX_ITEMS=25
-MOTTBOT_GOOGLE_DRIVE_MAX_BYTES=120000
+```json
+{
+  "tools": {
+    "googleDrive": {
+      "enabled": false,
+      "driveBaseUrl": "https://www.googleapis.com/drive/v3",
+      "docsBaseUrl": "https://docs.googleapis.com/v1",
+      "accessTokenEnv": "MOTTBOT_GOOGLE_DRIVE_ACCESS_TOKEN",
+      "timeoutMs": 10000,
+      "maxItems": 25,
+      "maxBytes": 120000
+    }
+  }
+}
 ```
 
 Live GitHub write validation is separate from normal startup and intentionally guarded:
@@ -349,8 +398,12 @@ To perform real writes, pass `--no-dry-run --confirm create-live-github-issue`. 
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
-```bash
-MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true
+```json
+{
+  "tools": {
+    "enableSideEffectTools": true
+  }
+}
 ```
 
 Current side-effecting tools:
@@ -373,25 +426,37 @@ Current side-effecting tools:
 
 Local write tools are scoped by:
 
-```bash
-MOTTBOT_LOCAL_WRITE_ROOTS=./data/tool-notes
-MOTTBOT_LOCAL_WRITE_DENIED_PATHS=
-MOTTBOT_LOCAL_WRITE_MAX_BYTES=20000
+```json
+{
+  "tools": {
+    "localWrite": {
+      "roots": ["./data/tool-notes"],
+      "deniedPaths": [],
+      "maxWriteBytes": 20000
+    }
+  }
+}
 ```
 
 Local write roots are created when the service starts. Local document tools reject path traversal and symlink escapes, allow only `.md` and `.txt`, and keep writes approval-gated. The note tool is create-only. The replace tool requires a SHA-256 from `mottbot_local_doc_read`, so a file changed after review cannot be overwritten by stale model output. Write tool output returns path, size, and checksums, not the written content.
 
 Local command execution is scoped by:
 
-```bash
-MOTTBOT_LOCAL_EXEC_ROOTS=./data/tool-workspace
-MOTTBOT_LOCAL_EXEC_DENIED_PATHS=
-MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS=
-MOTTBOT_LOCAL_EXEC_TIMEOUT_MS=5000
-MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES=40000
+```json
+{
+  "tools": {
+    "localExec": {
+      "roots": ["./data/tool-workspace"],
+      "deniedPaths": [],
+      "allowedCommands": [],
+      "timeoutMs": 5000,
+      "maxOutputBytes": 40000
+    }
+  }
+}
 ```
 
-Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve commands. Commands run without shell expansion, with ignored stdin, bounded stdout/stderr, timeout enforcement, a minimal environment, and a working directory under `MOTTBOT_LOCAL_EXEC_ROOTS`. Shells and privilege-changing commands are denied even if they appear in the allowlist.
+Leave `tools.localExec.allowedCommands` empty until you intentionally approve commands. Commands run without shell expansion, with ignored stdin, bounded stdout/stderr, timeout enforcement, a minimal environment, and a working directory under `tools.localExec.roots`. Shells and privilege-changing commands are denied even if they appear in the allowlist.
 
 Codex CLI job tools use Project Mode configuration:
 
@@ -403,27 +468,57 @@ Codex CLI job tools use Project Mode configuration:
 
 MCP stdio tool calls are scoped by:
 
-```bash
-MOTTBOT_MCP_SERVERS_JSON='[{"name":"docs","command":"node","args":["./mcp/docs-server.mjs"],"allowedTools":["search","read"],"timeoutMs":10000,"maxOutputBytes":40000}]'
+```json
+{
+  "tools": {
+    "mcp": {
+      "servers": [
+        {
+          "name": "docs",
+          "command": "node",
+          "args": ["./mcp/docs-server.mjs"],
+          "allowedTools": ["search", "read"],
+          "timeoutMs": 10000,
+          "maxOutputBytes": 40000
+        }
+      ]
+    }
+  }
+}
 ```
 
 Each MCP server entry must name the executable and the exact MCP tools Mottbot may call. The bridge starts a fresh stdio server per approved call, performs initialize plus one `tools/call`, bounds output, and denies unconfigured servers, unallowlisted MCP tools, shells, and privilege-changing commands. Remote MCP servers and long-lived MCP sessions are not implemented.
 
 Telegram send tools are scoped by:
 
-```bash
-MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS=
+```json
+{
+  "tools": {
+    "telegramSend": {
+      "allowedChatIds": []
+    }
+  }
+}
 ```
 
-When the target is omitted, `mottbot_telegram_send_message` sends to the current chat and current topic thread. Sending to any other chat requires that chat ID or username in `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS`.
+When the target is omitted, `mottbot_telegram_send_message` sends to the current chat and current topic thread. Sending to any other chat requires that chat ID or username in `tools.telegramSend.allowedChatIds`.
 
 Optional per-tool policy:
 
-```bash
-MOTTBOT_TOOL_POLICIES_JSON='{"mottbot_health_snapshot":{"allowedRoles":["owner","admin","trusted","user"],"maxOutputBytes":4000}}'
+```json
+{
+  "tools": {
+    "policies": {
+      "mottbot_health_snapshot": {
+        "allowedRoles": ["owner", "admin", "trusted", "user"],
+        "maxOutputBytes": 4000
+      }
+    }
+  }
+}
 ```
 
-Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Environment policy JSON overrides file config. Owner/admin-only tool definitions remain owner/admin-only even if policy config attempts to expose them to trusted or normal users. Side-effecting tools always require approval for real execution; `requiresApproval:false` is ignored for write-capable tools.
+Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`, and `maxOutputBytes`. Owner/admin-only tool definitions remain owner/admin-only even if policy config attempts to expose them to trusted or normal users. Side-effecting tools always require approval for real execution; `requiresApproval:false` is ignored for write-capable tools.
 
 Approval flow:
 
@@ -478,13 +573,17 @@ Useful commands:
 
 Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default and require explicit approval before they appear in prompts:
 
-```bash
-MOTTBOT_AUTO_MEMORY_SUMMARIES=true
-MOTTBOT_AUTO_MEMORY_SUMMARY_RECENT_MESSAGES=12
-MOTTBOT_AUTO_MEMORY_SUMMARY_MAX_CHARS=1000
-MOTTBOT_MEMORY_CANDIDATES_ENABLED=true
-MOTTBOT_MEMORY_CANDIDATE_RECENT_MESSAGES=12
-MOTTBOT_MEMORY_CANDIDATE_MAX_PER_RUN=5
+```json
+{
+  "memory": {
+    "autoSummariesEnabled": true,
+    "autoSummaryRecentMessages": 12,
+    "autoSummaryMaxChars": 1000,
+    "candidateExtractionEnabled": true,
+    "candidateRecentMessages": 12,
+    "candidateMaxPerRun": 5
+  }
+}
 ```
 
 Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive them before use.
@@ -532,7 +631,7 @@ corepack pnpm run sync:service:uninstall
 
 Set `MOTTBOT_AUTO_SYNC_INTERVAL_SECONDS`, `MOTTBOT_AUTO_SYNC_LABEL`, `MOTTBOT_AUTO_SYNC_REMOTE`, `MOTTBOT_AUTO_SYNC_BRANCH`, or `MOTTBOT_AUTO_SYNC_SERVICE_LABEL` before install/run to override the defaults.
 
-Runtime secrets remain in `.env`, not in the LaunchAgent plist.
+Runtime secrets remain in the configured local config file and delegated token environment variables, not in the LaunchAgent plist.
 
 Polling conflict behavior:
 
@@ -576,7 +675,7 @@ corepack pnpm backup create
 
 The backup command creates a timestamped directory under `data/backups/` unless `--dest <dir>` is provided. It writes a consistent SQLite online backup, copies source WAL/SHM sidecars when present, writes a redacted config snapshot, and records file sizes plus SHA-256 checksums in `manifest.json`.
 
-`.env` is excluded by default because it contains runtime secrets. Use `--include-env` only for private host-local backups:
+`.env` is excluded by default because it can contain delegated access tokens and host-local overrides. Use `--include-env` only for private host-local backups:
 
 ```bash
 corepack pnpm backup create --include-env
@@ -599,7 +698,7 @@ Restore checklist:
 1. Stop launchd: `corepack pnpm service stop`.
 2. Validate the backup and target path.
 3. Move the existing SQLite database plus `-wal` and `-shm` sidecars aside.
-4. Copy `mottbot.sqlite` from the backup into `MOTTBOT_SQLITE_PATH`.
+4. Copy `mottbot.sqlite` from the backup into the configured `storage.sqlitePath`.
 5. Recreate `.env` separately unless the backup intentionally included it.
 6. Run `corepack pnpm db migrate`.
 7. Restart: `corepack pnpm service start`.
@@ -661,15 +760,15 @@ Back up the SQLite file before running destructive pruning on a production host.
 
 Attachment settings:
 
-- `attachments.cacheDir` or `MOTTBOT_ATTACHMENT_CACHE_DIR`
-- `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
-- `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
-- `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
-- `attachments.maxExtractedTextCharsPerFile` or `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
-- `attachments.maxExtractedTextCharsTotal` or `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
-- `attachments.csvPreviewRows` or `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS`
-- `attachments.csvPreviewColumns` or `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS`
-- `attachments.pdfMaxPages` or `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES`
+- `attachments.cacheDir`
+- `attachments.maxFileBytes`
+- `attachments.maxTotalBytes`
+- `attachments.maxPerMessage`
+- `attachments.maxExtractedTextCharsPerFile`
+- `attachments.maxExtractedTextCharsTotal`
+- `attachments.csvPreviewRows`
+- `attachments.csvPreviewColumns`
+- `attachments.pdfMaxPages`
 
 Runtime behavior:
 
@@ -727,10 +826,10 @@ Approval-backed side-effect implementations currently cover local note/document 
 
 Ingress safety settings:
 
-- `behavior.maxInboundTextChars` or `MOTTBOT_MAX_INBOUND_TEXT_CHARS`
-- `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
-- `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
-- `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+- `behavior.maxInboundTextChars`
+- `attachments.maxPerMessage`
+- `attachments.maxFileBytes`
+- `attachments.maxTotalBytes`
 
 Rejected messages receive a Telegram reply explaining the limit. They are recorded as processed updates, but they do not create runs, transcript rows, or queued work.
 
@@ -828,7 +927,7 @@ Command authorization:
 
 - owner/admin roles can run commands in any chat
 - non-operator users can run commands only in private chats unless chat governance explicitly allows a group command
-- if `MOTTBOT_ALLOWED_CHAT_IDS` is set, non-operator private commands must come from a listed chat
+- if `telegram.allowedChatIds` is non-empty, non-operator private commands must come from a listed chat
 - non-operator group and supergroup commands are rejected before creating or mutating a session route unless a chat policy allows the command
 - `/users` commands manage additional database-backed roles and per-chat policy
 

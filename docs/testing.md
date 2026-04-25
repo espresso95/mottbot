@@ -94,7 +94,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - enables Corepack and uses the pinned `pnpm@10.33.0`
 - installs dependencies with `pnpm install --frozen-lockfile`
 - rebuilds the native `better-sqlite3` binding
-- runs `pnpm check`, `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm test:coverage`, and `pnpm build`
+- runs `pnpm verify`, which covers typecheck, lint, format check, strict TSDoc, docs links, dependency-cycle checks, Knip, build, and coverage
 - verifies `dist/index.js` exists, `package.json` remains private, and `bin.mottbot` points to `./dist/index.js`
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
@@ -142,8 +142,6 @@ Recommended local gate before merging TypeScript changes:
 
 ```bash
 pnpm verify
-pnpm test:coverage
-pnpm build
 ```
 
 Docs-only changes should at least run `pnpm format:check` and `pnpm docs:check`. Run `pnpm smoke:dashboard`, `pnpm smoke:local-tools`, and guarded live smoke commands when the changed behavior touches those operator paths.
@@ -167,7 +165,7 @@ Coverage thresholds are enforced in `vitest.config.ts`:
 
 Covers:
 
-- config file and env precedence
+- config file loading and `MOTTBOT_CONFIG_PATH`
 - required secret enforcement
 - bootstrap wiring
 - shutdown handler behavior

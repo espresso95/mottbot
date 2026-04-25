@@ -73,7 +73,7 @@
 ### Named Agents And Route Bindings
 
 - Added config-defined named agents with profile, model, fast mode, and optional system prompt defaults.
-- Added `MOTTBOT_AGENTS_JSON` for deploying agent presets and Telegram route bindings from the environment.
+- Added `agents.list` and `agents.bindings` for deploying agent presets and Telegram route bindings from config.
 - Added Telegram route bindings by chat ID, thread ID, chat type, and user ID.
 - Added `agent_id` to persisted session routes so newly created routes record which agent selected their defaults.
 - Added `/agent list`, `/agent show`, `/agent set`, and `/agent reset`; set/reset are owner/admin-only.
@@ -102,14 +102,14 @@ Operator checklist:
 - Added approval-gated `mottbot_mcp_call_tool` for one allowlisted tool call on one configured MCP stdio server.
 - Added approval-gated `mottbot_github_issue_create`, `mottbot_github_issue_comment`, and `mottbot_github_pr_comment` through the host GitHub CLI.
 - Added `pnpm smoke:github-write` for explicitly confirmed disposable GitHub write validation through the real tool approval path.
-- Added `MOTTBOT_LOCAL_EXEC_*` and `MOTTBOT_MCP_SERVERS_JSON` configuration.
+- Added `tools.localExec` and `tools.mcp.servers` configuration.
 - Added `pnpm smoke:local-tools` for disposable local validation of document edits, command execution, and MCP stdio calls through the real approval path.
 
 Operator checklist:
 
-- Keep `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` until you are ready for model-requested side effects.
-- Set `MOTTBOT_LOCAL_WRITE_ROOTS` to a disposable document directory before testing append or replace.
-- Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve specific commands.
+- Keep `tools.enableSideEffectTools=false` until you are ready for model-requested side effects.
+- Set `tools.localWrite.roots` to a disposable document directory before testing append or replace.
+- Leave `tools.localExec.allowedCommands` empty until you intentionally approve specific commands.
 - Configure MCP servers with explicit `allowedTools`; do not point the bridge at broad or destructive tool servers for first validation.
 - Validate GitHub writes against a disposable repository or disposable issue/PR before using them on real project work.
 - Start GitHub write validation with `pnpm smoke:github-write --repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue`.
@@ -155,7 +155,7 @@ Operator checklist:
 ### Model And Cost Controls
 
 - Added local UTC daily/monthly run budgets for global, per-user, per-chat, per-session, and per-model scopes.
-- Added `MOTTBOT_USAGE_BUDGETS_JSON` and `MOTTBOT_USAGE_WARNING_THRESHOLD_PERCENT`.
+- Added `usage` budgets and `usage.warningThresholdPercent`.
 - Added `/usage [daily|monthly]` for local run counts and configured limits.
 - Runs denied by budget fail before auth/model transport and are recorded with `usage_budget_denied` without consuming the same budget.
 - Budget warnings are shown in the run status message when the next run reaches the configured warning threshold.
@@ -163,13 +163,13 @@ Operator checklist:
 
 Operator checklist:
 
-- Leave `MOTTBOT_USAGE_BUDGETS_JSON` empty for unlimited local use.
+- Leave usage budget values at `0` for unlimited local use.
 - Start with a soft cap such as `{"dailyRunsPerUser":25,"dailyRunsPerChat":100}` for trusted chats.
 - Use `/usage` after live validation to confirm counts and configured limits.
 
 ### Multi-User Roles And Chat Governance
 
-- Added persistent Telegram owner/admin/trusted roles, with `MOTTBOT_ADMIN_USER_IDS` treated as protected owners.
+- Added persistent Telegram owner/admin/trusted roles, with `telegram.adminUserIds` treated as protected owners.
 - Added `telegram_user_roles`, `telegram_chat_policies`, and `telegram_governance_audit` tables.
 - Added `/users me`, `/users list`, `/users grant`, `/users revoke`, `/users audit`, and `/users chat show|set|clear`.
 - Added per-chat policy for allowed roles, group command permissions, allowed models, allowed model tools, memory scopes, and stricter attachment limits.
@@ -187,15 +187,15 @@ Operator checklist:
 
 - Added admin-only `mottbot_local_note_create` for create-only `.md` and `.txt` draft notes under approved local-write roots.
 - Added admin-only `mottbot_telegram_send_message` for plain-text Telegram sends to the current chat or configured approved targets.
-- Added `MOTTBOT_LOCAL_WRITE_*` and `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` configuration.
+- Added `tools.localWrite` and `tools.telegramSend.allowedChatIds` configuration.
 - Expanded side-effect classes for local write, network write, Telegram send, GitHub write, process control, and secret-adjacent tools.
 - Real side-effect execution now always requires a one-shot request-bound approval; `dryRun:true` remains the preview-only path.
 
 Operator checklist:
 
-- Keep `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=false` until you want model-initiated writes.
-- Set `MOTTBOT_LOCAL_WRITE_ROOTS` to a disposable notes directory for first validation.
-- Leave `MOTTBOT_TELEGRAM_SEND_ALLOWED_CHAT_IDS` empty unless cross-chat sends are intentionally approved.
+- Keep `tools.enableSideEffectTools=false` until you want model-initiated writes.
+- Set `tools.localWrite.roots` to a disposable notes directory for first validation.
+- Leave `tools.telegramSend.allowedChatIds` empty unless cross-chat sends are intentionally approved.
 - Test by asking the bot to create one draft note, inspect the approval preview, approve it, then verify the created file.
 
 ### Backup And Log Operations
@@ -213,7 +213,7 @@ Operator checklist:
 
 ### Model-Assisted Memory
 
-- Added opt-in post-run memory candidate extraction with `MOTTBOT_MEMORY_CANDIDATES_ENABLED`.
+- Added opt-in post-run memory candidate extraction with `memory.candidateExtractionEnabled`.
 - Added a separate `memory_candidates` review queue with scope, reason, source message IDs, sensitivity, status, and accepted-memory linkage.
 - Added scoped approved memory for session, personal, chat, group, and explicit project keys.
 - Added `/memory candidates`, `/memory accept`, `/memory reject`, `/memory edit`, `/memory pin`, `/memory unpin`, `/memory archive`, `/memory archive candidate`, and `/memory clear candidates`.
@@ -221,7 +221,7 @@ Operator checklist:
 
 Operator checklist:
 
-- Leave `MOTTBOT_MEMORY_CANDIDATES_ENABLED=false` until you want the model to propose reviewable memories after completed runs.
+- Leave `memory.candidateExtractionEnabled=false` until you want the model to propose reviewable memories after completed runs.
 - Use `/memory candidates` to inspect proposals and `/memory accept <id-prefix>` only after reviewing sensitive or long-lived facts.
 - Use `/memory archive <id-prefix>` or `/memory unpin <id-prefix>` to remove prompt influence without deleting the original row.
 
@@ -235,22 +235,22 @@ Operator checklist:
 
 Operator checklist:
 
-- Keep the dashboard bound to loopback unless `MOTTBOT_DASHBOARD_AUTH_TOKEN` is configured.
-- Set `MOTTBOT_DASHBOARD_AUTH_TOKEN` before using dashboard service restart controls.
-- Use the runtime, logs, tools, and memory panels from `http://127.0.0.1:8787/dashboard` when `MOTTBOT_DASHBOARD_ENABLED=true`.
+- Keep the dashboard bound to loopback unless `dashboard.authToken` is configured.
+- Set `dashboard.authToken` before using dashboard service restart controls.
+- Use the runtime, logs, tools, and memory panels from `http://127.0.0.1:8787/dashboard` when `dashboard.enabled=true`.
 
 ### Read-Only GitHub Integration
 
 - Added admin-only GitHub read tools backed by the host GitHub CLI.
 - Added bounded repository metadata, open pull request, open issue, CI run, and failed workflow summaries.
 - Added `/github` and `/gh` admin commands for direct repository, pull request, issue, run, and failure status.
-- Added `tools.github` config and `MOTTBOT_GITHUB_*` environment variables.
+- Added `tools.github` config.
 - Kept GitHub auth in `gh`; Mottbot does not store GitHub tokens.
 
 Operator checklist:
 
 - Run `gh auth login` on the host account that runs the service.
-- Optionally set `MOTTBOT_GITHUB_REPOSITORY=owner/name`; otherwise confirm local `origin` points at GitHub.
+- Optionally set `tools.github.defaultRepository=owner/name`; otherwise confirm local `origin` points at GitHub.
 - Use `/github status` from an admin chat to verify metadata, open work, and latest CI.
 - Use `/github failures` after pushes to inspect recent failed workflow runs.
 
@@ -258,19 +258,19 @@ Operator checklist:
 
 - Added admin-only model tools for approved local repository inspection.
 - Added bounded file listing, file reading, literal text search, git status, current branch lookup, recent commits, and git diff summaries.
-- Added repository root and denied-path config through `tools.repository` and `MOTTBOT_REPOSITORY_*`.
+- Added repository root and denied-path config through `tools.repository`.
 - Denied common secret and generated paths by default, including `.env`, config files, auth files, `.local`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files.
 - Rejected path traversal and symlink escapes through realpath checks.
 
 Operator checklist:
 
-- Keep `MOTTBOT_REPOSITORY_ROOTS=.` for the current checkout, or set a comma-separated list of approved roots.
-- Add project-specific private directories to `MOTTBOT_REPOSITORY_DENIED_PATHS`.
+- Keep `tools.repository.roots=["."]` for the current checkout, or add more approved roots.
+- Add project-specific private directories to `tools.repository.deniedPaths`.
 - Ask from an admin chat for repo status, a bounded file read, and a search term to live-validate the tools.
 
 ### Tool Permission Model
 
-- Added per-tool policy overrides through `tools.policies` and `MOTTBOT_TOOL_POLICIES_JSON`.
+- Added per-tool policy overrides through `tools.policies`.
 - Filtered model-exposed tool declarations by caller role and chat before each run.
 - Rechecked policy at execution time before any handler runs.
 - Added sanitized approval previews with request fingerprints for side-effecting tools.
@@ -280,7 +280,7 @@ Operator checklist:
 Operator checklist:
 
 - Run `corepack pnpm db:migrate` or restart the service so migration `0005_tool_policy_previews` is applied.
-- Leave `MOTTBOT_TOOL_POLICIES_JSON` empty for conservative defaults.
+- Leave `tools.policies` as `{}` for conservative defaults.
 - After a side-effecting tool is denied, inspect the preview, then approve with `/tool approve <tool-name> <reason>`.
 - Use `/tool audit here` to confirm approval-required, operator-approved, approved, expired, mismatch, or revoked decisions.
 
@@ -292,9 +292,9 @@ Operator checklist:
 
 Operator checklist:
 
-- Confirm `MOTTBOT_TELEGRAM_REACTIONS_ENABLED=true`.
-- Keep `MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS=own` unless every allowed chat is trusted.
-- Use `MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY=true` only if the ack should disappear after each run.
+- Confirm `telegram.reactions.enabled=true`.
+- Keep `telegram.reactions.notifications=own` unless every allowed chat is trusted.
+- Use `telegram.reactions.removeAckAfterReply=true` only if the ack should disappear after each run.
 - Run a live private-chat smoke after changing reaction settings.
 
 ### General File Understanding
@@ -306,12 +306,12 @@ Operator checklist:
 
 Operator checklist:
 
-- Set file extraction limits in `.env` before real use:
-  - `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
-  - `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
-  - `MOTTBOT_ATTACHMENT_CSV_PREVIEW_ROWS`
-  - `MOTTBOT_ATTACHMENT_CSV_PREVIEW_COLUMNS`
-  - `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES`
+- Set file extraction limits in `mottbot.config.json` before real use:
+  - `attachments.maxExtractedTextCharsPerFile`
+  - `attachments.maxExtractedTextCharsTotal`
+  - `attachments.csvPreviewRows`
+  - `attachments.csvPreviewColumns`
+  - `attachments.pdfMaxPages`
 - Run `corepack pnpm db:migrate` or restart the service so migration `0004_attachment_records` is applied.
 - Test a `.txt`, `.md`, code file, CSV, selectable-text PDF, unsupported binary, and image in a controlled chat.
 - Use `/files` after each test to confirm metadata appears without raw file text.

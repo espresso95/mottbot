@@ -17,11 +17,9 @@ jobs:
 
     env:
       TELEGRAM_BOT_TOKEN: ci-token
-      MOTTBOT_MASTER_KEY: ci-master-key
-      MOTTBOT_PREFER_CLI_IMPORT: "false"
-      MOTTBOT_SQLITE_PATH: /tmp/mottbot-ci.sqlite
+      CI_MASTER_KEY: ci-master-key
+      CI_SQLITE_PATH: /tmp/mottbot-ci.sqlite
       MOTTBOT_CONFIG_PATH: /tmp/mottbot-ci.config.json
-      MOTTBOT_DASHBOARD_ENABLED: "false"
 
     steps:
       - name: Check out repository
@@ -55,7 +53,7 @@ jobs:
               preferCliImport: false
             },
             storage: {
-              sqlitePath: process.env.MOTTBOT_SQLITE_PATH
+              sqlitePath: process.env.CI_SQLITE_PATH
             },
             dashboard: {
               enabled: false
@@ -64,7 +62,7 @@ jobs:
               instanceLeaseEnabled: false
             },
             security: {
-              masterKey: process.env.MOTTBOT_MASTER_KEY
+              masterKey: process.env.CI_MASTER_KEY
             }
           };
           fs.writeFileSync(process.env.MOTTBOT_CONFIG_PATH, JSON.stringify(config, null, 2));
@@ -72,12 +70,6 @@ jobs:
 
       - name: Verify
         run: pnpm verify
-
-      - name: Coverage
-        run: pnpm test:coverage
-
-      - name: Build
-        run: pnpm build
 
       - name: Validate package output
         run: |

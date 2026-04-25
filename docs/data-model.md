@@ -448,7 +448,7 @@ Notable fields:
 
 The model sees approved memory as system context before the recent transcript. Prompt rendering orders pinned accepted memory first, then project, personal, group, chat, session, and automatic summaries. Archived memory is not rendered.
 
-Explicit memory is changed through `/remember`, `/memory`, and `/forget`; automatic summaries are updated only when `MOTTBOT_AUTO_MEMORY_SUMMARIES=true` and can be cleared with `/forget auto`.
+Explicit memory is changed through `/remember`, `/memory`, and `/forget`; automatic summaries are updated only when `memory.autoSummariesEnabled=true` and can be cleared with `/forget auto`.
 
 ### `memory_candidates`
 
@@ -468,7 +468,7 @@ Notable fields:
 - `accepted_memory_id`
 - decision and timestamp fields
 
-Candidates are created only when `MOTTBOT_MEMORY_CANDIDATES_ENABLED=true`. The extraction prompt asks for strict JSON, source message IDs, proposed scope, reason, and sensitivity. Malformed output is ignored and logged without failing the user-facing run. `/memory accept <id-prefix>` copies a pending candidate into `session_memories`; `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
+Candidates are created only when `memory.candidateExtractionEnabled=true`. The extraction prompt asks for strict JSON, source message IDs, proposed scope, reason, and sensitivity. Malformed output is ignored and logged without failing the user-facing run. `/memory accept <id-prefix>` copies a pending candidate into `session_memories`; `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
 
 ### `telegram_user_roles`
 

@@ -247,7 +247,7 @@ The Telegram `/status` command includes plan and reset details when present. If 
 
 At rest:
 
-- access and refresh tokens are encrypted with a key derived from `MOTTBOT_MASTER_KEY`
+- access and refresh tokens are encrypted with a key derived from `security.masterKey`
 
 In process:
 

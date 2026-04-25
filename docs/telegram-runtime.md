@@ -52,10 +52,10 @@ Mottbot supports Telegram emoji reactions in three separate paths:
 
 Configuration:
 
-- `telegram.reactions.enabled` or `MOTTBOT_TELEGRAM_REACTIONS_ENABLED`
-- `telegram.reactions.ackEmoji` or `MOTTBOT_TELEGRAM_ACK_REACTION`
-- `telegram.reactions.removeAckAfterReply` or `MOTTBOT_TELEGRAM_REMOVE_ACK_AFTER_REPLY`
-- `telegram.reactions.notifications` or `MOTTBOT_TELEGRAM_REACTION_NOTIFICATIONS` with `off`, `own`, or `all`
+- `telegram.reactions.enabled`
+- `telegram.reactions.ackEmoji`
+- `telegram.reactions.removeAckAfterReply`
+- `telegram.reactions.notifications` with `off`, `own`, or `all`
 
 Ack behavior:
 
@@ -85,13 +85,13 @@ Approved send tool:
 
 Before command routing or model execution, `validateInboundSafety()` checks:
 
-- visible text length against `behavior.maxInboundTextChars` or `MOTTBOT_MAX_INBOUND_TEXT_CHARS`
-- attachment count against `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
-- known per-file sizes against `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
-- combined known attachment sizes against `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+- visible text length against `behavior.maxInboundTextChars`
+- attachment count against `attachments.maxPerMessage`
+- known per-file sizes against `attachments.maxFileBytes`
+- combined known attachment sizes against `attachments.maxTotalBytes`
 - downloaded attachment bytes against `attachments.maxTotalBytes` when Telegram did not provide complete sizes up front
-- extracted file prompt text against `attachments.maxExtractedTextCharsPerFile` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
-- extracted file prompt text across one message against `attachments.maxExtractedTextCharsTotal` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
+- extracted file prompt text against `attachments.maxExtractedTextCharsPerFile`
+- extracted file prompt text across one message against `attachments.maxExtractedTextCharsTotal`
 
 Rejected messages receive a short Telegram reply explaining the limit and are marked processed for update dedupe. They do not create sessions, runs, transcript entries, or queue rows.
 
@@ -115,7 +115,7 @@ Current behavior:
 - native non-image file inputs are represented internally and capability-gated, but the active Codex provider adapter currently reports file input as unsupported
 - text, Markdown, code, CSV, TSV, and PDF documents are downloaded within byte limits and extracted into bounded prompt-only text
 - CSV and TSV attachments are represented as bounded table previews
-- PDF extraction is bounded by `attachments.pdfMaxPages` / `MOTTBOT_ATTACHMENT_PDF_MAX_PAGES` and reports encrypted, unreadable, or no-text PDFs in attachment metadata
+- PDF extraction is bounded by `attachments.pdfMaxPages` and reports encrypted, unreadable, or no-text PDFs in attachment metadata
 - unsupported attachment kinds and MIME types remain text metadata
 - cached attachment files are deleted after model request construction or failure cleanup
 - raw extracted file text is not persisted in SQLite; only metadata and extraction summaries are retained
@@ -403,7 +403,7 @@ When the model requests an enabled tool, the run orchestrator:
 - sends the provider-native tool result back to Codex in the same active turn
 - finalizes Telegram with the model's answer after tool continuation
 
-Unknown, disabled, invalid, policy-denied, unapproved, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled unless `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`.
+Unknown, disabled, invalid, policy-denied, unapproved, timed-out, or oversized tool calls are represented as tool errors and returned to the model for a final response. Side-effecting tools remain disabled unless `tools.enableSideEffectTools=true`.
 
 ## Prompt Building
 
@@ -415,7 +415,7 @@ Current policy:
 - only the latest history window is sent to the model
 - tool messages are excluded from prompt construction
 - approved scoped memories are injected as system context before recent transcript history
-- optional automatic summaries are stored as session memory only when `MOTTBOT_AUTO_MEMORY_SUMMARIES=true`
+- optional automatic summaries are stored as session memory only when `memory.autoSummariesEnabled=true`
 - model-proposed memory candidates are never injected until accepted
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text

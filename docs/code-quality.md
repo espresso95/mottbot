@@ -110,7 +110,7 @@ The Knip config intentionally ignores the direct `punycode` dependency. The patc
 
 Thresholds should track observed coverage after meaningful test additions. Keep small headroom for harmless line-count movement, then tighten the gate again when new coverage lands.
 
-`pnpm verify` runs `test:coverage`, so CI and local verification fail when covered production code drops below the configured baseline.
+`pnpm verify` runs the TypeScript build and `test:coverage`, so CI and local verification fail when generated output is stale or covered production code drops below the configured baseline.
 
 ## Naming
 
