@@ -62,6 +62,20 @@ export type ModelToolDeclaration = {
   inputSchema: ToolInputSchema;
 };
 
+/** OpenClaw-style selector group for related Mottbot tools. */
+type ToolGroupName =
+  | "runtime"
+  | "fs"
+  | "sessions"
+  | "memory"
+  | "web"
+  | "ui"
+  | "automation"
+  | "messaging"
+  | "agents"
+  | "media"
+  | "openclaw";
+
 /** Filters applied when building provider-facing tool declarations. */
 type ModelToolDeclarationOptions = {
   includeAdminTools?: boolean;
@@ -809,6 +823,170 @@ const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     enabled: true,
     requiresAdmin: true,
   },
+  {
+    name: "mottbot_process_list",
+    description: "Read a bounded local process list without changing any process.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Maximum processes to return. Defaults to 25.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 64_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_sessions_list",
+    description: "Read recent Mottbot session routes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum sessions to return. Defaults to 10.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 48_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_session_history",
+    description: "Read bounded transcript history for one Mottbot session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sessionKey: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Session key to inspect.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum transcript rows to return. Defaults to 10.",
+        },
+      },
+      required: ["sessionKey"],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 96_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_tool_catalog",
+    description: "Read the current Mottbot tool catalog, groups, side effects, and enabled state.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        verbose: {
+          type: "boolean",
+          description: "Whether to include descriptions and schemas. Defaults to false.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 1_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_extension_catalog",
+    description: "Read configured local extension, plugin, skill, and MCP manifest hints.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 48_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_extension_manifest_read",
+    description: "Read a bounded local extension manifest from an approved repository root.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
+        },
+        path: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Repository-relative JSON or Markdown manifest path.",
+        },
+        maxBytes: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200000,
+          description: "Maximum UTF-8 bytes to return, capped by host config.",
+        },
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_automation_tasks",
+    description: "Read local automation task artifacts created by Mottbot tools.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum task artifacts to return. Defaults to 10.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 64_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
 ] as const;
 
 /** Built-in tools that can write, call external APIs, or control local processes. */
@@ -1043,6 +1221,372 @@ const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     timeoutMs: 30_000,
     maxOutputBytes: 120_000,
     sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_repo_apply_patch",
+    description: "Apply a git patch inside an approved repository root after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
+        },
+        patch: {
+          type: "string",
+          minLength: 1,
+          maxLength: 120000,
+          description: "Git apply compatible patch text. Denied paths and path escapes are rejected before apply.",
+        },
+      },
+      required: ["patch"],
+      additionalProperties: false,
+    },
+    timeoutMs: 10_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_local_shell_run",
+    description:
+      "Run a bounded shell script in an approved working directory after explicit operator approval and shell allowlist opt-in.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description:
+            "Optional approved execution root label or path. Required only when multiple roots are configured.",
+        },
+        cwd: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional root-relative working directory. Defaults to the selected root.",
+        },
+        script: {
+          type: "string",
+          minLength: 1,
+          maxLength: 12000,
+          description: "Shell script passed to the configured system shell with no interactive stdin.",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 100,
+          maximum: 30000,
+          description: "Optional timeout capped by host config.",
+        },
+      },
+      required: ["script"],
+      additionalProperties: false,
+    },
+    timeoutMs: 30_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_code_execution_run",
+    description:
+      "Run bounded JavaScript through the allowlisted local Node executable after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description:
+            "Optional approved execution root label or path. Required only when multiple roots are configured.",
+        },
+        cwd: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional root-relative working directory. Defaults to the selected root.",
+        },
+        code: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "JavaScript source run as an ESM stdin module.",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 100,
+          maximum: 30000,
+          description: "Optional timeout capped by host config.",
+        },
+      },
+      required: ["code"],
+      additionalProperties: false,
+    },
+    timeoutMs: 30_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_web_fetch",
+    description: "Fetch bounded text from a public HTTP(S) URL after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          minLength: 1,
+          maxLength: 2000,
+          description: "Public http or https URL to fetch.",
+        },
+        maxBytes: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200000,
+          description: "Maximum response bytes to return.",
+        },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 200_000,
+    sideEffect: "network",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_web_search",
+    description: "Search the public web through a bounded HTML search endpoint after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Search query.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          description: "Maximum search results to return. Defaults to 5.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 120_000,
+    sideEffect: "network",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_browser_snapshot",
+    description: "Fetch a public page and return browser-like title and text metadata after explicit approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          minLength: 1,
+          maxLength: 2000,
+          description: "Public http or https URL to inspect.",
+        },
+        maxBytes: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200000,
+          description: "Maximum response bytes to inspect.",
+        },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 160_000,
+    sideEffect: "network",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_canvas_create",
+    description: "Create a bounded local HTML canvas artifact under data/tool-canvas after explicit approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 120,
+          description: "Canvas artifact title.",
+        },
+        body: {
+          type: "string",
+          minLength: 1,
+          maxLength: 40000,
+          description: "Plain text or HTML body for the local canvas artifact.",
+        },
+      },
+      required: ["title", "body"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 24_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_subagent_codex_start",
+    description: "Start a Codex CLI subagent job in an approved project repository after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description:
+            "Optional approved project repository root label or path. Required only when multiple roots are configured.",
+        },
+        cwd: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved-root-relative working directory. Defaults to the selected repository root.",
+        },
+        prompt: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Prompt passed to codex exec.",
+        },
+        profile: {
+          type: "string",
+          minLength: 1,
+          maxLength: 100,
+          description: "Optional Codex CLI profile. Defaults to codexJobs.codex.coderProfile.",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 30000,
+          maximum: 86400000,
+          description: "Optional timeout capped by codexJobs.codex.defaultTimeoutMs.",
+        },
+      },
+      required: ["prompt"],
+      additionalProperties: false,
+    },
+    timeoutMs: 5_000,
+    maxOutputBytes: 32_000,
+    sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_automation_task_create",
+    description: "Create a local automation task artifact under data/tool-automation after explicit approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Task title.",
+        },
+        prompt: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Task prompt or instructions.",
+        },
+        schedule: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Optional human-readable or cron-like schedule string.",
+        },
+      },
+      required: ["title", "prompt"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 24_000,
+    sideEffect: "local_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_gateway_webhook_post",
+    description: "POST a bounded JSON payload to a public webhook URL after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          minLength: 1,
+          maxLength: 2000,
+          description: "Public http or https webhook URL.",
+        },
+        payload: {
+          type: "object",
+          description: "JSON object payload.",
+          additionalProperties: true,
+        },
+      },
+      required: ["url", "payload"],
+      additionalProperties: false,
+    },
+    timeoutMs: 15_000,
+    maxOutputBytes: 80_000,
+    sideEffect: "network_write",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_media_artifact_create",
+    description: "Create a local media-generation request artifact after explicit approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["image", "audio", "video", "tts"],
+          description: "Requested media artifact kind.",
+        },
+        prompt: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Generation prompt or narration text.",
+        },
+        title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 120,
+          description: "Optional artifact title.",
+        },
+      },
+      required: ["kind", "prompt"],
+      additionalProperties: false,
+    },
+    timeoutMs: 3_000,
+    maxOutputBytes: 24_000,
+    sideEffect: "local_write",
     enabled: false,
     requiresAdmin: true,
   },
@@ -1396,6 +1940,69 @@ const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   ...SIDE_EFFECT_TOOL_DEFINITIONS,
 ] as const;
 
+/** Built-in tool groups usable in agent allow-lists and discovery output. */
+export const TOOL_GROUPS: Readonly<Record<ToolGroupName, readonly string[]>> = {
+  runtime: [
+    "mottbot_process_list",
+    "mottbot_local_command_run",
+    "mottbot_local_shell_run",
+    "mottbot_code_execution_run",
+    "mottbot_codex_job_start",
+    "mottbot_codex_job_status",
+    "mottbot_codex_job_tail",
+    "mottbot_codex_job_cancel",
+  ],
+  fs: [
+    "mottbot_repo_list_files",
+    "mottbot_repo_read_file",
+    "mottbot_repo_search",
+    "mottbot_git_status",
+    "mottbot_git_branch",
+    "mottbot_git_recent_commits",
+    "mottbot_git_diff",
+    "mottbot_local_doc_read",
+    "mottbot_local_note_create",
+    "mottbot_local_doc_append",
+    "mottbot_local_doc_replace",
+    "mottbot_repo_apply_patch",
+  ],
+  sessions: ["mottbot_sessions_list", "mottbot_session_history", "mottbot_subagent_codex_start"],
+  memory: ["mottbot_local_doc_read"],
+  web: ["mottbot_web_fetch", "mottbot_web_search", "mottbot_browser_snapshot"],
+  ui: ["mottbot_browser_snapshot", "mottbot_canvas_create"],
+  automation: ["mottbot_automation_tasks", "mottbot_automation_task_create", "mottbot_gateway_webhook_post"],
+  messaging: ["mottbot_telegram_send_message", "mottbot_telegram_react"],
+  agents: ["mottbot_tool_catalog", "mottbot_sessions_list", "mottbot_session_history", "mottbot_subagent_codex_start"],
+  media: ["mottbot_media_artifact_create"],
+  openclaw: DEFAULT_TOOL_DEFINITIONS.map((definition) => definition.name),
+};
+
+/** Returns true when a selector targets a named OpenClaw-style tool group. */
+export function isToolGroupSelector(selector: string): selector is `group:${ToolGroupName}` {
+  const name = selector.startsWith("group:") ? selector.slice("group:".length) : "";
+  return Object.prototype.hasOwnProperty.call(TOOL_GROUPS, name);
+}
+
+function toolMatchesSelector(definition: ToolDefinition, selector: string): boolean {
+  return toolNameMatchesSelector(definition.name, selector);
+}
+
+/** Checks whether a tool name matches an exact tool name or group selector. */
+export function toolNameMatchesSelector(toolName: string, selector: string): boolean {
+  if (isToolGroupSelector(selector)) {
+    const groupName = selector.slice("group:".length) as ToolGroupName;
+    return TOOL_GROUPS[groupName].includes(toolName);
+  }
+  return toolName === selector;
+}
+
+/** Checks whether a tool definition matches any selector, treating an empty selector list as unrestricted. */
+export function toolMatchesAnySelector(definition: ToolDefinition, selectors: readonly string[] | undefined): boolean {
+  return (
+    !selectors || selectors.length === 0 || selectors.some((selector) => toolMatchesSelector(definition, selector))
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -1531,6 +2138,10 @@ export class ToolRegistry {
       }
       this.definitions.set(definition.name, definition);
     }
+  }
+
+  listAll(): ToolDefinition[] {
+    return [...this.definitions.values()];
   }
 
   listEnabled(): ToolDefinition[] {

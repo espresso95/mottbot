@@ -3,7 +3,13 @@ import type { HealthReporter } from "../app/health.js";
 import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
-import { type ToolRegistry, ToolRegistryError, type ToolDefinition, type ToolSideEffect } from "./registry.js";
+import {
+  type ToolRegistry,
+  ToolRegistryError,
+  type ToolDefinition,
+  type ToolSideEffect,
+  toolMatchesAnySelector,
+} from "./registry.js";
 import {
   buildToolApprovalAuditRecord,
   evaluateToolApproval,
@@ -128,7 +134,7 @@ export class ToolExecutor {
       const definition = this.registry.resolve(call.name, { allowSideEffects: true });
       const input = this.registry.validateInput(call.name, call.arguments, { allowSideEffects: true });
       const role = this.callerRole(options.requestedByUserId);
-      if (options.allowedToolNames && !options.allowedToolNames.includes(definition.name)) {
+      if (!toolMatchesAnySelector(definition, options.allowedToolNames)) {
         const decision: ToolApprovalDecision = {
           allowed: false,
           code: "chat_denied",

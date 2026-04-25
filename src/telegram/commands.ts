@@ -11,7 +11,7 @@ import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
 import type { StoredToolApproval, ToolApprovalAuditRecord, ToolApprovalStore } from "../tools/approval.js";
 import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
-import type { ToolRegistry } from "../tools/registry.js";
+import { toolMatchesAnySelector, type ToolRegistry } from "../tools/registry.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
@@ -203,7 +203,7 @@ export class TelegramCommandRouter {
           api: this.api,
           event,
           session,
-          args: ["help"],
+          args: parsed.args[0]?.toLowerCase() === "verbose" ? ["verbose"] : ["help"],
           toolsConfig: this.config.tools,
           exposedTools: this.listExposedToolsForSession(event, session),
           isAdmin: this.isAdmin(event),
@@ -710,7 +710,7 @@ export class TelegramCommandRouter {
       this.toolRegistry?.listModelDeclarations({
         includeAdminTools: this.isAdmin(event),
         filter: (definition) =>
-          (!agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name)) &&
+          toolMatchesAnySelector(definition, agent?.toolNames) &&
           (this.toolPolicy?.evaluate(
             definition,
             {
@@ -794,6 +794,7 @@ export class TelegramCommandRouter {
               commandHelp("tool", "/tool status - show model-exposed tools and approvals"),
               commandHelp("tool", "/tool help - show tool command help"),
               commandHelp("tools", "/tools - show tool command help"),
+              commandHelp("tools", "/tools verbose - show enabled tool descriptions"),
               ...(isAdmin
                 ? [
                     commandHelp("tool", "/tool approve <tool-name> <reason> - approve one side-effecting call"),

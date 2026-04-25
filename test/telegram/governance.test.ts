@@ -124,6 +124,29 @@ describe("TelegramGovernanceStore", () => {
     }
   });
 
+  it("allows OpenClaw-style tool group selectors in chat policy", () => {
+    const stores = createStores();
+    try {
+      const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
+        ownerUserIds: ["admin-1"],
+      });
+      const policy = parseChatGovernancePolicy(
+        JSON.stringify({
+          toolNames: ["group:fs"],
+        }),
+      );
+
+      governance.setChatPolicy({ chatId: "chat-1", policy, actorUserId: "admin-1" });
+
+      expect(governance.isToolAllowed({ chatId: "chat-1", toolName: "mottbot_repo_apply_patch" })).toBe(true);
+      expect(governance.isToolAllowed({ chatId: "chat-1", toolName: "mottbot_local_doc_read" })).toBe(true);
+      expect(governance.isToolAllowed({ chatId: "chat-1", toolName: "mottbot_web_fetch" })).toBe(false);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
   it("rejects malformed chat policies", () => {
     expect(() => parseChatGovernancePolicy("[]")).toThrow("Chat policy must be a JSON object");
     expect(() => parseChatGovernancePolicy('{"allowedRoles":["missing"]}')).toThrow("unknown role");

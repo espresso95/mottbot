@@ -241,6 +241,55 @@ describe("local exec tool handlers", () => {
     }
   });
 
+  it("runs shell and code execution only after explicit command marker opt-in", async () => {
+    const root = createTempDir();
+    try {
+      const lockedHandlers = createLocalExecToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        allowedCommands: [],
+        timeoutMs: 5_000,
+        maxOutputBytes: 1_000,
+      });
+      await expect(
+        runTool(lockedHandlers.mottbot_local_shell_run!, {
+          script: "echo blocked",
+        }),
+      ).rejects.toThrow(/requires tools.localExec.allowedCommands to include shell/);
+      await expect(
+        runTool(lockedHandlers.mottbot_code_execution_run!, {
+          code: "console.log('blocked')",
+        }),
+      ).rejects.toThrow(/requires tools.localExec.allowedCommands to include node/);
+
+      const handlers = createLocalExecToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        allowedCommands: ["shell", "node"],
+        timeoutMs: 5_000,
+        maxOutputBytes: 1_000,
+      });
+      await expect(
+        runTool(handlers.mottbot_local_shell_run!, {
+          script: "printf shell-ok",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        stdout: "shell-ok",
+      });
+      await expect(
+        runTool(handlers.mottbot_code_execution_run!, {
+          code: "console.log('code-ok')",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        stdout: "code-ok\n",
+      });
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("bounds command output and reports timeout termination", async () => {
     const root = createTempDir();
     try {

@@ -64,6 +64,14 @@ export class SessionStore {
     return mapSessionRow(row);
   }
 
+  listRecent(limit = 10): SessionRoute[] {
+    const normalizedLimit = Math.min(Math.max(Math.trunc(limit), 1), 50);
+    const rows = this.database.db
+      .prepare<unknown[], SessionRow>("select * from session_routes order by updated_at desc limit ?")
+      .all(normalizedLimit);
+    return rows.map(mapSessionRow).filter((row): row is SessionRoute => Boolean(row));
+  }
+
   ensure(params: {
     sessionKey: string;
     chatId: string;

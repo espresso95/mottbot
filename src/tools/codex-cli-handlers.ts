@@ -135,72 +135,75 @@ export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Par
     return job;
   }
 
+  const startJob: ToolHandler = ({ arguments: input }) => {
+    const prompt = requireString(input.prompt, "prompt");
+    const root = scope.resolveRoot(optionalString(input.root));
+    if (!fs.existsSync(path.join(root.realPath, ".git"))) {
+      throw new Error("Codex CLI jobs must start from a configured git checkout root.");
+    }
+    const cwd = scope.resolvePath({
+      root: root.realPath,
+      targetPath: optionalString(input.cwd),
+    });
+    const requestedTimeout =
+      typeof input.timeoutMs === "number" ? input.timeoutMs : config.codexJobs.codex.defaultTimeoutMs;
+    const timeoutMs = Math.min(requestedTimeout, config.codexJobs.codex.defaultTimeoutMs);
+    const jobId = createId();
+    const prepared = service.prepare({
+      jobId,
+      cwd: cwd.realPath,
+      prompt,
+      artifactSegments: ["tool-jobs", jobId],
+      profile: optionalString(input.profile),
+      timeoutMs,
+    });
+    const job: CodexToolJob = {
+      jobId,
+      status: "starting",
+      root: root.realPath,
+      cwd: cwd.realPath,
+      displayCwd: `${root.label}:${cwd.displayPath}`,
+      promptPreview: promptPreview(prompt),
+      profile: prepared.profile,
+      timeoutMs: prepared.timeoutMs,
+      commandJson: prepared.commandJson,
+      stdoutLogPath: prepared.stdoutLogPath,
+      stderrLogPath: prepared.stderrLogPath,
+      jsonlLogPath: prepared.jsonlLogPath,
+      finalMessagePath: prepared.finalMessagePath,
+      events: [],
+      updatedAt: clock.now(),
+    };
+    jobs.set(jobId, job);
+    service.start(prepared, {
+      onStreaming: ({ pid, startedAt }) => {
+        job.status = "streaming";
+        job.pid = pid;
+        job.startedAt = startedAt;
+        job.updatedAt = clock.now();
+      },
+      onEvent: (record) => {
+        job.events.push(record);
+        if (job.events.length > MAX_RETAINED_EVENTS) {
+          job.events.splice(0, job.events.length - MAX_RETAINED_EVENTS);
+        }
+        job.updatedAt = clock.now();
+      },
+      onFinished: (patch) => {
+        job.status = patch.status;
+        job.exitCode = patch.exitCode;
+        job.signal = patch.signal;
+        job.finishedAt = patch.finishedAt;
+        job.lastError = patch.lastError;
+        job.updatedAt = clock.now();
+      },
+    });
+    return publicJob(job);
+  };
+
   return {
-    mottbot_codex_job_start: ({ arguments: input }) => {
-      const prompt = requireString(input.prompt, "prompt");
-      const root = scope.resolveRoot(optionalString(input.root));
-      if (!fs.existsSync(path.join(root.realPath, ".git"))) {
-        throw new Error("Codex CLI jobs must start from a configured git checkout root.");
-      }
-      const cwd = scope.resolvePath({
-        root: root.realPath,
-        targetPath: optionalString(input.cwd),
-      });
-      const requestedTimeout =
-        typeof input.timeoutMs === "number" ? input.timeoutMs : config.codexJobs.codex.defaultTimeoutMs;
-      const timeoutMs = Math.min(requestedTimeout, config.codexJobs.codex.defaultTimeoutMs);
-      const jobId = createId();
-      const prepared = service.prepare({
-        jobId,
-        cwd: cwd.realPath,
-        prompt,
-        artifactSegments: ["tool-jobs", jobId],
-        profile: optionalString(input.profile),
-        timeoutMs,
-      });
-      const job: CodexToolJob = {
-        jobId,
-        status: "starting",
-        root: root.realPath,
-        cwd: cwd.realPath,
-        displayCwd: `${root.label}:${cwd.displayPath}`,
-        promptPreview: promptPreview(prompt),
-        profile: prepared.profile,
-        timeoutMs: prepared.timeoutMs,
-        commandJson: prepared.commandJson,
-        stdoutLogPath: prepared.stdoutLogPath,
-        stderrLogPath: prepared.stderrLogPath,
-        jsonlLogPath: prepared.jsonlLogPath,
-        finalMessagePath: prepared.finalMessagePath,
-        events: [],
-        updatedAt: clock.now(),
-      };
-      jobs.set(jobId, job);
-      service.start(prepared, {
-        onStreaming: ({ pid, startedAt }) => {
-          job.status = "streaming";
-          job.pid = pid;
-          job.startedAt = startedAt;
-          job.updatedAt = clock.now();
-        },
-        onEvent: (record) => {
-          job.events.push(record);
-          if (job.events.length > MAX_RETAINED_EVENTS) {
-            job.events.splice(0, job.events.length - MAX_RETAINED_EVENTS);
-          }
-          job.updatedAt = clock.now();
-        },
-        onFinished: (patch) => {
-          job.status = patch.status;
-          job.exitCode = patch.exitCode;
-          job.signal = patch.signal;
-          job.finishedAt = patch.finishedAt;
-          job.lastError = patch.lastError;
-          job.updatedAt = clock.now();
-        },
-      });
-      return publicJob(job);
-    },
+    mottbot_codex_job_start: startJob,
+    mottbot_subagent_codex_start: startJob,
     mottbot_codex_job_status: ({ arguments: input }) => publicJob(getJob(input.jobId)),
     mottbot_codex_job_tail: ({ arguments: input }) => {
       const job = getJob(input.jobId);

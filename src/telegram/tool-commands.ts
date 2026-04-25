@@ -117,6 +117,7 @@ function formatToolHelp(params: ToolCommandDependencies): string {
     commandHelp("tool", "/tool status - show model-exposed tools, enabled host tools, and active approvals"),
     commandHelp("tool", "/tool help - show this help"),
     commandHelp("tools", "/tools - show this help"),
+    commandHelp("tools", "/tools verbose - show enabled tool descriptions"),
     ...(isAdmin
       ? [
           commandHelp(
@@ -514,6 +515,24 @@ export async function handleToolCommand(params: ToolCommandDependencies): Promis
     await sendReply(api, event, formatToolHelp(params));
     return;
   }
+  if (sub === "verbose") {
+    const exposed = new Set(exposedTools.map((tool) => tool.name));
+    const tools = toolRegistry.listEnabled();
+    await sendReply(
+      api,
+      event,
+      [
+        "Enabled tool catalog:",
+        ...tools.map(
+          (tool) =>
+            `- ${tool.name} (${tool.sideEffect}${tool.requiresAdmin ? ", admin" : ""}${
+              exposed.has(tool.name) ? ", exposed" : ""
+            }): ${tool.description}`,
+        ),
+      ].join("\n"),
+    );
+    return;
+  }
   if (!sub || sub === "status") {
     const tools = toolRegistry.listEnabled();
     const approvals = toolApprovals.listActive(session.sessionKey);
@@ -662,6 +681,6 @@ export async function handleToolCommand(params: ToolCommandDependencies): Promis
   await sendReply(
     api,
     event,
-    "Usage: /tool status | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>",
+    "Usage: /tool status | /tools verbose | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>",
   );
 }

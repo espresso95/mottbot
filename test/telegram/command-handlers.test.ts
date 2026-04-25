@@ -846,7 +846,7 @@ describe("tool command handler", () => {
       "Only owner/admin roles can inspect tool audit records.",
       "Side-effecting tools are disabled on this host.",
       "Tool mottbot_health_snapshot is read-only and does not need approval.",
-      "Usage: /tool status | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>",
+      "Usage: /tool status | /tools verbose | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>",
     ]);
   });
 });

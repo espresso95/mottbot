@@ -3,6 +3,7 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { MemoryScope } from "../sessions/memory-store.js";
 import type { ToolCallerRole } from "../tools/policy.js";
+import { toolNameMatchesSelector } from "../tools/registry.js";
 import type { NormalizedAttachment } from "./types.js";
 
 /** Ordered Telegram roles used for user governance and tool policy bridging. */
@@ -436,7 +437,11 @@ export class TelegramGovernanceStore {
 
   isToolAllowed(params: { chatId: string; toolName: string }): boolean {
     const toolNames = this.getChatPolicy(params.chatId)?.policy.toolNames;
-    return !toolNames || toolNames.length === 0 || toolNames.includes(params.toolName);
+    return (
+      !toolNames ||
+      toolNames.length === 0 ||
+      toolNames.some((selector) => toolNameMatchesSelector(params.toolName, selector))
+    );
   }
 
   isMemoryScopeAllowed(params: { chatId: string; scope: MemoryScope }): boolean {

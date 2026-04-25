@@ -289,6 +289,7 @@ Operational notes:
 - owners and admins can still run governance commands if a bad chat policy would otherwise block recovery
 - non-operator group commands require an explicit `commandRoles` entry for that command or wildcard
 - model tool declarations are filtered by global tool policy, selected-agent restrictions, and per-chat `toolNames`; execution is rechecked before handlers run
+- selected-agent and per-chat `toolNames` may use exact tool names or group selectors such as `group:fs`, `group:web`, `group:runtime`, `group:sessions`, `group:automation`, `group:media`, and `group:openclaw`
 - `/model` refuses a model not listed in `modelRefs` when a chat policy sets that list
 - `/remember` and memory candidate acceptance refuse scopes not listed in `memoryScopes`
 - selected-agent `maxConcurrentRuns` caps active execution across sessions on this host, and `maxQueuedRuns` rejects new work with a failed-run Telegram status when the persisted backlog for that agent is full
@@ -321,6 +322,13 @@ Read-only tools are always deny-by-default and registry scoped. Enabled read-onl
 - `mottbot_google_drive_search`: Google Drive file search summaries
 - `mottbot_google_drive_get_file`: Google Drive file metadata plus optional inline textual content
 - `mottbot_local_doc_read`: bounded `.md` or `.txt` reads from approved local-write roots with SHA-256 output for safe edits
+- `mottbot_process_list`: bounded local process list
+- `mottbot_sessions_list`: recent Mottbot session routes
+- `mottbot_session_history`: bounded transcript history for one session
+- `mottbot_tool_catalog`: enabled and disabled tool catalog, side effects, and group mappings
+- `mottbot_extension_catalog`: configured extension and MCP bridge hints
+- `mottbot_extension_manifest_read`: bounded local extension manifest read through repository scope
+- `mottbot_automation_tasks`: local automation task artifacts created by tools
 
 The diagnostics, repository, git, GitHub, and local document read tools are read-only but admin-only, because logs, run records, source files, diffs, private repository metadata, CI output, and operator documents can contain operational context.
 
@@ -422,6 +430,17 @@ Current side-effecting tools:
 - `mottbot_local_doc_append`: appends plain text to an existing `.md` or `.txt` document under an approved local-write root
 - `mottbot_local_doc_replace`: replaces an existing `.md` or `.txt` document only when the supplied SHA-256 matches the current file
 - `mottbot_local_command_run`: runs one configured local command in an approved workspace root
+- `mottbot_repo_apply_patch`: applies a `git apply` compatible patch in an approved repository root
+- `mottbot_local_shell_run`: runs a bounded shell script in an approved workspace root when `tools.localExec.allowedCommands` includes `shell`
+- `mottbot_code_execution_run`: runs bounded JavaScript through Node when `tools.localExec.allowedCommands` includes `node`
+- `mottbot_web_fetch`: fetches bounded text from a public HTTP(S) URL
+- `mottbot_web_search`: performs a bounded public web search
+- `mottbot_browser_snapshot`: fetches a public page and extracts title/text metadata
+- `mottbot_canvas_create`: writes a local HTML artifact under `data/tool-canvas`
+- `mottbot_subagent_codex_start`: starts a Codex CLI subagent job through the existing Codex job boundary
+- `mottbot_automation_task_create`: writes a local automation task artifact under `data/tool-automation`
+- `mottbot_gateway_webhook_post`: POSTs a bounded JSON object to a public webhook URL
+- `mottbot_media_artifact_create`: writes a local media-generation request artifact under `data/tool-media`
 - `mottbot_codex_job_start`: starts a `codex exec --json` job in an approved project repository using the Codex CLI job settings
 - `mottbot_codex_job_cancel`: cancels a running Codex CLI job started by this process
 - `mottbot_mcp_call_tool`: calls one allowlisted tool on one configured MCP stdio server

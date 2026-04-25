@@ -46,6 +46,8 @@ const DEFAULT_DENIED_PATHS = [
 const DENIED_COMMANDS = new Set(["bash", "sh", "zsh", "fish", "sudo", "su", "osascript", "open"]);
 const MAX_ARGS = 40;
 const MAX_ARG_BYTES = 2_000;
+const SHELL_MARKERS = new Set(["shell", "mottbot:shell"]);
+const CODE_MARKERS = new Set(["node", "mottbot:code"]);
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -237,6 +239,23 @@ class LocalExecScope {
     return trimmed;
   }
 
+  validateShellAllowed(): string {
+    if (![...SHELL_MARKERS].some((marker) => this.allowedCommands.has(marker))) {
+      throw new Error("Local shell execution requires tools.localExec.allowedCommands to include shell.");
+    }
+    return process.env.SHELL || "/bin/zsh";
+  }
+
+  validateCodeExecutionAllowed(): string {
+    if (
+      ![...CODE_MARKERS].some((marker) => this.allowedCommands.has(marker)) &&
+      !this.allowedCommands.has(process.execPath)
+    ) {
+      throw new Error("Local code execution requires tools.localExec.allowedCommands to include node.");
+    }
+    return process.execPath;
+  }
+
   isDenied(relativePath: string): boolean {
     return this.deniedPaths.some((spec) => matchesDeniedPath(relativePath, spec));
   }
@@ -273,6 +292,7 @@ async function runCommand(params: {
   timeoutMs: number;
   maxOutputBytes: number;
   signal?: AbortSignal;
+  stdin?: string;
 }): Promise<{
   ok: boolean;
   command: string;
@@ -289,8 +309,9 @@ async function runCommand(params: {
       cwd: params.cwd.realPath,
       env: minimalEnv(),
       shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
+    child.stdin?.end(params.stdin ?? "");
     let stdout: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     let stderr: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     let truncated = false;
@@ -348,6 +369,49 @@ export function createLocalExecToolHandlers(config: LocalExecToolConfig): Partia
         command,
         cwd,
         args: normalizeArgs(input.args),
+        timeoutMs,
+        maxOutputBytes: config.maxOutputBytes,
+        signal,
+      });
+    },
+    mottbot_local_shell_run: async ({ arguments: input, signal }) => {
+      const script = optionalString(input.script);
+      if (!script) {
+        throw new Error("script is required.");
+      }
+      const shell = scope.validateShellAllowed();
+      const cwd = scope.resolveCwd({
+        root: optionalString(input.root),
+        cwd: optionalString(input.cwd),
+      });
+      const requestedTimeout = typeof input.timeoutMs === "number" ? input.timeoutMs : config.timeoutMs;
+      const timeoutMs = Math.min(requestedTimeout, config.timeoutMs);
+      return await runCommand({
+        command: shell,
+        cwd,
+        args: ["-lc", script],
+        timeoutMs,
+        maxOutputBytes: config.maxOutputBytes,
+        signal,
+      });
+    },
+    mottbot_code_execution_run: async ({ arguments: input, signal }) => {
+      const code = optionalString(input.code);
+      if (!code) {
+        throw new Error("code is required.");
+      }
+      const node = scope.validateCodeExecutionAllowed();
+      const cwd = scope.resolveCwd({
+        root: optionalString(input.root),
+        cwd: optionalString(input.cwd),
+      });
+      const requestedTimeout = typeof input.timeoutMs === "number" ? input.timeoutMs : config.timeoutMs;
+      const timeoutMs = Math.min(requestedTimeout, config.timeoutMs);
+      return await runCommand({
+        command: node,
+        cwd,
+        args: ["--input-type=module", "-"],
+        stdin: code,
         timeoutMs,
         maxOutputBytes: config.maxOutputBytes,
         signal,

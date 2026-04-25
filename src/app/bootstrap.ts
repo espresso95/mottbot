@@ -52,6 +52,16 @@ import { createMicrosoftTodoToolHandlers } from "../tools/microsoft-todo-handler
 import { GoogleDriveService } from "../tools/google-drive.js";
 import { createGoogleDriveToolHandlers } from "../tools/google-drive-handlers.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
+import {
+  createArtifactToolHandlers,
+  createAutomationToolHandlers,
+  createExtensionToolHandlers,
+  createProcessToolHandlers,
+  createRepositoryEditToolHandlers,
+  createSessionToolHandlers,
+  createToolCatalogHandlers,
+  createWebToolHandlers,
+} from "../tools/advanced-tool-handlers.js";
 
 /** Wires persistent stores, Telegram ingress, Codex transport, tools, and lifecycle hooks. */
 export async function bootstrapApplication() {
@@ -141,6 +151,14 @@ export async function bootstrapApplication() {
       ...createMicrosoftTodoToolHandlers(microsoftTodo),
       ...createGoogleDriveToolHandlers(googleDrive),
       ...createMcpToolHandlers(config.tools.mcp),
+      ...createRepositoryEditToolHandlers(config.tools.repository),
+      ...createProcessToolHandlers(),
+      ...createWebToolHandlers(),
+      ...createArtifactToolHandlers(),
+      ...createSessionToolHandlers({ sessions: sessionStore, transcripts: transcriptStore }),
+      ...createToolCatalogHandlers(toolRegistry),
+      ...createExtensionToolHandlers(config),
+      ...createAutomationToolHandlers(),
     },
     adminUserIds: config.telegram.adminUserIds,
     resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),

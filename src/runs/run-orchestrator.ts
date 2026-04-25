@@ -48,7 +48,12 @@ import {
 } from "../telegram/attachments.js";
 import type { ToolExecutor, ToolExecutionResult } from "../tools/executor.js";
 import { isToolAdminRole, type ToolCallerRole, type ToolPolicyEngine } from "../tools/policy.js";
-import type { ToolDefinition, ToolRegistry, ToolSideEffect } from "../tools/registry.js";
+import {
+  toolMatchesAnySelector,
+  type ToolDefinition,
+  type ToolRegistry,
+  type ToolSideEffect,
+} from "../tools/registry.js";
 import { appendPreparedAttachmentsToLatestUserMessage } from "./attachment-inputs.js";
 import { buildPrompt } from "./prompt-builder.js";
 import type { RunQueueApprovedToolContinuation, RunQueueRecord, RunQueueStore } from "./run-queue-store.js";
@@ -1306,7 +1311,7 @@ export class RunOrchestrator {
 
   private isToolAllowedByAgent(session: SessionRoute, definition: ToolDefinition): boolean {
     const agent = this.agentForSession(session);
-    return !agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name);
+    return toolMatchesAnySelector(definition, agent?.toolNames);
   }
 
   private findApprovedToolContinuation(

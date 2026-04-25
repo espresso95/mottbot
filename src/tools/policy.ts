@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { ToolDefinition, ToolSideEffect } from "./registry.js";
+import { isToolGroupSelector, type ToolDefinition, type ToolSideEffect } from "./registry.js";
 
 /** Role used when evaluating model tool permissions. */
 export type ToolCallerRole = "owner" | "admin" | "trusted" | "user";
@@ -243,7 +243,7 @@ export function validateToolPolicyReferences(params: {
 }): void {
   const definitionsByName = new Set(params.definitions.map((definition) => definition.name));
   for (const toolName of params.toolNames ?? []) {
-    if (!definitionsByName.has(toolName)) {
+    if (!definitionsByName.has(toolName) && !isToolGroupSelector(toolName)) {
       throw new Error(`${params.label} references unknown or disabled tool ${toolName}.`);
     }
   }

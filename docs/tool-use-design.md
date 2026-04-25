@@ -30,7 +30,9 @@ Implemented:
 - opt-in Telegram message and reaction tools restricted to the current chat or configured approved targets
 - opt-in GitHub issue creation and issue/PR comments through the host GitHub CLI
 - opt-in Codex CLI job tools for approved project repositories, using the reusable Codex CLI service
+- opt-in repository patch, shell, code execution, web fetch/search, browser snapshot, canvas, subagent, automation, gateway webhook, and media artifact tools
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
+- read-only process, session, extension, automation, and tool catalog discovery tools
 - per-tool runtime policies loaded from `tools.policies`
 - sanitized approval previews and request fingerprints for side-effecting calls
 - admin `/tool audit` inspection with bounded session, tool, and decision-code filters
@@ -38,9 +40,9 @@ Implemented:
 Not implemented:
 
 - broader GitHub write operations beyond issue creation and issue/PR comments
-- generic network-write beyond configured MCP servers
+- generic network-write beyond configured MCP servers and approved public webhook POSTs
 - secret-adjacent tools
-- arbitrary sandboxed plugin execution
+- arbitrary sandboxed plugin execution beyond read-only extension manifests and configured MCP bridges
 
 ## Safety Requirements
 
@@ -131,6 +133,25 @@ Registry behavior:
 - input payloads are validated against the declared JSON-schema subset before execution
 - operator diagnostics, repository, and git tools are marked admin-only even though they are read-only
 - all current side-effecting tools are admin-only and require a fresh approval for real execution
+- agent and per-chat `toolNames` can use OpenClaw-style group selectors such as `group:fs`, `group:web`, `group:runtime`, `group:sessions`, `group:automation`, `group:media`, and `group:openclaw`
+
+Additional OpenClaw-style parity tools:
+
+- `mottbot_tool_catalog`: read enabled and disabled tool definitions, side effects, and group mappings.
+- `mottbot_process_list`: read a bounded local process list.
+- `mottbot_sessions_list` and `mottbot_session_history`: inspect recent sessions and bounded transcript history.
+- `mottbot_extension_catalog` and `mottbot_extension_manifest_read`: inspect the read-only extension and MCP bridge surface.
+- `mottbot_automation_tasks`: list local automation artifacts.
+- `mottbot_repo_apply_patch`: apply `git apply` compatible patches under approved repository roots.
+- `mottbot_local_shell_run`: run a bounded shell script only when the host also allowlists the `shell` marker.
+- `mottbot_code_execution_run`: run bounded JavaScript only when the host also allowlists `node`.
+- `mottbot_web_fetch` and `mottbot_web_search`: perform bounded public network reads after approval.
+- `mottbot_browser_snapshot`: fetch a public page and extract title/text metadata after approval.
+- `mottbot_canvas_create`: write a local HTML canvas artifact under `data/tool-canvas`.
+- `mottbot_subagent_codex_start`: start a Codex CLI subagent job through the existing job boundary.
+- `mottbot_automation_task_create`: write a local automation task artifact under `data/tool-automation`.
+- `mottbot_gateway_webhook_post`: POST a bounded JSON object to a public webhook after approval.
+- `mottbot_media_artifact_create`: write image, audio, video, or TTS request artifacts under `data/tool-media`.
 
 ## Local Write Scope
 

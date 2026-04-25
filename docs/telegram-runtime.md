@@ -206,7 +206,7 @@ If no agents are configured, startup synthesizes a default `main` agent from `au
 
 Owner/admin users can use `/agent list`, `/agent show [agent-id]`, `/agent set <agent-id>`, and `/agent reset` to inspect or update the current route's agent. Agent switching validates the target profile, rejects models disallowed by chat governance, and checks local usage budgets before mutating the route. Model runs also re-check chat model policy before transport, so policy changes apply even to existing routes.
 
-When an agent defines `toolNames`, only those tools are exposed to the model and executable for sessions using that agent. Agent `toolPolicies` are applied as additional restrictions on top of global tool policies and chat governance.
+When an agent defines `toolNames`, only those tools are exposed to the model and executable for sessions using that agent. Entries may be exact tool names or group selectors such as `group:fs`, `group:web`, `group:runtime`, `group:sessions`, `group:automation`, `group:media`, and `group:openclaw`. Agent `toolPolicies` are applied as additional restrictions on top of global tool policies and chat governance.
 
 Agents can also define `maxConcurrentRuns` and `maxQueuedRuns`. Concurrent-run limits are enforced in memory across sessions for the selected agent. Queue limits are counted from persisted run records by `agent_id`; a full queue creates a failed run with `agent_queue_full` and sends a normal failed-run Telegram status.
 
@@ -276,7 +276,7 @@ Chat policy JSON accepts:
 - `allowedRoles`: roles allowed to use that chat for non-operator model routing
 - `commandRoles`: command-to-role allow-list, with `*` as a wildcard
 - `modelRefs`: model refs allowed by `/model`
-- `toolNames`: model tools allowed in that chat
+- `toolNames`: model tools allowed in that chat, as exact tool names or group selectors such as `group:fs`
 - `memoryScopes`: memory scopes allowed for `/remember` and candidate acceptance
 - `attachmentMaxFileBytes` and `attachmentMaxPerMessage`: stricter per-chat attachment limits
 
@@ -322,6 +322,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
 - `/tool status` shows enabled host tools, caller-visible model tools, and active approvals
 - `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
+- `/tools verbose` shows enabled tool descriptions for the current caller after command policy filtering
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
 - inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark source messages, expire with the configured approval TTL, and treat replayed buttons as the original operator decision

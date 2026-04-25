@@ -111,7 +111,7 @@ Current defaults:
 }
 ```
 
-Agent entries may include `displayName`, `profileId`, `modelRef`, `fastMode`, `systemPrompt`, `toolNames`, `toolPolicies`, `maxConcurrentRuns`, and `maxQueuedRuns`. `toolNames` is an allow-list for model-exposed tools when that agent is selected. `toolPolicies` uses the same shape as global tool policy entries and is applied as an additional restriction, not a relaxation of global policy. Agent run limits are host-local controls: `maxConcurrentRuns` limits active execution and `maxQueuedRuns` limits persisted queued backlog for that agent.
+Agent entries may include `displayName`, `profileId`, `modelRef`, `fastMode`, `systemPrompt`, `toolNames`, `toolPolicies`, `maxConcurrentRuns`, and `maxQueuedRuns`. `toolNames` is an allow-list for model-exposed tools when that agent is selected and accepts exact tool names or group selectors such as `group:fs`. `toolPolicies` uses the same shape as global tool policy entries and is applied as an additional restriction, not a relaxation of global policy. Agent run limits are host-local controls: `maxConcurrentRuns` limits active execution and `maxQueuedRuns` limits persisted queued backlog for that agent.
 
 ## Session Identity
 
