@@ -108,6 +108,8 @@ The Knip config intentionally ignores the direct `punycode` dependency. The patc
 
 `pnpm test:coverage` runs the Vitest suite with V8 coverage and enforces the thresholds in `vitest.config.ts`. The current gate covers production TypeScript under `src/**/*.ts` and excludes entrypoints, type-only modules, generated outputs, docs tooling, and host service wiring that is better covered by smoke checks.
 
+Thresholds should track observed coverage after meaningful test additions. Keep small headroom for harmless line-count movement, then tighten the gate again when new coverage lands.
+
 `pnpm verify` runs `test:coverage`, so CI and local verification fail when covered production code drops below the configured baseline.
 
 ## Naming
