@@ -2,10 +2,12 @@ import type { Api } from "grammy";
 import { splitTelegramText } from "./formatting.js";
 import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 
+/** Telegram inline keyboard shape used by command replies. */
 export type TelegramInlineKeyboard = {
   inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
 };
 
+/** Additional send options for Telegram command replies. */
 export type SendReplyOptions = {
   replyMarkup?: TelegramInlineKeyboard;
 };
