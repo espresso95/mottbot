@@ -75,6 +75,35 @@ describe("extractMemoryCandidatesWithLmStudio", () => {
     ).rejects.toThrow("memory.lmStudio.model is required");
   });
 
+  it("uses reasoning_content when reasoning models return empty message content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ message: { content: "", reasoning_content: '{"candidates":[]}' } }],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+
+    await expect(
+      extractMemoryCandidatesWithLmStudio({
+        config: {
+          baseUrl: "http://127.0.0.1:1234/v1",
+          model: "reasoning-model",
+          timeoutMs: 2_000,
+          maxTokens: 800,
+          temperature: 0,
+        },
+        prompt,
+        maxCandidates: 3,
+      }),
+    ).resolves.toBe('{"candidates":[]}');
+  });
+
   it("surfaces non-2xx LM Studio responses", async () => {
     vi.stubGlobal(
       "fetch",

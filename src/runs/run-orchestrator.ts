@@ -1596,6 +1596,7 @@ export class RunOrchestrator {
       this.logger.warn(
         {
           error,
+          errorMessage: getErrorMessage(error),
           sessionKey: params.session.sessionKey,
           phase: params.phase,
           provider: this.config.memory.extractionProvider,

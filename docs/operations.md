@@ -635,6 +635,8 @@ Automatic summaries are tagged separately from explicit `/remember` entries and 
 
 When `extractionProvider="lmstudio"`, Mottbot calls LM Studio's local OpenAI-compatible chat completions endpoint. Pre-response extraction can make newly accepted memory available to the immediate model response. Async post-response extraction reflects on the completed turn without delaying the Telegram reply. If LM Studio is unavailable, slow, or returns malformed JSON, the chat run continues and the extraction failure is logged.
 
+Large local reasoning models can be slow and may return structured JSON in LM Studio's `reasoning_content` field instead of `message.content`. Mottbot accepts either field. Increase `preResponseExtractionTimeoutMs`, `postResponseExtractionTimeoutMs`, and `lmStudio.timeoutMs` when using larger local models.
+
 ## Persistent macOS Service
 
 Use `SETUP.md` for the full host-local service runbook.

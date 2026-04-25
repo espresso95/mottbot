@@ -10,6 +10,7 @@ type LmStudioMessage = {
 type LmStudioChoice = {
   message?: {
     content?: unknown;
+    reasoning_content?: unknown;
   };
 };
 
@@ -121,6 +122,16 @@ function responseErrorMessage(status: number, statusText: string, body: unknown)
   return `${status} ${statusText}`.trim();
 }
 
+function responseMessageContent(body: LmStudioChatCompletionResponse | undefined): string | undefined {
+  const message = body?.choices?.[0]?.message;
+  for (const value of [message?.content, message?.reasoning_content]) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 /** Calls LM Studio's OpenAI-compatible chat completions API for memory candidate extraction. */
 export async function extractMemoryCandidatesWithLmStudio(params: {
   config: AppConfig["memory"]["lmStudio"];
@@ -155,8 +166,8 @@ export async function extractMemoryCandidatesWithLmStudio(params: {
         `LM Studio memory extraction failed: ${responseErrorMessage(response.status, response.statusText, body)}`,
       );
     }
-    const content = body?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
+    const content = responseMessageContent(body);
+    if (!content) {
       throw new Error("LM Studio memory extraction returned no message content.");
     }
     return content;
