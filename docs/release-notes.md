@@ -10,10 +10,10 @@
 
 ### Project Mode Publish Approvals
 
-- Added `/project publish <task-id> [pr]` for completed project tasks; it creates an explicit `push` approval before any remote write.
-- `/project approve <approval-id>` now executes approved Project Mode publish requests, pushing the final integration branch and optionally opening a GitHub pull request.
+- Added `/project publish <task-id> [main|pr]` for completed project tasks; it creates an explicit `push` approval before any remote write.
+- `/project approve <approval-id>` now executes approved Project Mode publish requests, pushing the final integration branch, pushing the verified result to the task base ref, or optionally opening a GitHub pull request.
 - Final project reports and `/project status` now point operators at the publish approval command after review completion.
-- Added tests for publish approval creation, approved branch publishing, optional PR output recording, and local git push behavior.
+- Added tests for publish approval creation, approved branch publishing, direct base-ref publishing, optional PR output recording, and local git push behavior.
 
 ### Project Mode Phase 6 (Reviewer Stage And Final Report)
 

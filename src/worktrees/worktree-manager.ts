@@ -96,6 +96,21 @@ function shellCommand(cwd: string, command: string, args: string[]): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
+function assertSafeBranchRef(value: string, label: string): void {
+  const trimmed = value.trim();
+  const isSafe =
+    /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(trimmed) &&
+    !trimmed.includes("..") &&
+    !trimmed.includes("//") &&
+    !trimmed.includes("@{") &&
+    !trimmed.endsWith("/") &&
+    !trimmed.endsWith(".") &&
+    !trimmed.endsWith(".lock");
+  if (!isSafe) {
+    throw new Error(`${label} is not a safe branch ref.`);
+  }
+}
+
 /** Creates, validates, merges, and cleans project-mode Git worktrees within approved roots. */
 export class WorktreeManager {
   private readonly repoRoots: string[];
@@ -182,6 +197,7 @@ export class WorktreeManager {
     remoteName?: string;
     openPullRequest?: boolean;
     baseRef: string;
+    targetRef?: string;
     title: string;
     body: string;
   }): PublishBranchResult {
@@ -191,7 +207,10 @@ export class WorktreeManager {
       throw new Error("Integration worktree is missing or outside the project worktree root.");
     }
     const remoteName = params.remoteName ?? "origin";
-    const pushOutput = shellGit(worktreePath, ["push", "-u", remoteName, `${params.branchName}:${params.branchName}`]);
+    const targetRef = params.targetRef ?? params.branchName;
+    assertSafeBranchRef(params.branchName, "Source branch");
+    assertSafeBranchRef(targetRef, "Target branch");
+    const pushOutput = shellGit(worktreePath, ["push", "-u", remoteName, `${params.branchName}:${targetRef}`]);
     if (!params.openPullRequest) {
       return { pushOutput };
     }

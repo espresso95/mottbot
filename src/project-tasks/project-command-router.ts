@@ -77,7 +77,7 @@ export class ProjectCommandRouter {
     await sendReply(
       this.api,
       event,
-      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [pr] | approve <approval>",
+      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [main|pr] | approve <approval>",
     );
   }
 
@@ -191,7 +191,7 @@ export class ProjectCommandRouter {
         ...(snapshot.task.finalDiffStat ? ["Diff stat:", snapshot.task.finalDiffStat] : []),
         ...(snapshot.task.finalSummary ? ["Summary:", snapshot.task.finalSummary] : []),
         ...(snapshot.task.status === "completed" && snapshot.task.finalBranch && snapshot.task.integrationWorktreePath
-          ? [`Publish: /project publish ${snapshot.task.taskId} [pr]`]
+          ? [`Publish: /project publish ${snapshot.task.taskId} [main|pr]`]
           : []),
         ...(snapshot.task.status === "completed" && snapshot.task.integrationWorktreePath
           ? [`Cleanup: /project cleanup ${snapshot.task.taskId}`]
@@ -254,19 +254,50 @@ export class ProjectCommandRouter {
   private async handlePublish(event: InboundEvent, args: string[]): Promise<void> {
     const [taskId, ...options] = args;
     if (!taskId?.trim()) {
-      await sendReply(this.api, event, "Usage: /project publish <task-id> [pr]");
+      await sendReply(this.api, event, "Usage: /project publish <task-id> [main|pr]");
       return;
     }
-    const openPullRequest = options.some((option) => {
-      const normalized = option.toLowerCase();
-      return normalized === "pr" || normalized === "--pr" || normalized === "pull-request";
-    });
+    const publishOptions = this.parsePublishOptions(options);
+    if (!publishOptions.ok) {
+      await sendReply(this.api, event, publishOptions.message);
+      return;
+    }
     const result = this.scheduler.requestPublishApproval({
       taskId: taskId.trim(),
       requestedBy: event.fromUserId,
-      openPullRequest,
+      openPullRequest: publishOptions.openPullRequest,
+      pushToBaseRef: publishOptions.pushToBaseRef,
     });
     await sendReply(this.api, event, result.message);
+  }
+
+  private parsePublishOptions(
+    options: string[],
+  ): { ok: true; openPullRequest: boolean; pushToBaseRef: boolean } | { ok: false; message: string } {
+    let openPullRequest = false;
+    let pushToBaseRef = false;
+    for (const option of options) {
+      const normalized = option.toLowerCase();
+      if (normalized === "pr" || normalized === "--pr" || normalized === "pull-request") {
+        openPullRequest = true;
+        continue;
+      }
+      if (normalized === "main" || normalized === "--main" || normalized === "base" || normalized === "--base") {
+        pushToBaseRef = true;
+        continue;
+      }
+      return {
+        ok: false,
+        message: `Unknown publish option ${option}. Usage: /project publish <task-id> [main|pr]`,
+      };
+    }
+    if (openPullRequest && pushToBaseRef) {
+      return {
+        ok: false,
+        message: "Choose either main or pr for publish, not both.",
+      };
+    }
+    return { ok: true, openPullRequest, pushToBaseRef };
   }
 
   private async handleApprove(event: InboundEvent, approvalId?: string, decidedBy?: string): Promise<void> {

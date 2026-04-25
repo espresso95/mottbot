@@ -143,12 +143,19 @@ describe("ProjectCommandRouter", () => {
           sent.push(text);
         },
       };
-      let publishArgs: { taskId: string; requestedBy?: string; openPullRequest?: boolean } | undefined;
+      let publishArgs:
+        | { taskId: string; requestedBy?: string; openPullRequest?: boolean; pushToBaseRef?: boolean }
+        | undefined;
       const scheduler = {
         cancelTask: () => ({ cancelled: true, message: "Cancelled" }),
         cleanupTask: () => ({ ok: false, message: "not used" }),
         approveApproval: () => ({ ok: false, message: "not used" }),
-        requestPublishApproval: (params: { taskId: string; requestedBy?: string; openPullRequest?: boolean }) => {
+        requestPublishApproval: (params: {
+          taskId: string;
+          requestedBy?: string;
+          openPullRequest?: boolean;
+          pushToBaseRef?: boolean;
+        }) => {
           publishArgs = params;
           return { ok: true, approvalId: "approval-1", message: "Created publish approval approval-1" };
         },
@@ -174,8 +181,26 @@ describe("ProjectCommandRouter", () => {
 
       await router.handle(event, ["publish", "task-1", "pr"]);
 
-      expect(publishArgs).toEqual({ taskId: "task-1", requestedBy: "u1", openPullRequest: true });
+      expect(publishArgs).toEqual({
+        taskId: "task-1",
+        requestedBy: "u1",
+        openPullRequest: true,
+        pushToBaseRef: false,
+      });
       expect(sent.at(-1)).toContain("Created publish approval");
+
+      await router.handle(event, ["publish", "task-1", "main"]);
+
+      expect(publishArgs).toEqual({
+        taskId: "task-1",
+        requestedBy: "u1",
+        openPullRequest: false,
+        pushToBaseRef: true,
+      });
+
+      await router.handle(event, ["publish", "task-1", "main", "pr"]);
+
+      expect(sent.at(-1)).toContain("Choose either main or pr");
       db.close();
     } finally {
       removeTempDir(root);

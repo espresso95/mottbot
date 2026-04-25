@@ -19,6 +19,7 @@ export type ProjectTaskActionResult = {
 
 type PublishApprovalRequest = {
   openPullRequest: boolean;
+  pushToBaseRef: boolean;
 };
 
 const CLEANUP_ALLOWED_STATUSES = new Set<ProjectTask["status"]>(["completed", "failed", "cancelled"]);
@@ -27,12 +28,16 @@ function parsePublishApprovalRequest(raw: string): PublishApprovalRequest {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object" && "openPullRequest" in parsed) {
-      return { openPullRequest: (parsed as { openPullRequest?: unknown }).openPullRequest === true };
+      const request = parsed as { openPullRequest?: unknown; pushToBaseRef?: unknown };
+      return {
+        openPullRequest: request.openPullRequest === true,
+        pushToBaseRef: request.pushToBaseRef === true,
+      };
     }
   } catch {
     // Malformed approval payloads fall back to the safest publish action.
   }
-  return { openPullRequest: false };
+  return { openPullRequest: false, pushToBaseRef: false };
 }
 
 /** Polling scheduler that advances project tasks, starts worker runs, and integrates results. */
@@ -71,6 +76,7 @@ export class ProjectTaskScheduler {
     taskId: string;
     requestedBy?: string;
     openPullRequest?: boolean;
+    pushToBaseRef?: boolean;
   }): ProjectTaskActionResult {
     const task = this.store.getTask(params.taskId);
     if (!task) {
@@ -85,13 +91,23 @@ export class ProjectTaskScheduler {
     if (!task.finalBranch || !task.integrationWorktreePath) {
       return { ok: false, message: `Task ${task.taskId} does not have an integrated branch to publish.` };
     }
+    if (params.openPullRequest && params.pushToBaseRef) {
+      return { ok: false, message: "Choose either main or pr for publish, not both." };
+    }
     const approval = this.store.createApproval({
       taskId: task.taskId,
       kind: "push",
       requestedBy: params.requestedBy,
-      requestJson: JSON.stringify({ openPullRequest: params.openPullRequest === true }),
+      requestJson: JSON.stringify({
+        openPullRequest: params.openPullRequest === true,
+        pushToBaseRef: params.pushToBaseRef === true,
+      }),
     });
-    const action = params.openPullRequest ? "push the final branch and open a PR" : "push the final branch";
+    const action = params.openPullRequest
+      ? "push the final branch and open a PR"
+      : params.pushToBaseRef
+        ? `push the verified result to ${task.baseRef}`
+        : "push the final branch";
     return {
       ok: true,
       approvalId: approval.approvalId,
@@ -471,7 +487,7 @@ export class ProjectTaskScheduler {
       task.finalBranch ? `Branch: ${task.finalBranch}` : undefined,
       "",
       reviewSummary ? `Review: ${reviewSummary}` : task.finalSummary,
-      task.finalBranch ? `Publish: /project publish ${task.taskId} [pr]` : undefined,
+      task.finalBranch ? `Publish: /project publish ${task.taskId} [main|pr]` : undefined,
       task.integrationWorktreePath ? `Cleanup: /project cleanup ${task.taskId}` : undefined,
     ]
       .filter((line): line is string => typeof line === "string" && line.length > 0)
@@ -501,17 +517,22 @@ export class ProjectTaskScheduler {
       decidedBy,
     });
     try {
+      const targetRef = request.pushToBaseRef ? task.baseRef : task.finalBranch;
       const result = this.worktrees.publishBranch({
         repoRoot: task.repoRoot,
         worktreePath: task.integrationWorktreePath,
         branchName: task.finalBranch,
         baseRef: task.baseRef,
+        targetRef,
         openPullRequest: request.openPullRequest,
         title: task.title,
         body: [`Project task: ${task.taskId}`, "", task.finalSummary ?? "Project Mode completed review."].join("\n"),
       });
+      const pushedBranchLine = request.pushToBaseRef
+        ? `Pushed branch: ${task.finalBranch} -> ${task.baseRef}`
+        : `Pushed branch: ${task.finalBranch}`;
       const publishSummary = [
-        `Pushed branch: ${task.finalBranch}`,
+        pushedBranchLine,
         result.pullRequestUrl ? `Pull request: ${result.pullRequestUrl}` : undefined,
         !result.pullRequestUrl && result.pullRequestOutput
           ? `Pull request output: ${result.pullRequestOutput}`

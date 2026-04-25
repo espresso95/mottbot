@@ -134,4 +134,42 @@ describe("WorktreeManager", () => {
       removeTempDir(remote);
     }
   });
+
+  it("can publish an integration branch directly to the target branch", () => {
+    const root = createTempDir();
+    const remote = createTempDir();
+    try {
+      createRepo(root);
+      git(remote, ["init", "--bare", "--initial-branch=main"]);
+      git(root, ["remote", "add", "origin", remote]);
+      git(root, ["push", "origin", "main:main"]);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareIntegration({
+        taskId: "task-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+      fs.writeFileSync(path.join(prepared.worktreePath, "README.md"), "# test\n\npublished to main\n", "utf8");
+      git(prepared.worktreePath, ["add", "README.md"]);
+      git(prepared.worktreePath, ["commit", "-m", "publish to main"]);
+
+      manager.publishBranch({
+        repoRoot: root,
+        worktreePath: prepared.worktreePath,
+        branchName: prepared.branchName,
+        targetRef: "main",
+        baseRef: "main",
+        title: "Task",
+        body: "Body",
+      });
+
+      expect(git(remote, ["show", "main:README.md"])).toContain("published to main");
+    } finally {
+      removeTempDir(root);
+      removeTempDir(remote);
+    }
+  });
 });
