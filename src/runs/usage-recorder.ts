@@ -1,5 +1,6 @@
 import type { RunStore } from "./run-store.js";
 
+/** Persists provider usage metadata on completed run records. */
 export class UsageRecorder {
   constructor(private readonly runs: RunStore) {}
 

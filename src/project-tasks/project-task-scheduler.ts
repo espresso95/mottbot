@@ -7,8 +7,10 @@ import type { ProjectTaskStore } from "./project-task-store.js";
 import type { WorktreeManager } from "../worktrees/worktree-manager.js";
 import type { CodexCliRun, ProjectApproval, ProjectSubtask, ProjectTask } from "./project-types.js";
 
+/** Callback used to publish project completion or failure summaries back to Telegram. */
 export type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
 
+/** Result returned from project scheduler actions that may create approvals or change task state. */
 export type ProjectTaskActionResult = {
   ok: boolean;
   message: string;
@@ -31,6 +33,7 @@ function parsePublishApprovalRequest(raw: string): PublishApprovalRequest {
   return { openPullRequest: false };
 }
 
+/** Polling scheduler that advances project tasks, starts worker runs, and integrates results. */
 export class ProjectTaskScheduler {
   private timer?: NodeJS.Timeout;
   private readonly activeSubtasks = new Set<string>();

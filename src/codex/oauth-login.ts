@@ -41,6 +41,7 @@ function normalizeOpenAICodexAuthorizeUrl(rawUrl: string): string {
   }
 }
 
+/** Runs an interactive OpenAI Codex OAuth login and stores the resulting profile credentials. */
 export async function runCodexOAuthLogin(params: {
   config: AppConfig;
   authStore: AuthProfileStore;

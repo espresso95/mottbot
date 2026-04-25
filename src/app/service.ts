@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
+/** launchd label used for the macOS Mottbot service. */
 export const SERVICE_LABEL = "ai.mottbot.bot";
 
+/** Filesystem paths used by the macOS launchd service and its logs. */
 export type LaunchAgentPaths = {
   label: string;
   plistPath: string;
@@ -32,6 +34,7 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+/** Resolves the per-user LaunchAgent plist and log paths for a service label. */
 export function launchAgentPaths(label = SERVICE_LABEL): LaunchAgentPaths {
   const home = os.homedir();
   const logDir = path.join(home, "Library", "Logs", "mottbot");
@@ -44,6 +47,7 @@ export function launchAgentPaths(label = SERVICE_LABEL): LaunchAgentPaths {
   };
 }
 
+/** Builds the launchd plist that starts Mottbot from the provided project root. */
 export function buildLaunchAgentPlist(params: {
   label?: string;
   projectRoot: string;
@@ -128,6 +132,7 @@ function ignoreMissingService(result: CommandResult): void {
   throw new Error(combined.trim() || "launchctl command failed.");
 }
 
+/** Writes the LaunchAgent plist and creates the expected log directory. */
 export function installLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
   ensureDarwin();
   const paths = launchAgentPaths();
@@ -145,11 +150,13 @@ export function installLaunchAgent(projectRoot = process.cwd()): LaunchAgentPath
   return paths;
 }
 
+/** Stops the loaded LaunchAgent, treating an already-stopped service as success. */
 export function stopLaunchAgent(): void {
   ensureDarwin();
   ignoreMissingService(runLaunchctl(["bootout", serviceTarget()]));
 }
 
+/** Installs and bootstraps the LaunchAgent for the current macOS GUI session. */
 export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
   const paths = installLaunchAgent(projectRoot);
   stopLaunchAgent();
@@ -168,11 +175,13 @@ export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths 
   return paths;
 }
 
+/** Stops and starts the LaunchAgent using the latest generated plist. */
 export function restartLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
   stopLaunchAgent();
   return startLaunchAgent(projectRoot);
 }
 
+/** Stops the LaunchAgent and removes its plist while leaving logs in place. */
 export function uninstallLaunchAgent(): LaunchAgentPaths {
   const paths = launchAgentPaths();
   stopLaunchAgent();
@@ -182,6 +191,7 @@ export function uninstallLaunchAgent(): LaunchAgentPaths {
   return paths;
 }
 
+/** Returns a concise launchctl status summary for operator-facing CLI output. */
 export function serviceStatus(): string {
   ensureDarwin();
   const result = runLaunchctl(["print", serviceTarget()]);
@@ -193,6 +203,7 @@ export function serviceStatus(): string {
   return [`Mottbot service is loaded (${SERVICE_LABEL}).`, ...interesting].join("\n");
 }
 
+/** Dispatches the service CLI subcommand and returns a process-style exit code. */
 export function runServiceCommand(args: string[], projectRoot = process.cwd()): number {
   const [command = "status", ...rest] = args;
   if (command === "install") {

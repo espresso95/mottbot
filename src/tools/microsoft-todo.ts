@@ -1,6 +1,7 @@
 const DEFAULT_GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 const TASK_TITLE_MAX_LENGTH = 200;
 
+/** Runtime configuration for Microsoft To Do Graph API tools. */
 export type MicrosoftTodoToolConfig = {
   enabled: boolean;
   tenantId?: string;
@@ -12,6 +13,7 @@ export type MicrosoftTodoToolConfig = {
   maxItems: number;
 };
 
+/** Summary metadata for a Microsoft To Do list. */
 export type MicrosoftTodoListSummary = {
   id: string;
   displayName: string;
@@ -20,6 +22,7 @@ export type MicrosoftTodoListSummary = {
   wellknownListName?: string;
 };
 
+/** Summary metadata for a Microsoft To Do task. */
 export type MicrosoftTodoTaskSummary = {
   id: string;
   title: string;
@@ -30,6 +33,7 @@ export type MicrosoftTodoTaskSummary = {
   body?: string;
 };
 
+/** Result returned after creating a Microsoft To Do task. */
 export type MicrosoftTodoCreatedTask = {
   id: string;
   title: string;
@@ -146,6 +150,7 @@ async function parseJson(response: Response): Promise<Record<string, unknown> | 
   }
 }
 
+/** Minimal Microsoft Graph To Do client used by tool handlers. */
 export class MicrosoftTodoService {
   private readonly graphBaseUrl: string;
   private readonly fetchImpl: FetchLike;

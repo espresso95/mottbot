@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CodexCliService, type CodexCliEventRecord, type CodexCliFinishedPatch } from "../../src/codex-cli/codex-cli-service.js";
+import {
+  CodexCliService,
+  type CodexCliEventRecord,
+  type CodexCliFinishedPatch,
+} from "../../src/codex-cli/codex-cli-service.js";
 import type { Clock } from "../../src/shared/clock.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 

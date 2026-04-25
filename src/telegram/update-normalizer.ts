@@ -62,6 +62,7 @@ function collectAttachments(message: Record<string, unknown>): NormalizedAttachm
   return attachments;
 }
 
+/** Converts a grammY message context into the normalized inbound event shape. */
 export function normalizeUpdate(params: { ctx: Context; botUsername?: string; clock: Clock }): InboundEvent | null {
   const message = params.ctx.message;
   if (!message) {

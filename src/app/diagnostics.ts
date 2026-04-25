@@ -4,6 +4,7 @@ import type { Clock } from "../shared/clock.js";
 import type { AppConfig } from "./config.js";
 import { launchAgentPaths, serviceStatus, type LaunchAgentPaths } from "./service.js";
 
+/** Persisted run details used by dashboard and operator diagnostics. */
 export type RecentRunDiagnostic = {
   runId: string;
   sessionKey: string;
@@ -32,6 +33,7 @@ type RecentRunRow = {
   finished_at: number | null;
 };
 
+/** Aggregated routing and run counters for one configured or historical agent id. */
 export type AgentDiagnostic = {
   agentId: string;
   configured: boolean;
@@ -63,12 +65,14 @@ type RunCountsByAgentRow = {
   cancelled_runs: number;
 };
 
+/** Filters for recent-run diagnostic queries. */
 export type RecentRunsParams = {
   limit?: number;
   sessionKey?: string;
   statuses?: string[];
 };
 
+/** Options for tailing service stdout and stderr logs. */
 export type RecentLogsParams = {
   stream?: "stdout" | "stderr" | "both";
   lines?: number;
@@ -170,6 +174,7 @@ function formatAgent(agent: AgentDiagnostic): string {
   ].join(" | ");
 }
 
+/** Reads operator diagnostics from SQLite, launchd state, and service log files. */
 export class OperatorDiagnostics {
   constructor(
     private readonly config: AppConfig,

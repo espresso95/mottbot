@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import type { ToolDefinition, ToolSideEffect } from "./registry.js";
 
+/** Role used when evaluating model tool permissions. */
 export type ToolCallerRole = "owner" | "admin" | "trusted" | "user";
 
+/** Configurable policy override for a single tool. */
 export type ToolPolicyConfig = {
   allowedRoles?: ToolCallerRole[];
   allowedChatIds?: string[];
@@ -11,6 +13,7 @@ export type ToolPolicyConfig = {
   maxOutputBytes?: number;
 };
 
+/** Normalized policy used for runtime tool authorization. */
 export type ToolPolicy = {
   toolName: string;
   allowedRoles: ToolCallerRole[];
@@ -20,11 +23,13 @@ export type ToolPolicy = {
   maxOutputBytes: number;
 };
 
+/** Caller and chat context for evaluating a tool policy. */
 export type ToolPolicyContext = {
   role: ToolCallerRole;
   chatId?: string;
 };
 
+/** Result of checking whether a tool is allowed in the current context. */
 export type ToolPolicyDecision =
   | {
       allowed: true;
@@ -39,6 +44,7 @@ export type ToolPolicyDecision =
       policy?: ToolPolicy;
     };
 
+/** Optional per-agent policy override passed during evaluation. */
 export type ToolPolicyEvaluationOptions = {
   override?: ToolPolicyConfig;
 };
@@ -50,6 +56,7 @@ function uniqueRoles(values: ToolCallerRole[]): ToolCallerRole[] {
   return [...new Set(values)];
 }
 
+/** Returns whether a caller role has administrator-level tool privileges. */
 export function isToolAdminRole(role: ToolCallerRole): boolean {
   return role === "owner" || role === "admin";
 }
@@ -174,6 +181,7 @@ function applyAdditionalPolicy(
   };
 }
 
+/** Resolves and evaluates effective tool policies from definitions and overrides. */
 export class ToolPolicyEngine {
   private readonly policies = new Map<string, ToolPolicy>();
 
@@ -226,6 +234,7 @@ export class ToolPolicyEngine {
   }
 }
 
+/** Validates that configured tool names and policy overrides reference known enabled tools. */
 export function validateToolPolicyReferences(params: {
   definitions: readonly ToolDefinition[];
   toolNames?: readonly string[];
@@ -245,6 +254,7 @@ export function validateToolPolicyReferences(params: {
   }
 }
 
+/** Creates a policy engine from tool definitions and optional global overrides. */
 export function createToolPolicyEngine(params: {
   definitions: readonly ToolDefinition[];
   overrides?: Record<string, ToolPolicyConfig>;
@@ -259,6 +269,7 @@ export function createToolPolicyEngine(params: {
   );
 }
 
+/** Creates a stable fingerprint for a tool request after canonicalizing arguments. */
 export function createToolRequestFingerprint(params: { toolName: string; arguments: Record<string, unknown> }): string {
   return crypto
     .createHash("sha256")
@@ -266,6 +277,7 @@ export function createToolRequestFingerprint(params: { toolName: string; argumen
     .digest("hex");
 }
 
+/** Builds a redacted, bounded preview of a side-effecting tool request for approval. */
 export function buildToolApprovalPreview(params: {
   definition: ToolDefinition;
   policy: ToolPolicy;

@@ -52,6 +52,7 @@ const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
 
+/** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 export type RunGovernancePolicy = {
   resolveCallerRole?: (userId: string | undefined) => ToolCallerRole;
   isModelAllowed?: (params: { chatId: string; modelRef: string }) => boolean;
@@ -121,6 +122,7 @@ function toolTranscriptJson(call: CodexToolCall, result: ToolExecutionResult): s
   });
 }
 
+/** Coordinates queued Telegram events through prompt building, model streaming, tools, memory, and outbox writes. */
 export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
   private readonly agentLimiter = new AgentRunLimiter();

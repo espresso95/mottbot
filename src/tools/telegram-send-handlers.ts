@@ -1,6 +1,7 @@
 import type { Api } from "grammy";
 import type { ToolHandler } from "./executor.js";
 
+/** Runtime allow-list for Telegram send-message tools. */
 export type TelegramSendToolConfig = {
   allowedChatIds: string[];
 };
@@ -17,6 +18,7 @@ function optionalBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+/** Creates Telegram send-message tool handlers with target allow-list enforcement. */
 export function createTelegramSendToolHandlers(
   api: Api,
   config: TelegramSendToolConfig,

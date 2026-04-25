@@ -29,6 +29,7 @@ function buildWindow(label: string, usedPercent?: number, resetAt?: number): Cod
   };
 }
 
+/** Fetches subscription usage windows from the ChatGPT backend for one Codex account. */
 export async function fetchCodexUsage(params: {
   accessToken: string;
   accountId?: string;

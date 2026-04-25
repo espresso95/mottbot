@@ -57,6 +57,7 @@ import { ProjectTaskScheduler } from "../project-tasks/project-task-scheduler.js
 import { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 import { WorktreeManager } from "../worktrees/worktree-manager.js";
 
+/** Wires persistent stores, Telegram ingress, Codex transport, tools, and lifecycle hooks. */
 export async function bootstrapApplication() {
   const config = loadConfig();
   const logger = createLogger(config.logging.level);

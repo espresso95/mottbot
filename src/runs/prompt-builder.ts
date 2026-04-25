@@ -1,17 +1,20 @@
 import type { TranscriptMessage } from "../sessions/types.js";
 import type { SessionMemory } from "../sessions/memory-store.js";
 
+/** Prompt block shape passed to provider adapters after attachment preparation. */
 export type PromptContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string }
   | { type: "file"; data: string; mimeType: string; fileName?: string };
 
+/** Provider-facing chat message with normalized role, content, and timestamp. */
 export type PromptMessage = {
   role: "system" | "user" | "assistant";
   content: string | PromptContentBlock[];
   timestamp: number;
 };
 
+/** Final prompt assembled from system policy, memory, summary, and transcript history. */
 export type BuiltPrompt = {
   systemPrompt: string;
   messages: PromptMessage[];
@@ -209,6 +212,7 @@ function buildMemoryMessage(memories: SessionMemory[]): PromptMessage | undefine
   };
 }
 
+/** Builds the provider prompt from transcript history and approved long-term memories. */
 export function buildPrompt(params: {
   history: TranscriptMessage[];
   systemPrompt?: string;

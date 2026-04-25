@@ -14,6 +14,7 @@ import { systemClock } from "../shared/clock.js";
 import { SecretBox } from "../shared/crypto.js";
 import { createLogger } from "../shared/logger.js";
 
+/** Result produced by the dashboard smoke test harness. */
 export type DashboardSmokeResult = {
   status: "passed" | "failed";
   url: string;
@@ -86,6 +87,7 @@ function firstAgentSummary(value: unknown): DashboardSmokeResult["firstAgent"] {
   };
 }
 
+/** Starts a local dashboard instance and verifies the HTML and runtime API surfaces. */
 export async function createDashboardSmokeResult(options: DashboardSmokeOptions = {}): Promise<DashboardSmokeResult> {
   const baseConfig = options.config ?? loadConfig();
   const envPort = Number(process.env.MOTTBOT_DASHBOARD_SMOKE_PORT);

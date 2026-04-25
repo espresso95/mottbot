@@ -297,6 +297,7 @@ async function sendReply(api: Api, event: InboundEvent, text: string): Promise<v
   }
 }
 
+/** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
 export class TelegramCommandRouter {
   constructor(
     private readonly api: Api,

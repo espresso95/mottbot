@@ -40,6 +40,7 @@ function mapSessionRow(row: SessionRow | undefined): SessionRoute | undefined {
   };
 }
 
+/** Persists Telegram session routes and agent/model bindings. */
 export class SessionStore {
   constructor(
     private readonly database: DatabaseClient,

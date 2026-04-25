@@ -1,6 +1,7 @@
 import type { AppConfig } from "../app/config.js";
 import type { InboundEvent } from "./types.js";
 
+/** Result of pre-run safety checks for inbound text and attachment limits. */
 export type SafetyDecision =
   | { allow: true }
   | {
@@ -19,6 +20,7 @@ function formatBytes(value: number): string {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** Applies configured inbound message and attachment limits before processing a Telegram event. */
 export function validateInboundSafety(config: AppConfig, event: InboundEvent): SafetyDecision {
   const visibleText = event.text ?? event.caption ?? "";
   if (visibleText.length > config.behavior.maxInboundTextChars) {

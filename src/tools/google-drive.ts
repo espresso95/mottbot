@@ -1,6 +1,7 @@
 const DEFAULT_DRIVE_BASE_URL = "https://www.googleapis.com/drive/v3";
 const DEFAULT_DOCS_BASE_URL = "https://docs.googleapis.com/v1";
 
+/** Runtime configuration for Google Drive and Docs tool access. */
 export type GoogleDriveToolConfig = {
   enabled: boolean;
   driveBaseUrl: string;
@@ -11,6 +12,7 @@ export type GoogleDriveToolConfig = {
   maxBytes: number;
 };
 
+/** Summary metadata returned for a Google Drive file. */
 export type GoogleDriveFileSummary = {
   id: string;
   name: string;
@@ -20,6 +22,7 @@ export type GoogleDriveFileSummary = {
   webViewLink?: string;
 };
 
+/** File metadata plus optional bounded text content from Drive or Docs. */
 export type GoogleDriveFileReadResult = {
   file: GoogleDriveFileSummary;
   content?: {
@@ -136,6 +139,7 @@ function mapDriveFile(value: DriveFileRecord): GoogleDriveFileSummary | undefine
   };
 }
 
+/** Minimal Google Drive and Docs API client used by tool handlers. */
 export class GoogleDriveService {
   private readonly driveBaseUrl: string;
   private readonly docsBaseUrl: string;

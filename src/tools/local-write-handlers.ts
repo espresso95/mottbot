@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import type { ToolHandler } from "./executor.js";
 
+/** Runtime allow-list and size limits for local write tools. */
 export type LocalWriteToolConfig = {
   roots: string[];
   deniedPaths: string[];
@@ -362,6 +363,7 @@ function readDocument(params: { target: ResolvedLocalWritePath; maxBytes: number
   };
 }
 
+/** Creates guarded local file write handlers within configured roots. */
 export function createLocalWriteToolHandlers(config: LocalWriteToolConfig): Partial<Record<string, ToolHandler>> {
   const scope = new LocalWriteScope(config);
   return {

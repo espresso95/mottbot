@@ -4,6 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import type { AppConfig } from "../app/config.js";
 
+/** Manifest entry for a file captured in an operational backup. */
 export type BackupFileRecord = {
   role: "sqlite" | "sqlite-wal" | "sqlite-shm" | "config" | "env";
   path: string;
@@ -11,6 +12,7 @@ export type BackupFileRecord = {
   sha256: string;
 };
 
+/** On-disk manifest describing backup contents and secret-handling warnings. */
 export type BackupManifest = {
   kind: "mottbot-backup";
   createdAt: string;
@@ -20,6 +22,7 @@ export type BackupManifest = {
   files: BackupFileRecord[];
 };
 
+/** Result returned after creating and integrity-checking an operational backup. */
 export type BackupResult = {
   backupDir: string;
   manifestPath: string;
@@ -28,6 +31,7 @@ export type BackupResult = {
   envIncluded: boolean;
 };
 
+/** Validation report for an existing operational backup directory. */
 export type BackupValidationResult = {
   backupDir: string;
   ok: boolean;
@@ -43,6 +47,7 @@ function timestampForPath(date = new Date()): string {
   return date.toISOString().replace(/[-:.]/g, "");
 }
 
+/** Builds the timestamped default backup directory name. */
 export function defaultBackupName(date = new Date()): string {
   return `mottbot-backup-${timestampForPath(date)}`;
 }
@@ -112,6 +117,7 @@ function copyIfPresent(params: {
   params.files.push(recordFile(params.role, params.baseDir, params.destinationPath));
 }
 
+/** Creates a SQLite-safe backup with a redacted config snapshot and optional env copy. */
 export async function createOperationalBackup(params: {
   config: AppConfig;
   destinationRoot?: string;
@@ -202,6 +208,7 @@ function parseManifest(raw: string): BackupManifest {
   return parsed as BackupManifest;
 }
 
+/** Validates manifest checksums, SQLite integrity, and restore warnings for a backup. */
 export function validateOperationalBackup(params: {
   backupDir: string;
   targetSqlitePath?: string;

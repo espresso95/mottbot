@@ -1,5 +1,6 @@
 import type { Logger } from "../shared/logger.js";
 
+/** Registers one-shot SIGINT and SIGTERM handlers that run async cleanup before exiting. */
 export function installShutdown(params: { logger: Logger; onShutdown: () => Promise<void> }): void {
   let shuttingDown = false;
   const handle = async (signal: NodeJS.Signals) => {

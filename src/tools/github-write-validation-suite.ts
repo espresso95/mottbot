@@ -17,6 +17,7 @@ import { loadConfig } from "../app/config.js";
 
 type GithubWriteSmokeStatus = "passed" | "failed" | "skipped" | "dry-run" | "blocked";
 
+/** Result for one guarded GitHub write smoke scenario. */
 export type GithubWriteSmokeScenario = {
   name: string;
   status: "passed" | "failed";
@@ -24,6 +25,7 @@ export type GithubWriteSmokeScenario = {
   error?: string;
 };
 
+/** Aggregate result for the guarded GitHub write validation suite. */
 export type GithubWriteSmokeResult = {
   status: GithubWriteSmokeStatus;
   reason?: string;
@@ -100,6 +102,7 @@ function prNumberFromEnv(value: string | undefined): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+/** Builds the GitHub write smoke plan from environment variables without performing writes. */
 export function buildGithubWriteSmokePlan(env: NodeJS.ProcessEnv): GithubWriteSmokePlan {
   const repository = optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY) ?? "";
   const prNumberRaw = optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER);
@@ -232,6 +235,7 @@ async function runScenarioOnce(
   }
 }
 
+/** Executes or dry-runs the guarded GitHub write smoke scenarios. */
 export async function createGithubWriteValidationSuiteResult(
   params: {
     env?: NodeJS.ProcessEnv;

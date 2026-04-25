@@ -1,5 +1,7 @@
+/** Session routing mode derived from Telegram chat and binding context. */
 export type SessionRouteMode = "dm" | "group" | "topic" | "bound";
 
+/** Persisted routing and model configuration for a Telegram conversation scope. */
 export type SessionRoute = {
   sessionKey: string;
   chatId: string;
@@ -16,8 +18,10 @@ export type SessionRoute = {
   updatedAt: number;
 };
 
+/** Role labels used for transcript persistence and prompt reconstruction. */
 export type TranscriptMessageRole = "user" | "assistant" | "system" | "tool";
 
+/** Persisted transcript entry for user, assistant, system, or tool content. */
 export type TranscriptMessage = {
   id: string;
   sessionKey: string;
@@ -30,8 +34,10 @@ export type TranscriptMessage = {
   createdAt: number;
 };
 
+/** Lifecycle status for a model run. */
 export type RunStatus = "queued" | "starting" | "streaming" | "completed" | "failed" | "cancelled";
 
+/** Persisted run metadata shared by stores, diagnostics, and orchestration. */
 export type RunRecord = {
   runId: string;
   sessionKey: string;

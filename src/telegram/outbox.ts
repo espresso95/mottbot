@@ -22,6 +22,7 @@ type FinalizedOutbox = {
   continuationMessageIds: number[];
 };
 
+/** Sends, edits, finalizes, and recovers Telegram messages for streaming run output. */
 export class TelegramOutbox {
   constructor(
     private readonly api: Api,

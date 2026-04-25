@@ -9,6 +9,7 @@ function optionalInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) ? value : undefined;
 }
 
+/** Creates Microsoft To Do tool handlers backed by the configured service. */
 export function createMicrosoftTodoToolHandlers(todo: MicrosoftTodoService): Partial<Record<string, ToolHandler>> {
   return {
     mottbot_ms_todo_lists: ({ arguments: input, signal }) =>

@@ -3,6 +3,7 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { TranscriptAttachmentMetadata } from "../telegram/attachments.js";
 
+/** Persisted metadata for a Telegram attachment prepared for a run. */
 export type AttachmentRecord = {
   id: string;
   sessionKey: string;
@@ -89,6 +90,7 @@ function mapRow(row: AttachmentRecordRow): AttachmentRecord {
   };
 }
 
+/** Stores attachment ingestion and extraction metadata for recent session inspection. */
 export class AttachmentRecordStore {
   constructor(
     private readonly database: DatabaseClient,

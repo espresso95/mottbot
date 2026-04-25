@@ -20,6 +20,7 @@ function normalizeKey(secret: string): Buffer {
   return createHash("sha256").update(trimmed, "utf8").digest();
 }
 
+/** AES-GCM helper for sealing and opening local credential fields with the configured master key. */
 export class SecretBox {
   readonly #key: Buffer;
 

@@ -1,3 +1,4 @@
+/** One generated project step with dependency ids from the same plan. */
 export type ProjectPlanStep = {
   stepId: string;
   title: string;
@@ -5,6 +6,7 @@ export type ProjectPlanStep = {
   dependsOnStepIds: string[];
 };
 
+/** Deterministic project plan used to seed project-mode subtasks. */
 export type ProjectPlan = {
   title: string;
   steps: ProjectPlanStep[];
@@ -14,6 +16,7 @@ function toStepId(index: number): string {
   return `step-${index + 1}`;
 }
 
+/** Builds a simple ordered plan from checklist-style prompt lines or the full prompt. */
 export function buildProjectPlan(input: { prompt: string; taskTitle: string }): ProjectPlan {
   const rawLines = input.prompt
     .split(/\r?\n/)

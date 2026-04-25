@@ -81,7 +81,7 @@ describe("live validation suite helpers", () => {
       MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
       MOTTBOT_USER_SMOKE_TIMEOUT_MS: "7000",
     });
-    expect(plan.scenarios.filter((scenario) => scenario.kind === "file")[0]?.env).toMatchObject({
+    expect(plan.scenarios.find((scenario) => scenario.kind === "file")?.env).toMatchObject({
       MOTTBOT_USER_SMOKE_FILE_PATH: "/tmp/a.txt",
       MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true",
       MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS: "fixture-token",

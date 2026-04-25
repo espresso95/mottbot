@@ -5,9 +5,13 @@ import type { MemoryScope } from "../sessions/memory-store.js";
 import type { ToolCallerRole } from "../tools/policy.js";
 import type { NormalizedAttachment } from "./types.js";
 
+/** Ordered Telegram roles used for user governance and tool policy bridging. */
 export const TELEGRAM_USER_ROLES = ["owner", "admin", "trusted", "user"] as const;
+
+/** User role assigned by config or runtime governance commands. */
 export type TelegramUserRole = (typeof TELEGRAM_USER_ROLES)[number];
 
+/** Persisted user-role assignment with its source and audit metadata. */
 export type StoredTelegramUserRole = {
   userId: string;
   role: TelegramUserRole;
@@ -18,6 +22,7 @@ export type StoredTelegramUserRole = {
   updatedAt: number;
 };
 
+/** Per-chat policy controlling roles, commands, models, tools, memory, and attachment limits. */
 export type ChatGovernancePolicy = {
   allowedRoles?: TelegramUserRole[];
   commandRoles?: Record<string, TelegramUserRole[]>;
@@ -28,6 +33,7 @@ export type ChatGovernancePolicy = {
   attachmentMaxPerMessage?: number;
 };
 
+/** Persisted chat policy with updater and timestamps. */
 export type StoredChatGovernancePolicy = {
   chatId: string;
   policy: ChatGovernancePolicy;
@@ -36,6 +42,7 @@ export type StoredChatGovernancePolicy = {
   updatedAt: number;
 };
 
+/** Immutable governance audit entry for role and policy changes. */
 export type GovernanceAuditRecord = {
   id: string;
   actorUserId?: string;
@@ -49,6 +56,7 @@ export type GovernanceAuditRecord = {
   createdAt: number;
 };
 
+/** Attachment policy failure returned before a Telegram event enters model orchestration. */
 export type ChatAttachmentPolicyViolation = {
   code: "attachment.too_many" | "attachment.too_large";
   message: string;
@@ -88,11 +96,13 @@ function isRole(value: string): value is TelegramUserRole {
   return TELEGRAM_USER_ROLES.includes(value as TelegramUserRole);
 }
 
+/** Parses a role name from user input, returning undefined for unknown values. */
 export function parseTelegramUserRole(value: string | undefined): TelegramUserRole | undefined {
   const normalized = value?.trim().toLowerCase();
   return normalized && isRole(normalized) ? normalized : undefined;
 }
 
+/** Returns whether the role can perform governance and operator-level actions. */
 export function isGovernanceOperatorRole(role: TelegramUserRole): boolean {
   return role === "owner" || role === "admin";
 }
@@ -154,6 +164,7 @@ function assertPositiveInteger(value: unknown, field: string): number | undefine
   return value;
 }
 
+/** Parses and validates a JSON chat-governance policy supplied by an operator. */
 export function parseChatGovernancePolicy(raw: string): ChatGovernancePolicy {
   const parsed = JSON.parse(raw) as Record<string, unknown>;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -238,6 +249,7 @@ function mapAuditRow(row: AuditRow | undefined): GovernanceAuditRecord | undefin
   };
 }
 
+/** Stores Telegram roles, chat policies, and governance audit records in SQLite. */
 export class TelegramGovernanceStore {
   private readonly ownerUserIds: Set<string>;
 

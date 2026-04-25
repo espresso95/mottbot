@@ -17,6 +17,7 @@ import { createMcpToolHandlers } from "./mcp-handlers.js";
 
 type LocalToolScenarioStatus = "passed" | "failed";
 
+/** Result for one local tool validation scenario. */
 export type LocalToolScenarioResult = {
   name: string;
   status: LocalToolScenarioStatus;
@@ -24,6 +25,7 @@ export type LocalToolScenarioResult = {
   error?: string;
 };
 
+/** Aggregate result for local write, exec, and MCP tool validation. */
 export type LocalToolValidationSuiteResult = {
   status: LocalToolScenarioStatus;
   tempRoot: string;
@@ -158,6 +160,7 @@ async function runScenarioOnce(
   }
 }
 
+/** Runs the local tool validation suite in a temporary sandbox workspace. */
 export async function createLocalToolValidationSuiteResult(): Promise<LocalToolValidationSuiteResult> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mottbot-local-tools-"));
   const notesRoot = path.join(tempRoot, "notes");

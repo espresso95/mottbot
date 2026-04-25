@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+/** Repository tool limits and allowed roots from runtime config. */
 export type RepositoryToolConfig = {
   roots: string[];
   deniedPaths: string[];
@@ -10,12 +11,14 @@ export type RepositoryToolConfig = {
   commandTimeoutMs: number;
 };
 
+/** Approved repository root after resolving symlinks and display labels. */
 export type RepositoryRoot = {
   label: string;
   originalPath: string;
   realPath: string;
 };
 
+/** Path resolved inside an approved repository root with display metadata. */
 export type ResolvedRepositoryPath = {
   root: RepositoryRoot;
   absolutePath: string;
@@ -95,6 +98,7 @@ function rootLabel(rootPath: string, realPath: string): string {
   return path.basename(realPath) || realPath;
 }
 
+/** Enforces repository root and denied-path rules for repository tools. */
 export class RepositoryScope {
   private readonly roots: RepositoryRoot[];
   private readonly deniedPaths: string[];
@@ -202,6 +206,7 @@ export class RepositoryScope {
   }
 }
 
+/** Creates a repository scope from runtime repository tool config. */
 export function createRepositoryScope(config: RepositoryToolConfig): RepositoryScope {
   return new RepositoryScope(config);
 }

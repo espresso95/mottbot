@@ -52,6 +52,7 @@ function shouldRefresh(profile: AuthProfile): boolean {
   return typeof profile.expiresAt === "number" && profile.expiresAt <= Date.now() + 60_000;
 }
 
+/** Resolves usable Codex access credentials, refreshing and writing back CLI auth when needed. */
 export class CodexTokenResolver {
   private readonly locks = new Map<string, Promise<CodexResolvedAuth>>();
 

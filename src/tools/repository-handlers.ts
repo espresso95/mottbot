@@ -662,6 +662,7 @@ async function gitDiffSummary(params: {
   });
 }
 
+/** Creates read-only repository inspection handlers within configured repository scopes. */
 export function createRepositoryToolHandlers(config: RepositoryToolConfig): Partial<Record<string, ToolHandler>> {
   const scope = createRepositoryScope(config);
   return {

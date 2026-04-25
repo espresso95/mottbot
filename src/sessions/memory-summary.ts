@@ -9,6 +9,7 @@ function condense(text: string, limit: number): string {
   return `${normalized.slice(0, safeLimit - 3).trimEnd()}...`;
 }
 
+/** Builds a compact automatic memory summary prompt from recent transcript messages. */
 export function buildAutomaticMemorySummary(params: {
   messages: TranscriptMessage[];
   maxChars: number;

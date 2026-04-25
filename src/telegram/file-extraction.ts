@@ -4,9 +4,13 @@ import { FormatError, InvalidPDFException, PasswordException, PDFParse } from "p
 import { getErrorMessage } from "../shared/errors.js";
 import type { NormalizedAttachment } from "./types.js";
 
+/** Supported extraction strategy selected for a Telegram document. */
 export type AttachmentExtractionKind = "text" | "markdown" | "pdf" | "code" | "csv" | "tsv";
+
+/** Outcome status for attachment text extraction. */
 export type AttachmentExtractionStatus = "extracted" | "skipped" | "failed";
 
+/** Transcript metadata describing what happened during attachment extraction. */
 export type AttachmentExtractionMetadata = {
   kind: AttachmentExtractionKind;
   status: AttachmentExtractionStatus;
@@ -20,6 +24,7 @@ export type AttachmentExtractionMetadata = {
   pageCount?: number;
 };
 
+/** Text payload extracted from an attachment and ready for prompt insertion. */
 export type ExtractedAttachmentText = {
   kind: AttachmentExtractionKind;
   fileName?: string;
@@ -34,6 +39,7 @@ export type ExtractedAttachmentText = {
   pageCount?: number;
 };
 
+/** Per-file parser and prompt-size limits for attachment extraction. */
 export type FileExtractionLimits = {
   maxTextCharsPerFile: number;
   csvPreviewRows: number;
@@ -41,6 +47,7 @@ export type FileExtractionLimits = {
   pdfMaxPages: number;
 };
 
+/** Remaining shared prompt-character budget across attachments in one message. */
 export type FileExtractionBudget = {
   remainingChars: number;
 };
@@ -50,6 +57,7 @@ type FileClassification = {
   language?: string;
 };
 
+/** Result of attempting to extract text, with metadata always available. */
 export type FileExtractionResult =
   | {
       metadata: AttachmentExtractionMetadata;
@@ -158,6 +166,7 @@ function extensionFrom(params: { attachment: NormalizedAttachment; filePath?: st
   return path.extname(basename(params.attachment.fileName) ?? basename(params.filePath) ?? "").toLowerCase();
 }
 
+/** Classifies whether a Telegram document can be extracted based on MIME type and filename. */
 export function classifyAttachmentForExtraction(params: {
   attachment: NormalizedAttachment;
   mimeType?: string;
@@ -195,6 +204,7 @@ export function classifyAttachmentForExtraction(params: {
   return undefined;
 }
 
+/** Returns whether unknown document bytes may be sampled to detect safe text content. */
 export function mayInspectAttachmentBytes(params: { attachment: NormalizedAttachment; mimeType?: string }): boolean {
   if (params.attachment.kind !== "document") {
     return false;
@@ -442,6 +452,7 @@ async function extractPdf(params: {
   }
 }
 
+/** Extracts bounded prompt text from supported document bytes while updating the shared budget. */
 export async function extractAttachmentText(params: {
   attachment: NormalizedAttachment;
   mimeType?: string;

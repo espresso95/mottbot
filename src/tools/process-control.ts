@@ -5,24 +5,28 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+/** Request to restart the local service after a bounded delay. */
 export type ServiceRestartRequest = {
   reason: string;
   delayMs: number;
   projectRoot?: string;
 };
 
+/** Confirmation returned after a service restart has been scheduled. */
 export type ServiceRestartScheduled = {
   scheduled: true;
   delayMs: number;
   reason: string;
 };
 
+/** Dependency injection points for restart scheduling tests. */
 export type ServiceRestartSchedulerDeps = {
   platform?: NodeJS.Platform;
   spawn?: typeof spawn;
   execPath?: string;
 };
 
+/** Schedules a detached local process restart without blocking the current response. */
 export function scheduleServiceRestart(
   params: ServiceRestartRequest,
   deps: ServiceRestartSchedulerDeps = {},

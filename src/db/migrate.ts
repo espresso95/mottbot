@@ -65,6 +65,7 @@ function ensureMigrationLedger(database: DatabaseClient): void {
   `);
 }
 
+/** Applies pending SQL migrations and refuses to run if an applied migration changed. */
 export function migrateDatabase(database: DatabaseClient): void {
   ensureMigrationLedger(database);
   const appliedRows = database.db

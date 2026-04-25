@@ -1,6 +1,7 @@
 import type { TelegramReactionService } from "../telegram/reactions.js";
 import type { ToolHandler } from "./executor.js";
 
+/** Creates Telegram reaction tool handlers backed by the bot reaction service. */
 export function createTelegramReactionToolHandlers(reactions: TelegramReactionService): Record<string, ToolHandler> {
   return {
     mottbot_telegram_react: async ({ arguments: input }) => {

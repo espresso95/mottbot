@@ -1,5 +1,6 @@
 import { AppError } from "../shared/errors.js";
 
+/** Serializes async run work per session and exposes cancellation for the active run. */
 export class SessionQueue {
   private readonly tails = new Map<string, Promise<unknown>>();
   private readonly activeControllers = new Map<string, AbortController>();

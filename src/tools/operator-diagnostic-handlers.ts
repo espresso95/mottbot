@@ -9,6 +9,7 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+/** Creates operator diagnostic tool handlers backed by runtime diagnostics services. */
 export function createOperatorDiagnosticToolHandlers(
   diagnostics: OperatorDiagnostics,
 ): Partial<Record<string, ToolHandler>> {

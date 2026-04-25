@@ -1,3 +1,4 @@
+/** Normalized Telegram entity metadata used for command and mention handling. */
 export type NormalizedEntity = {
   type: string;
   offset?: number;
@@ -5,6 +6,7 @@ export type NormalizedEntity = {
   value?: string;
 };
 
+/** Normalized Telegram file-like attachment metadata independent of update shape. */
 export type NormalizedAttachment = {
   kind: "photo" | "document" | "audio" | "voice" | "video" | "sticker" | "animation" | "other";
   fileId: string;
@@ -17,6 +19,7 @@ export type NormalizedAttachment = {
   duration?: number;
 };
 
+/** Application-level Telegram event after update normalization. */
 export type InboundEvent = {
   updateId: number;
   chatId: string;
@@ -35,6 +38,7 @@ export type InboundEvent = {
   arrivedAt: number;
 };
 
+/** Parsed slash command and remaining arguments from a Telegram message. */
 export type ParsedCommand = {
   command: string;
   args: string[];

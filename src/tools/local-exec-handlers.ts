@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ToolHandler } from "./executor.js";
 
+/** Runtime allow-list and sandbox config for local execution tools. */
 export type LocalExecToolConfig = {
   roots: string[];
   deniedPaths: string[];
@@ -323,6 +324,7 @@ async function runCommand(params: {
   });
 }
 
+/** Creates guarded local command execution handlers within configured roots. */
 export function createLocalExecToolHandlers(config: LocalExecToolConfig): Partial<Record<string, ToolHandler>> {
   const scope = new LocalExecScope(config);
   return {

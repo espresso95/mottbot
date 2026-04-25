@@ -1,3 +1,4 @@
+/** Application error with a stable machine-readable code and optional structured details. */
 export class AppError extends Error {
   readonly code: string;
   readonly details?: unknown;
@@ -10,6 +11,7 @@ export class AppError extends Error {
   }
 }
 
+/** Converts unknown caught values into a safe human-readable message. */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;

@@ -5,6 +5,7 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { Logger } from "../shared/logger.js";
 
+/** Coordinates a SQLite-backed single-instance lease for host-local bot processes. */
 export class ApplicationInstanceLease {
   private readonly hostname = os.hostname();
   private readonly ownerId = `${this.hostname}:${process.pid}:${createId()}`;

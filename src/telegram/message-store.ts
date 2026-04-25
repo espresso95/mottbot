@@ -2,8 +2,10 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 
+/** Role of an outbound bot message persisted for reply routing and outbox recovery. */
 export type TelegramBotMessageKind = "placeholder" | "primary" | "continuation" | "failure";
 
+/** Tracks outbound Telegram message ids so replies can be routed back to sessions. */
 export class TelegramMessageStore {
   constructor(
     private readonly database: DatabaseClient,

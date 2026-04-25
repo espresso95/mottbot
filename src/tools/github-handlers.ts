@@ -16,6 +16,7 @@ function stringArray(value: unknown): string[] | undefined {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+/** Creates GitHub read and write tool handlers backed by the configured GitHub service. */
 export function createGithubToolHandlers(
   github: GithubReadOperations & GithubWriteOperations,
 ): Partial<Record<string, ToolHandler>> {

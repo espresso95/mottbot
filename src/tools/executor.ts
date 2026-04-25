@@ -21,6 +21,7 @@ import {
   type ToolPolicyEngine,
 } from "./policy.js";
 
+/** Normalized result returned to the model after a tool call finishes. */
 export type ToolExecutionResult = {
   toolCallId: string;
   toolName: string;
@@ -32,8 +33,10 @@ export type ToolExecutionResult = {
   errorCode?: string;
 };
 
+/** Handler used by process-control tools to schedule a local service restart. */
 export type RestartServiceHandler = (params: { reason: string; delayMs: number }) => Promise<unknown> | unknown;
 
+/** Runtime context passed to an individual tool handler. */
 export type ToolExecutionContext = {
   definition: ToolDefinition;
   arguments: Record<string, unknown>;
@@ -45,8 +48,10 @@ export type ToolExecutionContext = {
   threadId?: number;
 };
 
+/** Function signature implemented by local tool handlers. */
 export type ToolHandler = (context: ToolExecutionContext) => Promise<unknown> | unknown;
 
+/** Collaborators and policy hooks required by the tool executor. */
 export type ToolExecutorDependencies = {
   clock: Clock;
   health?: HealthReporter;
@@ -60,6 +65,7 @@ export type ToolExecutorDependencies = {
   isToolAllowed?: (params: { chatId: string; toolName: string }) => boolean;
 };
 
+/** Per-call execution metadata and policy overrides. */
 export type ToolExecutionOptions = {
   signal?: AbortSignal;
   sessionKey?: string;
@@ -82,6 +88,7 @@ type TimedHandlerResult =
       message: string;
     };
 
+/** Validates, authorizes, executes, truncates, and audits model tool calls. */
 export class ToolExecutor {
   private readonly handlers = new Map<string, ToolHandler>();
   private readonly policy: ToolPolicyEngine;

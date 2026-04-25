@@ -7,6 +7,7 @@ import {
   type LiveValidationScenario,
 } from "./live-validation-suite-helpers.js";
 
+/** Result for one live validation scenario script. */
 export type ScenarioResult = {
   kind: LiveValidationScenario["kind"];
   name: string;
@@ -18,11 +19,13 @@ export type ScenarioResult = {
   stderr?: string;
 };
 
+/** Aggregate report and exit code returned by the live validation suite. */
 export type LiveValidationSuiteResult = {
   report: unknown;
   exitCode: number;
 };
 
+/** Injectable runner used to execute or test live validation scenarios. */
 export type ScenarioRunner = (item: LiveValidationScenario) => Promise<ScenarioResult>;
 
 function printJson(value: unknown): void {
@@ -82,6 +85,7 @@ async function runScenario(item: LiveValidationScenario): Promise<ScenarioResult
 }
 /* v8 ignore stop */
 
+/** Executes a live validation plan or renders its dry-run report. */
 export async function createLiveValidationSuiteResult(params: {
   plan: LiveValidationPlan;
   argv?: string[];

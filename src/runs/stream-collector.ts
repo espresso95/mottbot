@@ -1,3 +1,4 @@
+/** Accumulates streamed assistant text and thinking deltas for outbox updates. */
 export class StreamCollector {
   private text = "";
   private thinking = "";

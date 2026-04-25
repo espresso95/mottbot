@@ -1,3 +1,4 @@
+/** Category describing the side effects a tool may perform. */
 export type ToolSideEffect =
   | "read_only"
   | "local_write"
@@ -9,8 +10,10 @@ export type ToolSideEffect =
   | "process_control"
   | "secret_adjacent";
 
+/** Primitive values supported in the local JSON schema subset. */
 export type ToolJsonPrimitive = string | number | boolean | null;
 
+/** JSON schema subset used for model tool declarations and local validation. */
 export type ToolJsonSchema = {
   type: "object" | "string" | "number" | "integer" | "boolean" | "array" | "null";
   description?: string;
@@ -25,10 +28,12 @@ export type ToolJsonSchema = {
   maximum?: number;
 };
 
+/** Object schema required for every model-callable tool input. */
 export type ToolInputSchema = ToolJsonSchema & {
   type: "object";
 };
 
+/** Full local definition for a model-callable tool. */
 export type ToolDefinition = {
   name: string;
   description: string;
@@ -40,25 +45,30 @@ export type ToolDefinition = {
   requiresAdmin?: boolean;
 };
 
+/** Options controlling which tool definitions may be registered. */
 export type ToolRegistryOptions = {
   allowSideEffectDefinitions?: boolean;
 };
 
+/** Options controlling whether side-effecting tools may be resolved or validated. */
 export type ToolResolveOptions = {
   allowSideEffects?: boolean;
 };
 
+/** Provider-facing tool declaration exposed to a model. */
 export type ModelToolDeclaration = {
   name: string;
   description: string;
   inputSchema: ToolInputSchema;
 };
 
+/** Filters applied when building provider-facing tool declarations. */
 export type ModelToolDeclarationOptions = {
   includeAdminTools?: boolean;
   filter?: (definition: ToolDefinition) => boolean;
 };
 
+/** Stable error codes returned by registry validation and lookup failures. */
 export type ToolRegistryErrorCode =
   | "invalid_definition"
   | "unknown_tool"
@@ -66,6 +76,7 @@ export type ToolRegistryErrorCode =
   | "side_effect_not_allowed"
   | "invalid_input";
 
+/** Error thrown when a tool definition, lookup, or input fails registry validation. */
 export class ToolRegistryError extends Error {
   constructor(
     readonly code: ToolRegistryErrorCode,
@@ -79,6 +90,7 @@ const TOOL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_BYTES = 1_000_000;
 
+/** Built-in tools that inspect local or remote state without side effects. */
 export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_health_snapshot",
@@ -799,10 +811,12 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
 ] as const;
 
+/** Built-in tools that can write, call external APIs, or control local processes. */
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_codex_job_start",
-    description: "Start a non-interactive Codex CLI job in an approved project repository after explicit operator approval.",
+    description:
+      "Start a non-interactive Codex CLI job in an approved project repository after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -810,7 +824,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved project repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved project repository root label or path. Required only when multiple roots are configured.",
         },
         cwd: {
           type: "string",
@@ -1375,6 +1390,7 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
 ] as const;
 
+/** Default full tool catalog before runtime side-effect filtering. */
 export const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   ...READ_ONLY_TOOL_DEFINITIONS,
   ...SIDE_EFFECT_TOOL_DEFINITIONS,
@@ -1503,6 +1519,7 @@ function validateAgainstSchema(schema: ToolJsonSchema, value: unknown, path: str
   }
 }
 
+/** Validates tool definitions and produces safe model declarations and runtime inputs. */
 export class ToolRegistry {
   private readonly definitions = new Map<string, ToolDefinition>();
 
@@ -1558,10 +1575,12 @@ export class ToolRegistry {
   }
 }
 
+/** Creates a registry with the default catalog and default side-effect restrictions. */
 export function createDefaultToolRegistry(): ToolRegistry {
   return new ToolRegistry(DEFAULT_TOOL_DEFINITIONS);
 }
 
+/** Creates the runtime registry with side-effect tools enabled only when configured. */
 export function createRuntimeToolRegistry(params: { enableSideEffectTools: boolean }): ToolRegistry {
   const definitions = [
     ...READ_ONLY_TOOL_DEFINITIONS,

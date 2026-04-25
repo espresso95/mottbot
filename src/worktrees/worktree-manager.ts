@@ -25,16 +25,19 @@ type WorktreeManagerConfig = {
   worktreeRoot: string;
 };
 
+/** Worktree path and branch prepared for project-mode worker or integration work. */
 export type PreparedWorktree = {
   worktreePath: string;
   branchName: string;
 };
 
+/** Result from attempting to merge a branch into an integration worktree. */
 export type MergeResult = {
   ok: boolean;
   output: string;
 };
 
+/** Output from pushing a project-mode branch and optionally opening a pull request. */
 export type PublishBranchResult = {
   pushOutput: string;
   pullRequestUrl?: string;
@@ -93,6 +96,7 @@ function shellCommand(cwd: string, command: string, args: string[]): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
+/** Creates, validates, merges, and cleans project-mode Git worktrees within approved roots. */
 export class WorktreeManager {
   private readonly repoRoots: string[];
   private readonly deniedPaths: string[];

@@ -1,3 +1,4 @@
+/** Lifecycle state for a multi-worker project task. */
 export type ProjectTaskStatus =
   | "draft"
   | "awaiting_approval"
@@ -11,6 +12,7 @@ export type ProjectTaskStatus =
   | "failed"
   | "cancelled";
 
+/** Lifecycle state for an individual project subtask. */
 export type ProjectSubtaskStatus =
   | "queued"
   | "blocked"
@@ -21,8 +23,10 @@ export type ProjectSubtaskStatus =
   | "cancelled"
   | "skipped";
 
+/** Process state for one Codex CLI worker invocation. */
 export type CodexCliRunStatus = "starting" | "streaming" | "exited" | "failed" | "cancelled" | "timed_out";
 
+/** Approval kinds for gated project-mode actions. */
 export type ProjectApprovalKind =
   | "start_project"
   | "start_worker"
@@ -32,6 +36,7 @@ export type ProjectApprovalKind =
   | "destructive_git"
   | "dangerous_sandbox";
 
+/** Persisted project-mode task requested from Telegram. */
 export type ProjectTask = {
   taskId: string;
   chatId: string;
@@ -57,6 +62,7 @@ export type ProjectTask = {
   finalDiffStat?: string;
 };
 
+/** Persisted unit of Codex worker, integrator, planner, or reviewer work. */
 export type ProjectSubtask = {
   subtaskId: string;
   taskId: string;
@@ -77,6 +83,7 @@ export type ProjectSubtask = {
   lastError?: string;
 };
 
+/** Persisted metadata and artifact paths for one Codex CLI subprocess. */
 export type CodexCliRun = {
   cliRunId: string;
   taskId: string;
@@ -97,6 +104,7 @@ export type CodexCliRun = {
   lastError?: string;
 };
 
+/** Operator approval record required before a project task starts. */
 export type ProjectApproval = {
   approvalId: string;
   taskId: string;
@@ -111,6 +119,7 @@ export type ProjectApproval = {
   expiresAt?: number;
 };
 
+/** Combined task status view returned by project status commands. */
 export type ProjectStatusSnapshot = {
   task: ProjectTask;
   subtasks: ProjectSubtask[];

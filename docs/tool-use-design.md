@@ -75,48 +75,48 @@ The current registry is sent to the model only for enabled tools. The executor r
 
 Enabled read-only tools:
 
-| Tool | Side effect | Input schema | Purpose |
-| --- | --- | --- | --- |
-| `mottbot_health_snapshot` | `read_only` | empty object, no additional properties | Return a token-free runtime health snapshot. |
-| `mottbot_service_status` | `read_only` | empty object, no additional properties | Return local launchd service status. |
-| `mottbot_recent_runs` | `read_only` | optional `limit` and `sessionKey` | Return recent SQLite run records. |
-| `mottbot_recent_errors` | `read_only` | optional `limit` | Return failed/cancelled runs and recent stderr lines. |
-| `mottbot_recent_logs` | `read_only` | optional `stream` and `lines` | Return recent launchd stdout/stderr lines. |
-| `mottbot_repo_list_files` | `read_only` | optional `root`, `path`, `recursive`, and `limit` | List files under an approved local repository root without reading contents. |
-| `mottbot_repo_read_file` | `read_only` | required `path`; optional `root`, `startLine`, `maxLines`, and `maxBytes` | Read a bounded text slice from an approved local repository file. |
-| `mottbot_repo_search` | `read_only` | required `query`; optional `root`, `path`, `maxMatches`, and `maxBytes` | Search literal text in approved repository files. |
-| `mottbot_git_status` | `read_only` | optional `root` | Read git branch and working-tree status. |
-| `mottbot_git_branch` | `read_only` | optional `root` | Read the current branch or detached commit. |
-| `mottbot_git_recent_commits` | `read_only` | optional `root` and `limit` | Read recent commit summaries. |
-| `mottbot_git_diff` | `read_only` | optional `root`, `path`, and `maxBytes` | Read diff stat/summary or a bounded selected-file diff. |
-| `mottbot_github_repo` | `read_only` | optional `repository` | Read GitHub repository metadata through the host GitHub CLI. |
-| `mottbot_github_open_prs` | `read_only` | optional `repository` and `limit` | Read open pull request summaries. |
-| `mottbot_github_recent_issues` | `read_only` | optional `repository` and `limit` | Read recent open issue summaries. |
-| `mottbot_github_ci_status` | `read_only` | optional `repository` and `limit` | Read recent GitHub Actions workflow runs. |
-| `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit` | Read recent failed workflow runs. |
-| `mottbot_google_drive_search` | `read_only` | optional `query`, `limit`, and `includeTrashed` | Search Google Drive files with the configured delegated token. |
-| `mottbot_google_drive_get_file` | `read_only` | required `fileId`; optional `includeContent` and `maxBytes` | Read Google Drive file metadata and optionally inline textual content. |
-| `mottbot_local_doc_read` | `read_only` | required `path`; optional `root` and `maxBytes` | Read a bounded `.md` or `.txt` file from an approved local-write root and return its SHA-256 for safe edits. |
-| `mottbot_codex_job_status` | `read_only` | required `jobId` | Read status, artifact paths, and the final message for a Codex CLI job started by this process. |
-| `mottbot_codex_job_tail` | `read_only` | required `jobId`; optional `limit` | Read recent JSONL events for a Codex CLI job started by this process. |
+| Tool                               | Side effect | Input schema                                                              | Purpose                                                                                                      |
+| ---------------------------------- | ----------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `mottbot_health_snapshot`          | `read_only` | empty object, no additional properties                                    | Return a token-free runtime health snapshot.                                                                 |
+| `mottbot_service_status`           | `read_only` | empty object, no additional properties                                    | Return local launchd service status.                                                                         |
+| `mottbot_recent_runs`              | `read_only` | optional `limit` and `sessionKey`                                         | Return recent SQLite run records.                                                                            |
+| `mottbot_recent_errors`            | `read_only` | optional `limit`                                                          | Return failed/cancelled runs and recent stderr lines.                                                        |
+| `mottbot_recent_logs`              | `read_only` | optional `stream` and `lines`                                             | Return recent launchd stdout/stderr lines.                                                                   |
+| `mottbot_repo_list_files`          | `read_only` | optional `root`, `path`, `recursive`, and `limit`                         | List files under an approved local repository root without reading contents.                                 |
+| `mottbot_repo_read_file`           | `read_only` | required `path`; optional `root`, `startLine`, `maxLines`, and `maxBytes` | Read a bounded text slice from an approved local repository file.                                            |
+| `mottbot_repo_search`              | `read_only` | required `query`; optional `root`, `path`, `maxMatches`, and `maxBytes`   | Search literal text in approved repository files.                                                            |
+| `mottbot_git_status`               | `read_only` | optional `root`                                                           | Read git branch and working-tree status.                                                                     |
+| `mottbot_git_branch`               | `read_only` | optional `root`                                                           | Read the current branch or detached commit.                                                                  |
+| `mottbot_git_recent_commits`       | `read_only` | optional `root` and `limit`                                               | Read recent commit summaries.                                                                                |
+| `mottbot_git_diff`                 | `read_only` | optional `root`, `path`, and `maxBytes`                                   | Read diff stat/summary or a bounded selected-file diff.                                                      |
+| `mottbot_github_repo`              | `read_only` | optional `repository`                                                     | Read GitHub repository metadata through the host GitHub CLI.                                                 |
+| `mottbot_github_open_prs`          | `read_only` | optional `repository` and `limit`                                         | Read open pull request summaries.                                                                            |
+| `mottbot_github_recent_issues`     | `read_only` | optional `repository` and `limit`                                         | Read recent open issue summaries.                                                                            |
+| `mottbot_github_ci_status`         | `read_only` | optional `repository` and `limit`                                         | Read recent GitHub Actions workflow runs.                                                                    |
+| `mottbot_github_workflow_failures` | `read_only` | optional `repository` and `limit`                                         | Read recent failed workflow runs.                                                                            |
+| `mottbot_google_drive_search`      | `read_only` | optional `query`, `limit`, and `includeTrashed`                           | Search Google Drive files with the configured delegated token.                                               |
+| `mottbot_google_drive_get_file`    | `read_only` | required `fileId`; optional `includeContent` and `maxBytes`               | Read Google Drive file metadata and optionally inline textual content.                                       |
+| `mottbot_local_doc_read`           | `read_only` | required `path`; optional `root` and `maxBytes`                           | Read a bounded `.md` or `.txt` file from an approved local-write root and return its SHA-256 for safe edits. |
+| `mottbot_codex_job_status`         | `read_only` | required `jobId`                                                          | Read status, artifact paths, and the final message for a Codex CLI job started by this process.              |
+| `mottbot_codex_job_tail`           | `read_only` | required `jobId`; optional `limit`                                        | Read recent JSONL events for a Codex CLI job started by this process.                                        |
 
 Disabled reserved tools:
 
-| Tool | Side effect | Status | Reason |
-| --- | --- | --- | --- |
-| `mottbot_local_note_create` | `local_write` | opt-in | Creates only new `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution. |
-| `mottbot_local_doc_append` | `local_write` | opt-in | Appends plain text to existing `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution. |
-| `mottbot_local_doc_replace` | `local_write` | opt-in | Replaces existing `.md` or `.txt` files under approved local-write roots only when the supplied SHA-256 matches the current file; requires one-shot admin approval before execution. |
-| `mottbot_local_command_run` | `local_exec` | opt-in | Runs one host-allowlisted command in an approved workspace root without shell expansion; requires one-shot admin approval before execution. |
-| `mottbot_codex_job_start` | `local_exec` | opt-in | Starts `codex exec --json` in an approved project repository using configured Project Mode Codex settings; requires one-shot admin approval before execution. |
-| `mottbot_codex_job_cancel` | `process_control` | opt-in | Sends SIGTERM to a Codex CLI job started by this process; requires one-shot admin approval before execution. |
-| `mottbot_mcp_call_tool` | `network_write` | opt-in | Calls one allowlisted tool on one configured MCP stdio server; requires one-shot admin approval before execution. |
-| `mottbot_github_issue_create` | `github_write` | opt-in | Creates a GitHub issue through the host `gh` CLI; requires one-shot admin approval before execution. |
-| `mottbot_github_issue_comment` | `github_write` | opt-in | Adds a GitHub issue comment through the host `gh` CLI; requires one-shot admin approval before execution. |
-| `mottbot_github_pr_comment` | `github_write` | opt-in | Adds a GitHub pull request conversation comment through the host `gh` CLI; requires one-shot admin approval before execution. |
-| `mottbot_telegram_send_message` | `telegram_send` | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution. |
-| `mottbot_restart_service` | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution. |
-| `mottbot_telegram_react` | `telegram_send` | opt-in | Adds or clears Telegram reactions only after one-shot admin approval. |
+| Tool                            | Side effect       | Status | Reason                                                                                                                                                                               |
+| ------------------------------- | ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mottbot_local_note_create`     | `local_write`     | opt-in | Creates only new `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution.                                                          |
+| `mottbot_local_doc_append`      | `local_write`     | opt-in | Appends plain text to existing `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution.                                            |
+| `mottbot_local_doc_replace`     | `local_write`     | opt-in | Replaces existing `.md` or `.txt` files under approved local-write roots only when the supplied SHA-256 matches the current file; requires one-shot admin approval before execution. |
+| `mottbot_local_command_run`     | `local_exec`      | opt-in | Runs one host-allowlisted command in an approved workspace root without shell expansion; requires one-shot admin approval before execution.                                          |
+| `mottbot_codex_job_start`       | `local_exec`      | opt-in | Starts `codex exec --json` in an approved project repository using configured Project Mode Codex settings; requires one-shot admin approval before execution.                        |
+| `mottbot_codex_job_cancel`      | `process_control` | opt-in | Sends SIGTERM to a Codex CLI job started by this process; requires one-shot admin approval before execution.                                                                         |
+| `mottbot_mcp_call_tool`         | `network_write`   | opt-in | Calls one allowlisted tool on one configured MCP stdio server; requires one-shot admin approval before execution.                                                                    |
+| `mottbot_github_issue_create`   | `github_write`    | opt-in | Creates a GitHub issue through the host `gh` CLI; requires one-shot admin approval before execution.                                                                                 |
+| `mottbot_github_issue_comment`  | `github_write`    | opt-in | Adds a GitHub issue comment through the host `gh` CLI; requires one-shot admin approval before execution.                                                                            |
+| `mottbot_github_pr_comment`     | `github_write`    | opt-in | Adds a GitHub pull request conversation comment through the host `gh` CLI; requires one-shot admin approval before execution.                                                        |
+| `mottbot_telegram_send_message` | `telegram_send`   | opt-in | Sends plain-text Telegram messages only to the current chat or configured approved targets; requires one-shot admin approval before execution.                                       |
+| `mottbot_restart_service`       | `process_control` | opt-in | Exposed only to admin callers when `MOTTBOT_ENABLE_SIDE_EFFECT_TOOLS=true`; requires one-shot admin approval before execution.                                                       |
+| `mottbot_telegram_react`        | `telegram_send`   | opt-in | Adds or clears Telegram reactions only after one-shot admin approval.                                                                                                                |
 
 Registry behavior:
 

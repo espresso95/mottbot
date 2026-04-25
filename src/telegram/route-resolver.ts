@@ -13,6 +13,7 @@ function matchesBinding(binding: AppConfig["agents"]["bindings"][number], event:
   );
 }
 
+/** Resolves inbound Telegram events to a configured agent and persisted session route. */
 export class RouteResolver {
   constructor(
     private readonly config: AppConfig,

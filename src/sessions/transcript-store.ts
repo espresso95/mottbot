@@ -36,6 +36,7 @@ function mapMessageRow(row: MessageRow): TranscriptMessage {
   };
 }
 
+/** Persists transcript messages and retrieves bounded history for prompt construction. */
 export class TranscriptStore {
   constructor(
     private readonly database: DatabaseClient,

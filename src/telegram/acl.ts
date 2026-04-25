@@ -5,10 +5,12 @@ import type { InboundEvent } from "./types.js";
 import type { TelegramGovernanceStore } from "./governance.js";
 import { isGovernanceOperatorRole } from "./governance.js";
 
+/** Decision returned after checking whether an inbound Telegram event should be processed. */
 export type AccessDecision =
   | { allow: true; reason: "private" | "mentioned" | "reply" | "bound" | "command" }
   | { allow: false; reason: string };
 
+/** Applies chat allow-lists, governance roles, mentions, replies, and bound-route access rules. */
 export class AccessController {
   constructor(
     private readonly config: AppConfig,

@@ -1,5 +1,7 @@
+/** Source that created or last refreshed a Codex auth profile. */
 export type AuthProfileSource = "local_oauth" | "codex_cli";
 
+/** Persisted subscription-backed Codex credentials and display metadata. */
 export type AuthProfile = {
   profileId: string;
   provider: "openai-codex";
@@ -15,6 +17,7 @@ export type AuthProfile = {
   updatedAt: number;
 };
 
+/** Access material selected for one Codex run after profile lookup and refresh. */
 export type CodexResolvedAuth = {
   profile: AuthProfile;
   accessToken: string;
@@ -24,12 +27,14 @@ export type CodexResolvedAuth = {
   accountId?: string;
 };
 
+/** One usage-limit window returned by the Codex subscription backend. */
 export type CodexUsageWindow = {
   label: string;
   usedPercent: number;
   resetAt?: number;
 };
 
+/** User-visible usage status for the configured Codex subscription profile. */
 export type CodexUsageSnapshot = {
   provider: "openai-codex";
   displayName: string;

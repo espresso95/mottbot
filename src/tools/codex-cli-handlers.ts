@@ -108,6 +108,7 @@ function eventSummary(record: CodexCliEventRecord): Record<string, unknown> {
   };
 }
 
+/** Creates tool handlers for starting, inspecting, and cancelling reusable Codex CLI jobs. */
 export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Partial<Record<string, ToolHandler>> {
   const scope = createRepositoryScope({
     roots: config.projectTasks.repoRoots,
@@ -145,7 +146,8 @@ export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Par
         root: root.realPath,
         targetPath: optionalString(input.cwd),
       });
-      const requestedTimeout = typeof input.timeoutMs === "number" ? input.timeoutMs : config.projectTasks.codex.defaultTimeoutMs;
+      const requestedTimeout =
+        typeof input.timeoutMs === "number" ? input.timeoutMs : config.projectTasks.codex.defaultTimeoutMs;
       const timeoutMs = Math.min(requestedTimeout, config.projectTasks.codex.defaultTimeoutMs);
       const jobId = createId();
       const prepared = service.prepare({

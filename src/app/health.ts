@@ -5,6 +5,7 @@ import type { AuthProfileStore } from "../codex/auth-store.js";
 
 const STALE_OUTBOX_MS = 5 * 60 * 1000;
 
+/** Point-in-time operational health counters shown in status and dashboard views. */
 export type HealthSnapshot = {
   status: "ok" | "degraded";
   mode: "polling" | "webhook";
@@ -19,6 +20,7 @@ export type HealthSnapshot = {
   generatedAt: number;
 };
 
+/** Builds operator-facing health snapshots from persistent stores and runtime configuration. */
 export class HealthReporter {
   constructor(
     private readonly config: AppConfig,

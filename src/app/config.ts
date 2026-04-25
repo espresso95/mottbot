@@ -307,6 +307,7 @@ const rawConfigSchema = z.object({
   projectTasks: projectTasksConfigSchema,
 });
 
+/** Fully validated runtime configuration with defaults and filesystem paths resolved. */
 export type AppConfig = {
   configPath: string;
   telegram: {
@@ -413,6 +414,7 @@ export type AppConfig = {
   };
 };
 
+/** Per-agent routing and model defaults after config normalization. */
 export type AgentConfig = {
   id: string;
   displayName?: string;
@@ -426,6 +428,7 @@ export type AgentConfig = {
   maxQueuedRuns?: number;
 };
 
+/** Telegram routing selector that binds a chat, thread, user, or chat type to an agent. */
 export type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
 
 function readConfigFile(configPath: string): unknown {
@@ -478,6 +481,7 @@ function normalizeAgents(
   };
 }
 
+/** Resolves the config file path from MOTTBOT_CONFIG_PATH or the default project file. */
 export function resolveConfigPath(): string {
   const fromEnv = process.env.MOTTBOT_CONFIG_PATH?.trim();
   if (fromEnv) {
@@ -486,6 +490,7 @@ export function resolveConfigPath(): string {
   return path.resolve("mottbot.config.json");
 }
 
+/** Loads, validates, and normalizes the operator config file for application startup. */
 export function loadConfig(): AppConfig {
   const configPath = resolveConfigPath();
   const fileConfig = readConfigFile(configPath);

@@ -1,5 +1,6 @@
 import type { DatabaseClient } from "./client.js";
 
+/** Timestamp cutoffs used to decide which operational records are old enough to prune. */
 export type OperationalRetentionCutoffs = {
   telegramUpdatesBefore: number;
   messagesBefore: number;
@@ -9,6 +10,7 @@ export type OperationalRetentionCutoffs = {
   terminalRunsBefore: number;
 };
 
+/** Counts returned after a retention pass or dry run. */
 export type OperationalRetentionResult = {
   dryRun: boolean;
   cutoffs: OperationalRetentionCutoffs;
@@ -28,6 +30,7 @@ function placeholders(values: readonly unknown[]): string {
   return values.map(() => "?").join(", ");
 }
 
+/** Builds aligned retention cutoffs from a single age threshold in days. */
 export function buildOperationalRetentionCutoffs(params: {
   now: number;
   olderThanDays: number;
@@ -57,6 +60,7 @@ function remove(database: DatabaseClient, table: string, whereSql: string, param
   return database.db.prepare(`delete from ${table} where ${whereSql}`).run(...params).changes;
 }
 
+/** Deletes or counts old operational rows without removing active run context. */
 export function pruneOperationalData(params: {
   database: DatabaseClient;
   cutoffs: OperationalRetentionCutoffs;

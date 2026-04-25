@@ -3,10 +3,16 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { SessionRoute, SessionRouteMode } from "./types.js";
 
+/** Supported visibility scopes for approved long-term memories. */
 export const MEMORY_SCOPES = ["session", "personal", "chat", "group", "project"] as const;
+
+/** Supported sensitivity levels for proposed memory candidates. */
 export const MEMORY_CANDIDATE_SENSITIVITIES = ["low", "medium", "high"] as const;
+
+/** Workflow states for model-proposed memory candidates. */
 export const MEMORY_CANDIDATE_STATUSES = ["pending", "accepted", "rejected", "archived"] as const;
 
+/** Persisted approved memory that can be injected into future prompts. */
 export type SessionMemory = {
   id: string;
   sessionKey: string;
@@ -21,14 +27,24 @@ export type SessionMemory = {
   updatedAt: number;
 };
 
+/** Origin of an approved memory entry. */
 export type SessionMemorySource = "explicit" | "auto_summary" | "model_candidate";
+
+/** Memory visibility scope. */
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
+
+/** Candidate privacy sensitivity used for operator review. */
 export type MemoryCandidateSensitivity = (typeof MEMORY_CANDIDATE_SENSITIVITIES)[number];
+
+/** Candidate review workflow state. */
 export type MemoryCandidateStatus = (typeof MEMORY_CANDIDATE_STATUSES)[number];
+
+/** Route fields needed to resolve memory scope keys for a session. */
 export type MemoryScopeContext = Pick<SessionRoute, "sessionKey" | "chatId" | "threadId" | "userId" | "routeMode"> & {
   projectKey?: string;
 };
 
+/** Persisted model-proposed memory awaiting operator or user decision. */
 export type MemoryCandidate = {
   id: string;
   sessionKey: string;
@@ -47,6 +63,7 @@ export type MemoryCandidate = {
   updatedAt: number;
 };
 
+/** Result of attempting to insert a deduplicated memory candidate. */
 export type AddMemoryCandidateResult =
   | {
       inserted: true;
@@ -237,14 +254,17 @@ function routeModeAllowsGroupScope(routeMode: SessionRouteMode): boolean {
   return routeMode === "group" || routeMode === "topic" || routeMode === "bound";
 }
 
+/** Checks whether a string is a supported memory scope. */
 export function isMemoryScope(value: string): value is MemoryScope {
   return MEMORY_SCOPES.includes(value as MemoryScope);
 }
 
+/** Checks whether a string is a supported memory-candidate status. */
 export function isMemoryCandidateStatus(value: string): value is MemoryCandidateStatus {
   return MEMORY_CANDIDATE_STATUSES.includes(value as MemoryCandidateStatus);
 }
 
+/** Resolves the concrete key used to store or query a memory at the requested scope. */
 export function resolveMemoryScopeKey(params: {
   context: MemoryScopeContext;
   scope: MemoryScope;
@@ -267,6 +287,7 @@ export function resolveMemoryScopeKey(params: {
   }
 }
 
+/** SQLite store for approved memories and model-proposed memory candidates. */
 export class MemoryStore {
   constructor(
     private readonly database: DatabaseClient,

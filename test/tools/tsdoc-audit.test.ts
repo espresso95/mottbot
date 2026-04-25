@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   auditTsdocSourceFile,
@@ -107,6 +108,38 @@ export class MissingDocs {}
 
     expect(formatTsdocAuditReport(result, 1)).toContain("src/a.ts:1:1 function first");
     expect(formatTsdocAuditReport(result, 1)).toContain("... 1 more.");
+    expect(formatTsdocAuditReport(result)).toContain("src/b.ts:2:1 class second");
+    expect(formatTsdocAuditReport(result)).not.toContain("... 1 more.");
+  });
+
+  it("accepts a pnpm-style option separator in CLI mode", () => {
+    const tempDir = createTempDir();
+    try {
+      const sourceRoot = path.join(tempDir, "src");
+      fs.mkdirSync(sourceRoot, { recursive: true });
+      fs.writeFileSync(
+        path.join(sourceRoot, "sample.ts"),
+        `/** Documented value. */
+export const documented = true;
+`,
+        "utf8",
+      );
+
+      const result = spawnSync(
+        process.execPath,
+        ["--import", "tsx", path.resolve("src/tools/tsdoc-audit.ts"), "--", "--root", sourceRoot, "--limit", "1"],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("All exported symbols have TSDoc.");
+    } finally {
+      removeTempDir(tempDir);
+    }
   });
 
   it("formats an all-documented report", () => {
@@ -125,16 +158,7 @@ export class MissingDocs {}
 
   it("parses CLI options and rejects invalid flags", () => {
     expect(
-      parseTsdocAuditCliOptions([
-        "--all",
-        "--json",
-        "--strict",
-        "--root",
-        "lib",
-        "--limit=3",
-        "--max-missing",
-        "2",
-      ]),
+      parseTsdocAuditCliOptions(["--all", "--json", "--strict", "--root", "lib", "--limit=3", "--max-missing", "2"]),
     ).toEqual({
       sourceRoot: "lib",
       json: true,

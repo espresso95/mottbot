@@ -9,6 +9,7 @@ import {
   type MemoryScopeContext,
 } from "./memory-store.js";
 
+/** Parsed model proposal for a durable memory candidate. */
 export type ParsedMemoryCandidate = {
   scope: MemoryScope;
   scopeKey: string;
@@ -105,6 +106,7 @@ function maxSensitivity(
   return sensitivityRank(left) >= sensitivityRank(right) ? left : right;
 }
 
+/** Classifies memory text by the highest privacy sensitivity detected locally. */
 export function classifyMemorySensitivity(text: string): MemoryCandidateSensitivity {
   if (
     /token|secret|password|api\s*key|private\s*key|bearer|authorization|-----BEGIN/i.test(text) ||
@@ -123,6 +125,7 @@ export function classifyMemorySensitivity(text: string): MemoryCandidateSensitiv
   return "low";
 }
 
+/** Parses and validates model-produced memory-candidate JSON against the current scope context. */
 export function parseMemoryCandidateResponse(params: {
   raw: string;
   context: MemoryScopeContext;
@@ -175,6 +178,7 @@ function renderTranscriptLine(message: TranscriptMessage): string | undefined {
   return `[${message.id}] ${message.role}: ${condense(message.contentText, 600)}`;
 }
 
+/** Builds the model prompt used to extract durable memory candidates from recent transcript messages. */
 export function buildMemoryCandidateExtractionPrompt(params: {
   messages: TranscriptMessage[];
   maxCandidates: number;

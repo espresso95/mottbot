@@ -16,6 +16,7 @@ function trimNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+/** Decodes the unsigned JWT payload from a Codex access token for local metadata extraction. */
 export function decodeCodexJwtPayload(accessToken: string): Record<string, unknown> | null {
   const parts = accessToken.split(".");
   const payloadSegment = parts[1];
@@ -31,6 +32,7 @@ export function decodeCodexJwtPayload(accessToken: string): Record<string, unkno
   }
 }
 
+/** Resolves the access-token expiry timestamp in milliseconds when the JWT exposes an exp claim. */
 export function resolveCodexAccessTokenExpiry(accessToken: string): number | undefined {
   const payload = decodeCodexJwtPayload(accessToken);
   const exp = payload?.exp;
@@ -43,6 +45,7 @@ export function resolveCodexAccessTokenExpiry(accessToken: string): number | und
   return undefined;
 }
 
+/** Extracts display identity fields from the Codex access token profile claim. */
 export function resolveCodexAuthIdentity(accessToken: string): {
   email?: string;
   displayName?: string;
@@ -59,6 +62,7 @@ export function resolveCodexAuthIdentity(accessToken: string): {
   return {};
 }
 
+/** Resolves the Codex CLI home directory from CODEX_HOME using shell-style home expansion. */
 export function resolveCodexCliHome(env: NodeJS.ProcessEnv): string {
   const configured = trimNonEmptyString(env.CODEX_HOME);
   if (!configured) {
@@ -73,6 +77,7 @@ export function resolveCodexCliHome(env: NodeJS.ProcessEnv): string {
   return path.resolve(configured);
 }
 
+/** Reads the Codex CLI auth file, returning null when it is absent or invalid JSON. */
 export function readCodexCliAuthFile(env: NodeJS.ProcessEnv = process.env): CodexCliAuthFile | null {
   try {
     const authPath = path.join(resolveCodexCliHome(env), "auth.json");
@@ -84,6 +89,7 @@ export function readCodexCliAuthFile(env: NodeJS.ProcessEnv = process.env): Code
   }
 }
 
+/** Imports ChatGPT-mode Codex CLI credentials into the configured auth profile store. */
 export function importCodexCliAuthProfile(params: {
   store: AuthProfileStore;
   profileId?: string;

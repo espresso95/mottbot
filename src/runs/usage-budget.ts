@@ -6,12 +6,14 @@ import type { RunStore, UsageBudgetRunCountScope } from "./run-store.js";
 type BudgetWindow = "daily" | "monthly";
 type BudgetScope = "global" | "user" | "chat" | "session" | "model";
 
+/** Result of checking configured daily and monthly run budgets. */
 export type UsageBudgetDecision = {
   allowed: boolean;
   deniedReason?: string;
   warnings: string[];
 };
 
+/** Error raised when a run is blocked by a configured usage budget. */
 export class UsageBudgetExceededError extends Error {
   readonly code = "usage_budget_denied";
 
@@ -44,6 +46,7 @@ function formatLimit(rule: BudgetRule, count: number): string {
   return `${rule.label} run budget is ${count}/${rule.limit}.`;
 }
 
+/** Evaluates and reports configured run-count budgets across user, chat, session, and model scopes. */
 export class UsageBudgetService {
   constructor(
     private readonly config: AppConfig,

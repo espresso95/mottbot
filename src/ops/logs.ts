@@ -3,6 +3,7 @@ import path from "node:path";
 import type { LaunchAgentPaths } from "../app/service.js";
 import { launchAgentPaths } from "../app/service.js";
 
+/** Filesystem state for one launchd service log file. */
 export type ServiceLogFileState = {
   role: "stdout" | "stderr";
   path: string;
@@ -12,11 +13,13 @@ export type ServiceLogFileState = {
   symlink: boolean;
 };
 
+/** Summary of the current service log directory and known log files. */
 export type ServiceLogStatus = {
   logDir: string;
   files: ServiceLogFileState[];
 };
 
+/** Files archived, truncated, or skipped during a log rotation pass. */
 export type ServiceLogRotationResult = {
   archiveDir: string;
   files: Array<{
@@ -62,6 +65,7 @@ function stateFor(role: "stdout" | "stderr", filePath: string): ServiceLogFileSt
   };
 }
 
+/** Reads service log file state without modifying any log content. */
 export function serviceLogStatus(paths: LaunchAgentPaths = launchAgentPaths()): ServiceLogStatus {
   return {
     logDir: paths.logDir,
@@ -80,6 +84,7 @@ function listArchiveDirs(root: string): string[] {
     .sort();
 }
 
+/** Archives launchd logs, optionally truncates originals, and prunes old archives. */
 export function rotateServiceLogs(
   params: {
     paths?: LaunchAgentPaths;

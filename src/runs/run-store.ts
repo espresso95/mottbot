@@ -21,6 +21,7 @@ type RunRow = {
   updated_at: number;
 };
 
+/** Filter scope for counting runs against usage-budget windows. */
 export type UsageBudgetRunCountScope = {
   since: number;
   sessionKey?: string;
@@ -30,6 +31,7 @@ export type UsageBudgetRunCountScope = {
   excludeRunId?: string;
 };
 
+/** Run count grouped by model for usage reports. */
 export type UsageBudgetModelCount = {
   modelRef: string;
   runs: number;
@@ -55,6 +57,7 @@ function mapRunRow(row: RunRow): RunRecord {
   };
 }
 
+/** Persists run lifecycle, usage, and budget-query records in SQLite. */
 export class RunStore {
   constructor(
     private readonly database: DatabaseClient,

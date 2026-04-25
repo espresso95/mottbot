@@ -26,6 +26,7 @@ function renderExtractedAttachment(input: ExtractedAttachmentText, index: number
   return [`Attachment ${index + 1} extracted text (${details.join(", ")}):`, "```text", input.text, "```"].join("\n");
 }
 
+/** Appends native and extracted attachment content to the latest user prompt message. */
 export function appendPreparedAttachmentsToLatestUserMessage(params: {
   messages: PromptMessage[];
   nativeInputs: NativeAttachmentInput[];

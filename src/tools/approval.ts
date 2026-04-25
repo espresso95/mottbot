@@ -3,6 +3,7 @@ import type { Clock } from "../shared/clock.js";
 import { createId } from "../shared/ids.js";
 import type { ToolDefinition, ToolSideEffect } from "./registry.js";
 
+/** In-memory approval grant for a specific side-effecting tool request. */
 export type ToolApproval = {
   toolName: string;
   approvedByUserId: string;
@@ -13,6 +14,7 @@ export type ToolApproval = {
   previewText?: string;
 };
 
+/** Persisted tool approval scoped to a session and optional request fingerprint. */
 export type StoredToolApproval = ToolApproval & {
   id: string;
   sessionKey: string;
@@ -21,6 +23,7 @@ export type StoredToolApproval = ToolApproval & {
   updatedAt: number;
 };
 
+/** Decision returned after evaluating policy and approval state for a tool request. */
 export type ToolApprovalDecision = {
   allowed: boolean;
   code:
@@ -38,6 +41,7 @@ export type ToolApprovalDecision = {
   message: string;
 };
 
+/** Operator prompt describing why a side-effecting tool needs approval. */
 export type ToolApprovalPrompt = {
   toolName: string;
   sideEffect: Exclude<ToolSideEffect, "read_only">;
@@ -45,6 +49,7 @@ export type ToolApprovalPrompt = {
   expiresAt: number;
 };
 
+/** Immutable audit row for an approval decision or tool execution decision. */
 export type ToolApprovalAuditRecord = {
   id?: string;
   sessionKey?: string;
@@ -73,10 +78,12 @@ const SIDE_EFFECT_LABELS: Record<Exclude<ToolSideEffect, "read_only">, string> =
   secret_adjacent: "read or touch sensitive local state",
 };
 
+/** Returns true when a tool has side effects and requires approval by default. */
 export function requiresToolApproval(definition: ToolDefinition): boolean {
   return definition.sideEffect !== "read_only";
 }
 
+/** Evaluates whether an approval grant satisfies the current tool request. */
 export function evaluateToolApproval(
   definition: ToolDefinition,
   approval: ToolApproval | undefined,
@@ -125,6 +132,7 @@ export function evaluateToolApproval(
   };
 }
 
+/** Builds concise operator-facing approval text for a pending tool request. */
 export function buildToolApprovalPrompt(
   definition: ToolDefinition,
   now: number,
@@ -144,6 +152,7 @@ export function buildToolApprovalPrompt(
   };
 }
 
+/** Builds the audit payload stored after approval evaluation. */
 export function buildToolApprovalAuditRecord(params: {
   definition: ToolDefinition;
   decision: ToolApprovalDecision;
@@ -210,6 +219,7 @@ function mapApprovalRow(row: ToolApprovalRow | undefined): StoredToolApproval | 
   };
 }
 
+/** SQLite store for tool approvals and approval audit history. */
 export class ToolApprovalStore {
   constructor(
     private readonly database: DatabaseClient,

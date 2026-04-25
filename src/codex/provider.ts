@@ -1,23 +1,34 @@
 import type { TransportMode } from "./transport.js";
 
+/** Stable provider id used in model references, auth profiles, and capability maps. */
 export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
+
+/** ChatGPT backend base URL used by the subscription-backed Codex transport. */
 export const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+
+/** Provider API label passed through the shared model abstraction. */
 export const OPENAI_CODEX_API = "openai-codex-responses";
+
+/** Curated model refs advertised by help text and validation messages. */
 export const KNOWN_CODEX_MODEL_REFS = [
   "openai-codex/gpt-5.4",
   "openai-codex/gpt-5.4-mini",
   "openai-codex/gpt-5.3-codex-spark",
 ] as const;
+
+/** Comma-separated known model refs for operator-facing text. */
 export const KNOWN_CODEX_MODEL_REFS_TEXT = KNOWN_CODEX_MODEL_REFS.join(", ");
 
 const CODEX_MODEL_REF_PATTERN = /^openai-codex\/[A-Za-z0-9._-]+$/;
 
+/** Model reference accepted by the Codex provider, including future openai-codex models. */
 export type CodexModelRef =
   | "openai-codex/gpt-5.4"
   | "openai-codex/gpt-5.4-mini"
   | "openai-codex/gpt-5.3-codex-spark"
   | (string & {});
 
+/** Runtime model metadata consumed by prompt routing, transport selection, and capability checks. */
 export type RuntimeCodexModel = {
   id: string;
   name: string;
@@ -33,22 +44,27 @@ export type RuntimeCodexModel = {
   transport: TransportMode;
 };
 
+/** Checks whether a model ref is in the curated known-model list. */
 export function isKnownCodexModelRef(modelRef: string): modelRef is (typeof KNOWN_CODEX_MODEL_REFS)[number] {
   return (KNOWN_CODEX_MODEL_REFS as readonly string[]).includes(modelRef);
 }
 
+/** Validates the openai-codex provider prefix without restricting future model ids. */
 export function isCodexModelRef(modelRef: string): modelRef is CodexModelRef {
   return CODEX_MODEL_REF_PATTERN.test(modelRef);
 }
 
+/** Reports whether the resolved model can receive native image input blocks. */
 export function supportsNativeImageInput(modelRef: string): boolean {
   return resolveCodexModel(modelRef, "sse").input.includes("image");
 }
 
+/** Reports whether the provider can receive native file attachments without text extraction. */
 export function supportsNativeFileInput(_modelRef: string): boolean {
   return false;
 }
 
+/** Resolves a model ref into the shared runtime model descriptor used by transport code. */
 export function resolveCodexModel(modelRef: string, transport: TransportMode): RuntimeCodexModel {
   if (!isCodexModelRef(modelRef)) {
     throw new Error(`Invalid Codex model ref ${modelRef}. Expected openai-codex/<model>.`);

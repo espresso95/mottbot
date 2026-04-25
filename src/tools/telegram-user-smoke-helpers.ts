@@ -1,5 +1,6 @@
 import { isTransientRunStatus } from "../shared/run-status.js";
 
+/** Parsed configuration for a user-account Telegram smoke test. */
 export type TelegramUserSmokeConfig = {
   apiId: number;
   apiHash: string;
@@ -18,8 +19,10 @@ export type TelegramUserSmokeConfig = {
   expectReplyContains?: string;
 };
 
+/** Environment map consumed by Telegram user smoke helpers. */
 export type TelegramUserSmokeEnv = Record<string, string | undefined>;
 
+/** Outcome status for a user-account Telegram smoke interaction. */
 export type TelegramUserSmokeStatus = "sent" | "passed" | "assertion_failed" | "timeout" | "unexpected_reply";
 
 const DEFAULT_MESSAGE = "Use your health snapshot tool and tell me the current status.";
@@ -28,6 +31,7 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 const DEFAULT_STABLE_REPLY_MS = 4_000;
 
+/** Normalizes and validates a Telegram bot username without a leading at sign. */
 export function normalizeBotUsername(value: string): string {
   const trimmed = value.trim().replace(/^@+/, "");
   if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(trimmed)) {
@@ -36,6 +40,7 @@ export function normalizeBotUsername(value: string): string {
   return trimmed;
 }
 
+/** Parses a positive integer environment variable with a fallback. */
 export function parsePositiveIntegerEnv(env: TelegramUserSmokeEnv, name: string, fallback: number): number {
   const raw = env[name]?.trim();
   if (!raw) {
@@ -48,6 +53,7 @@ export function parsePositiveIntegerEnv(env: TelegramUserSmokeEnv, name: string,
   return parsed;
 }
 
+/** Parses common boolean environment variable strings with a fallback. */
 export function parseBooleanEnv(env: TelegramUserSmokeEnv, name: string, fallback: boolean): boolean {
   const raw = env[name]?.trim().toLowerCase();
   if (!raw) {
@@ -62,6 +68,7 @@ export function parseBooleanEnv(env: TelegramUserSmokeEnv, name: string, fallbac
   throw new Error(`${name} must be true or false.`);
 }
 
+/** Builds validated Telegram user smoke configuration from environment variables. */
 export function buildTelegramUserSmokeConfig(params: {
   env: TelegramUserSmokeEnv;
   fallbackBotUsername: string;
@@ -107,6 +114,7 @@ export function buildTelegramUserSmokeConfig(params: {
   };
 }
 
+/** Evaluates whether a smoke interaction satisfied the configured reply expectations. */
 export function evaluateTelegramUserSmokeStatus(params: {
   waitForReply: boolean;
   expectReply: boolean;
@@ -135,6 +143,7 @@ export function evaluateTelegramUserSmokeStatus(params: {
   };
 }
 
+/** Detects bot status messages that should not count as stable smoke-test replies. */
 export function isTransientBotStatus(text: string): boolean {
   return isTransientRunStatus(text);
 }

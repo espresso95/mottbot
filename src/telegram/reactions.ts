@@ -2,6 +2,7 @@ import type { Api, Context } from "grammy";
 import type { ReactionType } from "grammy/types";
 import type { Clock } from "../shared/clock.js";
 
+/** Normalized Telegram message-reaction delta used by notifications and tests. */
 export type NormalizedReactionEvent = {
   updateId: number;
   chatId: string;
@@ -14,6 +15,7 @@ export type NormalizedReactionEvent = {
   arrivedAt: number;
 };
 
+/** Thin wrapper around Telegram reaction APIs used by run and tool status flows. */
 export class TelegramReactionService {
   constructor(private readonly api: Api) {}
 
@@ -74,6 +76,7 @@ function diffReactionEmojis(params: { oldEmojis: string[]; newEmojis: string[] }
   return { addedEmojis, removedEmojis };
 }
 
+/** Converts a grammY message_reaction update into added and removed emoji deltas. */
 export function normalizeReactionUpdate(params: { ctx: Context; clock: Clock }): NormalizedReactionEvent | undefined {
   const reaction = params.ctx.update.message_reaction;
   if (!reaction) {
@@ -120,6 +123,7 @@ function formatActor(event: NormalizedReactionEvent): string {
   return "unknown user";
 }
 
+/** Formats a concise operator notification for a normalized reaction delta. */
 export function formatReactionNotification(event: NormalizedReactionEvent): string {
   const parts = [
     event.addedEmojis.length > 0 ? `added ${event.addedEmojis.join(" ")}` : undefined,

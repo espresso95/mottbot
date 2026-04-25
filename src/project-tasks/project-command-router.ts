@@ -30,6 +30,7 @@ async function sendReply(api: Api, event: InboundEvent, text: string): Promise<v
   }
 }
 
+/** Handles Telegram /project commands and delegates task execution to the project scheduler. */
 export class ProjectCommandRouter {
   constructor(
     private readonly api: Api,

@@ -38,6 +38,7 @@ function hasTelegramErrorCode(error: unknown, code: number): boolean {
   return text.includes(`${code}:`);
 }
 
+/** Owns grammY polling or webhook ingress and routes normalized updates into application services. */
 export class TelegramBotServer {
   private readonly bot: Bot<Context>;
   private botUsername?: string;

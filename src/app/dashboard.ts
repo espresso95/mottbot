@@ -71,8 +71,10 @@ class DashboardHttpError extends Error {
   }
 }
 
+/** Schedules an operator-requested process restart from the dashboard API. */
 export type DashboardRestartService = (params: { reason: string; delayMs: number }) => ServiceRestartScheduled;
 
+/** Optional dashboard collaborators that expose diagnostics and controlled side effects. */
 export type DashboardServerOptions = {
   diagnostics?: OperatorDiagnostics;
   toolRegistry?: ToolRegistry;
@@ -172,6 +174,7 @@ function summarizeApproval(approval: StoredToolApproval) {
   });
 }
 
+/** HTTP dashboard for local operator status, configuration edits, approvals, and memory tools. */
 export class DashboardServer {
   private server?: Server;
 

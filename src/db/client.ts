@@ -3,6 +3,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { ensureParentDir } from "../shared/fs.js";
 
+/** Thin SQLite client wrapper that applies the repo's required connection pragmas. */
 export class DatabaseClient {
   readonly db: Database.Database;
 

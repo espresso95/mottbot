@@ -169,7 +169,7 @@ export function createTsdocAuditResult(sourceRoot = "src", cwd = process.cwd()):
 }
 
 /** Renders a stable, grep-friendly TSDoc audit report for terminal output. */
-export function formatTsdocAuditReport(result: TsdocAuditResult, limit = 50): string {
+export function formatTsdocAuditReport(result: TsdocAuditResult, limit?: number): string {
   const lines = [
     `TSDoc audit for ${result.sourceRoot}`,
     `Files scanned: ${result.fileCount}`,
@@ -183,7 +183,7 @@ export function formatTsdocAuditReport(result: TsdocAuditResult, limit = 50): st
     return [...lines, "All exported symbols have TSDoc."].join("\n");
   }
 
-  const visible = result.undocumented.slice(0, limit);
+  const visible = typeof limit === "number" ? result.undocumented.slice(0, limit) : result.undocumented;
   lines.push(
     "",
     `Undocumented exports${visible.length < result.undocumented.length ? ` (first ${visible.length})` : ""}:`,
@@ -220,6 +220,9 @@ export function parseTsdocAuditCliOptions(argv: string[]): TsdocAuditCliOptions 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === undefined) {
+      continue;
+    }
+    if (arg === "--") {
       continue;
     }
     if (arg === "--all") {

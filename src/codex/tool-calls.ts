@@ -1,11 +1,13 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 
+/** Complete tool-call block emitted by the Codex stream after arguments are available. */
 export type CodexToolCall = {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
 };
 
+/** Partial tool-call details emitted while the Codex stream is still building the block. */
 export type CodexToolCallProgress = {
   id?: string;
   name?: string;
@@ -24,6 +26,7 @@ function hasAssistantShape(value: unknown): value is AssistantMessage {
   return isRecord(value) && value.role === "assistant" && Array.isArray(value.content);
 }
 
+/** Normalizes a complete Codex tool-call content block from unknown stream data. */
 export function normalizeCodexToolCall(value: unknown): CodexToolCall | undefined {
   if (!isRecord(value) || value.type !== "toolCall") {
     return undefined;
@@ -41,6 +44,7 @@ export function normalizeCodexToolCall(value: unknown): CodexToolCall | undefine
   };
 }
 
+/** Normalizes partial Codex tool-call progress from unknown stream data. */
 export function normalizeCodexToolCallProgress(value: unknown): CodexToolCallProgress | undefined {
   if (!isRecord(value) || value.type !== "toolCall") {
     return undefined;
@@ -58,6 +62,7 @@ export function normalizeCodexToolCallProgress(value: unknown): CodexToolCallPro
   return Object.keys(progress).length > 0 ? progress : undefined;
 }
 
+/** Collects complete tool calls from an assistant message object. */
 export function collectCodexToolCallsFromMessage(message: unknown): CodexToolCall[] {
   if (!hasAssistantShape(message)) {
     return [];
@@ -68,10 +73,12 @@ export function collectCodexToolCallsFromMessage(message: unknown): CodexToolCal
   });
 }
 
+/** Returns an assistant message only when unknown input matches the expected message shape. */
 export function assistantMessageFromUnknown(message: unknown): AssistantMessage | undefined {
   return hasAssistantShape(message) ? message : undefined;
 }
 
+/** Collects complete tool calls from direct or partial Codex stream event shapes. */
 export function collectCodexToolCallsFromEvent(event: unknown): CodexToolCall[] {
   if (!isRecord(event)) {
     return [];
@@ -85,6 +92,7 @@ export function collectCodexToolCallsFromEvent(event: unknown): CodexToolCall[] 
   return partialToolCall ? [partialToolCall] : [];
 }
 
+/** Extracts in-flight tool-call progress from direct or partial Codex stream event shapes. */
 export function collectCodexToolProgressFromEvent(event: unknown): CodexToolCallProgress | undefined {
   if (!isRecord(event)) {
     return undefined;

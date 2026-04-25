@@ -1,5 +1,6 @@
 import type { SessionRouteMode } from "./types.js";
 
+/** Builds the stable session key used to group Telegram chat, topic, user, or bound routes. */
 export function buildSessionKey(params: {
   chatType: "private" | "group" | "supergroup" | "channel";
   chatId: string;

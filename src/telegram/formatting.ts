@@ -1,9 +1,11 @@
 const TELEGRAM_TEXT_LIMIT = 4000;
 
+/** Removes Telegram-hostile null bytes and surrounding whitespace from outbound text. */
 export function normalizeTelegramText(text: string): string {
   return text.replace(/\u0000/g, "").trim();
 }
 
+/** Splits outbound text into Telegram-sized chunks using natural whitespace breaks where possible. */
 export function splitTelegramText(text: string, maxLength = TELEGRAM_TEXT_LIMIT): string[] {
   const normalized = normalizeTelegramText(text);
   if (!normalized) {

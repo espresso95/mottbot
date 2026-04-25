@@ -6,6 +6,7 @@ const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SENSITIVE_TEXT_PATTERN =
   /(gho_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|Bearer\s+[A-Za-z0-9._-]+|Authorization:\s*[^\s]+)/gi;
 
+/** Runtime configuration for GitHub CLI-backed tool operations. */
 export type GithubToolConfig = {
   defaultRepository?: string;
   command: string;
@@ -14,6 +15,7 @@ export type GithubToolConfig = {
   maxOutputBytes: number;
 };
 
+/** Repository metadata returned by GitHub read tools. */
 export type GithubRepositoryMetadata = {
   repository: string;
   url: string;
@@ -26,6 +28,7 @@ export type GithubRepositoryMetadata = {
   pushedAt?: string;
 };
 
+/** Summary of an open pull request returned by GitHub read tools. */
 export type GithubPullRequestSummary = {
   number: number;
   title: string;
@@ -39,6 +42,7 @@ export type GithubPullRequestSummary = {
   updatedAt?: string;
 };
 
+/** Summary of an issue returned by GitHub read tools. */
 export type GithubIssueSummary = {
   number: number;
   title: string;
@@ -48,6 +52,7 @@ export type GithubIssueSummary = {
   updatedAt?: string;
 };
 
+/** Summary of a GitHub Actions workflow run. */
 export type GithubWorkflowRunSummary = {
   databaseId: number;
   workflowName: string;
@@ -62,6 +67,7 @@ export type GithubWorkflowRunSummary = {
   updatedAt?: string;
 };
 
+/** Result returned after creating an issue through GitHub write tools. */
 export type GithubCreatedIssue = {
   ok: true;
   action: "created_issue";
@@ -72,6 +78,7 @@ export type GithubCreatedIssue = {
   labels: string[];
 };
 
+/** Result returned after commenting on an issue or pull request. */
 export type GithubCommentResult = {
   ok: true;
   action: "commented_issue" | "commented_pull_request";
@@ -80,6 +87,7 @@ export type GithubCommentResult = {
   url?: string;
 };
 
+/** Read-only GitHub operations exposed to tool handlers. */
 export type GithubReadOperations = {
   repository(params?: { repository?: string }): Promise<GithubRepositoryMetadata>;
   openPullRequests(params?: { repository?: string; limit?: number }): Promise<{
@@ -104,6 +112,7 @@ export type GithubReadOperations = {
   }>;
 };
 
+/** Side-effecting GitHub operations exposed behind tool approval. */
 export type GithubWriteOperations = {
   createIssue(params: {
     repository?: string;
@@ -120,6 +129,7 @@ type CommandResult = {
   stderr: string;
 };
 
+/** Injectable GitHub CLI command runner used by the GitHub service. */
 export type GithubCommandRunner = (params: {
   command: string;
   args: string[];
@@ -229,6 +239,7 @@ function parseGithubUrl(value: string): string | undefined {
   }
 }
 
+/** Parses common GitHub remote URL formats into owner/repository form. */
 export function parseGithubRemoteUrl(value: string): string | undefined {
   const trimmed = value.trim();
   const scpLike = /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/i.exec(trimmed);
@@ -253,6 +264,7 @@ export function parseGithubRemoteUrl(value: string): string | undefined {
   }
 }
 
+/** Formats repository metadata for operator-facing tool output. */
 export function formatGithubRepositoryMetadata(metadata: GithubRepositoryMetadata): string {
   return [
     `GitHub repository: ${metadata.repository}`,
@@ -267,6 +279,7 @@ export function formatGithubRepositoryMetadata(metadata: GithubRepositoryMetadat
   ].join("\n");
 }
 
+/** Formats open pull request summaries for operator-facing tool output. */
 export function formatGithubPullRequests(repository: string, pullRequests: GithubPullRequestSummary[]): string {
   if (pullRequests.length === 0) {
     return `Open pull requests for ${repository}: none.`;
@@ -288,6 +301,7 @@ export function formatGithubPullRequests(repository: string, pullRequests: Githu
   ].join("\n");
 }
 
+/** Formats issue summaries for operator-facing tool output. */
 export function formatGithubIssues(repository: string, issues: GithubIssueSummary[]): string {
   if (issues.length === 0) {
     return `Open issues for ${repository}: none.`;
@@ -309,6 +323,7 @@ export function formatGithubIssues(repository: string, issues: GithubIssueSummar
   ].join("\n");
 }
 
+/** Formats GitHub Actions workflow run summaries for operator-facing tool output. */
 export function formatGithubWorkflowRuns(params: {
   repository: string;
   title: string;
@@ -336,6 +351,7 @@ export function formatGithubWorkflowRuns(params: {
   ].join("\n");
 }
 
+/** Formats a combined GitHub repository, PR, issue, and CI status summary. */
 export function formatGithubStatusSummary(params: {
   metadata: GithubRepositoryMetadata;
   pullRequests: GithubPullRequestSummary[];
@@ -462,6 +478,7 @@ function parseWorkflowRun(raw: unknown): GithubWorkflowRunSummary | undefined {
   };
 }
 
+/** GitHub service implemented through the local gh CLI with redacted output handling. */
 export class GithubCliReadService implements GithubReadOperations, GithubWriteOperations {
   constructor(
     private readonly config: GithubToolConfig,

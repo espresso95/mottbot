@@ -9,6 +9,7 @@ function optionalInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) ? value : undefined;
 }
 
+/** Creates model tool handlers backed by the configured Google Drive service. */
 export function createGoogleDriveToolHandlers(service: GoogleDriveService): Partial<Record<string, ToolHandler>> {
   return {
     mottbot_google_drive_search: ({ arguments: input, signal }) =>

@@ -2,8 +2,10 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 import type { InboundEvent } from "../telegram/types.js";
 
+/** Durable queue state for inbound Telegram events waiting on run processing. */
 export type RunQueueState = "queued" | "claimed" | "completed" | "failed";
 
+/** Persisted queue entry containing the inbound event and lease metadata. */
 export type RunQueueRecord = {
   runId: string;
   sessionKey: string;
@@ -60,6 +62,7 @@ function mapRunQueueRow(row: RunQueueRow | undefined): RunQueueRecord | undefine
   };
 }
 
+/** SQLite-backed queue for recovering and leasing inbound run work across restarts. */
 export class RunQueueStore {
   constructor(
     private readonly database: DatabaseClient,

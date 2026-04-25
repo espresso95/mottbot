@@ -1,7 +1,9 @@
 import { normalizeBotUsername, parseBooleanEnv } from "./telegram-user-smoke-helpers.js";
 
+/** Environment map consumed by live validation planning helpers. */
 export type LiveValidationEnv = Record<string, string | undefined>;
 
+/** Supported live validation scenario categories. */
 export type LiveValidationScenarioKind =
   | "preflight"
   | "private"
@@ -12,6 +14,7 @@ export type LiveValidationScenarioKind =
   | "group_unmentioned"
   | "file";
 
+/** One script invocation planned for live validation. */
 export type LiveValidationScenario = {
   kind: LiveValidationScenarioKind;
   name: string;
@@ -19,6 +22,7 @@ export type LiveValidationScenario = {
   env: Record<string, string>;
 };
 
+/** Planned live validation scenarios plus skip and blocking-issue metadata. */
 export type LiveValidationPlan = {
   enabled: boolean;
   dryRun: boolean;
@@ -92,6 +96,7 @@ function scenario(params: {
   };
 }
 
+/** Builds a live validation plan from environment flags and Telegram credentials. */
 export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationPlan {
   const enabled = true;
   const scenarios: LiveValidationScenario[] = [];

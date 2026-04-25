@@ -5,8 +5,10 @@ import type { Readable } from "node:stream";
 import { parseJsonlChunk, type CodexJsonlEvent } from "./codex-jsonl-parser.js";
 import type { Clock } from "../shared/clock.js";
 
+/** Lifecycle state for a reusable Codex CLI job. */
 export type CodexCliJobStatus = "starting" | "streaming" | "exited" | "failed" | "cancelled" | "timed_out";
 
+/** Runtime settings shared by Codex CLI job services and project workers. */
 export type CodexCliServiceConfig = {
   command: string;
   coderProfile: string;
@@ -14,6 +16,7 @@ export type CodexCliServiceConfig = {
   artifactRoot: string;
 };
 
+/** Input required to prepare a Codex CLI job before spawning it. */
 export type CodexCliJobPrepareParams = {
   jobId: string;
   cwd: string;
@@ -23,6 +26,7 @@ export type CodexCliJobPrepareParams = {
   timeoutMs?: number;
 };
 
+/** Artifact paths allocated for one Codex CLI job. */
 export type CodexCliJobPaths = {
   runDir: string;
   stdoutLogPath: string;
@@ -31,6 +35,7 @@ export type CodexCliJobPaths = {
   finalMessagePath: string;
 };
 
+/** Prepared Codex CLI job including command args and artifact paths. */
 export type CodexCliPreparedJob = CodexCliJobPaths & {
   jobId: string;
   cwd: string;
@@ -42,6 +47,7 @@ export type CodexCliPreparedJob = CodexCliJobPaths & {
   timeoutMs: number;
 };
 
+/** Parsed JSONL event record emitted by a running Codex CLI job. */
 export type CodexCliEventRecord = {
   eventIndex: number;
   eventType?: string;
@@ -49,6 +55,7 @@ export type CodexCliEventRecord = {
   eventJson: string;
 };
 
+/** Store patch emitted when a Codex CLI job reaches a terminal state. */
 export type CodexCliFinishedPatch = {
   status: CodexCliJobStatus;
   exitCode?: number;
@@ -57,6 +64,7 @@ export type CodexCliFinishedPatch = {
   lastError?: string;
 };
 
+/** Callbacks invoked as a Codex CLI job starts streaming, emits events, and finishes. */
 export type CodexCliServiceCallbacks = {
   onStreaming?: (params: { pid?: number; startedAt: number }) => void;
   onEvent?: (record: CodexCliEventRecord) => void;
@@ -83,11 +91,18 @@ function validateArtifactSegment(segment: string): void {
   if (!segment.trim()) {
     throw new Error("Codex CLI artifact path segment cannot be empty.");
   }
-  if (segment === "." || segment === ".." || segment.includes("/") || segment.includes("\\") || segment.includes("\0")) {
+  if (
+    segment === "." ||
+    segment === ".." ||
+    segment.includes("/") ||
+    segment.includes("\\") ||
+    segment.includes("\0")
+  ) {
     throw new Error(`Invalid Codex CLI artifact path segment ${segment}.`);
   }
 }
 
+/** Builds artifact paths for a job while preventing path traversal outside the artifact root. */
 export function buildCodexCliJobPaths(artifactRoot: string, artifactSegments: readonly string[]): CodexCliJobPaths {
   if (artifactSegments.length === 0) {
     throw new Error("Codex CLI artifact path requires at least one segment.");
@@ -109,6 +124,7 @@ export function buildCodexCliJobPaths(artifactRoot: string, artifactSegments: re
   };
 }
 
+/** Builds the Codex CLI exec arguments for a prepared job. */
 export function buildCodexCliArgs(params: {
   cwd: string;
   profile: string;
@@ -128,6 +144,7 @@ export function buildCodexCliArgs(params: {
   ];
 }
 
+/** Reusable service for preparing, spawning, tracking, and cancelling Codex CLI jobs. */
 export class CodexCliService {
   private readonly active = new Map<string, ActiveProcess>();
 
@@ -175,8 +192,7 @@ export class CodexCliService {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    let active: ActiveProcess;
-    active = {
+    const active: ActiveProcess = {
       child,
       timeout: setTimeout(() => {
         active.timedOut = true;
@@ -219,11 +235,15 @@ export class CodexCliService {
     });
 
     child.on("error", (error) => {
-      this.finish(job.jobId, {
-        status: "failed",
-        finishedAt: this.clock.now(),
-        lastError: error.message,
-      }, callbacks);
+      this.finish(
+        job.jobId,
+        {
+          status: "failed",
+          finishedAt: this.clock.now(),
+          lastError: error.message,
+        },
+        callbacks,
+      );
     });
 
     child.on("close", (code, signal) => {
@@ -231,15 +251,19 @@ export class CodexCliService {
       const timedOut = current?.timedOut ?? false;
       const cancelled = current?.cancelled ?? false;
       const status = this.closeStatus({ code, signal, timedOut, cancelled });
-      this.finish(job.jobId, {
-        status,
-        exitCode: code ?? undefined,
-        signal: signal ?? undefined,
-        finishedAt: this.clock.now(),
-        ...(status === "failed" || status === "timed_out"
-          ? { lastError: this.closeError({ code, signal, timedOut, timeoutMs: job.timeoutMs }) }
-          : {}),
-      }, callbacks);
+      this.finish(
+        job.jobId,
+        {
+          status,
+          exitCode: code ?? undefined,
+          signal: signal ?? undefined,
+          finishedAt: this.clock.now(),
+          ...(status === "failed" || status === "timed_out"
+            ? { lastError: this.closeError({ code, signal, timedOut, timeoutMs: job.timeoutMs }) }
+            : {}),
+        },
+        callbacks,
+      );
     });
   }
 

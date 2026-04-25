@@ -15,6 +15,7 @@ import type { NormalizedAttachment } from "./types.js";
 
 export type { ExtractedAttachmentText } from "./file-extraction.js";
 
+/** Native provider input built from a downloaded Telegram attachment. */
 export type NativeAttachmentInput =
   | {
       type: "image";
@@ -28,6 +29,7 @@ export type NativeAttachmentInput =
       fileName?: string;
     };
 
+/** Transcript-safe attachment metadata persisted with ingestion and extraction outcomes. */
 export type TranscriptAttachmentMetadata = NormalizedAttachment & {
   recordId?: string;
   ingestionStatus: "metadata_only" | "native_input" | "extracted_text" | "skipped";
@@ -36,6 +38,7 @@ export type TranscriptAttachmentMetadata = NormalizedAttachment & {
   extraction?: AttachmentExtractionMetadata;
 };
 
+/** Prepared attachment payloads returned before a model run starts. */
 export type AttachmentPreparation = {
   transcriptAttachments: TranscriptAttachmentMetadata[];
   nativeInputs: NativeAttachmentInput[];
@@ -43,6 +46,7 @@ export type AttachmentPreparation = {
   cachePaths: string[];
 };
 
+/** Attachment preparation interface used by run orchestration and test doubles. */
 export type AttachmentIngestor = {
   prepare(params: {
     attachments: NormalizedAttachment[];
@@ -53,6 +57,7 @@ export type AttachmentIngestor = {
   cleanup(preparation: AttachmentPreparation): Promise<void>;
 };
 
+/** Operator-safe attachment ingestion failure with a stable error code. */
 export class AttachmentIngestionError extends Error {
   constructor(
     readonly code:
@@ -156,6 +161,7 @@ async function readResponseBody(params: { response: Response; maxBytes: number }
   return Buffer.concat(chunks);
 }
 
+/** Attachment ingestor that records metadata only and performs no downloads. */
 export class NoopAttachmentIngestor implements AttachmentIngestor {
   async prepare(params: {
     attachments: NormalizedAttachment[];
@@ -178,6 +184,7 @@ export class NoopAttachmentIngestor implements AttachmentIngestor {
   }
 }
 
+/** Downloads Telegram files and prepares native or extracted attachment content for model prompts. */
 export class TelegramAttachmentIngestor implements AttachmentIngestor {
   constructor(
     private readonly api: Api,

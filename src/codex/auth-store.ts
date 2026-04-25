@@ -30,6 +30,7 @@ function parseMetadata(raw: string | null): Record<string, unknown> | undefined 
   }
 }
 
+/** Persists encrypted Codex auth profiles and maps database rows back to runtime credentials. */
 export class AuthProfileStore {
   constructor(
     private readonly database: DatabaseClient,

@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { ToolHandler } from "./executor.js";
 
+/** Configuration for one stdio MCP server exposed through tool handlers. */
 export type McpServerConfig = {
   name: string;
   command: string;
@@ -10,6 +11,7 @@ export type McpServerConfig = {
   maxOutputBytes: number;
 };
 
+/** Runtime MCP tool configuration containing all allowed servers. */
 export type McpToolConfig = {
   servers: McpServerConfig[];
 };
@@ -188,6 +190,7 @@ function normalizeToolArguments(value: unknown): Record<string, JsonValue> {
   return object as Record<string, JsonValue>;
 }
 
+/** Creates handlers that call allow-listed tools on configured stdio MCP servers. */
 export function createMcpToolHandlers(config: McpToolConfig): Partial<Record<string, ToolHandler>> {
   const servers = new Map<string, McpServerConfig>();
   for (const server of config.servers) {

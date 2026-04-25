@@ -26,6 +26,7 @@ import {
 } from "./tool-calls.js";
 import type { CodexResolvedAuth } from "./types.js";
 
+/** Transport preference for Codex streaming requests. */
 export type TransportMode = "auto" | "sse" | "websocket";
 
 type StreamParams = {
@@ -46,6 +47,7 @@ type StreamParams = {
   onToolCallEnd?: (toolCall: CodexToolCall) => Promise<void> | void;
 };
 
+/** Final assistant output and stream metadata returned by a Codex transport request. */
 export type CodexStreamResult = {
   text: string;
   thinking?: string;
@@ -198,6 +200,7 @@ function buildPiAiContext(params: {
   };
 }
 
+/** Streams Codex responses through WebSocket or SSE with automatic fallback on early socket failures. */
 export class CodexTransport {
   constructor(
     private readonly database: DatabaseClient,

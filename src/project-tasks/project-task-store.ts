@@ -191,6 +191,7 @@ function parseDependsOnJson(raw: string): string[] {
   }
 }
 
+/** SQLite store for project tasks, subtasks, approvals, CLI runs, and worker events. */
 export class ProjectTaskStore {
   constructor(
     private readonly database: DatabaseClient,

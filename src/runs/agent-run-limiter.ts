@@ -1,3 +1,4 @@
+/** In-memory per-agent concurrency limiter for active model runs. */
 export class AgentRunLimiter {
   private readonly active = new Map<string, number>();
   private readonly waiters = new Map<string, Array<() => void>>();
