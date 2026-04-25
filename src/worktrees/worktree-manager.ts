@@ -27,19 +27,19 @@ type WorktreeManagerConfig = {
 };
 
 /** Worktree path and branch prepared for project-mode worker or integration work. */
-export type PreparedWorktree = {
+type PreparedWorktree = {
   worktreePath: string;
   branchName: string;
 };
 
 /** Result from attempting to merge a branch into an integration worktree. */
-export type MergeResult = {
+type MergeResult = {
   ok: boolean;
   output: string;
 };
 
 /** Output from pushing a project-mode branch and optionally opening a pull request. */
-export type PublishBranchResult = {
+type PublishBranchResult = {
   pushOutput: string;
   pullRequestUrl?: string;
   pullRequestOutput?: string;

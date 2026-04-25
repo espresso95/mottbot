@@ -2,7 +2,7 @@ import type { AppConfig } from "../app/config.js";
 import type { InboundEvent } from "./types.js";
 
 /** Result of pre-run safety checks for inbound text and attachment limits. */
-export type SafetyDecision =
+type SafetyDecision =
   | { allow: true }
   | {
       allow: false;

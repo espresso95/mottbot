@@ -6,7 +6,7 @@ import { sendReply } from "./command-replies.js";
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram run diagnostics command handler. */
-export type RunsCommandDependencies = {
+type RunsCommandDependencies = {
   api: Api;
   event: InboundEvent;
   session: SessionRoute;
@@ -16,7 +16,7 @@ export type RunsCommandDependencies = {
 };
 
 /** Dependencies needed by the Telegram debug diagnostics command handler. */
-export type DebugCommandDependencies = RunsCommandDependencies & {
+type DebugCommandDependencies = RunsCommandDependencies & {
   health: HealthReporter;
 };
 

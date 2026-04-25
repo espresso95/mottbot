@@ -32,7 +32,7 @@ export type UsageBudgetRunCountScope = {
 };
 
 /** Run count grouped by model for usage reports. */
-export type UsageBudgetModelCount = {
+type UsageBudgetModelCount = {
   modelRef: string;
   runs: number;
 };

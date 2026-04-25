@@ -7,10 +7,10 @@ import type { PromptMessage } from "../runs/prompt-builder.js";
 import type { ModelToolDeclaration } from "../tools/registry.js";
 
 /** Auth shape exposed to the model abstraction layer. */
-export type ModelResolvedAuth = CodexResolvedAuth;
+type ModelResolvedAuth = CodexResolvedAuth;
 
 /** Provider-neutral stream request used by run orchestration. */
-export type ModelStreamParams = {
+type ModelStreamParams = {
   sessionKey: string;
   modelRef: string;
   transport: TransportMode;

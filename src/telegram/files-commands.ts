@@ -8,7 +8,7 @@ import { sendReply } from "./command-replies.js";
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram file metadata command handler. */
-export type FilesCommandDependencies = {
+type FilesCommandDependencies = {
   api: Api;
   event: InboundEvent;
   session: SessionRoute;

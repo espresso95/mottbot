@@ -52,7 +52,7 @@ Check for circular TypeScript imports:
 pnpm deps:cycles
 ```
 
-Check for unused files, dependencies, and unlisted package use:
+Check for unused files, dependencies, unlisted package use, and unused exports:
 
 ```bash
 pnpm knip
@@ -106,7 +106,7 @@ Avoid comments that only restate an identifier. Prefer readable names and small 
 
 `pnpm deps:cycles` scans production, script, and test TypeScript entrypoints with Madge and fails on circular imports.
 
-`pnpm knip` is configured for high-signal hygiene checks: unused files, unused dependencies, unlisted dependencies, unresolved imports, and missing binaries. Export-level checks stay out of the default command because many exported types are intentional module-boundary contracts.
+`pnpm knip` is configured for high-signal hygiene checks: unused files, unused dependencies, unlisted dependencies, unresolved imports, missing binaries, and unused runtime or type exports. Keep exports intentional; prefer file-local helpers and types until another module actually imports the contract.
 
 The Knip config intentionally ignores the direct `punycode` dependency. The patched `whatwg-url` transitive package resolves `punycode/` at runtime, so package validation needs it even though application source does not import it directly.
 

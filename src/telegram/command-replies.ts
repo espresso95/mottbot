@@ -8,7 +8,7 @@ export type TelegramInlineKeyboard = {
 };
 
 /** Additional send options for Telegram command replies. */
-export type SendReplyOptions = {
+type SendReplyOptions = {
   replyMarkup?: TelegramInlineKeyboard;
 };
 

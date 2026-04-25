@@ -35,7 +35,7 @@ export type ToolExecutionResult = {
 };
 
 /** Handler used by process-control tools to schedule a local service restart. */
-export type RestartServiceHandler = (params: { reason: string; delayMs: number }) => Promise<unknown> | unknown;
+type RestartServiceHandler = (params: { reason: string; delayMs: number }) => Promise<unknown> | unknown;
 
 /** Runtime context passed to an individual tool handler. */
 export type ToolExecutionContext = {
@@ -53,7 +53,7 @@ export type ToolExecutionContext = {
 export type ToolHandler = (context: ToolExecutionContext) => Promise<unknown> | unknown;
 
 /** Collaborators and policy hooks required by the tool executor. */
-export type ToolExecutorDependencies = {
+type ToolExecutorDependencies = {
   clock: Clock;
   health?: HealthReporter;
   handlers?: Partial<Record<string, ToolHandler>>;
@@ -67,7 +67,7 @@ export type ToolExecutorDependencies = {
 };
 
 /** Per-call execution metadata and policy overrides. */
-export type ToolExecutionOptions = {
+type ToolExecutionOptions = {
   signal?: AbortSignal;
   sessionKey?: string;
   runId?: string;

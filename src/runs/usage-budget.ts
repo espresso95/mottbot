@@ -7,7 +7,7 @@ type BudgetWindow = "daily" | "monthly";
 type BudgetScope = "global" | "user" | "chat" | "session" | "model";
 
 /** Result of checking configured daily and monthly run budgets. */
-export type UsageBudgetDecision = {
+type UsageBudgetDecision = {
   allowed: boolean;
   deniedReason?: string;
   warnings: string[];

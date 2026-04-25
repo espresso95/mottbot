@@ -1,7 +1,7 @@
 import type { DatabaseClient } from "./client.js";
 
 /** Timestamp cutoffs used to decide which operational records are old enough to prune. */
-export type OperationalRetentionCutoffs = {
+type OperationalRetentionCutoffs = {
   telegramUpdatesBefore: number;
   messagesBefore: number;
   attachmentRecordsBefore: number;
@@ -11,7 +11,7 @@ export type OperationalRetentionCutoffs = {
 };
 
 /** Counts returned after a retention pass or dry run. */
-export type OperationalRetentionResult = {
+type OperationalRetentionResult = {
   dryRun: boolean;
   cutoffs: OperationalRetentionCutoffs;
   telegramUpdates: number;

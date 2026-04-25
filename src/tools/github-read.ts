@@ -7,7 +7,7 @@ const SENSITIVE_TEXT_PATTERN =
   /(gho_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|Bearer\s+[A-Za-z0-9._-]+|Authorization:\s*[^\s]+)/gi;
 
 /** Runtime configuration for GitHub CLI-backed tool operations. */
-export type GithubToolConfig = {
+type GithubToolConfig = {
   defaultRepository?: string;
   command: string;
   commandTimeoutMs: number;
@@ -16,7 +16,7 @@ export type GithubToolConfig = {
 };
 
 /** Repository metadata returned by GitHub read tools. */
-export type GithubRepositoryMetadata = {
+type GithubRepositoryMetadata = {
   repository: string;
   url: string;
   description: string;
@@ -29,7 +29,7 @@ export type GithubRepositoryMetadata = {
 };
 
 /** Summary of an open pull request returned by GitHub read tools. */
-export type GithubPullRequestSummary = {
+type GithubPullRequestSummary = {
   number: number;
   title: string;
   author?: string;
@@ -43,7 +43,7 @@ export type GithubPullRequestSummary = {
 };
 
 /** Summary of an issue returned by GitHub read tools. */
-export type GithubIssueSummary = {
+type GithubIssueSummary = {
   number: number;
   title: string;
   author?: string;
@@ -53,7 +53,7 @@ export type GithubIssueSummary = {
 };
 
 /** Summary of a GitHub Actions workflow run. */
-export type GithubWorkflowRunSummary = {
+type GithubWorkflowRunSummary = {
   databaseId: number;
   workflowName: string;
   displayTitle: string;
@@ -68,7 +68,7 @@ export type GithubWorkflowRunSummary = {
 };
 
 /** Result returned after creating an issue through GitHub write tools. */
-export type GithubCreatedIssue = {
+type GithubCreatedIssue = {
   ok: true;
   action: "created_issue";
   repository: string;
@@ -79,7 +79,7 @@ export type GithubCreatedIssue = {
 };
 
 /** Result returned after commenting on an issue or pull request. */
-export type GithubCommentResult = {
+type GithubCommentResult = {
   ok: true;
   action: "commented_issue" | "commented_pull_request";
   repository: string;

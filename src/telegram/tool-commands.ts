@@ -23,7 +23,7 @@ import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 const TELEGRAM_TEXT_MAX_CHARS = 4096;
 
 /** Dependencies needed by the Telegram tool approval command handler. */
-export type ToolCommandDependencies = {
+type ToolCommandDependencies = {
   api: Api;
   event: InboundEvent;
   session: SessionRoute;
@@ -37,7 +37,7 @@ export type ToolCommandDependencies = {
 };
 
 /** Dependencies needed by Telegram tool approval callback buttons. */
-export type ToolApprovalCallbackDependencies = {
+type ToolApprovalCallbackDependencies = {
   api: Api;
   event: TelegramCallbackEvent;
   session: SessionRoute;
@@ -54,7 +54,7 @@ export type ToolApprovalCallbackDependencies = {
 };
 
 /** Parsed filters for /tool audit. */
-export type ToolAuditArgs = {
+type ToolAuditArgs = {
   limit: number;
   here: boolean;
   toolName?: string;

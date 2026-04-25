@@ -10,7 +10,7 @@ import {
 } from "./memory-store.js";
 
 /** Parsed model proposal for a durable memory candidate. */
-export type ParsedMemoryCandidate = {
+type ParsedMemoryCandidate = {
   scope: MemoryScope;
   scopeKey: string;
   contentText: string;

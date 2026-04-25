@@ -25,7 +25,7 @@ export type SessionMemory = {
 };
 
 /** Origin of an approved memory entry. */
-export type SessionMemorySource = "explicit" | "auto_summary" | "model_candidate";
+type SessionMemorySource = "explicit" | "auto_summary" | "model_candidate";
 
 /** Memory visibility scope. */
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
@@ -61,7 +61,7 @@ export type MemoryCandidate = {
 };
 
 /** Result of attempting to insert a deduplicated memory candidate. */
-export type AddMemoryCandidateResult =
+type AddMemoryCandidateResult =
   | {
       inserted: true;
       candidate: MemoryCandidate;

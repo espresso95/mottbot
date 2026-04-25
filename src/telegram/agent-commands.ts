@@ -13,7 +13,7 @@ import type { RouteResolver } from "./route-resolver.js";
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram agent selection command handler. */
-export type AgentCommandDependencies = {
+type AgentCommandDependencies = {
   api: Api;
   event: InboundEvent;
   session: SessionRoute;

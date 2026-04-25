@@ -60,7 +60,7 @@ type OutboxHandle = Awaited<ReturnType<TelegramOutbox["start"]>>;
 type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
-export type RunGovernancePolicy = {
+type RunGovernancePolicy = {
   resolveCallerRole?: (userId: string | undefined) => ToolCallerRole;
   isModelAllowed?: (params: { chatId: string; modelRef: string }) => boolean;
   isToolAllowed?: (params: { chatId: string; toolName: string }) => boolean;
@@ -208,6 +208,46 @@ function runQueueEventJson(record: RunQueueRecord): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function isAttachmentKind(value: unknown): value is InboundEvent["attachments"][number]["kind"] {
+  return (
+    value === "photo" ||
+    value === "document" ||
+    value === "audio" ||
+    value === "voice" ||
+    value === "video" ||
+    value === "sticker" ||
+    value === "animation" ||
+    value === "other"
+  );
+}
+
+function normalizedAttachmentFromUnknown(value: unknown): InboundEvent["attachments"][number] | undefined {
+  if (!isRecord(value) || !isAttachmentKind(value.kind) || typeof value.fileId !== "string" || value.fileId === "") {
+    return undefined;
+  }
+  return {
+    kind: value.kind,
+    fileId: value.fileId,
+    ...(typeof value.fileUniqueId === "string" ? { fileUniqueId: value.fileUniqueId } : {}),
+    ...(typeof value.fileName === "string" ? { fileName: value.fileName } : {}),
+    ...(typeof value.mimeType === "string" ? { mimeType: value.mimeType } : {}),
+    ...(typeof value.fileSize === "number" ? { fileSize: value.fileSize } : {}),
+    ...(typeof value.width === "number" ? { width: value.width } : {}),
+    ...(typeof value.height === "number" ? { height: value.height } : {}),
+    ...(typeof value.duration === "number" ? { duration: value.duration } : {}),
+  };
+}
+
+function normalizedAttachmentsFromUnknown(value: unknown): InboundEvent["attachments"] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((attachment) => {
+    const normalized = normalizedAttachmentFromUnknown(attachment);
+    return normalized ? [normalized] : [];
+  });
 }
 
 function approvedToolContinuationFromRecord(record: RunQueueRecord): ApprovedToolContinuation | undefined {
@@ -1162,7 +1202,7 @@ export class RunOrchestrator {
       ...(typeof parsed.text === "string" ? { text: parsed.text } : {}),
       ...(typeof parsed.caption === "string" ? { caption: parsed.caption } : {}),
       entities: [],
-      attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
+      attachments: normalizedAttachmentsFromUnknown(parsed.attachments),
       ...(typeof record.replyToMessageId === "number" ? { replyToMessageId: record.replyToMessageId } : {}),
       mentionsBot: parsed.mentionsBot === true,
       isCommand: parsed.isCommand === true,

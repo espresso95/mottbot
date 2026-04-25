@@ -14,7 +14,7 @@ export type MicrosoftTodoToolConfig = {
 };
 
 /** Summary metadata for a Microsoft To Do list. */
-export type MicrosoftTodoListSummary = {
+type MicrosoftTodoListSummary = {
   id: string;
   displayName: string;
   isOwner: boolean;
@@ -23,7 +23,7 @@ export type MicrosoftTodoListSummary = {
 };
 
 /** Summary metadata for a Microsoft To Do task. */
-export type MicrosoftTodoTaskSummary = {
+type MicrosoftTodoTaskSummary = {
   id: string;
   title: string;
   status?: string;
@@ -34,7 +34,7 @@ export type MicrosoftTodoTaskSummary = {
 };
 
 /** Result returned after creating a Microsoft To Do task. */
-export type MicrosoftTodoCreatedTask = {
+type MicrosoftTodoCreatedTask = {
   id: string;
   title: string;
   status?: string;

@@ -11,7 +11,7 @@ import { sendReply } from "./command-replies.js";
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram GitHub command handler. */
-export type GithubCommandDependencies = {
+type GithubCommandDependencies = {
   api: Api;
   event: InboundEvent;
   args: string[];

@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { ToolHandler } from "./executor.js";
 
 /** Configuration for one stdio MCP server exposed through tool handlers. */
-export type McpServerConfig = {
+type McpServerConfig = {
   name: string;
   command: string;
   args: string[];
@@ -12,7 +12,7 @@ export type McpServerConfig = {
 };
 
 /** Runtime MCP tool configuration containing all allowed servers. */
-export type McpToolConfig = {
+type McpToolConfig = {
   servers: McpServerConfig[];
 };
 

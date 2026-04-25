@@ -2,9 +2,7 @@ import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
 
 /** Result of attempting to claim a Telegram update for processing. */
-export type BeginUpdateResult =
-  | { accepted: true; reason: "new" }
-  | { accepted: false; reason: "processed" | "inflight" };
+type BeginUpdateResult = { accepted: true; reason: "new" } | { accepted: false; reason: "processed" | "inflight" };
 
 /** Deduplicates Telegram updates across in-flight and persisted processed update ids. */
 export class TelegramUpdateStore {

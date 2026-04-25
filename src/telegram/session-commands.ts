@@ -26,55 +26,55 @@ type SessionCommandBaseDependencies = {
 };
 
 /** Dependencies needed by the Telegram session status command handler. */
-export type StatusCommandDependencies = SessionCommandBaseDependencies & {
+type StatusCommandDependencies = SessionCommandBaseDependencies & {
   authProfiles: AuthProfileStore;
   tokenResolver: CodexTokenResolver;
 };
 
 /** Dependencies needed by the Telegram local usage command handler. */
-export type UsageCommandDependencies = SessionCommandBaseDependencies & {
+type UsageCommandDependencies = SessionCommandBaseDependencies & {
   args: string[];
   usageBudget?: UsageBudgetService;
 };
 
 /** Dependencies needed by the Telegram model selection command handler. */
-export type ModelCommandDependencies = SessionCommandBaseDependencies & {
+type ModelCommandDependencies = SessionCommandBaseDependencies & {
   args: string[];
   sessions: SessionStore;
   governance?: TelegramGovernanceStore;
 };
 
 /** Dependencies needed by the Telegram auth profile selection command handler. */
-export type ProfileCommandDependencies = SessionCommandBaseDependencies & {
+type ProfileCommandDependencies = SessionCommandBaseDependencies & {
   args: string[];
   sessions: SessionStore;
   authProfiles: AuthProfileStore;
 };
 
 /** Dependencies needed by the Telegram fast-mode command handler. */
-export type FastCommandDependencies = SessionCommandBaseDependencies & {
+type FastCommandDependencies = SessionCommandBaseDependencies & {
   args: string[];
   sessions: SessionStore;
 };
 
 /** Dependencies needed by the Telegram transcript reset command handler. */
-export type ResetCommandDependencies = SessionCommandBaseDependencies & {
+type ResetCommandDependencies = SessionCommandBaseDependencies & {
   transcripts: TranscriptStore;
 };
 
 /** Dependencies needed by the Telegram run cancellation command handler. */
-export type StopCommandDependencies = SessionCommandBaseDependencies & {
+type StopCommandDependencies = SessionCommandBaseDependencies & {
   orchestrator: RunOrchestrator;
 };
 
 /** Dependencies needed by the Telegram route binding command handler. */
-export type BindCommandDependencies = SessionCommandBaseDependencies & {
+type BindCommandDependencies = SessionCommandBaseDependencies & {
   args: string[];
   sessions: SessionStore;
 };
 
 /** Dependencies needed by the Telegram route unbinding command handler. */
-export type UnbindCommandDependencies = SessionCommandBaseDependencies & {
+type UnbindCommandDependencies = SessionCommandBaseDependencies & {
   sessions: SessionStore;
 };
 

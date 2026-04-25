@@ -12,7 +12,7 @@ import {
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram user governance command handler. */
-export type UserCommandDependencies = {
+type UserCommandDependencies = {
   api: Api;
   event: InboundEvent;
   args: string[];

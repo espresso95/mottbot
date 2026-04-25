@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ToolHandler } from "./executor.js";
 
 /** Runtime allow-list and sandbox config for local execution tools. */
-export type LocalExecToolConfig = {
+type LocalExecToolConfig = {
   roots: string[];
   deniedPaths: string[];
   allowedCommands: string[];

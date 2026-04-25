@@ -11,10 +11,10 @@ export type ToolSideEffect =
   | "secret_adjacent";
 
 /** Primitive values supported in the local JSON schema subset. */
-export type ToolJsonPrimitive = string | number | boolean | null;
+type ToolJsonPrimitive = string | number | boolean | null;
 
 /** JSON schema subset used for model tool declarations and local validation. */
-export type ToolJsonSchema = {
+type ToolJsonSchema = {
   type: "object" | "string" | "number" | "integer" | "boolean" | "array" | "null";
   description?: string;
   properties?: Record<string, ToolJsonSchema>;
@@ -29,7 +29,7 @@ export type ToolJsonSchema = {
 };
 
 /** Object schema required for every model-callable tool input. */
-export type ToolInputSchema = ToolJsonSchema & {
+type ToolInputSchema = ToolJsonSchema & {
   type: "object";
 };
 
@@ -46,12 +46,12 @@ export type ToolDefinition = {
 };
 
 /** Options controlling which tool definitions may be registered. */
-export type ToolRegistryOptions = {
+type ToolRegistryOptions = {
   allowSideEffectDefinitions?: boolean;
 };
 
 /** Options controlling whether side-effecting tools may be resolved or validated. */
-export type ToolResolveOptions = {
+type ToolResolveOptions = {
   allowSideEffects?: boolean;
 };
 
@@ -63,13 +63,13 @@ export type ModelToolDeclaration = {
 };
 
 /** Filters applied when building provider-facing tool declarations. */
-export type ModelToolDeclarationOptions = {
+type ModelToolDeclarationOptions = {
   includeAdminTools?: boolean;
   filter?: (definition: ToolDefinition) => boolean;
 };
 
 /** Stable error codes returned by registry validation and lookup failures. */
-export type ToolRegistryErrorCode =
+type ToolRegistryErrorCode =
   | "invalid_definition"
   | "unknown_tool"
   | "disabled_tool"

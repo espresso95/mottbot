@@ -17,7 +17,7 @@ export type LaunchAgentPaths = {
 };
 
 /** Result from probing a candidate Node binary or launchd command. */
-export type LaunchAgentCommandResult = {
+type LaunchAgentCommandResult = {
   status: number;
   stdout: string;
   stderr: string;

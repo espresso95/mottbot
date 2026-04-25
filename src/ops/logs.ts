@@ -4,7 +4,7 @@ import type { LaunchAgentPaths } from "../app/service.js";
 import { launchAgentPaths } from "../app/service.js";
 
 /** Filesystem state for one launchd service log file. */
-export type ServiceLogFileState = {
+type ServiceLogFileState = {
   role: "stdout" | "stderr";
   path: string;
   exists: boolean;
@@ -14,13 +14,13 @@ export type ServiceLogFileState = {
 };
 
 /** Summary of the current service log directory and known log files. */
-export type ServiceLogStatus = {
+type ServiceLogStatus = {
   logDir: string;
   files: ServiceLogFileState[];
 };
 
 /** Files archived, truncated, or skipped during a log rotation pass. */
-export type ServiceLogRotationResult = {
+type ServiceLogRotationResult = {
   archiveDir: string;
   files: Array<{
     role: "stdout" | "stderr";

@@ -43,7 +43,7 @@ export type ToolApprovalDecision = {
 };
 
 /** Operator prompt describing why a side-effecting tool needs approval. */
-export type ToolApprovalPrompt = {
+type ToolApprovalPrompt = {
   toolName: string;
   sideEffect: Exclude<ToolSideEffect, "read_only">;
   promptText: string;

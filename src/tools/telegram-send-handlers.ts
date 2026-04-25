@@ -2,7 +2,7 @@ import type { Api } from "grammy";
 import type { ToolHandler } from "./executor.js";
 
 /** Runtime allow-list for Telegram send-message tools. */
-export type TelegramSendToolConfig = {
+type TelegramSendToolConfig = {
   allowedChatIds: string[];
 };
 

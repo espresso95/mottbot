@@ -24,13 +24,13 @@ export type ToolPolicy = {
 };
 
 /** Caller and chat context for evaluating a tool policy. */
-export type ToolPolicyContext = {
+type ToolPolicyContext = {
   role: ToolCallerRole;
   chatId?: string;
 };
 
 /** Result of checking whether a tool is allowed in the current context. */
-export type ToolPolicyDecision =
+type ToolPolicyDecision =
   | {
       allowed: true;
       code: "policy_allowed";
@@ -45,7 +45,7 @@ export type ToolPolicyDecision =
     };
 
 /** Optional per-agent policy override passed during evaluation. */
-export type ToolPolicyEvaluationOptions = {
+type ToolPolicyEvaluationOptions = {
   override?: ToolPolicyConfig;
 };
 

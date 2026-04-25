@@ -6,7 +6,7 @@ import type { TelegramGovernanceStore } from "./governance.js";
 import { isGovernanceOperatorRole } from "./governance.js";
 
 /** Decision returned after checking whether an inbound Telegram event should be processed. */
-export type AccessDecision =
+type AccessDecision =
   | { allow: true; reason: "private" | "mentioned" | "reply" | "bound" | "command" }
   | { allow: false; reason: string };
 

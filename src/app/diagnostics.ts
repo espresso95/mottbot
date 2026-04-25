@@ -5,7 +5,7 @@ import type { AppConfig } from "./config.js";
 import { launchAgentPaths, serviceStatus, type LaunchAgentPaths } from "./service.js";
 
 /** Persisted run details used by dashboard and operator diagnostics. */
-export type RecentRunDiagnostic = {
+type RecentRunDiagnostic = {
   runId: string;
   sessionKey: string;
   agentId: string;
@@ -34,7 +34,7 @@ type RecentRunRow = {
 };
 
 /** Aggregated routing and run counters for one configured or historical agent id. */
-export type AgentDiagnostic = {
+type AgentDiagnostic = {
   agentId: string;
   configured: boolean;
   displayName?: string;
@@ -66,7 +66,7 @@ type RunCountsByAgentRow = {
 };
 
 /** Filters for recent-run diagnostic queries. */
-export type RecentRunsParams = {
+type RecentRunsParams = {
   limit?: number;
   sessionKey?: string;
   statuses?: string[];

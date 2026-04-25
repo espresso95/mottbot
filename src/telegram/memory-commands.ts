@@ -15,7 +15,7 @@ import type { TelegramGovernanceStore } from "./governance.js";
 import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 
 /** Dependencies needed by memory-related Telegram command handlers. */
-export type MemoryCommandDependencies = {
+type MemoryCommandDependencies = {
   api: Api;
   event: InboundEvent;
   session: SessionRoute;
@@ -25,7 +25,7 @@ export type MemoryCommandDependencies = {
 };
 
 /** Dependencies needed by memory candidate callback buttons. */
-export type MemoryCandidateCallbackDependencies = {
+type MemoryCandidateCallbackDependencies = {
   api: Api;
   event: TelegramCallbackEvent;
   session: SessionRoute;

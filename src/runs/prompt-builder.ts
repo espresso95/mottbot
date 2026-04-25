@@ -15,7 +15,7 @@ export type PromptMessage = {
 };
 
 /** Final prompt assembled from system policy, memory, summary, and transcript history. */
-export type BuiltPrompt = {
+type BuiltPrompt = {
   systemPrompt: string;
   messages: PromptMessage[];
 };

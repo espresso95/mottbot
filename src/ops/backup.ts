@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import type { AppConfig } from "../app/config.js";
 
 /** Manifest entry for a file captured in an operational backup. */
-export type BackupFileRecord = {
+type BackupFileRecord = {
   role: "sqlite" | "sqlite-wal" | "sqlite-shm" | "config" | "env";
   path: string;
   sizeBytes: number;
@@ -13,7 +13,7 @@ export type BackupFileRecord = {
 };
 
 /** On-disk manifest describing backup contents and secret-handling warnings. */
-export type BackupManifest = {
+type BackupManifest = {
   kind: "mottbot-backup";
   createdAt: string;
   sourceSqlitePath: string;
@@ -23,7 +23,7 @@ export type BackupManifest = {
 };
 
 /** Result returned after creating and integrity-checking an operational backup. */
-export type BackupResult = {
+type BackupResult = {
   backupDir: string;
   manifestPath: string;
   files: BackupFileRecord[];
@@ -32,7 +32,7 @@ export type BackupResult = {
 };
 
 /** Validation report for an existing operational backup directory. */
-export type BackupValidationResult = {
+type BackupValidationResult = {
   backupDir: string;
   ok: boolean;
   manifestPath: string;

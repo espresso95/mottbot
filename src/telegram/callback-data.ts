@@ -1,5 +1,5 @@
 /** Parsed Telegram callback action for inline approval buttons. */
-export type TelegramCallbackAction =
+type TelegramCallbackAction =
   | { type: "project_approve"; approvalId: string }
   | { type: "tool_approve"; auditId: string }
   | { type: "tool_deny"; auditId: string }

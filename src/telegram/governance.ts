@@ -57,7 +57,7 @@ export type GovernanceAuditRecord = {
 };
 
 /** Attachment policy failure returned before a Telegram event enters model orchestration. */
-export type ChatAttachmentPolicyViolation = {
+type ChatAttachmentPolicyViolation = {
   code: "attachment.too_many" | "attachment.too_large";
   message: string;
 };

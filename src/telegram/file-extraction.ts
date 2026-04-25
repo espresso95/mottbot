@@ -8,7 +8,7 @@ import type { NormalizedAttachment } from "./types.js";
 export type AttachmentExtractionKind = "text" | "markdown" | "pdf" | "code" | "csv" | "tsv";
 
 /** Outcome status for attachment text extraction. */
-export type AttachmentExtractionStatus = "extracted" | "skipped" | "failed";
+type AttachmentExtractionStatus = "extracted" | "skipped" | "failed";
 
 /** Transcript metadata describing what happened during attachment extraction. */
 export type AttachmentExtractionMetadata = {
@@ -40,7 +40,7 @@ export type ExtractedAttachmentText = {
 };
 
 /** Per-file parser and prompt-size limits for attachment extraction. */
-export type FileExtractionLimits = {
+type FileExtractionLimits = {
   maxTextCharsPerFile: number;
   csvPreviewRows: number;
   csvPreviewColumns: number;
@@ -48,7 +48,7 @@ export type FileExtractionLimits = {
 };
 
 /** Remaining shared prompt-character budget across attachments in one message. */
-export type FileExtractionBudget = {
+type FileExtractionBudget = {
   remainingChars: number;
 };
 
@@ -58,7 +58,7 @@ type FileClassification = {
 };
 
 /** Result of attempting to extract text, with metadata always available. */
-export type FileExtractionResult =
+type FileExtractionResult =
   | {
       metadata: AttachmentExtractionMetadata;
       extractedText: ExtractedAttachmentText;

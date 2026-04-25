@@ -8,7 +8,7 @@ import type { WorktreeManager } from "../worktrees/worktree-manager.js";
 import type { CodexCliRun, ProjectApproval, ProjectSubtask, ProjectTask } from "./project-types.js";
 
 /** Callback used to publish project completion or failure summaries back to Telegram. */
-export type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
+type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
 
 /** Result returned from project scheduler actions that may create approvals or change task state. */
 export type ProjectTaskActionResult = {

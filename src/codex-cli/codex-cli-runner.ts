@@ -4,7 +4,7 @@ import { createId } from "../shared/ids.js";
 import type { ProjectTaskStore } from "../project-tasks/project-task-store.js";
 
 /** Runtime settings for project-mode Codex CLI worker processes and their artifacts. */
-export type CodexCliRunnerConfig = CodexCliServiceConfig;
+type CodexCliRunnerConfig = CodexCliServiceConfig;
 
 /** Starts, tracks, logs, and cancels Codex CLI subprocesses for project subtasks. */
 export class CodexCliRunner {

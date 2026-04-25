@@ -13,7 +13,7 @@ export type GoogleDriveToolConfig = {
 };
 
 /** Summary metadata returned for a Google Drive file. */
-export type GoogleDriveFileSummary = {
+type GoogleDriveFileSummary = {
   id: string;
   name: string;
   mimeType?: string;
@@ -23,7 +23,7 @@ export type GoogleDriveFileSummary = {
 };
 
 /** File metadata plus optional bounded text content from Drive or Docs. */
-export type GoogleDriveFileReadResult = {
+type GoogleDriveFileReadResult = {
   file: GoogleDriveFileSummary;
   content?: {
     mimeType: string;

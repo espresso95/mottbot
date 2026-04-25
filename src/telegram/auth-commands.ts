@@ -6,7 +6,7 @@ import { sendReply } from "./command-replies.js";
 import type { InboundEvent } from "./types.js";
 
 /** Dependencies needed by the Telegram auth command handler. */
-export type AuthCommandDependencies = {
+type AuthCommandDependencies = {
   api: Api;
   event: InboundEvent;
   args: string[];

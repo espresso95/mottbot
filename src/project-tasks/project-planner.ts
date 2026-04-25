@@ -1,5 +1,5 @@
 /** One generated project step with dependency ids from the same plan. */
-export type ProjectPlanStep = {
+type ProjectPlanStep = {
   stepId: string;
   title: string;
   prompt: string;
@@ -7,7 +7,7 @@ export type ProjectPlanStep = {
 };
 
 /** Deterministic project plan used to seed project-mode subtasks. */
-export type ProjectPlan = {
+type ProjectPlan = {
   title: string;
   steps: ProjectPlanStep[];
 };

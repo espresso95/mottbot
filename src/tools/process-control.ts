@@ -6,7 +6,7 @@ function shellQuote(value: string): string {
 }
 
 /** Request to restart the local service after a bounded delay. */
-export type ServiceRestartRequest = {
+type ServiceRestartRequest = {
   reason: string;
   delayMs: number;
   projectRoot?: string;
@@ -20,7 +20,7 @@ export type ServiceRestartScheduled = {
 };
 
 /** Dependency injection points for restart scheduling tests. */
-export type ServiceRestartSchedulerDeps = {
+type ServiceRestartSchedulerDeps = {
   platform?: NodeJS.Platform;
   spawn?: typeof spawn;
   execPath?: string;

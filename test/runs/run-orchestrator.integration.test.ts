@@ -1836,7 +1836,11 @@ describe("RunOrchestrator", () => {
     durableQueue.create({
       runId: run.runId,
       sessionKey: session.sessionKey,
-      event: createInboundEvent({ text: "resume me", messageId: 42 }),
+      event: createInboundEvent({
+        text: "resume me",
+        messageId: 42,
+        attachments: [{ kind: "photo", fileId: "recovered-photo", fileUniqueId: "recovered-photo-unique" }],
+      }),
     });
     const outbox = {
       start: vi.fn(async () => ({
@@ -1875,6 +1879,12 @@ describe("RunOrchestrator", () => {
       stores.logger,
       undefined,
       durableQueue,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stores.attachmentRecords,
     );
 
     expect(orchestrator.recoverQueuedRuns()).toEqual({ resumed: 1, failed: 0 });
@@ -1887,5 +1897,13 @@ describe("RunOrchestrator", () => {
     );
     expect(stores.runs.get(run.runId)).toMatchObject({ status: "completed" });
     expect(durableQueue.get(run.runId)).toMatchObject({ state: "completed", attempts: 1 });
+    expect(stores.attachmentRecords.listRecent(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        fileId: "recovered-photo",
+        fileUniqueId: "recovered-photo-unique",
+        kind: "photo",
+      }),
+    ]);
+    expect(stores.transcripts.listRecent(session.sessionKey)[0]?.contentJson).toContain("recovered-photo");
   });
 });

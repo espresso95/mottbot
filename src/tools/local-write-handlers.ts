@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ToolHandler } from "./executor.js";
 
 /** Runtime allow-list and size limits for local write tools. */
-export type LocalWriteToolConfig = {
+type LocalWriteToolConfig = {
   roots: string[];
   deniedPaths: string[];
   maxWriteBytes: number;

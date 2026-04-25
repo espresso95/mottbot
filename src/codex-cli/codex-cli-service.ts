@@ -17,7 +17,7 @@ export type CodexCliServiceConfig = {
 };
 
 /** Input required to prepare a Codex CLI job before spawning it. */
-export type CodexCliJobPrepareParams = {
+type CodexCliJobPrepareParams = {
   jobId: string;
   cwd: string;
   prompt: string;
@@ -27,7 +27,7 @@ export type CodexCliJobPrepareParams = {
 };
 
 /** Artifact paths allocated for one Codex CLI job. */
-export type CodexCliJobPaths = {
+type CodexCliJobPaths = {
   runDir: string;
   stdoutLogPath: string;
   stderrLogPath: string;
@@ -36,7 +36,7 @@ export type CodexCliJobPaths = {
 };
 
 /** Prepared Codex CLI job including command args and artifact paths. */
-export type CodexCliPreparedJob = CodexCliJobPaths & {
+type CodexCliPreparedJob = CodexCliJobPaths & {
   jobId: string;
   cwd: string;
   prompt: string;
@@ -65,7 +65,7 @@ export type CodexCliFinishedPatch = {
 };
 
 /** Callbacks invoked as a Codex CLI job starts streaming, emits events, and finishes. */
-export type CodexCliServiceCallbacks = {
+type CodexCliServiceCallbacks = {
   onStreaming?: (params: { pid?: number; startedAt: number }) => void;
   onEvent?: (record: CodexCliEventRecord) => void;
   onFinished?: (patch: CodexCliFinishedPatch) => void;

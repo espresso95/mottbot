@@ -22,14 +22,14 @@ export const KNOWN_CODEX_MODEL_REFS_TEXT = KNOWN_CODEX_MODEL_REFS.join(", ");
 const CODEX_MODEL_REF_PATTERN = /^openai-codex\/[A-Za-z0-9._-]+$/;
 
 /** Model reference accepted by the Codex provider, including future openai-codex models. */
-export type CodexModelRef =
+type CodexModelRef =
   | "openai-codex/gpt-5.4"
   | "openai-codex/gpt-5.4-mini"
   | "openai-codex/gpt-5.3-codex-spark"
   | (string & {});
 
 /** Runtime model metadata consumed by prompt routing, transport selection, and capability checks. */
-export type RuntimeCodexModel = {
+type RuntimeCodexModel = {
   id: string;
   name: string;
   api: typeof OPENAI_CODEX_API;

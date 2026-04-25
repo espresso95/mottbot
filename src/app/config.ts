@@ -437,7 +437,7 @@ export type AgentConfig = {
 };
 
 /** Telegram routing selector that binds a chat, thread, user, or chat type to an agent. */
-export type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
+type AgentRoutingBinding = z.infer<typeof agentRoutingBindingSchema>;
 
 function readConfigFile(configPath: string): unknown {
   if (!fileExists(configPath)) {

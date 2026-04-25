@@ -5,7 +5,7 @@ import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { ToolApprovalAuditRecord } from "../tools/approval.js";
 
 /** Durable queue state for inbound Telegram events waiting on run processing. */
-export type RunQueueState = "queued" | "claimed" | "completed" | "failed";
+type RunQueueState = "queued" | "claimed" | "completed" | "failed";
 
 /** Persisted queue entry containing the inbound event and lease metadata. */
 export type RunQueueRecord = {
