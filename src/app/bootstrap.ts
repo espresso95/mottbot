@@ -108,7 +108,6 @@ export async function bootstrapApplication() {
     repoRoots: config.projectTasks.repoRoots,
     worktreeRoot: config.projectTasks.worktreeRoot,
   });
-  const projectScheduler = new ProjectTaskScheduler(config, systemClock, projectTaskStore, codexCliRunner, worktrees);
 
   const routeResolver = new RouteResolver(config, sessionStore);
   const provisionalBot = new TelegramBotServer(
@@ -120,6 +119,18 @@ export async function bootstrapApplication() {
     {} as never,
     routeResolver,
     {} as never,
+  );
+  const projectScheduler = new ProjectTaskScheduler(
+    config,
+    systemClock,
+    projectTaskStore,
+    codexCliRunner,
+    worktrees,
+    ({ task, text }) => {
+      void provisionalBot.api.sendMessage(task.chatId, text).catch((error) => {
+        logger.warn({ error, taskId: task.taskId }, "Failed to send project completion report.");
+      });
+    },
   );
   const reactions = new TelegramReactionService(provisionalBot.api);
   const toolRegistry = createRuntimeToolRegistry({

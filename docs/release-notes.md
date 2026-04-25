@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Project Mode Phase 6 (Reviewer Stage And Final Report)
+
+- Added a reviewer stage after integration succeeds; Project Mode now queues a `reviewer` subtask in the integration worktree before marking the task complete.
+- Reviewer subtasks run with the configured Codex reviewer profile while preserving the integrated branch and worktree for final inspection.
+- Final task summaries now include worker summaries, reviewer output, and the integrated branch.
+- Added a final Telegram completion report for completed project tasks.
+- Updated `/project status` to show the final branch and captured diff stat when available.
+
 ### Project Mode Phase 5 (Integration Branch Workflow)
 
 - Added a minimal integration branch workflow after all worker subtasks complete.

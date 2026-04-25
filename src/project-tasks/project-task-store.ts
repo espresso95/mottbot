@@ -300,7 +300,7 @@ export class ProjectTaskStore {
 
   listRunnableTasks(limit = 20): ProjectTask[] {
     return this.database.db
-      .prepare<unknown[], ProjectTaskRow>("select * from project_tasks where status in ('queued', 'running', 'integrating') order by updated_at asc limit ?")
+      .prepare<unknown[], ProjectTaskRow>("select * from project_tasks where status in ('queued', 'running', 'integrating', 'reviewing') order by updated_at asc limit ?")
       .all(Math.max(1, Math.min(limit, 100)))
       .map(mapTask);
   }

@@ -7,6 +7,8 @@ import type { ProjectTaskStore } from "./project-task-store.js";
 import type { WorktreeManager } from "../worktrees/worktree-manager.js";
 import type { CodexCliRun, ProjectSubtask, ProjectTask } from "./project-types.js";
 
+export type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
+
 export class ProjectTaskScheduler {
   private timer?: NodeJS.Timeout;
   private readonly activeSubtasks = new Set<string>();
@@ -17,6 +19,7 @@ export class ProjectTaskScheduler {
     private readonly store: ProjectTaskStore,
     private readonly runner: CodexCliRunner,
     private readonly worktrees: WorktreeManager,
+    private readonly reporter?: ProjectTaskReporter,
   ) {}
 
   start(): void {
@@ -51,6 +54,10 @@ export class ProjectTaskScheduler {
       }
       if (task.status === "integrating") {
         activeWorkerCount = this.handleIntegratingTask(task, activeWorkerCount, activeProjectIds);
+        continue;
+      }
+      if (task.status === "reviewing") {
+        activeWorkerCount = this.handleReviewingTask(task, activeWorkerCount, activeProjectIds);
         continue;
       }
       if (task.status !== "running") {
@@ -147,7 +154,7 @@ export class ProjectTaskScheduler {
     const activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
     const completedIntegrator = subtasks.find((subtask) => subtask.role === "integrator" && subtask.status === "completed");
     if (completedIntegrator && activeRunsForTask === 0) {
-      this.completeIntegration(task, subtasks);
+      this.beginReview(task, subtasks);
       return activeWorkerCount;
     }
 
@@ -210,7 +217,52 @@ export class ProjectTaskScheduler {
         return;
       }
     }
-    this.completeIntegration(integrationTask, completedWorkers);
+    this.beginReview(integrationTask, completedWorkers);
+  }
+
+  private handleReviewingTask(
+    task: ProjectTask,
+    activeWorkerCount: number,
+    activeProjectIds: Set<string>,
+  ): number {
+    this.finishTerminalSubtasks(task, this.store.listSubtasks(task.taskId));
+    const subtasks = this.store.listSubtasks(task.taskId);
+    const failedReviewer = subtasks.find((subtask) =>
+      subtask.role === "reviewer" && (subtask.status === "failed" || subtask.status === "cancelled")
+    );
+    if (failedReviewer) {
+      this.store.updateTask(task.taskId, {
+        status: failedReviewer.status === "cancelled" ? "cancelled" : "failed",
+        finishedAt: this.clock.now(),
+        lastError: failedReviewer.lastError ?? "Review worker failed.",
+      });
+      return activeWorkerCount;
+    }
+
+    const activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
+    const completedReviewer = subtasks.find((subtask) => subtask.role === "reviewer" && subtask.status === "completed");
+    if (completedReviewer && activeRunsForTask === 0) {
+      this.completeReviewedTask(task, subtasks, completedReviewer);
+      return activeWorkerCount;
+    }
+
+    const nextReviewer = subtasks.find((subtask) =>
+      subtask.role === "reviewer" && (subtask.status === "ready" || subtask.status === "queued")
+    );
+    if (!nextReviewer || activeRunsForTask > 0) {
+      return activeWorkerCount;
+    }
+    if (activeWorkerCount >= this.globalWorkerLimit()) {
+      return activeWorkerCount;
+    }
+    if (!activeProjectIds.has(task.taskId) && activeProjectIds.size >= this.maxConcurrentProjects()) {
+      return activeWorkerCount;
+    }
+    if (this.startSubtask(task, nextReviewer)) {
+      activeProjectIds.add(task.taskId);
+      return activeWorkerCount + 1;
+    }
+    return activeWorkerCount;
   }
 
   private queueConflictResolver(params: {
@@ -248,21 +300,76 @@ export class ProjectTaskScheduler {
     });
   }
 
-  private completeIntegration(task: ProjectTask, subtasks: ProjectSubtask[]): void {
+  private beginReview(task: ProjectTask, subtasks: ProjectSubtask[]): void {
+    if (!task.integrationWorktreePath || !task.integrationBranch) {
+      this.store.updateTask(task.taskId, {
+        status: "failed",
+        finishedAt: this.clock.now(),
+        lastError: "Integrated task is missing its integration worktree or branch.",
+      });
+      return;
+    }
+    const existingReviewer = subtasks.find((subtask) => subtask.role === "reviewer");
+    const finalDiffStat = this.worktrees.diffStat({
+      worktreePath: task.integrationWorktreePath,
+      baseRef: task.baseRef,
+    }).slice(0, 4_000);
+    const updatedTask = this.store.updateTask(task.taskId, {
+      status: "reviewing",
+      ...(finalDiffStat ? { finalDiffStat } : {}),
+    });
+    if (existingReviewer) {
+      return;
+    }
     const workerSubtasks = subtasks.filter((subtask) => subtask.role === "worker");
-    const summaries = workerSubtasks
+    const workerSummaries = workerSubtasks
       .map((subtask) => `- ${subtask.title}: ${subtask.resultSummary ?? "completed"}`)
       .join("\n");
-    const finalDiffStat = task.integrationWorktreePath
-      ? this.worktrees.diffStat({ worktreePath: task.integrationWorktreePath, baseRef: task.baseRef }).slice(0, 4_000)
-      : undefined;
-    this.store.updateTask(task.taskId, {
+    const prompt = [
+      "Review the integrated result for this Mottbot project task.",
+      `Project task: ${updatedTask.taskId}`,
+      `Original request: ${updatedTask.originalPrompt}`,
+      `Integration branch: ${updatedTask.integrationBranch}`,
+      "",
+      "You are already in the integration worktree. Inspect the final diff, run lightweight checks if practical, and report whether the result is ready for operator review.",
+      "",
+      "Worker summaries:",
+      workerSummaries || "- none",
+      "",
+      "Diff stat:",
+      finalDiffStat || "No diff stat captured.",
+    ].join("\n");
+    const reviewer = this.store.createSubtask({
+      taskId: updatedTask.taskId,
+      title: "Review integrated result",
+      role: "reviewer",
+      prompt,
+      dependsOnSubtaskIds: workerSubtasks.map((worker) => worker.subtaskId),
+      status: "ready",
+    });
+    this.store.updateSubtask(reviewer.subtaskId, {
+      branchName: updatedTask.integrationBranch,
+      worktreePath: updatedTask.integrationWorktreePath,
+    });
+  }
+
+  private completeReviewedTask(task: ProjectTask, subtasks: ProjectSubtask[], reviewer: ProjectSubtask): void {
+    const workerSubtasks = subtasks.filter((subtask) => subtask.role === "worker");
+    const workerSummaries = workerSubtasks
+      .map((subtask) => `- ${subtask.title}: ${subtask.resultSummary ?? "completed"}`)
+      .join("\n");
+    const reviewSummary = reviewer.resultSummary?.trim();
+    const completedTask = this.store.updateTask(task.taskId, {
       status: "completed",
       finishedAt: this.clock.now(),
       finalBranch: task.integrationBranch,
-      ...(finalDiffStat ? { finalDiffStat } : {}),
       finalSummary: [
-        summaries,
+        "Worker summaries:",
+        workerSummaries || "- none",
+        "",
+        "Review:",
+        reviewSummary || "Review completed.",
+        "",
         task.integrationBranch ? `Integrated branch: ${task.integrationBranch}` : undefined,
       ]
         .filter(Boolean)
@@ -277,6 +384,28 @@ export class ProjectTaskScheduler {
         worktreePath: subtask.worktreePath,
         branchName: subtask.branchName,
       });
+    }
+    this.reportCompletion(completedTask, reviewSummary);
+  }
+
+  private reportCompletion(task: ProjectTask, reviewSummary: string | undefined): void {
+    if (!this.reporter) {
+      return;
+    }
+    const text = [
+      `Project completed: ${task.title}`,
+      `Task ID: ${task.taskId}`,
+      task.finalBranch ? `Branch: ${task.finalBranch}` : undefined,
+      "",
+      reviewSummary ? `Review: ${reviewSummary}` : task.finalSummary,
+    ]
+      .filter((line): line is string => typeof line === "string" && line.length > 0)
+      .join("\n")
+      .slice(0, 3_900);
+    try {
+      this.reporter({ task, text });
+    } catch {
+      // Reporting must not change durable project outcome.
     }
   }
 
@@ -316,7 +445,7 @@ export class ProjectTaskScheduler {
       ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
       ...(lastError ? { lastError } : {}),
     });
-    const keepIntegrationWorktree = subtask.role === "integrator";
+    const keepIntegrationWorktree = subtask.role === "integrator" || subtask.role === "reviewer";
     if ((subtask.worktreePath || subtask.branchName) && !keepIntegrationWorktree) {
       this.worktrees.cleanupSubtask({
         repoRoot: task.repoRoot,
@@ -331,7 +460,7 @@ export class ProjectTaskScheduler {
   private startSubtask(task: ProjectTask, subtask: ProjectSubtask): boolean {
     let prepared: { worktreePath: string; branchName: string } | undefined;
     const usesExistingWorktree =
-      subtask.role === "integrator" &&
+      (subtask.role === "integrator" || subtask.role === "reviewer") &&
       typeof subtask.worktreePath === "string" &&
       typeof subtask.branchName === "string";
     try {
@@ -356,6 +485,7 @@ export class ProjectTaskScheduler {
         subtaskId: subtask.subtaskId,
         cwd: prepared.worktreePath,
         prompt: subtask.prompt,
+        profile: this.profileForSubtask(subtask),
       });
       return true;
     } catch (error) {
@@ -374,6 +504,10 @@ export class ProjectTaskScheduler {
       });
       return false;
     }
+  }
+
+  private profileForSubtask(subtask: ProjectSubtask): string | undefined {
+    return subtask.role === "reviewer" ? this.config.projectTasks.codex.reviewerProfile : undefined;
   }
 
   private refreshDependencyStates(subtasks: ReturnType<ProjectTaskStore["listSubtasks"]>): void {

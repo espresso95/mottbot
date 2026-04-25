@@ -16,6 +16,12 @@ function schedulerConfig(root: string, overrides: Partial<AppConfig["projectTask
       maxConcurrentProjects: 1,
       hardMaxParallelWorkersPerProject: 2,
       maxConcurrentCodexWorkersGlobal: 2,
+      codex: {
+        command: "codex",
+        coderProfile: "mottbot-coder",
+        reviewerProfile: "mottbot-reviewer",
+        defaultTimeoutMs: 60_000,
+      },
       ...overrides,
     },
   } as AppConfig;
@@ -44,7 +50,7 @@ function schedulerWorktrees(
 }
 
 describe("ProjectTaskScheduler", () => {
-  it("starts ready subtasks and marks task complete", async () => {
+  it("starts ready subtasks and queues review after integration", async () => {
     const root = createTempDir();
     try {
       const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
@@ -73,7 +79,8 @@ describe("ProjectTaskScheduler", () => {
       await scheduler.tick();
       expect(store.getSubtask(subtask.subtaskId)?.status).toBe("running");
       await scheduler.tick();
-      expect(store.getTask(task.taskId)?.status).toBe("completed");
+      expect(store.getTask(task.taskId)?.status).toBe("reviewing");
+      expect(store.listSubtasks(task.taskId).some((entry) => entry.role === "reviewer" && entry.status === "ready")).toBe(true);
       db.close();
     } finally {
       removeTempDir(root);
@@ -437,10 +444,11 @@ describe("ProjectTaskScheduler", () => {
 
       const nextTask = store.getTask(task.taskId);
       expect(merged).toEqual(["mottbot/test/first", "mottbot/test/second"]);
-      expect(cleanedBranches).toEqual(["mottbot/test/first", "mottbot/test/second"]);
-      expect(nextTask?.status).toBe("completed");
-      expect(nextTask?.finalBranch).toBe(`mottbot/${task.taskId}/integration`);
+      expect(cleanedBranches).toEqual([]);
+      expect(nextTask?.status).toBe("reviewing");
+      expect(nextTask?.integrationBranch).toBe(`mottbot/${task.taskId}/integration`);
       expect(nextTask?.finalDiffStat).toContain("README.md");
+      expect(store.listSubtasks(task.taskId).some((entry) => entry.role === "reviewer" && entry.status === "ready")).toBe(true);
       db.close();
     } finally {
       removeTempDir(root);
@@ -492,7 +500,7 @@ describe("ProjectTaskScheduler", () => {
     }
   });
 
-  it("runs the integration worker in the integration worktree and completes afterward", async () => {
+  it("runs the integration worker in the integration worktree and queues review afterward", async () => {
     const root = createTempDir();
     try {
       const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
@@ -557,12 +565,183 @@ describe("ProjectTaskScheduler", () => {
 
       store.updateCliRun(runId!, { status: "exited", finishedAt: clock.now() });
       await scheduler.tick();
-      await scheduler.tick();
 
       const nextTask = store.getTask(task.taskId);
       expect(store.getSubtask(integrator.subtaskId)?.status).toBe("completed");
-      expect(nextTask?.status).toBe("completed");
-      expect(nextTask?.finalBranch).toBe(integrationBranch);
+      expect(nextTask?.status).toBe("reviewing");
+      expect(nextTask?.integrationBranch).toBe(integrationBranch);
+      expect(store.listSubtasks(task.taskId).some((entry) => entry.role === "reviewer" && entry.status === "ready")).toBe(true);
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("runs the reviewer in the integration worktree with the reviewer profile", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 800;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "reviewing",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const integrationBranch = `mottbot/${task.taskId}/integration`;
+      const integrationWorktree = path.join(root, "integration");
+      store.updateTask(task.taskId, {
+        integrationBranch,
+        integrationWorktreePath: integrationWorktree,
+      });
+      store.createSubtask({ taskId: task.taskId, title: "worker", role: "worker", prompt: "worker", status: "completed" });
+      const reviewer = store.createSubtask({
+        taskId: task.taskId,
+        title: "Review integrated result",
+        role: "reviewer",
+        prompt: "review",
+        status: "ready",
+      });
+      store.updateSubtask(reviewer.subtaskId, {
+        branchName: integrationBranch,
+        worktreePath: integrationWorktree,
+      });
+      const starts: Array<{ cwd: string; profile?: string }> = [];
+      const fakeRunner = {
+        start: ({ cwd, profile, taskId, subtaskId }: { cwd: string; profile?: string; taskId: string; subtaskId: string }) => {
+          starts.push({ cwd, profile });
+          const run = store.createCliRun({
+            taskId,
+            subtaskId,
+            commandJson: "{}",
+            cwd,
+            stdoutLogPath: path.join(root, "reviewer.out"),
+            stderrLogPath: path.join(root, "reviewer.err"),
+            jsonlLogPath: path.join(root, "reviewer.jsonl"),
+          });
+          store.updateCliRun(run.cliRunId, { status: "streaming", startedAt: clock.now() });
+          return run.cliRunId;
+        },
+        cancelSubtask: (_id: string) => true,
+      };
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        schedulerWorktrees(root) as never,
+      );
+
+      await scheduler.tick();
+
+      expect(starts).toEqual([{ cwd: integrationWorktree, profile: "mottbot-reviewer" }]);
+      expect(store.getSubtask(reviewer.subtaskId)?.status).toBe("running");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("completes after reviewer success and sends a final report", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 900;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "reviewing",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const integrationBranch = `mottbot/${task.taskId}/integration`;
+      const integrationWorktree = path.join(root, "integration");
+      store.updateTask(task.taskId, {
+        integrationBranch,
+        integrationWorktreePath: integrationWorktree,
+        finalDiffStat: " README.md | 1 +",
+      });
+      const worker = store.createSubtask({ taskId: task.taskId, title: "worker", role: "worker", prompt: "worker", status: "completed" });
+      store.updateSubtask(worker.subtaskId, {
+        branchName: "mottbot/test/worker",
+        worktreePath: path.join(root, "worker"),
+        resultSummary: "worker done",
+      });
+      const reviewer = store.createSubtask({
+        taskId: task.taskId,
+        title: "Review integrated result",
+        role: "reviewer",
+        prompt: "review",
+        status: "running",
+      });
+      store.updateSubtask(reviewer.subtaskId, {
+        branchName: integrationBranch,
+        worktreePath: integrationWorktree,
+      });
+      const run = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: reviewer.subtaskId,
+        commandJson: "{}",
+        cwd: integrationWorktree,
+        stdoutLogPath: path.join(root, "reviewer.out"),
+        stderrLogPath: path.join(root, "reviewer.err"),
+        jsonlLogPath: path.join(root, "reviewer.jsonl"),
+      });
+      store.updateCliRun(run.cliRunId, { status: "exited", finishedAt: clock.now() });
+      const finalDir = path.join(root, "artifacts", task.taskId, reviewer.subtaskId);
+      const reviewText = "Ready for operator review. Checks passed.";
+      await import("node:fs/promises").then(async (fsPromises) => {
+        await fsPromises.mkdir(finalDir, { recursive: true });
+        await fsPromises.writeFile(path.join(finalDir, "final.md"), reviewText, "utf8");
+      });
+      const cleanedBranches: string[] = [];
+      const reports: string[] = [];
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = schedulerWorktrees(root, {
+        cleanupSubtask: ({ branchName, deleteBranch }) => {
+          if (branchName && deleteBranch !== false) {
+            cleanedBranches.push(branchName);
+          }
+        },
+      });
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        fakeWorktrees as never,
+        ({ text }) => {
+          reports.push(text);
+        },
+      );
+
+      await scheduler.tick();
+
+      const completed = store.getTask(task.taskId);
+      expect(store.getSubtask(reviewer.subtaskId)?.status).toBe("completed");
+      expect(completed?.status).toBe("completed");
+      expect(completed?.finalBranch).toBe(integrationBranch);
+      expect(completed?.finalSummary).toContain(reviewText);
+      expect(cleanedBranches).toEqual(["mottbot/test/worker"]);
+      expect(reports).toHaveLength(1);
+      expect(reports[0]).toContain("Project completed");
+      expect(reports[0]).toContain(reviewText);
       db.close();
     } finally {
       removeTempDir(root);
