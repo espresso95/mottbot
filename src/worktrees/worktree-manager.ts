@@ -39,7 +39,7 @@ type MergeResult = {
 };
 
 /** Result from committing dirty project-mode worktree changes. */
-export type CommitChangesResult = {
+type CommitChangesResult = {
   committed: boolean;
   output: string;
 };

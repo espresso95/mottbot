@@ -31,15 +31,16 @@ function compactId(id: string, length = COMPACT_ID_LENGTH): string {
   return (cleaned || id).slice(0, length).toUpperCase();
 }
 
+/** Formats a compact, user-facing project task id for Telegram messages. */
 export function projectDisplayId(taskId: string): string {
   return `PM-${compactId(taskId)}`;
 }
 
-export function projectApprovalDisplayId(approvalId: string): string {
+function projectApprovalDisplayId(approvalId: string): string {
   return `PA-${compactId(approvalId)}`;
 }
 
-export function projectReferenceKey(value: string): string {
+function projectReferenceKey(value: string): string {
   const normalized = value
     .trim()
     .replace(/^PM-/i, "")
@@ -47,6 +48,7 @@ export function projectReferenceKey(value: string): string {
   return normalized.toLowerCase();
 }
 
+/** Checks whether a user-provided project reference resolves to a task id. */
 export function projectReferenceMatches(taskId: string, reference: string): boolean {
   const ref = reference.trim();
   if (!ref) {
@@ -62,6 +64,7 @@ export function projectReferenceMatches(taskId: string, reference: string): bool
   return compactRef.length >= 4 && projectReferenceKey(taskId).startsWith(compactRef);
 }
 
+/** Builds a short project title from the original operator prompt. */
 export function buildProjectTitle(prompt: string): string {
   const cleaned = prompt
     .replace(/\r?\n/g, " ")
@@ -80,11 +83,13 @@ export function buildProjectTitle(prompt: string): string {
   return capitalize(bounded || "Project task");
 }
 
+/** Selects the best user-facing title for a project task. */
 export function projectDisplayTitle(task: Pick<ProjectTask, "title" | "originalPrompt">): string {
   const fromPrompt = buildProjectTitle(task.originalPrompt);
   return fromPrompt === "Project task" ? task.title : fromPrompt;
 }
 
+/** Selects the best user-facing title for a project subtask. */
 export function projectSubtaskDisplayTitle(subtask: Pick<ProjectSubtask, "title" | "prompt" | "role">): string {
   if (subtask.role !== "worker") {
     return subtask.title;
@@ -96,10 +101,11 @@ export function projectSubtaskDisplayTitle(subtask: Pick<ProjectSubtask, "title"
   return fromPrompt === "Project task" ? subtask.title : fromPrompt;
 }
 
-export function repoDisplayName(repoRoot: string): string {
+function repoDisplayName(repoRoot: string): string {
   return path.basename(repoRoot) || repoRoot;
 }
 
+/** Formats the approval prompt shown before starting a planned project task. */
 export function formatProjectStartApproval(params: {
   task: ProjectTask;
   approvalId: string;
@@ -123,6 +129,7 @@ export function formatProjectStartApproval(params: {
     .join("\n");
 }
 
+/** Formats the acknowledgement shown after a project task is queued. */
 export function formatProjectStarted(task: ProjectTask): string {
   return [
     "Project queued",
@@ -133,6 +140,7 @@ export function formatProjectStarted(task: ProjectTask): string {
   ].join("\n");
 }
 
+/** Formats the acknowledgement shown after start approval is accepted. */
 export function formatProjectStartApproved(task: ProjectTask): string {
   return [
     "Project approved",
@@ -142,6 +150,7 @@ export function formatProjectStartApproved(task: ProjectTask): string {
   ].join("\n");
 }
 
+/** Formats the compact project status response for Telegram. */
 export function formatProjectStatus(params: {
   snapshot: ProjectStatusSnapshot;
   latestRuns: ReadonlyMap<string, CodexCliRun | undefined>;
@@ -163,6 +172,7 @@ export function formatProjectStatus(params: {
   return lines.filter((line): line is string => typeof line === "string").join("\n");
 }
 
+/** Formats a detailed project diagnostic response for Telegram. */
 export function formatProjectDetails(params: {
   snapshot: ProjectStatusSnapshot;
   latestRuns: ReadonlyMap<string, CodexCliRun | undefined>;
@@ -203,6 +213,7 @@ export function formatProjectDetails(params: {
     .join("\n");
 }
 
+/** Formats the project completion report after review succeeds. */
 export function formatProjectCompletionReport(params: { task: ProjectTask; reviewSummary?: string }): string {
   const task = params.task;
   const summary = compactText(params.reviewSummary ?? task.finalSummary ?? "Review completed.", COMPACT_SUMMARY_CHARS);
@@ -220,6 +231,7 @@ export function formatProjectCompletionReport(params: { task: ProjectTask; revie
     .slice(0, 3_900);
 }
 
+/** Formats the approval prompt shown before publishing integrated project work. */
 export function formatProjectPublishApproval(params: {
   task: ProjectTask;
   approvalId: string;
@@ -236,6 +248,7 @@ export function formatProjectPublishApproval(params: {
   ].join("\n");
 }
 
+/** Formats the Telegram notification after project work is published. */
 export function formatProjectPublished(params: { task: ProjectTask; publishSummary: string }): string {
   return [
     "Project published",
@@ -247,6 +260,7 @@ export function formatProjectPublished(params: { task: ProjectTask; publishSumma
   ].join("\n");
 }
 
+/** Formats the Telegram notification after project worktree cleanup. */
 export function formatProjectCleanup(params: { task: ProjectTask; cleanupSummary?: string; removed: boolean }): string {
   return [
     params.removed ? "Project cleaned up" : "Nothing to clean up",
