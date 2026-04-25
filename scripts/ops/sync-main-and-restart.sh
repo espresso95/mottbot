@@ -34,6 +34,10 @@ pnpm_run() {
   run corepack pnpm run "$@"
 }
 
+pnpm_exec() {
+  run corepack pnpm "$@"
+}
+
 mkdir -p "$(dirname "$lock_dir")"
 if ! mkdir "$lock_dir" 2>/dev/null; then
   log "Another auto-sync run is already active at $lock_dir; exiting."
@@ -83,7 +87,7 @@ fi
 
 restart_args=(restart)
 restart_extra=()
-status_args=(service -- status)
+status_args=(service status)
 if [[ -n "$service_label" ]]; then
   restart_extra+=(--label "$service_label")
   status_args+=(--label "$service_label")
@@ -97,5 +101,5 @@ if [[ "${#restart_extra[@]}" -gt 0 ]]; then
 fi
 
 pnpm_run "${restart_args[@]}"
-pnpm_run "${status_args[@]}"
+pnpm_exec "${status_args[@]}"
 log "Auto-sync completed at $(git rev-parse --short HEAD)."
