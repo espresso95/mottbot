@@ -1850,6 +1850,30 @@ describe("TelegramCommandRouter", () => {
         previewText: "Approval preview text",
       }),
     ]);
+
+    api.answerCallbackQuery.mockClear();
+    api.editMessageText.mockClear();
+    api.editMessageReplyMarkup.mockClear();
+    api.sendMessage.mockClear();
+    orchestrator.enqueueMessage.mockClear();
+
+    await expect(
+      router.maybeHandleCallback(
+        createCallbackEvent({
+          fromUserId: "admin-1",
+          data: buildToolApprovalCallbackData(pending.id!),
+        }),
+      ),
+    ).resolves.toBe(true);
+
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "This request was already approved.",
+      show_alert: false,
+    });
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "This request was already approved.");
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(orchestrator.enqueueMessage).not.toHaveBeenCalled();
+    expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "operator_approved" })).toHaveLength(1);
   });
 
   it("denies pending side-effecting tool requests from callback buttons", async () => {
@@ -2029,8 +2053,36 @@ describe("TelegramCommandRouter", () => {
         toolName: "mottbot_restart_service",
         requestFingerprint: "request-fingerprint",
         previewText: "Approval preview text",
+        approvedByUserId: "admin-1",
       }),
     ]);
+
+    api.answerCallbackQuery.mockClear();
+    api.editMessageText.mockClear();
+    api.editMessageReplyMarkup.mockClear();
+    api.sendMessage.mockClear();
+
+    await expect(
+      router.maybeHandleCallback(
+        createCallbackEvent({
+          fromUserId: "admin-1",
+          data: buildToolApprovalCallbackData(pending.id!),
+          messageText: "Approval required.",
+        }),
+      ),
+    ).resolves.toBe(true);
+
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "This approval request has already expired.",
+      show_alert: false,
+    });
+    expect(api.editMessageText).toHaveBeenCalledWith(
+      "chat-1",
+      42,
+      "Approval required.\n\nThis approval request has already expired.",
+    );
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "approval_expired" })).toHaveLength(1);
   });
 
   it("routes project approval callbacks and ignores unknown callback data", async () => {
@@ -2083,5 +2135,29 @@ describe("TelegramCommandRouter", () => {
       show_alert: false,
     });
     expect(projects.handleApprovalCallback).toHaveBeenCalledWith(event, "approval-1");
+
+    api.answerCallbackQuery.mockClear();
+    api.sendMessage.mockClear();
+    projects.handleApprovalCallback.mockClear();
+
+    await expect(
+      router.maybeHandleCallback(
+        createCallbackEvent({
+          fromUserId: "user-1",
+          data: buildProjectApprovalCallbackData("approval-1"),
+        }),
+      ),
+    ).resolves.toBe(true);
+
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Only owner/admin roles can use Project Mode.",
+      show_alert: true,
+    });
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only owner/admin roles can use Project Mode.",
+      expect.any(Object),
+    );
+    expect(projects.handleApprovalCallback).not.toHaveBeenCalled();
   });
 });

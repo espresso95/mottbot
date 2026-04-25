@@ -254,6 +254,9 @@ function existingRequestDecisionMessage(record: ToolApprovalAuditRecord): string
   if (record.decisionCode === "operator_denied") {
     return "This request was already denied.";
   }
+  if (record.decisionCode === "approval_expired") {
+    return "This approval request has already expired.";
+  }
   return undefined;
 }
 
@@ -279,6 +282,8 @@ async function recordExpiredPendingRequest(params: {
     decisionCode: "approval_expired",
     requestedAt: params.pending.requestedAt,
     decidedAt: params.event.arrivedAt,
+    ...(params.event.fromUserId ? { approvedByUserId: params.event.fromUserId } : {}),
+    reason: "telegram button expired",
     requestFingerprint: params.pending.requestFingerprint,
     previewText: params.pending.previewText,
   });
@@ -370,15 +375,15 @@ export async function handleToolApprovalCallback(
     return;
   }
   const { pending, definition, previousDecision } = resolved;
-  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
-    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
-    return;
-  }
   const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
   if (previousDecisionMessage) {
     await editCallbackStatus(api, event, previousDecisionMessage);
     await answerCallback(api, event, previousDecisionMessage);
     await sendReply(api, event, previousDecisionMessage);
+    return;
+  }
+  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
+    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
     return;
   }
 
@@ -465,15 +470,15 @@ export async function handleToolDenyCallback(params: ToolApprovalCallbackDepende
     return;
   }
   const { pending, definition, previousDecision } = resolved;
-  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
-    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
-    return;
-  }
   const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
   if (previousDecisionMessage) {
     await editCallbackStatus(api, event, previousDecisionMessage);
     await answerCallback(api, event, previousDecisionMessage);
     await sendReply(api, event, previousDecisionMessage);
+    return;
+  }
+  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
+    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
     return;
   }
 

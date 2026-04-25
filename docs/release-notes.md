@@ -7,6 +7,12 @@
 - Added `pnpm verify:quick` for static local checks without the slower build and coverage run.
 - Kept `pnpm verify` as the full CI-equivalent gate without an extra wrapper script.
 
+### Callback Approval Hardening
+
+- Tool approval button callbacks now expire with the configured approval TTL, record `approval_expired`, and treat replayed approve/deny/expired callbacks as the original operator decision.
+- Project Mode approval callbacks now re-check the originating chat before approval, and expired Project Mode approvals are marked `expired` before any start or publish action runs.
+- Project Mode callback denials now return the same owner/admin-only message as the slash-command path.
+
 ### Automatic Service Sync
 
 - Added a guarded `sync:service` workflow that fast-forwards a clean checkout from `origin/main`, verifies the build and health check, then restarts the macOS service with the configured Node runtime.

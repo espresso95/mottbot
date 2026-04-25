@@ -88,10 +88,12 @@ function createProjectRouterFixture(
 describe("ProjectCommandRouter", () => {
   it("adds approval buttons and handles project approval callbacks", async () => {
     let approvedBy: string | undefined;
+    let approvalCalls = 0;
     const fixture = createProjectRouterFixture({
       requireApproval: true,
       scheduler: {
         approveApproval: (approvalId: string, decidedBy?: string) => {
+          approvalCalls += 1;
           approvedBy = decidedBy;
           return { message: `Approved ${approvalId}` };
         },
@@ -117,12 +119,28 @@ describe("ProjectCommandRouter", () => {
       });
 
       await fixture.router.handleApprovalCallback(
-        createCallbackEvent({ fromUserId: "admin-1", data: `mb:pa:${approvalId}` }),
+        createCallbackEvent({ chatId: "chat", fromUserId: "admin-1", data: `mb:pa:${approvalId}` }),
         approvalId!,
       );
 
       expect(approvedBy).toBe("admin-1");
+      expect(approvalCalls).toBe(1);
       expect(fixture.sent.at(-1)?.text).toContain(`Approved ${approvalId}`);
+
+      await fixture.router.handleApprovalCallback(
+        createCallbackEvent({
+          chatId: "other-chat",
+          fromUserId: "admin-1",
+          data: `mb:pa:${approvalId}`,
+        }),
+        approvalId!,
+      );
+
+      expect(approvalCalls).toBe(1);
+      expect(fixture.sent.at(-1)).toMatchObject({
+        chatId: "other-chat",
+        text: "Project approval is not available in this chat.",
+      });
     } finally {
       fixture.cleanup();
     }

@@ -503,7 +503,9 @@ export class TelegramCommandRouter {
           ? "Your role is not allowed to use this chat."
           : decision.reason === "command_not_allowed"
             ? "Your role is not allowed to run this command in this chat."
-            : "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.";
+            : decision.reason === "project_admin_required"
+              ? "Only owner/admin roles can use Project Mode."
+              : "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.";
     await this.answerCallback(event, message, true);
     await sendReply(this.api, event, message);
     return true;

@@ -123,6 +123,13 @@ export class ProjectTaskScheduler {
     if (approval.status !== "pending") {
       return { ok: false, message: `Approval ${approvalId} is already ${approval.status}.` };
     }
+    if (approval.expiresAt !== undefined && approval.expiresAt <= this.clock.now()) {
+      this.store.decideApproval(approval.approvalId, {
+        status: "expired",
+        decidedBy,
+      });
+      return { ok: false, message: `Approval ${approvalId} has expired.` };
+    }
     if (approval.kind === "start_project") {
       this.store.decideApproval(approval.approvalId, {
         status: "approved",

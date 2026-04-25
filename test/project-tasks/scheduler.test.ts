@@ -1042,6 +1042,61 @@ describe("ProjectTaskScheduler", () => {
     }
   });
 
+  it("expires pending project approvals before executing approval actions", () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 1_000;
+      const clock: Clock = { now: () => now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "awaiting_approval",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const approval = store.createApproval({
+        taskId: task.taskId,
+        kind: "start_project",
+        requestedBy: "operator",
+        requestJson: JSON.stringify({ prompt: "ship it" }),
+        expiresAt: 1_500,
+      });
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        schedulerWorktrees(root) as never,
+      );
+      now = 1_501;
+
+      const result = scheduler.approveApproval(approval.approvalId, "admin");
+
+      expect(result).toEqual({
+        ok: false,
+        message: `Approval ${approval.approvalId} has expired.`,
+      });
+      expect(store.getApproval(approval.approvalId)).toMatchObject({
+        status: "expired",
+        decidedBy: "admin",
+      });
+      expect(store.getTask(task.taskId)?.status).toBe("awaiting_approval");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("publishes approved branches and records pull request output", () => {
     const root = createTempDir();
     try {

@@ -334,7 +334,7 @@ export class ToolApprovalStore {
            and tool_name = ?
            and request_fingerprint = ?
            and run_id is ?
-           and decision_code in ('operator_approved', 'operator_denied')
+	           and decision_code in ('operator_approved', 'operator_denied', 'approval_expired')
          order by decided_at desc, created_at desc
          limit 1`,
       )

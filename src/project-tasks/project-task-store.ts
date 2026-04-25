@@ -643,7 +643,7 @@ export class ProjectTaskStore {
 
   decideApproval(
     approvalId: string,
-    params: { status: "approved" | "rejected"; decidedBy?: string; note?: string },
+    params: { status: "approved" | "rejected" | "expired"; decidedBy?: string; note?: string },
   ): ProjectApproval {
     const current = this.getApproval(approvalId);
     if (!current) {

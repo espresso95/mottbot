@@ -132,7 +132,16 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Project mode is disabled.");
       return;
     }
-    const result = this.scheduler.approveApproval(approvalId.trim(), event.fromUserId);
+    const normalizedApprovalId = approvalId.trim();
+    const approval = this.store.getApproval(normalizedApprovalId);
+    if (approval) {
+      const task = this.store.getTask(approval.taskId);
+      if (task?.chatId !== event.chatId) {
+        await sendReply(this.api, event, "Project approval is not available in this chat.");
+        return;
+      }
+    }
+    const result = this.scheduler.approveApproval(normalizedApprovalId, event.fromUserId);
     await sendReply(this.api, event, result.message);
   }
 

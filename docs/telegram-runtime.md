@@ -324,10 +324,10 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
-- inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark stale source messages, and expire old pending requests before recording the operator decision
+- inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark source messages, expire with the configured approval TTL, and treat replayed buttons as the original operator decision
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
-- Project Mode start and publish approval prompts include inline approval buttons; `/project approve <approval-id>` remains the fallback command
+- Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat; `/project approve <approval-id>` remains the fallback command
 - `/project status` includes each subtask's latest Codex CLI run state and error, including restart-recovered interrupted runs before the scheduler has reconciled the task
 
 ## Session Queue
