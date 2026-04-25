@@ -19,7 +19,7 @@
     "docs:check": "tsx src/tools/docs-link-check.ts",
     "deps:cycles": "madge --circular --json --extensions ts --ts-config tsconfig.eslint.json src scripts test vitest.config.ts",
     "knip": "knip --include files,dependencies,unlisted,binaries,unresolved --no-progress",
-    "verify": "corepack pnpm check && corepack pnpm lint && corepack pnpm format:check && corepack pnpm tsdoc:audit -- --strict && corepack pnpm docs:check && corepack pnpm deps:cycles && corepack pnpm knip && corepack pnpm test",
+    "verify": "corepack pnpm check && corepack pnpm lint && corepack pnpm format:check && corepack pnpm tsdoc:audit -- --strict && corepack pnpm docs:check && corepack pnpm deps:cycles && corepack pnpm knip && corepack pnpm test:coverage",
     "start": "node dist/index.js start",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -22,6 +22,12 @@ Logic changes should also run the relevant Vitest target, usually:
 pnpm test
 ```
 
+Run the coverage gate directly when changing shared runtime paths or before tightening coverage thresholds:
+
+```bash
+pnpm test:coverage
+```
+
 Audit exported production symbols for missing TSDoc:
 
 ```bash
@@ -97,6 +103,12 @@ Avoid comments that only restate an identifier. Prefer readable names and small 
 `pnpm knip` is configured for high-signal hygiene checks: unused files, unused dependencies, unlisted dependencies, unresolved imports, and missing binaries. Export-level checks stay out of the default command because many exported types are intentional module-boundary contracts.
 
 The Knip config intentionally ignores the direct `punycode` dependency. The patched `whatwg-url` transitive package resolves `punycode/` at runtime, so package validation needs it even though application source does not import it directly.
+
+## Coverage
+
+`pnpm test:coverage` runs the Vitest suite with V8 coverage and enforces the thresholds in `vitest.config.ts`. The current gate covers production TypeScript under `src/**/*.ts` and excludes entrypoints, type-only modules, generated outputs, docs tooling, and host service wiring that is better covered by smoke checks.
+
+`pnpm verify` runs `test:coverage`, so CI and local verification fail when covered production code drops below the configured baseline.
 
 ## Naming
 
