@@ -914,7 +914,7 @@ export class RunOrchestrator {
     const messages = this.transcripts.listRecent(sessionKey, 100);
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];
-      if (!message || message.role !== "tool") {
+      if (message?.role !== "tool") {
         continue;
       }
       if (pending.runId && message.runId !== pending.runId) {

@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-### Verification Runner
+### Verification Scripts
 
 - Added `pnpm verify:quick` for static local checks without the slower build and coverage run.
-- Moved the full verification sequence behind a TypeScript runner while keeping `pnpm verify` as the CI-equivalent gate.
+- Kept `pnpm verify` as the full CI-equivalent gate without an extra wrapper script.
 
 ### Automatic Service Sync
 

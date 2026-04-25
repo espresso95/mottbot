@@ -33,6 +33,7 @@ export type MemoryCandidateCallbackDependencies = {
   governance?: TelegramGovernanceStore;
 };
 
+/** Supported inline-button actions for one pending memory candidate. */
 export type MemoryCandidateCallbackAction = "accept" | "reject" | "archive";
 
 function memoryCandidateKeyboard(candidates: readonly MemoryCandidate[]): TelegramInlineKeyboard | undefined {
