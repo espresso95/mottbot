@@ -50,6 +50,10 @@ import { createMicrosoftTodoToolHandlers } from "../tools/microsoft-todo-handler
 import { GoogleDriveService } from "../tools/google-drive.js";
 import { createGoogleDriveToolHandlers } from "../tools/google-drive-handlers.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
+import { ProjectTaskStore } from "../project-tasks/project-task-store.js";
+import { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
+import { ProjectTaskScheduler } from "../project-tasks/project-task-scheduler.js";
+import { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 
 export async function bootstrapApplication() {
   const config = loadConfig();
@@ -92,6 +96,15 @@ export async function bootstrapApplication() {
     ttlMs: config.runtime.instanceLeaseTtlMs,
     refreshMs: config.runtime.instanceLeaseRefreshMs,
   });
+  const projectTaskStore = new ProjectTaskStore(database, systemClock);
+  const codexCliRunner = new CodexCliRunner(projectTaskStore, systemClock, {
+    command: config.projectTasks.codex.command,
+    coderProfile: config.projectTasks.codex.coderProfile,
+    defaultTimeoutMs: config.projectTasks.codex.defaultTimeoutMs,
+    artifactRoot: config.projectTasks.artifactRoot,
+  });
+  const projectScheduler = new ProjectTaskScheduler(config, systemClock, projectTaskStore, codexCliRunner);
+
   const routeResolver = new RouteResolver(config, sessionStore);
   const provisionalBot = new TelegramBotServer(
     config,
@@ -219,6 +232,7 @@ export async function bootstrapApplication() {
     },
   );
   orchestrator.recoverQueuedRuns();
+  const projectCommands = new ProjectCommandRouter(provisionalBot.api, config, projectTaskStore, projectScheduler);
   const commands = new TelegramCommandRouter(
     provisionalBot.api,
     config,
@@ -238,6 +252,7 @@ export async function bootstrapApplication() {
     github,
     governance,
     usageBudget,
+    projectCommands,
   );
   const bot = new TelegramBotServer(
     config,
@@ -273,6 +288,7 @@ export async function bootstrapApplication() {
         leaseStarted = true;
         await dashboard.start();
         dashboardStarted = true;
+        projectScheduler.start();
         await bot.start();
       } catch (error) {
         if (dashboardStarted) {
@@ -286,6 +302,7 @@ export async function bootstrapApplication() {
     },
     async stop() {
       await bot.stop();
+      projectScheduler.stop();
       await dashboard.stop();
       instanceLease.stop();
       database.close();

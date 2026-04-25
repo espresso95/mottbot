@@ -157,6 +157,28 @@
     "monthlyRunsPerModel": 0,
     "warningThresholdPercent": 80
   },
+  "projectTasks": {
+    "enabled": false,
+    "repoRoots": [
+      "."
+    ],
+    "worktreeRoot": "./data/project-worktrees",
+    "artifactRoot": "./data/project-runs",
+    "maxConcurrentProjects": 1,
+    "defaultMaxParallelWorkersPerProject": 1,
+    "hardMaxParallelWorkersPerProject": 2,
+    "maxConcurrentCodexWorkersGlobal": 2,
+    "defaultBaseRef": "main",
+    "codex": {
+      "command": "codex",
+      "coderProfile": "mottbot-coder",
+      "reviewerProfile": "mottbot-reviewer",
+      "defaultTimeoutMs": 3600000
+    },
+    "approvals": {
+      "requireBeforeProjectStart": true
+    }
+  },
   "security": {
     "masterKey": "REPLACE_WITH_STRONG_LOCAL_SECRET"
   }

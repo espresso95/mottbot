@@ -761,6 +761,7 @@ Current runtime:
 Runtime controls are exposed through Telegram commands:
 
 - `/status`
+- `/project` (feature-flagged long-running project tasks)
 - `/usage [daily|monthly]`
 - `/health`
 - `/model`

@@ -26,6 +26,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Phased implementation and verification roadmap for closing the remaining hardening gaps.
 - [Release Notes](./release-notes.md)
   Operator-facing notes and validation checklists for newly added runtime capabilities.
+- [Project Mode Design](./project-mode-codex-workers-design.md)
+  Implementation blueprint for durable long-running project orchestration with Codex CLI workers and Git worktree isolation.
 - [Single-File Design Brief](./telegram-codex-design.md)
   The original one-file design brief that preceded the implementation.
 
@@ -98,3 +100,4 @@ Planned hardening that is not yet implemented:
 - fully automated webhook delivery and live Codex fault-injection smoke tests
 - stronger restart reconciliation for in-progress Telegram deliveries
 - distributed multi-instance coordination beyond the host-local lease
+- durable project-task orchestration with parallel Codex CLI worktrees
