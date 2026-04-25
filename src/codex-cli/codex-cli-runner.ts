@@ -29,7 +29,7 @@ export class CodexCliRunner {
     private readonly config: CodexCliRunnerConfig,
   ) {}
 
-  start(params: { taskId: string; subtaskId: string; cwd: string; prompt: string }): string {
+  start(params: { taskId: string; subtaskId: string; cwd: string; prompt: string; profile?: string }): string {
     const runDir = path.join(this.config.artifactRoot, params.taskId, params.subtaskId);
     fs.mkdirSync(runDir, { recursive: true });
     const stdoutLogPath = path.join(runDir, "stdout.jsonl");
@@ -42,7 +42,7 @@ export class CodexCliRunner {
       params.cwd,
       "--json",
       "--profile",
-      this.config.coderProfile,
+      params.profile ?? this.config.coderProfile,
       "--output-last-message",
       finalMessagePath,
       params.prompt,

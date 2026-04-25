@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Project Mode Phase 6 (Reviewer Stage And Final Report)
+
+- Added a reviewer stage after integration succeeds; Project Mode now queues a `reviewer` subtask in the integration worktree before marking the task complete.
+- Reviewer subtasks run with the configured Codex reviewer profile while preserving the integrated branch and worktree for final inspection.
+- Final task summaries now include worker summaries, reviewer output, and the integrated branch.
+- Added a final Telegram completion report for completed project tasks.
+- Updated `/project status` to show the final branch and captured diff stat when available.
+
+### Project Mode Phase 5 (Integration Branch Workflow)
+
+- Added a minimal integration branch workflow after all worker subtasks complete.
+- The scheduler now prepares an integration worktree, merges completed worker branches in order, records the final integration branch and diff stat, and cleans up merged worker branches.
+- Successful worker completion now removes the worker worktree while preserving the worker branch until integration.
+- Merge conflicts create a ready `integrator` subtask in the integration worktree with bounded conflict context for Codex CLI conflict resolution.
+- Added scheduler tests for successful branch integration, conflict-worker queueing, and running an integrator in the integration worktree.
+
+### Project Mode Phase 4 (Parallel Worker Scheduling)
+
+- Updated the project scheduler to launch multiple ready subtasks in one tick when concurrency limits allow it.
+- Enforced `maxConcurrentProjects`, per-task `maxParallelWorkers`, `hardMaxParallelWorkersPerProject`, and `maxConcurrentCodexWorkersGlobal` for Codex CLI worker launch.
+- Updated running-subtask reconciliation so one completed worker can be finalized while sibling workers in the same project are still active.
+- Added scheduler tests for per-project caps, global worker caps, active-project caps, and mixed terminal/active worker state.
+
 ### Project Mode Phase 3 (Planner Output, Subtask Graph, Dependency Gating)
 
 - Added a lightweight project planner that derives a deterministic subtask plan from `/project start` prompts and stores it in `project_tasks.plan_json`.

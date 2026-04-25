@@ -19,6 +19,8 @@ type ProjectTaskRow = {
   requested_by_username: string | null;
   repo_root: string;
   base_ref: string;
+  integration_branch: string | null;
+  integration_worktree_path: string | null;
   title: string;
   original_prompt: string;
   plan_json: string | null;
@@ -32,6 +34,7 @@ type ProjectTaskRow = {
   last_error: string | null;
   final_summary: string | null;
   final_branch: string | null;
+  final_diff_stat: string | null;
 };
 
 type ProjectSubtaskRow = {
@@ -96,6 +99,8 @@ function mapTask(row: ProjectTaskRow): ProjectTask {
     ...(row.requested_by_username ? { requestedByUsername: row.requested_by_username } : {}),
     repoRoot: row.repo_root,
     baseRef: row.base_ref,
+    ...(row.integration_branch ? { integrationBranch: row.integration_branch } : {}),
+    ...(row.integration_worktree_path ? { integrationWorktreePath: row.integration_worktree_path } : {}),
     title: row.title,
     originalPrompt: row.original_prompt,
     ...(row.plan_json ? { planJson: row.plan_json } : {}),
@@ -109,6 +114,7 @@ function mapTask(row: ProjectTaskRow): ProjectTask {
     ...(row.last_error ? { lastError: row.last_error } : {}),
     ...(row.final_summary ? { finalSummary: row.final_summary } : {}),
     ...(row.final_branch ? { finalBranch: row.final_branch } : {}),
+    ...(row.final_diff_stat ? { finalDiffStat: row.final_diff_stat } : {}),
   };
 }
 
@@ -307,7 +313,7 @@ export class ProjectTaskStore {
   listRunnableTasks(limit = 20): ProjectTask[] {
     return this.database.db
       .prepare<unknown[], ProjectTaskRow>(
-        "select * from project_tasks where status in ('queued', 'running') order by updated_at asc limit ?",
+        "select * from project_tasks where status in ('queued', 'running', 'integrating', 'reviewing') order by updated_at asc limit ?",
       )
       .all(Math.max(1, Math.min(limit, 100)))
       .map(mapTask);
@@ -353,13 +359,16 @@ export class ProjectTaskStore {
     this.database.db
       .prepare(
         `update project_tasks set
-      requested_by_user_id=?, requested_by_username=?, title=?, original_prompt=?, plan_json=?, status=?, max_parallel_workers=?,
-      max_attempts_per_subtask=?, updated_at=?, started_at=?, finished_at=?, last_error=?, final_summary=?, final_branch=?
+      requested_by_user_id=?, requested_by_username=?, integration_branch=?, integration_worktree_path=?, title=?,
+      original_prompt=?, plan_json=?, status=?, max_parallel_workers=?, max_attempts_per_subtask=?, updated_at=?,
+      started_at=?, finished_at=?, last_error=?, final_summary=?, final_branch=?, final_diff_stat=?
       where task_id=?`,
       )
       .run(
         next.requestedByUserId ?? null,
         next.requestedByUsername ?? null,
+        next.integrationBranch ?? null,
+        next.integrationWorktreePath ?? null,
         next.title,
         next.originalPrompt,
         next.planJson ?? null,
@@ -372,6 +381,7 @@ export class ProjectTaskStore {
         next.lastError ?? null,
         next.finalSummary ?? null,
         next.finalBranch ?? null,
+        next.finalDiffStat ?? null,
         taskId,
       );
     return next;
@@ -514,6 +524,35 @@ export class ProjectTaskStore {
       >("select * from codex_cli_runs where task_id = ? and status in ('starting', 'streaming') order by updated_at asc")
       .all(taskId)
       .map(mapRun);
+  }
+
+  countActiveCliRuns(): number {
+    const row = this.database.db
+      .prepare<
+        unknown[],
+        { count: number }
+      >("select count(*) as count from codex_cli_runs where status in ('starting', 'streaming')")
+      .get();
+    return row?.count ?? 0;
+  }
+
+  listActiveCliRunTaskIds(): string[] {
+    return this.database.db
+      .prepare<unknown[], { task_id: string }>(
+        "select distinct task_id from codex_cli_runs where status in ('starting', 'streaming')",
+      )
+      .all()
+      .map((row) => row.task_id);
+  }
+
+  getLatestCliRunForSubtask(subtaskId: string): CodexCliRun | undefined {
+    const row = this.database.db
+      .prepare<
+        unknown[],
+        CodexCliRunRow
+      >("select * from codex_cli_runs where subtask_id = ? order by updated_at desc limit 1")
+      .get(subtaskId);
+    return row ? mapRun(row) : undefined;
   }
 
   addCliEvent(input: { cliRunId: string; eventIndex: number; eventType?: string; eventJson: string }): void {

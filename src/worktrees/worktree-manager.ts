@@ -30,6 +30,11 @@ export type PreparedWorktree = {
   branchName: string;
 };
 
+export type MergeResult = {
+  ok: boolean;
+  output: string;
+};
+
 function normalizeDisplayPath(value: string): string {
   return value.split(path.sep).join("/");
 }
@@ -111,7 +116,57 @@ export class WorktreeManager {
     return { worktreePath, branchName };
   }
 
-  cleanupSubtask(params: { repoRoot: string; worktreePath?: string; branchName?: string }): void {
+  prepareIntegration(params: { taskId: string; repoRoot: string; baseRef: string }): PreparedWorktree {
+    const repoRoot = this.resolveApprovedRepoRoot(params.repoRoot);
+    const branchName = `mottbot/${sanitizeBranchPart(params.taskId)}/integration`;
+    const worktreePath = path.join(this.worktreeRoot, sanitizeBranchPart(params.taskId), "integration");
+    this.cleanupSubtask({ repoRoot, worktreePath, branchName });
+    fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
+    shellGit(repoRoot, ["worktree", "add", "--detach", worktreePath, params.baseRef]);
+    shellGit(worktreePath, ["switch", "-c", branchName]);
+    return { worktreePath, branchName };
+  }
+
+  mergeBranch(params: { worktreePath: string; branchName: string }): MergeResult {
+    try {
+      const output = shellGit(params.worktreePath, ["merge", "--no-ff", "--no-edit", params.branchName]);
+      return { ok: true, output };
+    } catch (error) {
+      const maybe = error as { stdout?: unknown; stderr?: unknown; message?: unknown };
+      const output = [
+        typeof maybe.stdout === "string"
+          ? maybe.stdout
+          : Buffer.isBuffer(maybe.stdout)
+            ? maybe.stdout.toString("utf8")
+            : undefined,
+        typeof maybe.stderr === "string"
+          ? maybe.stderr
+          : Buffer.isBuffer(maybe.stderr)
+            ? maybe.stderr.toString("utf8")
+            : undefined,
+        typeof maybe.message === "string" ? maybe.message : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .trim();
+      return { ok: false, output };
+    }
+  }
+
+  diffStat(params: { worktreePath: string; baseRef: string }): string {
+    try {
+      return shellGit(params.worktreePath, ["diff", "--stat", `${params.baseRef}...HEAD`]);
+    } catch {
+      return "";
+    }
+  }
+
+  cleanupSubtask(params: {
+    repoRoot: string;
+    worktreePath?: string;
+    branchName?: string;
+    deleteBranch?: boolean;
+  }): void {
     const repoRoot = this.resolveApprovedRepoRoot(params.repoRoot);
     if (params.worktreePath) {
       const normalizedWorktreePath = path.resolve(params.worktreePath);
@@ -124,7 +179,7 @@ export class WorktreeManager {
         fs.rmSync(normalizedWorktreePath, { recursive: true, force: true });
       }
     }
-    if (params.branchName) {
+    if (params.branchName && params.deleteBranch !== false) {
       try {
         const existing = shellGit(repoRoot, ["branch", "--list", params.branchName]);
         if (existing) {
