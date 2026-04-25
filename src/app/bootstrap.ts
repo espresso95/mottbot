@@ -306,6 +306,13 @@ export async function bootstrapApplication() {
         leaseStarted = true;
         await dashboard.start();
         dashboardStarted = true;
+        const recoveredProjectRuns = projectTaskStore.recoverInterruptedCliRuns();
+        if (recoveredProjectRuns > 0) {
+          logger.warn(
+            { recoveredProjectRuns },
+            "Recovered interrupted Project Mode Codex CLI runs after process restart.",
+          );
+        }
         projectScheduler.start();
         await bot.start();
       } catch (error) {

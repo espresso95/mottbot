@@ -166,6 +166,79 @@ describe("TelegramCommandRouter", () => {
     );
   });
 
+  it("ignores commands addressed to a different Telegram bot", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+    );
+
+    const handled = await router.maybeHandle(
+      createInboundEvent({
+        text: "/help@OtherBot",
+        commandTargetUsername: "OtherBot",
+        isCommand: false,
+      }),
+    );
+
+    expect(handled).toBe(true);
+    expect(api.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("limits Project Mode commands to owner/admin callers", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const projects = { handle: vi.fn(async () => undefined) };
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      projects as any,
+    );
+
+    await router.maybeHandle(createInboundEvent({ text: "/project status", fromUserId: "user-1", isCommand: true }));
+    await router.maybeHandle(createInboundEvent({ text: "/project status", fromUserId: "admin-1", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Only owner/admin roles can use Project Mode.",
+      expect.any(Object),
+    );
+    expect(projects.handle).toHaveBeenCalledTimes(1);
+    expect(projects.handle).toHaveBeenCalledWith(expect.objectContaining({ fromUserId: "admin-1" }), ["status"]);
+  });
+
   it("handles /status with usage data", async () => {
     const stores = createStores();
     cleanup.push(() => {

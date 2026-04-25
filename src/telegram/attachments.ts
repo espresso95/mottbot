@@ -209,6 +209,7 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
     const nativeInputs: NativeAttachmentInput[] = [];
     const extractedTexts: ExtractedAttachmentText[] = [];
     const cachePaths: string[] = [];
+    let downloadedTotalBytes = 0;
     const extractionBudget = {
       remainingChars: this.config.attachments.maxExtractedTextCharsTotal,
     };
@@ -276,6 +277,15 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
             `Attachment ${attachment.fileName ?? attachment.kind} exceeds the configured size limit.`,
           );
         }
+        if (
+          typeof telegramFileSize === "number" &&
+          downloadedTotalBytes + telegramFileSize > this.config.attachments.maxTotalBytes
+        ) {
+          throw new AttachmentIngestionError(
+            "attachment.too_large",
+            "Attachments exceed the configured combined size limit.",
+          );
+        }
         if (!telegramFile.file_path) {
           throw new AttachmentIngestionError("attachment.missing_file_path", "Telegram did not return a file path.");
         }
@@ -287,8 +297,18 @@ export class TelegramAttachmentIngestor implements AttachmentIngestor {
         }
         const buffer = await readResponseBody({
           response,
-          maxBytes: this.config.attachments.maxFileBytes,
+          maxBytes: Math.min(
+            this.config.attachments.maxFileBytes,
+            this.config.attachments.maxTotalBytes - downloadedTotalBytes,
+          ),
         });
+        downloadedTotalBytes += buffer.byteLength;
+        if (downloadedTotalBytes > this.config.attachments.maxTotalBytes) {
+          throw new AttachmentIngestionError(
+            "attachment.too_large",
+            "Attachments exceed the configured combined size limit.",
+          );
+        }
         await fs.mkdir(this.config.attachments.cacheDir, { recursive: true });
         const cachePath = path.join(this.config.attachments.cacheDir, cacheFileName(attachment, telegramFile));
         await fs.writeFile(cachePath, buffer);

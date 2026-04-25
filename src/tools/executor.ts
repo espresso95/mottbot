@@ -246,11 +246,11 @@ export class ToolExecutor {
         return this.errorResult(call, startedAt, "missing_handler", `No handler is registered for ${call.name}.`);
       }
       const handled = await this.runWithTimeout(
-        () =>
+        (signal) =>
           handler({
             definition,
             arguments: input,
-            signal: options.signal,
+            signal,
             sessionKey: options.sessionKey,
             runId: options.runId,
             requestedByUserId: options.requestedByUserId,
@@ -258,6 +258,7 @@ export class ToolExecutor {
             threadId: options.threadId,
           }),
         definition.timeoutMs,
+        options.signal,
       );
       if (!handled.ok) {
         return this.errorResult(call, startedAt, handled.code, handled.message);
@@ -381,29 +382,38 @@ export class ToolExecutor {
     };
   }
 
-  private async runWithTimeout(run: () => Promise<unknown> | unknown, timeoutMs: number): Promise<TimedHandlerResult> {
+  private async runWithTimeout(
+    run: (signal: AbortSignal) => Promise<unknown> | unknown,
+    timeoutMs: number,
+    parentSignal?: AbortSignal,
+  ): Promise<TimedHandlerResult> {
+    const timeoutController = new AbortController();
+    const signal = parentSignal ? AbortSignal.any([parentSignal, timeoutController.signal]) : timeoutController.signal;
     let timer: NodeJS.Timeout | undefined;
+    const timeoutMessage = `Tool exceeded ${timeoutMs} ms timeout.`;
     try {
       return await Promise.race<TimedHandlerResult>([
         Promise.resolve()
-          .then(run)
-          .then((value) => ({ ok: true, value })),
+          .then(() => run(signal))
+          .then((value): TimedHandlerResult => ({ ok: true, value }))
+          .catch(
+            (error): TimedHandlerResult => ({
+              ok: false,
+              code: "tool_failed",
+              message: getErrorMessage(error),
+            }),
+          ),
         new Promise<TimedHandlerResult>((resolve) => {
           timer = setTimeout(() => {
+            timeoutController.abort(new Error(timeoutMessage));
             resolve({
               ok: false,
               code: "tool_timeout",
-              message: `Tool exceeded ${timeoutMs} ms timeout.`,
+              message: timeoutMessage,
             });
           }, timeoutMs);
         }),
       ]);
-    } catch (error) {
-      return {
-        ok: false,
-        code: "tool_failed",
-        message: getErrorMessage(error),
-      };
     } finally {
       if (timer) {
         clearTimeout(timer);

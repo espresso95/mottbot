@@ -235,6 +235,32 @@ describe("ToolExecutor", () => {
     expect(result.errorCode).toBe("tool_timeout");
   });
 
+  it("aborts handler signals when a tool times out", async () => {
+    let abortObserved: (() => void) | undefined;
+    const abortPromise = new Promise<void>((resolve) => {
+      abortObserved = resolve;
+    });
+    const executor = new ToolExecutor(new ToolRegistry([readOnlyTool({ timeoutMs: 1 })]), {
+      clock: new FakeClock(),
+      handlers: {
+        lookup_value: ({ signal }) => {
+          signal?.addEventListener("abort", () => abortObserved?.(), { once: true });
+          return new Promise(() => undefined);
+        },
+      },
+    });
+
+    const result = await executor.execute({
+      id: "call-4b",
+      name: "lookup_value",
+      arguments: {},
+    });
+
+    await abortPromise;
+    expect(result.isError).toBe(true);
+    expect(result.errorCode).toBe("tool_timeout");
+  });
+
   it("truncates oversized output", async () => {
     const executor = new ToolExecutor(new ToolRegistry([readOnlyTool({ maxOutputBytes: 8 })]), {
       clock: new FakeClock(),

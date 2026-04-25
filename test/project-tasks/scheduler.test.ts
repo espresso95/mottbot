@@ -112,6 +112,66 @@ describe("ProjectTaskScheduler", () => {
     }
   });
 
+  it("fails recovered interrupted running subtasks on the next tick", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 1_700_000_000_000;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "title",
+        originalPrompt: "prompt",
+        status: "running",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 1,
+      });
+      const subtask = store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "p",
+        status: "running",
+      });
+      const cliRun = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: subtask.subtaskId,
+        commandJson: "[]",
+        cwd: root,
+        stdoutLogPath: path.join(root, "stdout.log"),
+        stderrLogPath: path.join(root, "stderr.log"),
+        jsonlLogPath: path.join(root, "events.jsonl"),
+      });
+      store.updateCliRun(cliRun.cliRunId, { status: "streaming", startedAt: clock.now() });
+      store.recoverInterruptedCliRuns("restart recovery");
+
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        { start: () => "run-1", cancelSubtask: () => true } as never,
+        schedulerWorktrees(root) as never,
+      );
+      await scheduler.tick();
+
+      expect(store.getSubtask(subtask.subtaskId)).toMatchObject({
+        status: "failed",
+        lastError: "restart recovery",
+      });
+      expect(store.getTask(task.taskId)).toMatchObject({
+        status: "failed",
+        lastError: "restart recovery",
+      });
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("cancels running tasks", () => {
     const root = createTempDir();
     try {

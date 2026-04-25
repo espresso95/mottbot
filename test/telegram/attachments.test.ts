@@ -272,6 +272,47 @@ describe("TelegramAttachmentIngestor", () => {
     ).rejects.toMatchObject({ code: "attachment.too_large", name: "AttachmentIngestionError" });
   });
 
+  it("rejects downloaded attachments that exceed the combined size limit", async () => {
+    const stores = createStores({
+      attachments: {
+        maxFileBytes: 10,
+        maxTotalBytes: 9,
+        maxPerMessage: 2,
+      } as any,
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      getFile: vi
+        .fn()
+        .mockResolvedValueOnce({ file_path: "photos/first.png" })
+        .mockResolvedValueOnce({ file_path: "photos/second.png" }),
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(Buffer.from("first"), { status: 200 }))
+      .mockResolvedValueOnce(new Response(Buffer.from("second"), { status: 200 }));
+    const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
+
+    await expect(
+      ingestor.prepare({
+        allowNativeImages: true,
+        allowNativeFiles: false,
+        attachments: [
+          { kind: "photo", fileId: "first" },
+          { kind: "photo", fileId: "second" },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "attachment.too_large",
+      message: expect.stringContaining("larger than the configured limit"),
+    });
+    expect(fs.existsSync(stores.config.attachments.cacheDir)).toBe(true);
+    expect(fs.readdirSync(stores.config.attachments.cacheDir)).toEqual([]);
+  });
+
   it("cleans already cached files when a later attachment fails", async () => {
     const stores = createStores({
       attachments: {

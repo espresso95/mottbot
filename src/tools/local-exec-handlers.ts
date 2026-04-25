@@ -103,6 +103,10 @@ function commandBaseName(command: string): string {
   return path.basename(command.trim());
 }
 
+function commandHasPathSeparator(command: string): boolean {
+  return command.includes("/") || command.includes("\\");
+}
+
 function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin",
@@ -223,7 +227,10 @@ class LocalExecScope {
     if (DENIED_COMMANDS.has(commandBaseName(trimmed))) {
       throw new Error(`Local command ${trimmed} is denied.`);
     }
-    if (!this.allowedCommands.has(trimmed) && !this.allowedCommands.has(commandBaseName(trimmed))) {
+    const allowlisted = commandHasPathSeparator(trimmed)
+      ? this.allowedCommands.has(trimmed)
+      : this.allowedCommands.has(trimmed) || this.allowedCommands.has(commandBaseName(trimmed));
+    if (!allowlisted) {
       throw new Error(`Local command ${trimmed} is not allowlisted.`);
     }
     return trimmed;

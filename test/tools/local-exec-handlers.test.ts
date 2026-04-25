@@ -78,6 +78,18 @@ describe("local exec tool handlers", () => {
           command: "python3",
         }),
       ).rejects.toThrow(/not allowlisted/);
+      const basenameOnlyHandlers = createLocalExecToolHandlers({
+        roots: [root],
+        deniedPaths: [],
+        allowedCommands: [path.basename(process.execPath)],
+        timeoutMs: 5_000,
+        maxOutputBytes: 1_000,
+      });
+      await expect(
+        runTool(basenameOnlyHandlers.mottbot_local_command_run!, {
+          command: process.execPath,
+        }),
+      ).rejects.toThrow(/not allowlisted/);
       await expect(
         runTool(handlers.mottbot_local_command_run!, {
           command: "bash",
@@ -135,7 +147,7 @@ describe("local exec tool handlers", () => {
       const handlers = createLocalExecToolHandlers({
         roots: [firstRoot, secondRoot],
         deniedPaths: [],
-        allowedCommands: [path.basename(process.execPath)],
+        allowedCommands: [process.execPath],
         timeoutMs: 5_000,
         maxOutputBytes: 1_000,
       });

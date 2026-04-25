@@ -34,6 +34,7 @@ export type InboundEvent = {
   attachments: NormalizedAttachment[];
   replyToMessageId?: number;
   mentionsBot: boolean;
+  commandTargetUsername?: string;
   isCommand: boolean;
   arrivedAt: number;
 };
@@ -57,4 +58,5 @@ export type ParsedCommand = {
   command: string;
   args: string[];
   raw: string;
+  targetUsername?: string;
 };

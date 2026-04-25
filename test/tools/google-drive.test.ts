@@ -106,6 +106,30 @@ describe("GoogleDriveService", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps service timeouts active when a caller signal is also provided", async () => {
+    const parent = new AbortController();
+    const observedSignals: AbortSignal[] = [];
+    const fetchImpl = vi.fn(
+      async (_url: string, init?: RequestInit) =>
+        await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error("missing signal"));
+            return;
+          }
+          observedSignals.push(signal);
+          signal.addEventListener("abort", () => reject(new Error("aborted by timeout")), { once: true });
+        }),
+    );
+    const service = new GoogleDriveService(createConfig({ timeoutMs: 1 }), { fetchImpl, getEnv: () => "token" });
+
+    await expect(service.searchFiles({ signal: parent.signal })).rejects.toThrow("aborted by timeout");
+
+    expect(observedSignals[0]).toBeDefined();
+    expect(observedSignals[0]).not.toBe(parent.signal);
+    expect(parent.signal.aborted).toBe(false);
+  });
+
   it("fails clearly when token is missing", async () => {
     const service = new GoogleDriveService(createConfig(), {
       fetchImpl: vi.fn(),

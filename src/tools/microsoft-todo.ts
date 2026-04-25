@@ -150,6 +150,10 @@ async function parseJson(response: Response): Promise<Record<string, unknown> | 
   }
 }
 
+function combineAbortSignals(primary: AbortSignal | undefined, fallback: AbortSignal): AbortSignal {
+  return primary ? AbortSignal.any([primary, fallback]) : fallback;
+}
+
 /** Minimal Microsoft Graph To Do client used by tool handlers. */
 export class MicrosoftTodoService {
   private readonly graphBaseUrl: string;
@@ -401,7 +405,7 @@ export class MicrosoftTodoService {
           ...(options.body ? { "Content-Type": "application/json" } : {}),
         },
         body: options.body,
-        signal: options.signal ?? controller.signal,
+        signal: combineAbortSignals(options.signal, controller.signal),
       });
       if (!response.ok) {
         const errorBody = await parseJson(response);

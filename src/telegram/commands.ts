@@ -47,7 +47,12 @@ type CommandVisibility =
   | { allowed: true }
   | {
       allowed: false;
-      reason: "chat_not_allowed" | "role_not_allowed" | "command_not_allowed" | "group_policy_required";
+      reason:
+        | "chat_not_allowed"
+        | "role_not_allowed"
+        | "command_not_allowed"
+        | "group_policy_required"
+        | "project_admin_required";
     };
 
 function inboundEventFromCallback(event: TelegramCallbackEvent): InboundEvent {
@@ -99,6 +104,9 @@ export class TelegramCommandRouter {
     const raw = event.text ?? event.caption;
     if (!raw?.trim().startsWith("/")) {
       return false;
+    }
+    if (!event.isCommand) {
+      return Boolean(event.commandTargetUsername);
     }
     const parsed = parseCommand(raw);
     if (await this.rejectUnauthorizedCommand(event, parsed.command)) {
@@ -429,6 +437,10 @@ export class TelegramCommandRouter {
       );
       return true;
     }
+    if (decision.reason === "project_admin_required") {
+      await sendReply(this.api, event, "Only owner/admin roles can use Project Mode.");
+      return true;
+    }
     return true;
   }
 
@@ -468,6 +480,9 @@ export class TelegramCommandRouter {
     }
     if (this.governance && !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })) {
       return { allowed: false, reason: "role_not_allowed" };
+    }
+    if (command === "project") {
+      return { allowed: false, reason: "project_admin_required" };
     }
     if (
       this.governance &&

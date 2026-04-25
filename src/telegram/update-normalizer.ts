@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { Clock } from "../shared/clock.js";
+import { parseCommand } from "./command-parsing.js";
 import type { InboundEvent, NormalizedAttachment, NormalizedEntity, TelegramCallbackEvent } from "./types.js";
 
 function collectEntities(message: Record<string, unknown>): NormalizedEntity[] {
@@ -62,6 +63,11 @@ function collectAttachments(message: Record<string, unknown>): NormalizedAttachm
   return attachments;
 }
 
+function normalizeBotUsername(value: string | undefined): string | undefined {
+  const trimmed = value?.trim().replace(/^@/, "");
+  return trimmed ? trimmed.toLowerCase() : undefined;
+}
+
 /** Converts a grammY message context into the normalized inbound event shape. */
 export function normalizeUpdate(params: { ctx: Context; botUsername?: string; clock: Clock }): InboundEvent | null {
   const message = params.ctx.message;
@@ -80,9 +86,15 @@ export function normalizeUpdate(params: { ctx: Context; botUsername?: string; cl
   const caption = typeof rawMessage.caption === "string" ? rawMessage.caption : undefined;
   const visibleText = text ?? caption ?? "";
   const lowerText = visibleText.toLowerCase();
-  const botMention = params.botUsername ? `@${params.botUsername.toLowerCase()}` : undefined;
+  const normalizedBotUsername = normalizeBotUsername(params.botUsername);
+  const botMention = normalizedBotUsername ? `@${normalizedBotUsername}` : undefined;
   const mentionsBot = botMention ? lowerText.includes(botMention) : false;
-  const isCommand = visibleText.trimStart().startsWith("/");
+  const startsWithSlash = visibleText.trimStart().startsWith("/");
+  const parsedCommand = startsWithSlash ? parseCommand(visibleText) : undefined;
+  const commandTargetUsername = parsedCommand?.targetUsername;
+  const commandTargetsThisBot =
+    !commandTargetUsername || !normalizedBotUsername || commandTargetUsername.toLowerCase() === normalizedBotUsername;
+  const isCommand = startsWithSlash && commandTargetsThisBot;
 
   return {
     updateId: params.ctx.update.update_id,
@@ -105,6 +117,7 @@ export function normalizeUpdate(params: { ctx: Context; botUsername?: string; cl
       ? { replyToMessageId: (rawMessage.reply_to_message as Record<string, number>).message_id }
       : {}),
     mentionsBot,
+    ...(commandTargetUsername ? { commandTargetUsername } : {}),
     isCommand,
     arrivedAt: params.clock.now(),
   };

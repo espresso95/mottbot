@@ -10,11 +10,14 @@ export const MAX_BINDING_NAME_LENGTH = 64;
 export function parseCommand(text: string): ParsedCommand {
   const trimmed = text.trim();
   const [head = "", ...rest] = trimmed.split(/\s+/);
-  const command = head.replace(/^\//, "").replace(/@.+$/, "").toLowerCase();
+  const match = /^\/([^@\s]+)(?:@([A-Za-z0-9_]+))?$/.exec(head);
+  const command = (match?.[1] ?? head.replace(/^\//, "").replace(/@.+$/, "")).toLowerCase();
+  const targetUsername = match?.[2];
   return {
     command,
     args: rest,
     raw: trimmed,
+    ...(targetUsername ? { targetUsername } : {}),
   };
 }
 

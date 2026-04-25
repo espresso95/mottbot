@@ -349,14 +349,18 @@ export class RunOrchestrator {
       errorMessage: params.errorMessage,
       finishedAt: this.clock.now(),
     });
-    const placeholder = await this.outbox.start({
-      runId: run.runId,
-      chatId: params.event.chatId,
-      threadId: params.event.threadId,
-      replyToMessageId: params.event.messageId,
-      placeholderText: RUN_STATUS_TEXT.starting,
-    });
-    await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
+    try {
+      const placeholder = await this.outbox.start({
+        runId: run.runId,
+        chatId: params.event.chatId,
+        threadId: params.event.threadId,
+        replyToMessageId: params.event.messageId,
+        placeholderText: RUN_STATUS_TEXT.starting,
+      });
+      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
+    } catch (error) {
+      this.logger.warn({ error, runId: run.runId }, "Failed to send enqueue rejection.");
+    }
   }
 
   private async execute(params: {
@@ -370,25 +374,15 @@ export class RunOrchestrator {
     if (!run) {
       throw new Error(`Unknown queued run ${params.runId}.`);
     }
-    let placeholder = await this.outbox.start({
-      runId: run.runId,
-      chatId: params.event.chatId,
-      threadId: params.event.threadId,
-      replyToMessageId: params.event.messageId,
-      placeholderText: params.placeholderText,
-    });
-    this.logger.info(
-      {
-        runId: run.runId,
-        sessionKey: params.session.sessionKey,
-        chatId: params.event.chatId,
-        modelRef: params.session.modelRef,
-        profileId: params.session.profileId,
-      },
-      "Run starting.",
-    );
+    let placeholder: Awaited<ReturnType<TelegramOutbox["start"]>> | undefined;
     let attachmentPreparation: AttachmentPreparation | undefined;
     let attachmentCleaned = false;
+    const currentPlaceholder = () => {
+      if (!placeholder) {
+        throw new Error("Run outbox placeholder was not initialized.");
+      }
+      return placeholder;
+    };
     const cleanupAttachments = async () => {
       if (!attachmentPreparation || attachmentCleaned) {
         return;
@@ -406,6 +400,23 @@ export class RunOrchestrator {
         status: "starting",
         startedAt: this.clock.now(),
       });
+      placeholder = await this.outbox.start({
+        runId: run.runId,
+        chatId: params.event.chatId,
+        threadId: params.event.threadId,
+        replyToMessageId: params.event.messageId,
+        placeholderText: params.placeholderText,
+      });
+      this.logger.info(
+        {
+          runId: run.runId,
+          sessionKey: params.session.sessionKey,
+          chatId: params.event.chatId,
+          modelRef: params.session.modelRef,
+          profileId: params.session.profileId,
+        },
+        "Run starting.",
+      );
       const attachmentPolicyViolation = this.governance?.validateAttachments?.({
         chatId: params.event.chatId,
         attachments: params.event.attachments,
@@ -429,7 +440,7 @@ export class RunOrchestrator {
       }
       if (budgetDecision?.warnings.length) {
         placeholder = await this.outbox.update(
-          placeholder,
+          currentPlaceholder(),
           [RUN_STATUS_TEXT.starting, ...budgetDecision.warnings].join("\n"),
         );
       }
@@ -516,14 +527,14 @@ export class RunOrchestrator {
           },
           onTextDelta: async (delta) => {
             const nextText = collector.appendText(delta);
-            placeholder = await this.outbox.update(placeholder, nextText);
+            placeholder = await this.outbox.update(currentPlaceholder(), nextText);
           },
           onThinkingDelta: async (delta) => {
             collector.appendThinking(delta);
           },
           onToolCallStart: async (toolCall) => {
             if (toolCall.name) {
-              placeholder = await this.outbox.update(placeholder, formatToolPreparingStatus(toolCall.name));
+              placeholder = await this.outbox.update(currentPlaceholder(), formatToolPreparingStatus(toolCall.name));
             }
           },
         });
@@ -550,7 +561,7 @@ export class RunOrchestrator {
         toolRounds += 1;
 
         for (const toolCall of toolCalls) {
-          placeholder = await this.outbox.update(placeholder, formatToolRunningStatus(toolCall.name));
+          placeholder = await this.outbox.update(currentPlaceholder(), formatToolRunningStatus(toolCall.name));
           const execution = await this.toolExecutor.execute(toolCall, {
             signal: params.signal,
             sessionKey: params.session.sessionKey,
@@ -571,7 +582,7 @@ export class RunOrchestrator {
           });
           extraContextMessages.push(this.toolExecutor.toToolResultMessage(execution));
           placeholder = await this.outbox.update(
-            placeholder,
+            currentPlaceholder(),
             formatToolCompletedStatus({ toolName: execution.toolName, isError: execution.isError }),
           );
           this.logger.info(
@@ -594,7 +605,7 @@ export class RunOrchestrator {
       }
       const finalText = result.text.trim() || collector.getText().trim();
       const visibleText = finalText || "No response generated.";
-      const delivery = await this.outbox.finish(placeholder, visibleText, {
+      const delivery = await this.outbox.finish(currentPlaceholder(), visibleText, {
         replyMarkup: buildToolApprovalReplyMarkup(executedToolResults),
       });
       const thinking = result.thinking || collector.getThinking();
@@ -667,14 +678,20 @@ export class RunOrchestrator {
         },
         "Run execution failed.",
       );
-      await this.outbox.fail(placeholder, formatRunFailedStatus(message));
-      await this.removeAckReactionAfterReply(params.event);
       this.runs.update(run.runId, {
         status: params.signal.aborted ? "cancelled" : "failed",
         errorCode,
         errorMessage: message,
         finishedAt: this.clock.now(),
       });
+      if (placeholder) {
+        try {
+          await this.outbox.fail(placeholder, formatRunFailedStatus(message));
+        } catch (outboxError) {
+          this.logger.warn({ error: outboxError, runId: run.runId }, "Failed to send run failure status.");
+        }
+      }
+      await this.removeAckReactionAfterReply(params.event);
     }
   }
 

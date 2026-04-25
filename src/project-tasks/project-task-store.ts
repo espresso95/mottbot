@@ -539,6 +539,21 @@ export class ProjectTaskStore {
     return row?.count ?? 0;
   }
 
+  recoverInterruptedCliRuns(errorMessage = "Codex CLI run was interrupted by process restart."): number {
+    const now = this.clock.now();
+    const result = this.database.db
+      .prepare(
+        `update codex_cli_runs set
+          status='failed',
+          updated_at=?,
+          finished_at=?,
+          last_error=?
+        where status in ('starting', 'streaming')`,
+      )
+      .run(now, now, errorMessage);
+    return result.changes;
+  }
+
   listActiveCliRunTaskIds(): string[] {
     return this.database.db
       .prepare<unknown[], { task_id: string }>(

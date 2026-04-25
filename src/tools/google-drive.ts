@@ -139,6 +139,10 @@ function mapDriveFile(value: DriveFileRecord): GoogleDriveFileSummary | undefine
   };
 }
 
+function combineAbortSignals(primary: AbortSignal | undefined, fallback: AbortSignal): AbortSignal {
+  return primary ? AbortSignal.any([primary, fallback]) : fallback;
+}
+
 /** Minimal Google Drive and Docs API client used by tool handlers. */
 export class GoogleDriveService {
   private readonly driveBaseUrl: string;
@@ -348,7 +352,7 @@ export class GoogleDriveService {
           Authorization: `Bearer ${token}`,
           Accept: options.accept,
         },
-        signal: options.signal ?? controller.signal,
+        signal: combineAbortSignals(options.signal, controller.signal),
       });
       if (!response.ok) {
         let message = response.statusText;

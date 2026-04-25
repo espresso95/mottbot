@@ -176,6 +176,7 @@ Defaults:
 Safety rules:
 
 - no command runs unless it is listed in `allowedCommands` by exact command or executable basename
+- basename allowlist entries apply only to command inputs without path separators; absolute or relative command paths require an exact allowlist entry
 - shells and privilege-changing host commands are denied even if accidentally allowlisted
 - working directories must be relative to an approved root
 - traversal, denied directories, and symlink escapes are rejected before execution

@@ -89,6 +89,7 @@ Before command routing or model execution, `validateInboundSafety()` checks:
 - attachment count against `attachments.maxPerMessage` or `MOTTBOT_ATTACHMENT_MAX_PER_MESSAGE`
 - known per-file sizes against `attachments.maxFileBytes` or `MOTTBOT_ATTACHMENT_MAX_FILE_BYTES`
 - combined known attachment sizes against `attachments.maxTotalBytes` or `MOTTBOT_ATTACHMENT_MAX_TOTAL_BYTES`
+- downloaded attachment bytes against `attachments.maxTotalBytes` when Telegram did not provide complete sizes up front
 - extracted file prompt text against `attachments.maxExtractedTextCharsPerFile` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_PER_FILE`
 - extracted file prompt text across one message against `attachments.maxExtractedTextCharsTotal` / `MOTTBOT_ATTACHMENT_MAX_EXTRACTED_TEXT_CHARS_TOTAL`
 
@@ -222,6 +223,7 @@ Current policy:
 - owner/admin roles can run commands in any chat, including chats outside `telegram.allowedChatIds`
 - `telegram.adminUserIds` are treated as protected owners and cannot be revoked from Telegram
 - normal and trusted users can run commands only in private chats by default
+- `/project` commands are owner/admin-only because they can read local task logs and mutate local git worktrees
 - when `telegram.allowedChatIds` is non-empty, non-operator private commands are rejected unless the chat is listed
 - group and supergroup commands from non-operators are rejected unless a chat policy explicitly allows the command for that role
 - chat governance can restrict allowed roles, allowed commands, allowed models, allowed model tools, memory scopes, and stricter attachment limits per chat

@@ -65,4 +65,56 @@ describe("ProjectTaskStore", () => {
       removeTempDir(root);
     }
   });
+
+  it("recovers active CLI runs as failed after a process restart", () => {
+    const root = createTempDir();
+    try {
+      const sqlitePath = path.join(root, "mottbot.sqlite");
+      const database = new DatabaseClient(sqlitePath);
+      migrateDatabase(database);
+      const clock: Clock = { now: () => 1_700_000_000_000 };
+      const store = new ProjectTaskStore(database, clock);
+      const task = store.createTask({
+        chatId: "chat-1",
+        repoRoot: root,
+        baseRef: "main",
+        title: "test task",
+        originalPrompt: "build a thing",
+        status: "running",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 1,
+      });
+      const subtask = store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "do work",
+        status: "running",
+      });
+      const run = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: subtask.subtaskId,
+        commandJson: "[]",
+        cwd: root,
+        stdoutLogPath: path.join(root, "stdout.log"),
+        stderrLogPath: path.join(root, "stderr.log"),
+        jsonlLogPath: path.join(root, "events.jsonl"),
+      });
+      store.updateCliRun(run.cliRunId, { status: "streaming", startedAt: clock.now() });
+
+      expect(store.countActiveCliRuns()).toBe(1);
+      expect(store.recoverInterruptedCliRuns("restart recovery")).toBe(1);
+
+      const recovered = store.getLatestCliRunForSubtask(subtask.subtaskId);
+      expect(store.countActiveCliRuns()).toBe(0);
+      expect(recovered).toMatchObject({
+        status: "failed",
+        finishedAt: clock.now(),
+        lastError: "restart recovery",
+      });
+      database.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
 });

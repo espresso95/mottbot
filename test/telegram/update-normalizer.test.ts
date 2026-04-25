@@ -84,6 +84,49 @@ describe("normalizeUpdate", () => {
     ]);
   });
 
+  it("marks slash commands addressed to another bot as non-command events", () => {
+    const event = normalizeUpdate({
+      clock: new FakeClock(123),
+      botUsername: "@mottbot",
+      ctx: {
+        update: { update_id: 12 },
+        message: {
+          message_id: 24,
+          text: "/help@OtherBot",
+          chat: { id: 42, type: "private" },
+          from: { id: 77 },
+        },
+      } as any,
+    });
+
+    expect(event).toMatchObject({
+      text: "/help@OtherBot",
+      commandTargetUsername: "OtherBot",
+      isCommand: false,
+    });
+  });
+
+  it("accepts slash commands addressed to this bot", () => {
+    const event = normalizeUpdate({
+      clock: new FakeClock(123),
+      botUsername: "MottBot",
+      ctx: {
+        update: { update_id: 13 },
+        message: {
+          message_id: 25,
+          text: "/help@mottbot",
+          chat: { id: 42, type: "private" },
+          from: { id: 77 },
+        },
+      } as any,
+    });
+
+    expect(event).toMatchObject({
+      commandTargetUsername: "mottbot",
+      isCommand: true,
+    });
+  });
+
   it("returns null when no message is present", () => {
     expect(
       normalizeUpdate({

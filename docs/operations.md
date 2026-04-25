@@ -647,6 +647,7 @@ Attachment settings:
 Runtime behavior:
 
 - supported images are downloaded from Telegram only when the selected model accepts image input
+- downloaded attachment bytes are capped by both `attachments.maxFileBytes` and the per-message `attachments.maxTotalBytes` budget
 - downloaded bytes are converted into native image blocks for the model request
 - text, Markdown, code, CSV, TSV, and PDF documents are downloaded within byte limits and converted into bounded prompt-only text
 - CSV and TSV files are summarized as table previews
@@ -782,7 +783,7 @@ Current runtime:
 Runtime controls are exposed through Telegram commands:
 
 - `/status`
-- `/project` (feature-flagged long-running project tasks)
+- `/project` (owner/admin-only, feature-flagged long-running project tasks)
 - `/usage [daily|monthly]`
 - `/health`
 - `/model`
