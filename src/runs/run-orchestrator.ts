@@ -49,10 +49,18 @@ import { StreamCollector } from "./stream-collector.js";
 import { UsageRecorder } from "./usage-recorder.js";
 import { UsageBudgetExceededError, type UsageBudgetService } from "./usage-budget.js";
 import { AgentRunLimiter } from "./agent-run-limiter.js";
+import type { ToolApprovalAuditRecord } from "../tools/approval.js";
 
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
+
+type OutboxHandle = Awaited<ReturnType<TelegramOutbox["start"]>>;
+
+type ApprovedToolContinuation = {
+  pending: ToolApprovalAuditRecord;
+  toolCall: CodexToolCall;
+};
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 export type RunGovernancePolicy = {
@@ -123,6 +131,68 @@ function toolTranscriptJson(call: CodexToolCall, result: ToolExecutionResult): s
       ...(result.approvalRequestId ? { approvalRequestId: result.approvalRequestId } : {}),
     },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toolCallFromTranscriptJson(
+  contentJson: string | undefined,
+  pending: ToolApprovalAuditRecord,
+): CodexToolCall | undefined {
+  if (!contentJson || !pending.id) {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(contentJson);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(parsed) || !isRecord(parsed.result) || parsed.result.approvalRequestId !== pending.id) {
+    return undefined;
+  }
+  const toolCall = parsed.toolCall;
+  if (!isRecord(toolCall) || typeof toolCall.id !== "string" || typeof toolCall.name !== "string") {
+    return undefined;
+  }
+  return {
+    id: toolCall.id,
+    name: toolCall.name,
+    arguments: isRecord(toolCall.arguments) ? toolCall.arguments : {},
+  };
+}
+
+function buildApprovedToolAssistantMessage(params: {
+  toolCall: CodexToolCall;
+  session: SessionRoute;
+  timestamp: number;
+}): ProviderMessage {
+  return {
+    role: "assistant",
+    content: [
+      {
+        type: "toolCall",
+        id: params.toolCall.id,
+        name: params.toolCall.name,
+        arguments: params.toolCall.arguments,
+      },
+    ],
+    api: "openai-codex-responses",
+    provider: "openai-codex",
+    model: params.session.modelRef.replace(/^openai-codex\//, ""),
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "toolUse",
+    timestamp: params.timestamp,
+  };
 }
 
 function buildToolApprovalReplyMarkup(results: ToolExecutionResult[]): TelegramInlineKeyboard | undefined {
@@ -250,6 +320,70 @@ export class RunOrchestrator {
     });
   }
 
+  async continueApprovedTool(params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    pending: ToolApprovalAuditRecord;
+  }): Promise<boolean> {
+    if (!this.toolRegistry || !this.toolExecutor) {
+      return false;
+    }
+    const continuation = this.findApprovedToolContinuation(params.session.sessionKey, params.pending);
+    if (!continuation) {
+      return false;
+    }
+    this.sessions.ensure({
+      sessionKey: params.session.sessionKey,
+      chatId: params.session.chatId,
+      threadId: params.session.threadId,
+      userId: params.session.userId,
+      routeMode: params.session.routeMode,
+      profileId: params.session.profileId,
+      modelRef: params.session.modelRef,
+      boundName: params.session.boundName,
+      agentId: params.session.agentId,
+      fastMode: params.session.fastMode,
+      systemPrompt: params.session.systemPrompt,
+    });
+
+    const agent = this.agentForSession(params.session);
+    const queueLimitMessage = this.agentQueueLimitMessage(params.session, agent);
+    if (queueLimitMessage) {
+      await this.rejectContinuationAtEnqueue({
+        event: params.event,
+        session: params.session,
+        errorCode: "agent_queue_full",
+        errorMessage: queueLimitMessage,
+      });
+      return true;
+    }
+
+    const run = this.runs.create({
+      sessionKey: params.session.sessionKey,
+      agentId: params.session.agentId,
+      modelRef: params.session.modelRef,
+      profileId: params.session.profileId,
+    });
+    this.logger.info(
+      {
+        runId: run.runId,
+        sessionKey: params.session.sessionKey,
+        chatId: params.event.chatId,
+        modelRef: params.session.modelRef,
+        profileId: params.session.profileId,
+        toolName: continuation.toolCall.name,
+      },
+      "Queued approved tool continuation.",
+    );
+    this.enqueueRun({
+      event: params.event,
+      session: params.session,
+      runId: run.runId,
+      approvedToolContinuation: continuation,
+    });
+    return true;
+  }
+
   async stop(sessionKey: string): Promise<boolean> {
     return this.queue.cancel(sessionKey);
   }
@@ -279,13 +413,20 @@ export class RunOrchestrator {
     return { resumed, failed };
   }
 
-  private enqueueRun(params: { event: InboundEvent; session: SessionRoute; runId: string; recovered?: boolean }): void {
+  private enqueueRun(params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    runId: string;
+    recovered?: boolean;
+    approvedToolContinuation?: ApprovedToolContinuation;
+  }): void {
     void this.queue
       .enqueue(params.session.sessionKey, async (signal) => {
         const agent = this.agentForSession(params.session);
         await this.agentLimiter.run(params.session.agentId, agent?.maxConcurrentRuns, async () => {
           if (
             this.runQueue &&
+            !params.approvedToolContinuation &&
             !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
           ) {
             return;
@@ -296,9 +437,10 @@ export class RunOrchestrator {
             runId: params.runId,
             placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
             signal,
+            approvedToolContinuation: params.approvedToolContinuation,
           });
           const finalRun = this.runs.get(params.runId);
-          if (!this.runQueue || !finalRun) {
+          if (!this.runQueue || !finalRun || params.approvedToolContinuation) {
             return;
           }
           if (finalRun.status === "completed") {
@@ -367,12 +509,45 @@ export class RunOrchestrator {
     }
   }
 
+  private async rejectContinuationAtEnqueue(params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    errorCode: string;
+    errorMessage: string;
+  }): Promise<void> {
+    const run = this.runs.create({
+      sessionKey: params.session.sessionKey,
+      agentId: params.session.agentId,
+      modelRef: params.session.modelRef,
+      profileId: params.session.profileId,
+    });
+    this.runs.update(run.runId, {
+      status: "failed",
+      errorCode: params.errorCode,
+      errorMessage: params.errorMessage,
+      finishedAt: this.clock.now(),
+    });
+    try {
+      const placeholder = await this.outbox.start({
+        runId: run.runId,
+        chatId: params.event.chatId,
+        threadId: params.event.threadId,
+        replyToMessageId: params.event.messageId,
+        placeholderText: RUN_STATUS_TEXT.starting,
+      });
+      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage));
+    } catch (error) {
+      this.logger.warn({ error, runId: run.runId }, "Failed to send approved-tool continuation rejection.");
+    }
+  }
+
   private async execute(params: {
     event: InboundEvent;
     session: SessionRoute;
     runId: string;
     placeholderText: string;
     signal: AbortSignal;
+    approvedToolContinuation?: ApprovedToolContinuation;
   }): Promise<void> {
     const run = this.runs.get(params.runId);
     if (!run) {
@@ -514,6 +689,30 @@ export class RunOrchestrator {
       let toolRounds = 0;
       let totalToolCalls = 0;
 
+      if (params.approvedToolContinuation) {
+        if (!this.toolExecutor || !this.toolRegistry || !toolDeclarations || toolDeclarations.length === 0) {
+          throw new Error("Approved tool continuation requested, but tool execution is disabled.");
+        }
+        extraContextMessages.push(
+          buildApprovedToolAssistantMessage({
+            toolCall: params.approvedToolContinuation.toolCall,
+            session: params.session,
+            timestamp: this.clock.now(),
+          }),
+        );
+        totalToolCalls += 1;
+        placeholder = await this.executeToolCallForRun({
+          toolCall: params.approvedToolContinuation.toolCall,
+          event: params.event,
+          session: params.session,
+          runId: run.runId,
+          signal: params.signal,
+          placeholder: currentPlaceholder(),
+          extraContextMessages,
+          executedToolResults,
+        });
+      }
+
       while (true) {
         result = await this.transport.stream({
           sessionKey: params.session.sessionKey,
@@ -565,43 +764,16 @@ export class RunOrchestrator {
         toolRounds += 1;
 
         for (const toolCall of toolCalls) {
-          placeholder = await this.outbox.update(currentPlaceholder(), formatToolRunningStatus(toolCall.name));
-          const execution = await this.toolExecutor.execute(toolCall, {
+          placeholder = await this.executeToolCallForRun({
+            toolCall,
+            event: params.event,
+            session: params.session,
+            runId: run.runId,
             signal: params.signal,
-            sessionKey: params.session.sessionKey,
-            runId: run.runId,
-            requestedByUserId: params.event.fromUserId,
-            chatId: params.event.chatId,
-            threadId: params.event.threadId,
-            allowedToolNames: this.agentForSession(params.session)?.toolNames,
-            toolPolicyOverrides: this.agentForSession(params.session)?.toolPolicies,
+            placeholder: currentPlaceholder(),
+            extraContextMessages,
+            executedToolResults,
           });
-          executedToolResults.push(execution);
-          this.transcripts.add({
-            sessionKey: params.session.sessionKey,
-            runId: run.runId,
-            role: "tool",
-            contentText: toolTranscriptText(execution),
-            contentJson: toolTranscriptJson(toolCall, execution),
-          });
-          extraContextMessages.push(this.toolExecutor.toToolResultMessage(execution));
-          placeholder = await this.outbox.update(
-            currentPlaceholder(),
-            formatToolCompletedStatus({ toolName: execution.toolName, isError: execution.isError }),
-          );
-          this.logger.info(
-            {
-              runId: run.runId,
-              sessionKey: params.session.sessionKey,
-              toolName: execution.toolName,
-              isError: execution.isError,
-              elapsedMs: execution.elapsedMs,
-              outputBytes: execution.outputBytes,
-              truncated: execution.truncated,
-              errorCode: execution.errorCode,
-            },
-            "Tool call completed.",
-          );
         }
       }
       if (!result) {
@@ -730,6 +902,83 @@ export class RunOrchestrator {
   private isToolAllowedByAgent(session: SessionRoute, definition: ToolDefinition): boolean {
     const agent = this.agentForSession(session);
     return !agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name);
+  }
+
+  private findApprovedToolContinuation(
+    sessionKey: string,
+    pending: ToolApprovalAuditRecord,
+  ): ApprovedToolContinuation | undefined {
+    if (!pending.id) {
+      return undefined;
+    }
+    const messages = this.transcripts.listRecent(sessionKey, 100);
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!message || message.role !== "tool") {
+        continue;
+      }
+      if (pending.runId && message.runId !== pending.runId) {
+        continue;
+      }
+      const toolCall = toolCallFromTranscriptJson(message.contentJson, pending);
+      if (toolCall?.name === pending.toolName) {
+        return { pending, toolCall };
+      }
+    }
+    return undefined;
+  }
+
+  private async executeToolCallForRun(params: {
+    toolCall: CodexToolCall;
+    event: InboundEvent;
+    session: SessionRoute;
+    runId: string;
+    signal: AbortSignal;
+    placeholder: OutboxHandle;
+    extraContextMessages: ProviderMessage[];
+    executedToolResults: ToolExecutionResult[];
+  }): Promise<OutboxHandle> {
+    if (!this.toolExecutor) {
+      throw new Error("Model requested tools, but tool execution is disabled.");
+    }
+    let placeholder = await this.outbox.update(params.placeholder, formatToolRunningStatus(params.toolCall.name));
+    const execution = await this.toolExecutor.execute(params.toolCall, {
+      signal: params.signal,
+      sessionKey: params.session.sessionKey,
+      runId: params.runId,
+      requestedByUserId: params.event.fromUserId,
+      chatId: params.event.chatId,
+      threadId: params.event.threadId,
+      allowedToolNames: this.agentForSession(params.session)?.toolNames,
+      toolPolicyOverrides: this.agentForSession(params.session)?.toolPolicies,
+    });
+    params.executedToolResults.push(execution);
+    this.transcripts.add({
+      sessionKey: params.session.sessionKey,
+      runId: params.runId,
+      role: "tool",
+      contentText: toolTranscriptText(execution),
+      contentJson: toolTranscriptJson(params.toolCall, execution),
+    });
+    params.extraContextMessages.push(this.toolExecutor.toToolResultMessage(execution));
+    placeholder = await this.outbox.update(
+      placeholder,
+      formatToolCompletedStatus({ toolName: execution.toolName, isError: execution.isError }),
+    );
+    this.logger.info(
+      {
+        runId: params.runId,
+        sessionKey: params.session.sessionKey,
+        toolName: execution.toolName,
+        isError: execution.isError,
+        elapsedMs: execution.elapsedMs,
+        outputBytes: execution.outputBytes,
+        truncated: execution.truncated,
+        errorCode: execution.errorCode,
+      },
+      "Tool call completed.",
+    );
+    return placeholder;
   }
 
   private async proposeMemoryCandidates(params: {

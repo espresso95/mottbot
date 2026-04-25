@@ -2,12 +2,18 @@
 export type TelegramCallbackAction =
   | { type: "project_approve"; approvalId: string }
   | { type: "tool_approve"; auditId: string }
-  | { type: "tool_deny"; auditId: string };
+  | { type: "tool_deny"; auditId: string }
+  | { type: "memory_accept"; candidateId: string }
+  | { type: "memory_reject"; candidateId: string }
+  | { type: "memory_archive"; candidateId: string };
 
 const PREFIX = "mb";
 const PROJECT_APPROVE = "pa";
 const TOOL_APPROVE = "ta";
 const TOOL_DENY = "td";
+const MEMORY_ACCEPT = "ma";
+const MEMORY_REJECT = "mr";
+const MEMORY_ARCHIVE = "mh";
 const CALLBACK_DATA_MAX_BYTES = 64;
 
 function assertCallbackDataFits(data: string): string {
@@ -32,6 +38,21 @@ export function buildToolDenyCallbackData(auditId: string): string {
   return assertCallbackDataFits(`${PREFIX}:${TOOL_DENY}:${auditId}`);
 }
 
+/** Builds compact callback data for accepting a memory candidate. */
+export function buildMemoryCandidateAcceptCallbackData(candidateId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${MEMORY_ACCEPT}:${candidateId}`);
+}
+
+/** Builds compact callback data for rejecting a memory candidate. */
+export function buildMemoryCandidateRejectCallbackData(candidateId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${MEMORY_REJECT}:${candidateId}`);
+}
+
+/** Builds compact callback data for archiving a memory candidate. */
+export function buildMemoryCandidateArchiveCallbackData(candidateId: string): string {
+  return assertCallbackDataFits(`${PREFIX}:${MEMORY_ARCHIVE}:${candidateId}`);
+}
+
 /** Parses Mottbot callback data into a supported inline Telegram action. */
 export function parseTelegramCallbackData(data: string): TelegramCallbackAction | undefined {
   const [prefix, action, ...rest] = data.split(":");
@@ -47,6 +68,15 @@ export function parseTelegramCallbackData(data: string): TelegramCallbackAction 
   }
   if (action === TOOL_DENY) {
     return { type: "tool_deny", auditId: id };
+  }
+  if (action === MEMORY_ACCEPT) {
+    return { type: "memory_accept", candidateId: id };
+  }
+  if (action === MEMORY_REJECT) {
+    return { type: "memory_reject", candidateId: id };
+  }
+  if (action === MEMORY_ARCHIVE) {
+    return { type: "memory_archive", candidateId: id };
   }
   return undefined;
 }

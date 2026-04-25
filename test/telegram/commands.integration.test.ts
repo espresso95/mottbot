@@ -12,6 +12,7 @@ import type { GithubReadOperations } from "../../src/tools/github-read.js";
 import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
 import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 import {
+  buildMemoryCandidateAcceptCallbackData,
   buildProjectApprovalCallbackData,
   buildToolApprovalCallbackData,
   buildToolDenyCallbackData,
@@ -1410,6 +1411,93 @@ describe("TelegramCommandRouter", () => {
     expect(memories.listForScopeContext(session)).toEqual([]);
   });
 
+  it("reviews memory candidates from callback buttons", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageReplyMarkup: vi.fn(async () => ({})),
+      sendMessage: vi.fn(async () => ({})),
+    };
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      memories,
+    );
+    const session = new RouteResolver(stores.config, stores.sessions).resolve(createInboundEvent());
+    const candidate = memories.addCandidate({
+      sessionKey: session.sessionKey,
+      scope: "personal",
+      scopeKey: "user-1",
+      contentText: "User prefers button-driven review.",
+      reason: "Preference stated by user.",
+      sourceMessageIds: ["msg-1"],
+      sensitivity: "low",
+    });
+    if (!candidate.inserted) {
+      throw new Error("expected inserted candidate");
+    }
+
+    await router.maybeHandle(createInboundEvent({ text: "/memory candidates", isCommand: true }));
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("User prefers button-driven review."),
+      expect.objectContaining({
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: `Accept ${candidate.candidate.id.slice(0, 8)}`,
+                callback_data: buildMemoryCandidateAcceptCallbackData(candidate.candidate.id),
+              },
+              {
+                text: "Reject",
+                callback_data: expect.stringMatching(/^mb:mr:/),
+              },
+              {
+                text: "Archive",
+                callback_data: expect.stringMatching(/^mb:mh:/),
+              },
+            ],
+          ],
+        },
+      }),
+    );
+
+    const handled = await router.maybeHandleCallback(
+      createCallbackEvent({
+        data: buildMemoryCandidateAcceptCallbackData(candidate.candidate.id),
+      }),
+    );
+
+    expect(handled).toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: expect.stringContaining("Accepted"),
+      show_alert: false,
+    });
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42, {});
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Accepted"), expect.any(Object));
+    expect(memories.listForScopeContext(session)).toEqual([
+      expect.objectContaining({
+        contentText: "User prefers button-driven review.",
+        scope: "personal",
+      }),
+    ]);
+  });
+
   it("lists and forgets file metadata without clearing unrelated transcript text", async () => {
     const stores = createStores();
     cleanup.push(() => {
@@ -1581,6 +1669,75 @@ describe("TelegramCommandRouter", () => {
     );
   });
 
+  it("does not approve stale pending requests from the typed tool approve fallback", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    approvals.recordAudit({
+      sessionKey: session.sessionKey,
+      toolName: "mottbot_restart_service",
+      sideEffect: "process_control",
+      allowed: false,
+      decisionCode: "approval_required",
+      requestedAt: stores.clock.now() - 60_001,
+      decidedAt: stores.clock.now() - 60_001,
+      requestFingerprint: "request-fingerprint",
+      previewText: "Approval preview text",
+    });
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      approvals,
+    );
+
+    await router.maybeHandle(
+      createInboundEvent({
+        text: "/tool approve mottbot_restart_service planned restart",
+        fromUserId: "admin-1",
+        isCommand: true,
+      }),
+    );
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Latest pending request for mottbot_restart_service expired. Ask the model to retry.",
+      expect.any(Object),
+    );
+    expect(approvals.listActive(session.sessionKey)).toEqual([]);
+    expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "approval_expired" })).toEqual([
+      expect.objectContaining({
+        toolName: "mottbot_restart_service",
+        requestFingerprint: "request-fingerprint",
+      }),
+    ]);
+  });
+
   it("approves pending side-effecting tool requests from callback buttons", async () => {
     const stores = createStores({
       tools: {
@@ -1595,6 +1752,7 @@ describe("TelegramCommandRouter", () => {
     });
     const api = {
       answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageText: vi.fn(async () => ({})),
       editMessageReplyMarkup: vi.fn(async () => ({})),
       sendMessage: vi.fn(async () => ({})),
     };
@@ -1646,6 +1804,7 @@ describe("TelegramCommandRouter", () => {
       createCallbackEvent({
         fromUserId: "admin-1",
         data: buildToolApprovalCallbackData(pending.id!),
+        messageText: "Approval required.",
       }),
     );
 
@@ -1654,6 +1813,11 @@ describe("TelegramCommandRouter", () => {
       text: "Approved mottbot_restart_service. Continuing.",
       show_alert: false,
     });
+    expect(api.editMessageText).toHaveBeenCalledWith(
+      "chat-1",
+      42,
+      "Approval required.\n\nApproved mottbot_restart_service. Continuing...",
+    );
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(orchestrator.enqueueMessage).toHaveBeenCalledWith({
       event: expect.objectContaining({
@@ -1702,6 +1866,7 @@ describe("TelegramCommandRouter", () => {
     });
     const api = {
       answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageText: vi.fn(async () => ({})),
       editMessageReplyMarkup: vi.fn(async () => ({})),
       sendMessage: vi.fn(async () => ({})),
     };
@@ -1753,6 +1918,7 @@ describe("TelegramCommandRouter", () => {
       createCallbackEvent({
         fromUserId: "admin-1",
         data: buildToolDenyCallbackData(pending.id!),
+        messageText: "Approval required.",
       }),
     );
 
@@ -1761,6 +1927,11 @@ describe("TelegramCommandRouter", () => {
       text: "Denied mottbot_restart_service.",
       show_alert: false,
     });
+    expect(api.editMessageText).toHaveBeenCalledWith(
+      "chat-1",
+      42,
+      "Approval required.\n\nDenied mottbot_restart_service.",
+    );
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(orchestrator.enqueueMessage).not.toHaveBeenCalled();
     expect(api.sendMessage).toHaveBeenCalledWith(
@@ -1775,6 +1946,89 @@ describe("TelegramCommandRouter", () => {
         requestFingerprint: "request-fingerprint",
         previewText: "Approval preview text",
         approvedByUserId: "admin-1",
+      }),
+    ]);
+  });
+
+  it("expires stale pending tool callback buttons without approving or continuing", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageText: vi.fn(async () => ({})),
+      editMessageReplyMarkup: vi.fn(async () => ({})),
+      sendMessage: vi.fn(async () => ({})),
+    };
+    const orchestrator = {
+      stop: vi.fn(async () => false),
+      enqueueMessage: vi.fn(async () => undefined),
+    };
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const pending = approvals.recordAudit({
+      sessionKey: session.sessionKey,
+      toolName: "mottbot_restart_service",
+      sideEffect: "process_control",
+      allowed: false,
+      decisionCode: "approval_required",
+      requestedAt: stores.clock.now() - 60_001,
+      decidedAt: stores.clock.now() - 60_001,
+      requestFingerprint: "request-fingerprint",
+      previewText: "Approval preview text",
+    });
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      orchestrator as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      approvals,
+    );
+
+    const handled = await router.maybeHandleCallback(
+      createCallbackEvent({
+        fromUserId: "admin-1",
+        data: buildToolApprovalCallbackData(pending.id!),
+        messageText: "Approval required.",
+      }),
+    );
+
+    const expiredMessage = "Approval request for mottbot_restart_service expired. Ask the model to retry the action.";
+    expect(handled).toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: expiredMessage,
+      show_alert: true,
+    });
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, `Approval required.\n\n${expiredMessage}`);
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(orchestrator.enqueueMessage).not.toHaveBeenCalled();
+    expect(approvals.listActive(session.sessionKey)).toEqual([]);
+    expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "approval_expired" })).toEqual([
+      expect.objectContaining({
+        toolName: "mottbot_restart_service",
+        requestFingerprint: "request-fingerprint",
+        previewText: "Approval preview text",
       }),
     ]);
   });

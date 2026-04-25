@@ -230,6 +230,8 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
+`pnpm smoke:telegram-callbacks` drives tool approve, tool deny, and memory-candidate accept callback handlers in process against a temporary SQLite database. It verifies callback source-message edits, stale keyboard cleanup, audit writes, and memory acceptance without live Telegram access.
+
 `pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `--repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 
 `pnpm smoke:suite` composes preflight and optional MTProto user-account checks into a repeatable live validation matrix. `--dry-run` prints the planned checks without sending messages.
@@ -532,12 +534,13 @@ Approval flow:
    /tool approve mottbot_local_note_create approved draft note
    ```
 
-3. Button approval removes the stale keyboard and queues a continuation run in the same session.
-4. The next matching model tool call in that session consumes the approval.
-5. The bot records audit rows in SQLite.
-6. The matching tool call executes once and consumes the approval.
+3. Button approval edits the source message, removes the stale keyboard, and starts a continuation run in the same session.
+4. When transcript state still contains the pending call, continuation executes the exact stored tool call and appends its result before asking the model to respond.
+5. If the stored call is unavailable, the bot falls back to a continuation prompt and the next matching model tool call in that session consumes the approval.
+6. The bot records audit rows in SQLite.
+7. The matching tool call executes once and consumes the approval.
 
-The inline deny button records `operator_denied`, removes the keyboard, and does not continue the run.
+The inline deny button records `operator_denied`, edits the source message, removes the keyboard, and does not continue the run. Stale pending buttons record `approval_expired` and do not create a reusable approval.
 
 If an approval was created from a pending preview, the approval is bound to that request fingerprint and cannot be reused for different arguments.
 
@@ -563,7 +566,7 @@ Useful commands:
 - `/remember scope:group <fact>` stores approved group-scoped memory when the route is not a private DM
 - `/remember scope:project:<key> <fact>` stores approved project-scoped memory under the supplied project key
 - `/memory` lists approved memory that applies to the current route
-- `/memory candidates [pending|accepted|rejected|archived|all]` lists model-proposed memory candidates for review
+- `/memory candidates [pending|accepted|rejected|archived|all]` lists model-proposed memory candidates for review and includes inline accept, reject, and archive buttons for pending candidates
 - `/memory accept <candidate-id-prefix>` approves a pending candidate and stores it as accepted memory
 - `/memory reject <candidate-id-prefix>` rejects a pending candidate
 - `/memory edit <candidate-id-prefix> <replacement fact>` edits candidate text before approval

@@ -295,7 +295,7 @@ Chat policy JSON accepts:
 - `/tool revoke <tool-name>`
 - `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 
-When a run hits a side-effecting tool without an active approval, the final Telegram response includes inline approve and deny buttons for each pending request. Approving from the button creates the request-fingerprinted one-shot approval, removes the stale keyboard, and queues a continuation run in the same session. Denying records an operator denial and does not continue. The typed `/tool approve` command remains available as a fallback.
+When a run hits a side-effecting tool without an active approval, the final Telegram response includes inline approve and deny buttons for each pending request. Approving from the button creates the request-fingerprinted one-shot approval, edits the original message with an approved status, removes the stale keyboard, and continues in the same session by replaying the exact stored tool call when the transcript still contains it. If that context is unavailable, the bot falls back to a same-session continuation prompt. Denying records an operator denial, edits the source message, and does not continue. Expired pending approval buttons record `approval_expired` and ask the model to retry. The typed `/tool approve` command remains available as a fallback.
 
 ### Current command behavior
 
@@ -316,7 +316,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/unbind` restores the route mode based on the session key shape
 - `/remember`, `/memory`, and `/forget` manage approved long-term memory for the current route
 - memory can be scoped to the session, Telegram user, chat, group, or an explicit project key
-- model-assisted memory candidates are stored separately and require `/memory accept` before they are included in prompts
+- model-assisted memory candidates are stored separately and require `/memory accept` or an inline accept button before they are included in prompts
 - `/memory pin` raises accepted memory above ordinary scoped memory and automatic summaries; `/memory archive` hides it without deleting the row
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
@@ -324,7 +324,8 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
-- inline tool approval buttons approve or deny the exact pending audit request encoded in the button and re-check the caller role and session before recording the operator decision
+- inline tool approval buttons approve or deny the exact pending audit request encoded in the button, re-check the caller role and session, mark stale source messages, and expire old pending requests before recording the operator decision
+- inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons; `/project approve <approval-id>` remains the fallback command
 - `/project status` includes each subtask's latest Codex CLI run state and error, including restart-recovered interrupted runs before the scheduler has reconciled the task

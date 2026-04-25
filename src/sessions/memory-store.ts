@@ -613,6 +613,18 @@ export class MemoryStore {
       .map(mapCandidateRow);
   }
 
+  getCandidate(sessionKey: string, candidateId: string): MemoryCandidate | undefined {
+    const row = this.database.db
+      .prepare<unknown[], MemoryCandidateRow>(
+        `select *
+         from memory_candidates
+         where session_key = ? and id = ?
+         limit 1`,
+      )
+      .get(sessionKey, candidateId);
+    return row ? mapCandidateRow(row) : undefined;
+  }
+
   updateCandidate(sessionKey: string, idPrefix: string, contentText: string): MemoryCandidate | undefined {
     const candidate = this.findCandidateByPrefix(sessionKey, idPrefix, "pending");
     if (!candidate) {

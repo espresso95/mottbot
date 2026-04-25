@@ -10,7 +10,7 @@ import type { ProjectCommandRouter } from "../project-tasks/project-command-rout
 import type { RouteResolver } from "./route-resolver.js";
 import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
-import type { ToolApprovalStore } from "../tools/approval.js";
+import type { StoredToolApproval, ToolApprovalAuditRecord, ToolApprovalStore } from "../tools/approval.js";
 import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
@@ -27,7 +27,12 @@ import { handleDebugCommand, handleRunsCommand } from "./diagnostic-commands.js"
 import { handleFilesCommand } from "./files-commands.js";
 import { handleGithubCommand } from "./github-commands.js";
 import { isGovernanceOperatorRole, type TelegramGovernanceStore, type TelegramUserRole } from "./governance.js";
-import { handleForgetCommand, handleMemoryCommand, handleRememberCommand } from "./memory-commands.js";
+import {
+  handleForgetCommand,
+  handleMemoryCandidateCallback,
+  handleMemoryCommand,
+  handleRememberCommand,
+} from "./memory-commands.js";
 import {
   handleBindCommand,
   handleFastCommand,
@@ -391,7 +396,21 @@ export class TelegramCommandRouter {
         isAdmin: this.isAdmin(inbound),
         toolRegistry: this.toolRegistry,
         toolApprovals: this.toolApprovals,
-        continueAfterApproval: async (params: { event: InboundEvent; session: SessionRoute }) => {
+        continueAfterApproval: async (params: {
+          event: InboundEvent;
+          session: SessionRoute;
+          pending: ToolApprovalAuditRecord;
+          approval: StoredToolApproval;
+        }) => {
+          const continued =
+            (await this.orchestrator.continueApprovedTool?.({
+              event: params.event,
+              session: params.session,
+              pending: params.pending,
+            })) ?? false;
+          if (continued) {
+            return;
+          }
           await this.orchestrator.enqueueMessage({
             event: params.event,
             session: params.session,
@@ -416,6 +435,24 @@ export class TelegramCommandRouter {
       }
       await this.answerCallback(event, "Processing project approval.");
       await this.projects.handleApprovalCallback(event, action.approvalId);
+      return true;
+    }
+    if (action.type === "memory_accept" || action.type === "memory_reject" || action.type === "memory_archive") {
+      if (await this.rejectUnauthorizedCallback(event, "memory")) {
+        return true;
+      }
+      const inbound = inboundEventFromCallback(event);
+      await handleMemoryCandidateCallback(
+        {
+          api: this.api,
+          event,
+          session: this.routes.resolve(inbound),
+          memories: this.memories,
+          governance: this.governance,
+        },
+        action.type === "memory_accept" ? "accept" : action.type === "memory_reject" ? "reject" : "archive",
+        action.candidateId,
+      );
       return true;
     }
     return false;

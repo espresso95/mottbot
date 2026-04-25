@@ -20,6 +20,8 @@ import { normalizeFreeText, normalizeSingleArg } from "./command-parsing.js";
 import { sendReply } from "./command-replies.js";
 import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 
+const TELEGRAM_TEXT_MAX_CHARS = 4096;
+
 /** Dependencies needed by the Telegram tool approval command handler. */
 export type ToolCommandDependencies = {
   api: Api;
@@ -196,6 +198,27 @@ async function clearCallbackKeyboard(api: Api, event: TelegramCallbackEvent): Pr
   }
 }
 
+function callbackStatusText(event: TelegramCallbackEvent, status: string): string {
+  const cleanStatus = status.replace(/\s+/g, " ").trim();
+  const original = event.messageText?.trim();
+  if (!original) {
+    return cleanStatus;
+  }
+  const separator = "\n\n";
+  const suffix = `${separator}${cleanStatus}`;
+  const maxOriginalLength = Math.max(0, TELEGRAM_TEXT_MAX_CHARS - suffix.length);
+  return `${original.slice(0, maxOriginalLength).trimEnd()}${suffix}`;
+}
+
+async function editCallbackStatus(api: Api, event: TelegramCallbackEvent, status: string): Promise<void> {
+  try {
+    await api.editMessageText(event.chatId, event.messageId, callbackStatusText(event, status));
+  } catch {
+    // Some Telegram messages cannot be edited; keyboard cleanup below still prevents stale taps.
+  }
+  await clearCallbackKeyboard(api, event);
+}
+
 function inboundEventFromCallback(event: TelegramCallbackEvent, text: string): InboundEvent {
   return {
     updateId: event.updateId,
@@ -232,6 +255,36 @@ function existingRequestDecisionMessage(record: ToolApprovalAuditRecord): string
     return "This request was already denied.";
   }
   return undefined;
+}
+
+function pendingRequestExpired(params: { pending: ToolApprovalAuditRecord; ttlMs: number; now: number }): boolean {
+  return params.pending.requestedAt + params.ttlMs <= params.now;
+}
+
+async function recordExpiredPendingRequest(params: {
+  api: Api;
+  event: TelegramCallbackEvent;
+  session: SessionRoute;
+  toolApprovals: ToolApprovalStore;
+  definition: ToolDefinition;
+  pending: ToolApprovalAuditRecord;
+}): Promise<void> {
+  const message = `Approval request for ${params.definition.name} expired. Ask the model to retry the action.`;
+  params.toolApprovals.recordAudit({
+    sessionKey: params.session.sessionKey,
+    ...(params.pending.runId ? { runId: params.pending.runId } : {}),
+    toolName: params.definition.name,
+    sideEffect: params.definition.sideEffect,
+    allowed: false,
+    decisionCode: "approval_expired",
+    requestedAt: params.pending.requestedAt,
+    decidedAt: params.event.arrivedAt,
+    requestFingerprint: params.pending.requestFingerprint,
+    previewText: params.pending.previewText,
+  });
+  await editCallbackStatus(params.api, params.event, message);
+  await answerCallback(params.api, params.event, message, true);
+  await sendReply(params.api, params.event, message);
 }
 
 async function resolvePendingToolCallback(
@@ -317,9 +370,13 @@ export async function handleToolApprovalCallback(
     return;
   }
   const { pending, definition, previousDecision } = resolved;
+  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
+    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
+    return;
+  }
   const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
   if (previousDecisionMessage) {
-    await clearCallbackKeyboard(api, event);
+    await editCallbackStatus(api, event, previousDecisionMessage);
     await answerCallback(api, event, previousDecisionMessage);
     await sendReply(api, event, previousDecisionMessage);
     return;
@@ -333,7 +390,7 @@ export async function handleToolApprovalCallback(
     const message = `Approval for ${definition.name} is already active until ${new Date(
       activeApproval.expiresAt,
     ).toISOString()}.`;
-    await clearCallbackKeyboard(api, event);
+    await editCallbackStatus(api, event, message);
     await answerCallback(api, event, "Already approved.");
     await sendReply(api, event, message);
     return;
@@ -363,7 +420,7 @@ export async function handleToolApprovalCallback(
     previewText: pending.previewText,
     ...(pending.runId ? { runId: pending.runId } : {}),
   });
-  await clearCallbackKeyboard(api, event);
+  await editCallbackStatus(api, event, `Approved ${approval.toolName}. Continuing...`);
   await answerCallback(api, event, `Approved ${approval.toolName}. Continuing.`);
   if (!continueAfterApproval) {
     await sendReply(
@@ -408,9 +465,13 @@ export async function handleToolDenyCallback(params: ToolApprovalCallbackDepende
     return;
   }
   const { pending, definition, previousDecision } = resolved;
+  if (pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
+    await recordExpiredPendingRequest({ api, event, session, toolApprovals, definition, pending });
+    return;
+  }
   const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
   if (previousDecisionMessage) {
-    await clearCallbackKeyboard(api, event);
+    await editCallbackStatus(api, event, previousDecisionMessage);
     await answerCallback(api, event, previousDecisionMessage);
     await sendReply(api, event, previousDecisionMessage);
     return;
@@ -431,7 +492,7 @@ export async function handleToolDenyCallback(params: ToolApprovalCallbackDepende
     requestFingerprint: pending.requestFingerprint,
     previewText: pending.previewText,
   });
-  await clearCallbackKeyboard(api, event);
+  await editCallbackStatus(api, event, `Denied ${definition.name}.`);
   await answerCallback(api, event, `Denied ${definition.name}.`);
   await sendReply(api, event, `Denied ${definition.name}. The pending request will not continue.`);
 }
@@ -525,6 +586,22 @@ export async function handleToolCommand(params: ToolCommandDependencies): Promis
       sessionKey: session.sessionKey,
       toolName: definition.name,
     });
+    if (pending && pendingRequestExpired({ pending, ttlMs: toolsConfig.approvalTtlMs, now: event.arrivedAt })) {
+      toolApprovals.recordAudit({
+        sessionKey: session.sessionKey,
+        ...(pending.runId ? { runId: pending.runId } : {}),
+        toolName: definition.name,
+        sideEffect: definition.sideEffect,
+        allowed: false,
+        decisionCode: "approval_expired",
+        requestedAt: pending.requestedAt,
+        decidedAt: event.arrivedAt,
+        requestFingerprint: pending.requestFingerprint,
+        previewText: pending.previewText,
+      });
+      await sendReply(api, event, `Latest pending request for ${definition.name} expired. Ask the model to retry.`);
+      return;
+    }
     const approval = toolApprovals.approve({
       sessionKey: session.sessionKey,
       toolName: definition.name,

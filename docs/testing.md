@@ -77,6 +77,14 @@ pnpm smoke:local-tools
 
 This exercises the real tool executor and approval path for local document append/replace, allowlisted local command execution, and a configured test MCP stdio call using temporary local roots. It does not require Telegram, Codex, or production tool directories.
 
+Run the in-process Telegram callback smoke:
+
+```bash
+pnpm smoke:telegram-callbacks
+```
+
+This exercises tool approve, tool deny, and memory-candidate accept callback handlers against a temporary SQLite database. It verifies callback parsing, source-message edits, keyboard cleanup, approval audit writes, and memory acceptance without requiring Telegram network access.
+
 Run the guarded GitHub write smoke in dry-run mode:
 
 ```bash

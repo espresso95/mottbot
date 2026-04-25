@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMemoryCandidateAcceptCallbackData,
+  buildMemoryCandidateArchiveCallbackData,
+  buildMemoryCandidateRejectCallbackData,
   buildProjectApprovalCallbackData,
   buildToolApprovalCallbackData,
   buildToolDenyCallbackData,
@@ -19,6 +22,18 @@ describe("Telegram callback data", () => {
     expect(parseTelegramCallbackData(buildProjectApprovalCallbackData("approval-1"))).toEqual({
       type: "project_approve",
       approvalId: "approval-1",
+    });
+    expect(parseTelegramCallbackData(buildMemoryCandidateAcceptCallbackData("candidate-1"))).toEqual({
+      type: "memory_accept",
+      candidateId: "candidate-1",
+    });
+    expect(parseTelegramCallbackData(buildMemoryCandidateRejectCallbackData("candidate-1"))).toEqual({
+      type: "memory_reject",
+      candidateId: "candidate-1",
+    });
+    expect(parseTelegramCallbackData(buildMemoryCandidateArchiveCallbackData("candidate-1"))).toEqual({
+      type: "memory_archive",
+      candidateId: "candidate-1",
     });
   });
 

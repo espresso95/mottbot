@@ -142,6 +142,8 @@ export function normalizeCallbackQuery(params: { ctx: Context; clock: Clock }): 
   }
   const from =
     rawCallback.from && typeof rawCallback.from === "object" ? (rawCallback.from as Record<string, unknown>) : null;
+  const text = typeof message.text === "string" ? message.text : undefined;
+  const caption = typeof message.caption === "string" ? message.caption : undefined;
   return {
     updateId: params.ctx.update.update_id,
     callbackQueryId,
@@ -155,6 +157,7 @@ export function normalizeCallbackQuery(params: { ctx: Context; clock: Clock }): 
     ...(from && (typeof from.id === "number" || typeof from.id === "string") ? { fromUserId: String(from.id) } : {}),
     ...(from && typeof from.username === "string" ? { fromUsername: from.username } : {}),
     data,
+    ...((text ?? caption) ? { messageText: text ?? caption } : {}),
     arrivedAt: params.clock.now(),
   };
 }

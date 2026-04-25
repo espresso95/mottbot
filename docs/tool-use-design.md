@@ -390,7 +390,7 @@ The operator can approve the latest pending request in the current session:
 /tool approve mottbot_restart_service planned restart
 ```
 
-Telegram run responses also include inline buttons for pending side-effect approvals. Button callbacks approve or deny the exact persisted pending audit request encoded in the callback data. Approve stores the same session-scoped, request-fingerprinted one-shot approval as the slash command path, clears the inline keyboard, and queues a continuation run in the same session. Deny records an operator denial and clears the keyboard without continuing.
+Telegram run responses also include inline buttons for pending side-effect approvals. Button callbacks approve or deny the exact persisted pending audit request encoded in the callback data. Approve stores the same session-scoped, request-fingerprinted one-shot approval as the slash command path, edits the original Telegram message with an approved status, clears the inline keyboard, and continues by replaying the stored tool call from transcript state when available. If the stored call cannot be found, the callback falls back to the same-session continuation prompt. Deny records an operator denial, edits the source message, and clears the keyboard without continuing. Stale pending buttons record `approval_expired` instead of creating a new approval.
 
 When a latest pending request exists, the stored approval includes the request fingerprint. A later call with different arguments cannot consume that approval.
 

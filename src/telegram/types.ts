@@ -50,6 +50,7 @@ export type TelegramCallbackEvent = {
   fromUserId?: string;
   fromUsername?: string;
   data: string;
+  messageText?: string;
   arrivedAt: number;
 };
 

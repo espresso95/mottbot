@@ -1,12 +1,18 @@
 import type { Api } from "grammy";
 import type { MemoryStore, MemoryScope, MemoryCandidateStatus } from "../sessions/memory-store.js";
+import type { MemoryCandidate } from "../sessions/memory-store.js";
 import { isMemoryCandidateStatus, isMemoryScope, resolveMemoryScopeKey } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import { formatMemoryCandidate, formatMemoryRecord } from "./command-formatters.js";
 import { normalizeFreeText, normalizeSingleArg } from "./command-parsing.js";
-import { sendReply } from "./command-replies.js";
+import { sendReply, type TelegramInlineKeyboard } from "./command-replies.js";
+import {
+  buildMemoryCandidateAcceptCallbackData,
+  buildMemoryCandidateArchiveCallbackData,
+  buildMemoryCandidateRejectCallbackData,
+} from "./callback-data.js";
 import type { TelegramGovernanceStore } from "./governance.js";
-import type { InboundEvent } from "./types.js";
+import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 
 /** Dependencies needed by memory-related Telegram command handlers. */
 export type MemoryCommandDependencies = {
@@ -17,6 +23,70 @@ export type MemoryCommandDependencies = {
   memories?: MemoryStore;
   governance?: TelegramGovernanceStore;
 };
+
+/** Dependencies needed by memory candidate callback buttons. */
+export type MemoryCandidateCallbackDependencies = {
+  api: Api;
+  event: TelegramCallbackEvent;
+  session: SessionRoute;
+  memories?: MemoryStore;
+  governance?: TelegramGovernanceStore;
+};
+
+export type MemoryCandidateCallbackAction = "accept" | "reject" | "archive";
+
+function memoryCandidateKeyboard(candidates: readonly MemoryCandidate[]): TelegramInlineKeyboard | undefined {
+  const rows = candidates.flatMap((candidate) => {
+    if (candidate.status !== "pending") {
+      return [];
+    }
+    const label = candidate.id.slice(0, 8);
+    return [
+      [
+        {
+          text: `Accept ${label}`,
+          callback_data: buildMemoryCandidateAcceptCallbackData(candidate.id),
+        },
+        {
+          text: "Reject",
+          callback_data: buildMemoryCandidateRejectCallbackData(candidate.id),
+        },
+        {
+          text: "Archive",
+          callback_data: buildMemoryCandidateArchiveCallbackData(candidate.id),
+        },
+      ],
+    ];
+  });
+  return rows.length > 0 ? { inline_keyboard: rows } : undefined;
+}
+
+function callbackNotice(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+async function answerCallback(api: Api, event: TelegramCallbackEvent, text: string, showAlert = false): Promise<void> {
+  await api.answerCallbackQuery(event.callbackQueryId, {
+    text: callbackNotice(text),
+    show_alert: showAlert,
+  });
+}
+
+async function refreshCandidateKeyboard(
+  api: Api,
+  event: TelegramCallbackEvent,
+  memories: MemoryStore,
+  sessionKey: string,
+): Promise<void> {
+  try {
+    const replyMarkup = memoryCandidateKeyboard(memories.listCandidates(sessionKey, "pending"));
+    await api.editMessageReplyMarkup(event.chatId, event.messageId, {
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    });
+  } catch {
+    // The decision was already recorded; stale keyboard cleanup is best effort.
+  }
+}
 
 /** Parses optional memory scope arguments accepted by /remember. */
 export function parseMemoryScopeArgs(
@@ -114,6 +184,9 @@ export async function handleMemoryCommand(params: MemoryCommandDependencies): Pr
       candidates.length > 0
         ? [`Memory candidates (${status}):`, ...candidates.map(formatMemoryCandidate)].join("\n")
         : `No ${status} memory candidates.`,
+      {
+        replyMarkup: status === "pending" ? memoryCandidateKeyboard(candidates) : undefined,
+      },
     );
     return;
   }
@@ -219,6 +292,70 @@ export async function handleMemoryCommand(params: MemoryCommandDependencies): Pr
     event,
     "Usage: /memory [list] | candidates [status|all] | accept <id> | reject <id> | edit <id> <text> | pin <id> | unpin <id> | archive <id> | archive candidate <id> | clear candidates",
   );
+}
+
+/** Handles inline accept, reject, and archive buttons for model-proposed memory candidates. */
+export async function handleMemoryCandidateCallback(
+  params: MemoryCandidateCallbackDependencies,
+  action: MemoryCandidateCallbackAction,
+  candidateId: string,
+): Promise<void> {
+  const { api, event, session, memories, governance } = params;
+  if (!memories) {
+    await answerCallback(api, event, "Memory is not available.", true);
+    await sendReply(api, event, "Memory is not available.");
+    return;
+  }
+  const candidate = memories.getCandidate(session.sessionKey, candidateId);
+  if (!candidate) {
+    await answerCallback(api, event, "No memory candidate found for this session.", true);
+    await sendReply(api, event, "No memory candidate found for this session.");
+    return;
+  }
+  if (candidate.status !== "pending") {
+    const message = `Memory candidate ${candidate.id.slice(0, 8)} is already ${candidate.status}.`;
+    await refreshCandidateKeyboard(api, event, memories, session.sessionKey);
+    await answerCallback(api, event, message);
+    await sendReply(api, event, message);
+    return;
+  }
+  if (
+    action === "accept" &&
+    governance &&
+    !governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: candidate.scope })
+  ) {
+    const message = `Memory scope ${candidate.scope} is not allowed in this chat.`;
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+
+  if (action === "accept") {
+    const accepted = memories.acceptCandidate({
+      sessionKey: session.sessionKey,
+      idPrefix: candidate.id,
+      decidedByUserId: event.fromUserId,
+    });
+    await refreshCandidateKeyboard(api, event, memories, session.sessionKey);
+    const message = accepted
+      ? `Accepted ${accepted.memory.id.slice(0, 8)} for ${accepted.memory.scope} memory.`
+      : "No pending candidate found.";
+    await answerCallback(api, event, message);
+    await sendReply(api, event, message);
+    return;
+  }
+  const decided =
+    action === "reject"
+      ? memories.rejectCandidate(session.sessionKey, candidate.id, event.fromUserId)
+      : memories.archiveCandidate(session.sessionKey, candidate.id, event.fromUserId);
+  await refreshCandidateKeyboard(api, event, memories, session.sessionKey);
+  const message = decided
+    ? action === "reject"
+      ? "Candidate rejected."
+      : "Candidate archived."
+    : "No pending candidate found.";
+  await answerCallback(api, event, message);
+  await sendReply(api, event, message);
 }
 
 /** Handles /forget for approved session memory. */

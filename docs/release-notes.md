@@ -18,7 +18,9 @@
 
 ### Telegram Approval Buttons
 
-- Added inline Telegram approve and deny buttons for side-effecting tool approval prompts. Approve now clears the keyboard and queues a same-session continuation run; deny records `operator_denied` without continuing.
+- Added inline Telegram approve and deny buttons for side-effecting tool approval prompts. Approve now marks the original message, clears the keyboard, expires stale pending requests, and continues by replaying the stored tool call when available; deny records `operator_denied` without continuing.
+- Added inline accept, reject, and archive buttons for pending `/memory candidates`.
+- Added `pnpm smoke:telegram-callbacks` for in-process validation of tool and memory callback handlers.
 - Added inline approval buttons for Project Mode start and publish approvals while keeping `/tool approve` and `/project approve` as command fallbacks.
 
 ### Service Runtime Hardening

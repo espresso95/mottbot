@@ -147,6 +147,7 @@ describe("normalizeUpdate", () => {
           message: {
             message_id: 24,
             message_thread_id: 8,
+            text: "Approval required.",
             chat: { id: -1001, type: "supergroup" },
           },
           from: { id: 77, username: "nim" },
@@ -164,6 +165,7 @@ describe("normalizeUpdate", () => {
       fromUserId: "77",
       fromUsername: "nim",
       data: "mb:ta:approval-1",
+      messageText: "Approval required.",
       arrivedAt: 456,
     });
   });

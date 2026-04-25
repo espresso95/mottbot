@@ -41,6 +41,7 @@
     "sync:service:uninstall": "bash scripts/ops/install-auto-sync-launch-agent.sh uninstall",
     "smoke:preflight": "tsx scripts/smoke/live-smoke-preflight.ts",
     "smoke:telegram-user": "tsx scripts/smoke/live-telegram-user-smoke.ts",
+    "smoke:telegram-callbacks": "tsx scripts/smoke/telegram-callback-smoke.ts",
     "smoke:dashboard": "tsx scripts/smoke/dashboard-smoke.ts",
     "smoke:local-tools": "tsx scripts/smoke/local-tool-validation-suite.ts",
     "smoke:github-write": "tsx scripts/smoke/github-write-validation-suite.ts",
