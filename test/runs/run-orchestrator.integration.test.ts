@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RunOrchestrator } from "../../src/runs/run-orchestrator.js";
+import type { CodexResolvedAuth } from "../../src/codex/types.js";
+import type { ModelTokenResolver, ModelTransport } from "../../src/models/provider.js";
+import { RunOrchestrator, type RunOutbox, type RunReactionService } from "../../src/runs/run-orchestrator.js";
 import { RunQueueStore } from "../../src/runs/run-queue-store.js";
 import { SessionQueue } from "../../src/sessions/queue.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
@@ -10,6 +12,7 @@ import { RUN_STATUS_TEXT, formatToolRunningStatus } from "../../src/shared/run-s
 import { createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
+import type { AttachmentIngestor } from "../../src/telegram/attachments.js";
 import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 
 describe("RunOrchestrator", () => {
@@ -17,6 +20,22 @@ describe("RunOrchestrator", () => {
   const flushAsync = async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   };
+
+  const createResolvedAuth = (): CodexResolvedAuth => ({
+    profile: {
+      profileId: "openai-codex:default",
+      provider: "openai-codex",
+      source: "local_oauth",
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    accessToken: "access",
+    apiKey: "api",
+  });
+
+  const createTokenResolver = (): ModelTokenResolver => ({
+    resolve: vi.fn(async () => createResolvedAuth()),
+  });
 
   afterEach(() => {
     while (cleanup.length > 0) {
@@ -38,7 +57,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -51,7 +70,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async ({ onStart, onTextDelta }) => {
         await onStart?.();
         await onTextDelta?.("hello ");
@@ -59,24 +78,18 @@ describe("RunOrchestrator", () => {
         return { text: "hello world", transport: "sse", requestIdentity: "req-1", usage: { input: 1, output: 2 } };
       }),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Build it" }),
@@ -155,7 +168,7 @@ describe("RunOrchestrator", () => {
       profileId: session.profileId,
     });
     stores.runs.update(prior.runId, { status: "completed", finishedAt: stores.clock.now() });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -168,31 +181,22 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      { resolve: vi.fn() } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      new UsageBudgetService(stores.config, stores.runs, stores.clock),
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      usageBudget: new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Build it" }),
@@ -234,7 +238,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => {
         throw new Error("telegram unavailable");
       }),
@@ -242,21 +246,21 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(),
       fail: vi.fn(),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      { resolve: vi.fn() } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Build it" }),
@@ -288,7 +292,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -303,29 +307,23 @@ describe("RunOrchestrator", () => {
         throw new Error("telegram edit failed");
       }),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async () => {
         throw new Error("model failed");
       }),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Fail it" }),
@@ -345,13 +343,24 @@ describe("RunOrchestrator", () => {
   it("removes the Telegram ack reaction after a successful reply when configured", async () => {
     const stores = createStores({
       telegram: {
+        botToken: "test-token",
+        polling: true,
+        adminUserIds: ["admin-1"],
+        allowedChatIds: [],
+        webhook: {
+          publicUrl: "https://example.com",
+          path: "/telegram/webhook",
+          host: "127.0.0.1",
+          port: 8080,
+          secretToken: "secret",
+        },
         reactions: {
           enabled: true,
           ackEmoji: "\u{1F440}",
           removeAckAfterReply: true,
           notifications: "own",
         },
-      } as any,
+      },
     });
     cleanup.push(() => {
       stores.database.close();
@@ -365,7 +374,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -378,36 +387,24 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const reactions = {
+    const reactions: RunReactionService = {
       clearReaction: vi.fn(async () => true),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      {
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: {
         stream: vi.fn(async () => ({ text: "done", transport: "sse", requestIdentity: "req-ack" })),
-      } as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      reactions as any,
-    );
+      } satisfies ModelTransport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      reactions,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Build it", chatId: "chat-1", messageId: 42 }),
@@ -435,7 +432,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -448,28 +445,22 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      {
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: {
         stream: vi.fn(async () => {
           throw new Error("boom");
         }),
-      } as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+      } satisfies ModelTransport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Fail it" }),
@@ -503,7 +494,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -516,30 +507,24 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockRejectedValueOnce(new Error("temporary failure"))
         .mockResolvedValueOnce({ text: "retry ok", transport: "sse", requestIdentity: "req-retry" }),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ messageId: 41, text: "Build it again" }),
@@ -592,7 +577,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const memories = new MemoryStore(stores.database, stores.clock);
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -605,34 +590,24 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      {
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: {
         stream: vi.fn(async ({ onStart }) => {
           await onStart?.();
           return { text: "Use pnpm for scripts.", transport: "sse", requestIdentity: "req-memory" };
         }),
-      } as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      memories,
-    );
+      } satisfies ModelTransport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "How should I run checks?" }),
@@ -667,7 +642,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const memories = new MemoryStore(stores.database, stores.clock);
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -680,7 +655,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockImplementationOnce(async ({ onStart }) => {
@@ -702,29 +677,19 @@ describe("RunOrchestrator", () => {
           requestIdentity: "req-memory-candidates",
         })),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      memories,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Use pnpm when checking this repo." }),
@@ -762,7 +727,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const memories = new MemoryStore(stores.database, stores.clock);
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -775,7 +740,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockImplementationOnce(async () => ({ text: "Done.", transport: "sse", requestIdentity: "req-answer" }))
@@ -785,29 +750,19 @@ describe("RunOrchestrator", () => {
           requestIdentity: "req-bad-memory",
         })),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      memories,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Remember that I prefer direct answers." }),
@@ -834,7 +789,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -847,7 +802,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const attachmentIngestor = {
+    const attachmentIngestor: AttachmentIngestor = {
       prepare: vi.fn(async () => ({
         transcriptAttachments: [
           {
@@ -863,39 +818,27 @@ describe("RunOrchestrator", () => {
       })),
       cleanup: vi.fn(async () => undefined),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async ({ messages, onStart }) => {
         await onStart?.();
         expect(JSON.stringify(messages)).not.toContain("/tmp/not-leaked.png");
         return { text: "noted", transport: "sse", requestIdentity: "req-2" };
       }),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      attachmentIngestor as any,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      stores.attachmentRecords,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      attachments: attachmentIngestor,
+      attachmentRecords: stores.attachmentRecords,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({
@@ -944,7 +887,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -981,7 +924,7 @@ describe("RunOrchestrator", () => {
       stopReason: "toolUse" as const,
       timestamp: stores.clock.now(),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockImplementationOnce(async ({ onStart, tools }) => {
@@ -1015,28 +958,20 @@ describe("RunOrchestrator", () => {
       clock: stores.clock,
       health: stores.health,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      registry,
-      executor,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      toolRegistry: registry,
+      toolExecutor: executor,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Check health" }),
@@ -1079,7 +1014,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1092,7 +1027,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async ({ onStart, tools }) => {
         await onStart?.();
         expect(tools).toBeUndefined();
@@ -1104,37 +1039,23 @@ describe("RunOrchestrator", () => {
       clock: stores.clock,
       health: stores.health,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      registry,
-      executor,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      toolRegistry: registry,
+      toolExecutor: executor,
+      governance: {
         isToolAllowed: () => false,
       },
-    );
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "Check health" }),
@@ -1165,7 +1086,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4-mini",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1178,38 +1099,24 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = { stream: vi.fn() };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
+    const transport: ModelTransport = {
+      stream: vi.fn(async () => ({ text: "", transport: "sse", requestIdentity: "unused" })),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      governance: {
         isModelAllowed: ({ modelRef }) => modelRef === "openai-codex/gpt-5.4",
       },
-    );
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "hello" }),
@@ -1264,7 +1171,7 @@ describe("RunOrchestrator", () => {
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1277,19 +1184,21 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = { stream: vi.fn() };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      { resolve: vi.fn() } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-    );
+    const transport: ModelTransport = {
+      stream: vi.fn(async () => ({ text: "", transport: "sse", requestIdentity: "unused" })),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ text: "hello" }),
@@ -1342,7 +1251,7 @@ describe("RunOrchestrator", () => {
       reason: "planned restart",
       ttlMs: 60_000,
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1379,7 +1288,7 @@ describe("RunOrchestrator", () => {
       stopReason: "toolUse" as const,
       timestamp: stores.clock.now(),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockImplementationOnce(async ({ onStart, tools }) => {
@@ -1412,28 +1321,21 @@ describe("RunOrchestrator", () => {
       restartService,
       adminUserIds: stores.config.telegram.adminUserIds,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      durableQueue,
-      registry,
-      executor,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      runQueue: durableQueue,
+      toolRegistry: registry,
+      toolExecutor: executor,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ fromUserId: "admin-1", text: "Restart after this response" }),
@@ -1476,7 +1378,7 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const approvals = new ToolApprovalStore(stores.database, stores.clock);
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1513,7 +1415,7 @@ describe("RunOrchestrator", () => {
       stopReason: "toolUse" as const,
       timestamp: stores.clock.now(),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi
         .fn()
         .mockResolvedValueOnce({
@@ -1541,28 +1443,21 @@ describe("RunOrchestrator", () => {
       restartService,
       adminUserIds: stores.config.telegram.adminUserIds,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      durableQueue,
-      registry,
-      executor,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      runQueue: durableQueue,
+      toolRegistry: registry,
+      toolExecutor: executor,
+    });
 
     await orchestrator.enqueueMessage({
       event: createInboundEvent({ fromUserId: "admin-1", text: "Restart after this response" }),
@@ -1678,7 +1573,7 @@ describe("RunOrchestrator", () => {
         },
       }),
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1691,7 +1586,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async ({ onStart, extraContextMessages }) => {
         await onStart?.();
         expect(extraContextMessages).toEqual([
@@ -1725,28 +1620,21 @@ describe("RunOrchestrator", () => {
       restartService,
       adminUserIds: stores.config.telegram.adminUserIds,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      durableQueue,
-      registry,
-      executor,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      runQueue: durableQueue,
+      toolRegistry: registry,
+      toolExecutor: executor,
+    });
 
     const queued = await orchestrator.continueApprovedTool({
       event: createInboundEvent({ fromUserId: "admin-1", messageId: 42, text: "Approved from button." }),
@@ -1884,7 +1772,7 @@ describe("RunOrchestrator", () => {
         toolCall,
       },
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 1,
@@ -1897,7 +1785,7 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
     };
-    const transport = {
+    const transport: ModelTransport = {
       stream: vi.fn(async ({ onStart, extraContextMessages }) => {
         await onStart?.();
         expect(extraContextMessages).toEqual([
@@ -1930,28 +1818,21 @@ describe("RunOrchestrator", () => {
       restartService,
       adminUserIds: stores.config.telegram.adminUserIds,
     });
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      transport as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      durableQueue,
-      registry,
-      executor,
-    );
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      runQueue: durableQueue,
+      toolRegistry: registry,
+      toolExecutor: executor,
+    });
 
     expect(orchestrator.recoverQueuedRuns()).toEqual({ resumed: 1, failed: 0 });
     await flushAsync();
@@ -2008,7 +1889,7 @@ describe("RunOrchestrator", () => {
         attachments: [{ kind: "photo", fileId: "recovered-photo", fileUniqueId: "recovered-photo-unique" }],
       }),
     });
-    const outbox = {
+    const outbox: RunOutbox = {
       start: vi.fn(async () => ({
         outboxId: "o1",
         messageId: 100,
@@ -2021,37 +1902,25 @@ describe("RunOrchestrator", () => {
       finish: vi.fn(async () => ({ primaryMessageId: 100, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 100 })),
     };
-    const orchestrator = new RunOrchestrator(
-      stores.config,
-      new SessionQueue(),
-      stores.sessions,
-      stores.transcripts,
-      stores.runs,
-      {
-        resolve: vi.fn(async () => ({
-          profile: { profileId: "openai-codex:default" },
-          accessToken: "access",
-          apiKey: "api",
-        })),
-      } as any,
-      {
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: {
         stream: vi.fn(async ({ onStart }) => {
           await onStart?.();
           return { text: "resumed", transport: "sse", requestIdentity: "req-recovered" };
         }),
-      } as any,
-      outbox as any,
-      stores.clock,
-      stores.logger,
-      undefined,
-      durableQueue,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      stores.attachmentRecords,
-    );
+      } satisfies ModelTransport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      runQueue: durableQueue,
+      attachmentRecords: stores.attachmentRecords,
+    });
 
     expect(orchestrator.recoverQueuedRuns()).toEqual({ resumed: 1, failed: 0 });
     await flushAsync();

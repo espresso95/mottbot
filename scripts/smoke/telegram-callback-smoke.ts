@@ -7,12 +7,12 @@ import type { Api } from "grammy";
 import type { AppConfig } from "../../src/app/config.js";
 import { DatabaseClient } from "../../src/db/client.js";
 import { migrateDatabase } from "../../src/db/migrate.js";
+import { ProjectCommandRouter } from "../../src/project-tasks/project-command-router.js";
+import { ProjectTaskStore } from "../../src/project-tasks/project-task-store.js";
 import type { Clock } from "../../src/shared/clock.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { SessionStore } from "../../src/sessions/session-store.js";
 import type { SessionRoute } from "../../src/sessions/types.js";
-import { ProjectCommandRouter } from "../../src/project-tasks/project-command-router.js";
-import { ProjectTaskStore } from "../../src/project-tasks/project-task-store.js";
 import {
   buildMemoryCandidateAcceptCallbackData,
   buildProjectApprovalCallbackData,
@@ -249,42 +249,61 @@ export async function createTelegramCallbackSmokeResult(): Promise<TelegramCallb
       runScenario("project approval callback", async () => {
         const task = projects.createTask({
           chatId: "chat-1",
+          requestedByUserId: "admin-1",
+          requestedByUsername: "admin",
           repoRoot: tempRoot,
           baseRef: "main",
-          title: "project smoke",
-          originalPrompt: "ship project smoke",
+          title: "Project callback smoke",
+          originalPrompt: "Validate project callback handling.",
           status: "awaiting_approval",
           maxParallelWorkers: 1,
           maxAttemptsPerSubtask: 1,
         });
         const approval = projects.createApproval({
           taskId: task.taskId,
+          kind: "start_project",
           requestedBy: "admin-1",
-          requestJson: JSON.stringify({ prompt: "ship project smoke" }),
+          requestJson: JSON.stringify({ prompt: task.originalPrompt }),
         });
-        let approvedBy: string | undefined;
+        let decidedBy: string | undefined;
+        const scheduler = {
+          approveApproval: (approvalId: string, userId?: string) => {
+            decidedBy = userId;
+            projects.decideApproval(approvalId, { status: "approved", decidedBy: userId });
+            projects.updateTask(task.taskId, { status: "queued" });
+            return { ok: true, message: `Approved ${approvalId}.` };
+          },
+          cancelTask: (taskId: string) => ({ cancelled: true, message: `Cancelled ${taskId}.` }),
+          cleanupTask: (taskId: string) => ({ ok: true, message: `Cleaned ${taskId}.` }),
+          requestPublishApproval: () => ({ ok: true, message: "Publish approval requested." }),
+        };
         const router = new ProjectCommandRouter(
           api as unknown as Api,
           {
             projectTasks: {
               enabled: true,
               repoRoots: [tempRoot],
-              approvals: { requireBeforeProjectStart: true },
-              defaultBaseRef: "main",
+              worktreeRoot: path.join(tempRoot, "worktrees"),
+              artifactRoot: path.join(tempRoot, "artifacts"),
+              maxConcurrentProjects: 1,
               defaultMaxParallelWorkersPerProject: 1,
+              hardMaxParallelWorkersPerProject: 2,
+              maxConcurrentCodexWorkersGlobal: 2,
+              defaultBaseRef: "main",
+              codex: {
+                command: "codex",
+                coderProfile: "mottbot-coder",
+                reviewerProfile: "mottbot-reviewer",
+                defaultTimeoutMs: 60_000,
+              },
+              approvals: {
+                requireBeforeProjectStart: true,
+              },
             },
           } as AppConfig,
           projects,
-          {
-            approveApproval: (approvalId: string, decidedBy?: string) => {
-              approvedBy = decidedBy;
-              projects.decideApproval(approvalId, { status: "approved", decidedBy });
-              projects.updateTask(task.taskId, { status: "queued" });
-              return { ok: true, message: `Approved ${approvalId}.` };
-            },
-          } as never,
+          scheduler,
         );
-
         await router.handleApprovalCallback(
           callbackEvent({
             callbackQueryId: "callback-4",
@@ -293,8 +312,7 @@ export async function createTelegramCallbackSmokeResult(): Promise<TelegramCallb
           }),
           approval.approvalId,
         );
-
-        assert(approvedBy === "admin-1", "project approval callback did not pass the operator id");
+        assert(decidedBy === "admin-1", "project approval callback did not pass the operator id");
         assert(projects.getTask(task.taskId)?.status === "queued", "project approval did not queue the task");
         assert(
           api.calls.some(

@@ -221,34 +221,34 @@ export async function bootstrapApplication() {
       contentText: `[Recovered partial assistant output after restart]\n${recovered.partialText}`,
     });
   }
-  const orchestrator = new RunOrchestrator(
+  const orchestrator = new RunOrchestrator({
     config,
     queue,
-    sessionStore,
-    transcriptStore,
-    runStore,
+    sessions: sessionStore,
+    transcripts: transcriptStore,
+    runs: runStore,
     tokenResolver,
     transport,
     outbox,
-    systemClock,
+    clock: systemClock,
     logger,
-    attachmentIngestor,
-    runQueueStore,
+    attachments: attachmentIngestor,
+    runQueue: runQueueStore,
     toolRegistry,
     toolExecutor,
-    memoryStore,
-    codexModelCapabilities,
+    memories: memoryStore,
+    modelCapabilities: codexModelCapabilities,
     reactions,
-    attachmentRecordStore,
+    attachmentRecords: attachmentRecordStore,
     toolPolicy,
     usageBudget,
-    {
+    governance: {
       resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
       isModelAllowed: ({ chatId, modelRef }) => governance.isModelAllowed({ chatId, modelRef }),
       isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
       validateAttachments: ({ chatId, attachments }) => governance.validateAttachments({ chatId, attachments }),
     },
-  );
+  });
   orchestrator.recoverQueuedRuns();
   const projectCommands = new ProjectCommandRouter(provisionalBot.api, config, projectTaskStore, projectScheduler);
   const commands = new TelegramCommandRouter(

@@ -25,6 +25,11 @@ import {
 
 const TELEGRAM_TEXT_MAX_CHARS = 4096;
 
+type ProjectCommandScheduler = Pick<
+  ProjectTaskScheduler,
+  "approveApproval" | "cancelTask" | "cleanupTask" | "requestPublishApproval"
+>;
+
 function splitTelegramText(text: string): string[] {
   const maxChars = 3_900;
   if (text.length <= maxChars) {
@@ -109,7 +114,7 @@ export class ProjectCommandRouter {
     private readonly api: Api,
     private readonly config: AppConfig,
     private readonly store: ProjectTaskStore,
-    private readonly scheduler: ProjectTaskScheduler,
+    private readonly scheduler: ProjectCommandScheduler,
   ) {}
 
   async handle(event: InboundEvent, args: string[]): Promise<void> {

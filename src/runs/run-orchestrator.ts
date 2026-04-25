@@ -63,11 +63,18 @@ const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
 
-type OutboxHandle = Awaited<ReturnType<TelegramOutbox["start"]>>;
+/** Outbox operations required by run orchestration. */
+export type RunOutbox = Pick<TelegramOutbox, "start" | "update" | "finish" | "fail">;
+
+/** Telegram reaction operations required by run orchestration. */
+export type RunReactionService = Pick<TelegramReactionService, "clearReaction">;
+
+type OutboxHandle = Awaited<ReturnType<RunOutbox["start"]>>;
 
 type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
 
-export type RunRetryResult = "queued" | "not_found" | "wrong_session" | "not_retryable" | "no_user_message";
+/** Outcome returned when an operator asks to retry a prior run. */
+type RunRetryResult = "queued" | "not_found" | "wrong_session" | "not_retryable" | "no_user_message";
 
 /** Runtime policy hooks used to enforce Telegram governance before and during a run. */
 type RunGovernancePolicy = {
@@ -78,6 +85,31 @@ type RunGovernancePolicy = {
     chatId: string;
     attachments: readonly InboundEvent["attachments"][number][];
   }) => { message: string } | undefined;
+};
+
+/** Collaborators required to run queued Telegram messages through model orchestration. */
+type RunOrchestratorOptions = {
+  config: AppConfig;
+  queue: SessionQueue;
+  sessions: SessionStore;
+  transcripts: TranscriptStore;
+  runs: RunStore;
+  tokenResolver: ModelTokenResolver;
+  transport: ModelTransport;
+  outbox: RunOutbox;
+  clock: Clock;
+  logger: Logger;
+  attachments?: AttachmentIngestor;
+  runQueue?: RunQueueStore;
+  toolRegistry?: ToolRegistry;
+  toolExecutor?: ToolExecutor;
+  memories?: MemoryStore;
+  modelCapabilities?: ModelCapabilities;
+  reactions?: RunReactionService;
+  attachmentRecords?: AttachmentRecordStore;
+  toolPolicy?: ToolPolicyEngine;
+  usageBudget?: UsageBudgetService;
+  governance?: RunGovernancePolicy;
 };
 
 function buildUserTranscriptPayload(
@@ -441,30 +473,50 @@ export class RunOrchestrator {
   private readonly usageRecorder: UsageRecorder;
   private readonly agentLimiter = new AgentRunLimiter();
   private readonly activeRunIds = new Map<string, string>();
+  private readonly config: AppConfig;
+  private readonly queue: SessionQueue;
+  private readonly sessions: SessionStore;
+  private readonly transcripts: TranscriptStore;
+  private readonly runs: RunStore;
+  private readonly tokenResolver: ModelTokenResolver;
+  private readonly transport: ModelTransport;
+  private readonly outbox: RunOutbox;
+  private readonly clock: Clock;
+  private readonly logger: Logger;
+  private readonly attachments: AttachmentIngestor;
+  private readonly runQueue?: RunQueueStore;
+  private readonly toolRegistry?: ToolRegistry;
+  private readonly toolExecutor?: ToolExecutor;
+  private readonly memories?: MemoryStore;
+  private readonly modelCapabilities: ModelCapabilities;
+  private readonly reactions?: RunReactionService;
+  private readonly attachmentRecords?: AttachmentRecordStore;
+  private readonly toolPolicy?: ToolPolicyEngine;
+  private readonly usageBudget?: UsageBudgetService;
+  private readonly governance?: RunGovernancePolicy;
 
-  constructor(
-    private readonly config: AppConfig,
-    private readonly queue: SessionQueue,
-    private readonly sessions: SessionStore,
-    private readonly transcripts: TranscriptStore,
-    private readonly runs: RunStore,
-    private readonly tokenResolver: ModelTokenResolver,
-    private readonly transport: ModelTransport,
-    private readonly outbox: TelegramOutbox,
-    private readonly clock: Clock,
-    private readonly logger: Logger,
-    private readonly attachments: AttachmentIngestor = new NoopAttachmentIngestor(),
-    private readonly runQueue?: RunQueueStore,
-    private readonly toolRegistry?: ToolRegistry,
-    private readonly toolExecutor?: ToolExecutor,
-    private readonly memories?: MemoryStore,
-    private readonly modelCapabilities: ModelCapabilities = codexModelCapabilities,
-    private readonly reactions?: TelegramReactionService,
-    private readonly attachmentRecords?: AttachmentRecordStore,
-    private readonly toolPolicy?: ToolPolicyEngine,
-    private readonly usageBudget?: UsageBudgetService,
-    private readonly governance?: RunGovernancePolicy,
-  ) {
+  constructor(options: RunOrchestratorOptions) {
+    this.config = options.config;
+    this.queue = options.queue;
+    this.sessions = options.sessions;
+    this.transcripts = options.transcripts;
+    this.runs = options.runs;
+    this.tokenResolver = options.tokenResolver;
+    this.transport = options.transport;
+    this.outbox = options.outbox;
+    this.clock = options.clock;
+    this.logger = options.logger;
+    this.attachments = options.attachments ?? new NoopAttachmentIngestor();
+    this.runQueue = options.runQueue;
+    this.toolRegistry = options.toolRegistry;
+    this.toolExecutor = options.toolExecutor;
+    this.memories = options.memories;
+    this.modelCapabilities = options.modelCapabilities ?? codexModelCapabilities;
+    this.reactions = options.reactions;
+    this.attachmentRecords = options.attachmentRecords;
+    this.toolPolicy = options.toolPolicy;
+    this.usageBudget = options.usageBudget;
+    this.governance = options.governance;
     this.usageRecorder = new UsageRecorder(this.runs);
   }
 
