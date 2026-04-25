@@ -1,4 +1,4 @@
-import type { TransportMode } from "./transport.js";
+import type { TransportMode } from "./types.js";
 
 /** Stable provider id used in model references, auth profiles, and capability maps. */
 export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";

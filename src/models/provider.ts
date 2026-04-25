@@ -1,6 +1,6 @@
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
-import type { CodexResolvedAuth } from "../codex/types.js";
-import type { TransportMode, CodexStreamResult } from "../codex/transport.js";
+import type { CodexResolvedAuth, TransportMode } from "../codex/types.js";
+import type { CodexStreamResult } from "../codex/transport.js";
 import type { CodexToolCall, CodexToolCallProgress } from "../codex/tool-calls.js";
 import { supportsNativeFileInput, supportsNativeImageInput } from "../codex/provider.js";
 import type { PromptMessage } from "../runs/prompt-builder.js";

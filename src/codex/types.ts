@@ -27,6 +27,9 @@ export type CodexResolvedAuth = {
   accountId?: string;
 };
 
+/** Transport preference for Codex streaming requests. */
+export type TransportMode = "auto" | "sse" | "websocket";
+
 /** One usage-limit window returned by the Codex subscription backend. */
 export type CodexUsageWindow = {
   label: string;

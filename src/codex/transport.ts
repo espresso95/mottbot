@@ -24,10 +24,7 @@ import {
   type CodexToolCall,
   type CodexToolCallProgress,
 } from "./tool-calls.js";
-import type { CodexResolvedAuth } from "./types.js";
-
-/** Transport preference for Codex streaming requests. */
-export type TransportMode = "auto" | "sse" | "websocket";
+import type { CodexResolvedAuth, TransportMode } from "./types.js";
 
 type StreamParams = {
   sessionKey: string;
