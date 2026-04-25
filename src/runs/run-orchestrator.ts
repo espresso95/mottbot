@@ -1082,6 +1082,7 @@ export class RunOrchestrator {
           signal: params.signal,
           phase: "pre_response",
           minTranscriptLines: 1,
+          transcriptMessageLimit: 1,
           timeoutMs: this.config.memory.preResponseExtractionTimeoutMs,
         });
       }
@@ -1464,6 +1465,7 @@ export class RunOrchestrator {
       signal: this.config.memory.postResponseExtractionAsync ? undefined : params.signal,
       phase: "post_response",
       minTranscriptLines: 2,
+      transcriptMessageLimit: this.config.memory.candidateRecentMessages,
       timeoutMs: this.config.memory.postResponseExtractionTimeoutMs,
     });
     if (this.config.memory.postResponseExtractionAsync) {
@@ -1512,13 +1514,14 @@ export class RunOrchestrator {
     signal?: AbortSignal;
     phase: MemoryExtractionPhase;
     minTranscriptLines: number;
+    transcriptMessageLimit: number;
     timeoutMs: number;
   }): Promise<void> {
     if (!this.config.memory.candidateExtractionEnabled || !this.memories) {
       return;
     }
     const extractionPrompt = buildMemoryCandidateExtractionPrompt({
-      messages: this.transcripts.listRecent(params.session.sessionKey, this.config.memory.candidateRecentMessages),
+      messages: this.transcripts.listRecent(params.session.sessionKey, params.transcriptMessageLimit),
       maxCandidates: this.config.memory.candidateMaxPerRun,
       minTranscriptLines: params.minTranscriptLines,
     });

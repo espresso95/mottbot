@@ -993,32 +993,33 @@ describe("RunOrchestrator", () => {
       stores.database.close();
       removeTempDir(stores.tempDir);
     });
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    candidates: [
-                      {
-                        contentText: 'The assistant should answer to the name "Jeff" in this chat.',
-                        reason: "The user directly set the assistant's chat-facing name.",
-                        scope: "chat",
-                        scopeKey: "",
-                        sensitivity: "low",
-                        sourceMessageIds: [],
-                      },
-                    ],
-                  }),
-                },
+    let extractionRequestBody: string | undefined;
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      extractionRequestBody = typeof init?.body === "string" ? init.body : undefined;
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  candidates: [
+                    {
+                      contentText: 'The assistant should answer to the name "Jeff" in this chat.',
+                      reason: "The user directly set the assistant's chat-facing name.",
+                      scope: "chat",
+                      scopeKey: "",
+                      sensitivity: "low",
+                      sourceMessageIds: [],
+                    },
+                  ],
+                }),
               },
-            ],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-    );
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
     vi.stubGlobal("fetch", fetchMock);
     const session = stores.sessions.ensure({
       sessionKey: "tg:dm:chat-1:user:user-1",
@@ -1027,6 +1028,11 @@ describe("RunOrchestrator", () => {
       routeMode: "dm",
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
+    });
+    stores.transcripts.add({
+      sessionKey: session.sessionKey,
+      role: "user",
+      contentText: "Earlier unrelated transcript should not influence immediate extraction.",
     });
     const memories = new MemoryStore(stores.database, stores.clock);
     const outbox: RunOutbox = {
@@ -1071,6 +1077,8 @@ describe("RunOrchestrator", () => {
     await flushAsync();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(extractionRequestBody).toContain("Your name is Jeff.");
+    expect(extractionRequestBody).not.toContain("Earlier unrelated transcript");
     expect(transport.stream).toHaveBeenCalledTimes(1);
     expect(memories.list(session.sessionKey)).toEqual([
       expect.objectContaining({
