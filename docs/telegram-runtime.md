@@ -216,6 +216,8 @@ Admins can inspect agent state with `/debug agents` or the dashboard Agents pane
 
 `TelegramCommandRouter` handles commands before the ACL-model pipeline.
 
+On startup, the bot registers its top-level slash commands with Telegram so clients can suggest commands such as `/project`, `/status`, and `/help` while typing. Telegram command menus only support top-level commands; subcommands such as `/project details` remain documented through `/help` and `/commands`.
+
 ### Command authorization
 
 Current policy:

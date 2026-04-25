@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Telegram Command Menu
+
+- Register the bot's top-level slash commands with Telegram on startup, so Telegram clients can suggest commands such as `/project`, `/status`, and `/help` while typing.
+
 ### Project Mode Telegram UX
 
 - Added compact Project Mode Telegram message formatting with short display IDs, repo names, progress summaries, and clearer next-step commands.

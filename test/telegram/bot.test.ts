@@ -8,6 +8,7 @@ const botApi = {
   getMe: vi.fn(async () => ({ username: "mottbot" })),
   deleteWebhook: vi.fn(async () => true),
   setWebhook: vi.fn(async () => true),
+  setMyCommands: vi.fn(async () => true),
   sendMessage: vi.fn(async () => true),
   answerCallbackQuery: vi.fn(async () => true),
   setMessageReaction: vi.fn(async () => true),
@@ -93,6 +94,13 @@ describe("TelegramBotServer", () => {
     });
 
     expect(botApi.getMe).toHaveBeenCalled();
+    expect(botApi.setMyCommands).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { command: "help", description: "Show available commands" },
+        { command: "project", description: "Run Project Mode tasks" },
+        { command: "status", description: "Show session status" },
+      ]),
+    );
     expect(commands.maybeHandle).toHaveBeenCalled();
     expect(access.evaluate).toHaveBeenCalled();
     expect(routes.resolve).toHaveBeenCalled();
