@@ -24,6 +24,12 @@ Logic changes should also run the relevant Vitest target, usually:
 pnpm test
 ```
 
+Audit exported production symbols for missing TSDoc:
+
+```bash
+pnpm tsdoc:audit
+```
+
 ## ESLint
 
 The ESLint flat config in `eslint.config.js` applies type-aware TypeScript rules to `src/**/*.ts`, `test/**/*.ts`, and `vitest.config.ts`.
@@ -52,6 +58,8 @@ Use TSDoc where it carries contract information that is not obvious from the typ
 - non-obvious private helpers that encode policy or parsing rules
 
 Avoid comments that only restate an identifier. Prefer readable names and small helpers for local variables and straightforward code.
+
+`pnpm tsdoc:audit` scans `src/**/*.ts` and reports exported symbols without a leading TSDoc comment. It exits successfully by default so the report can guide incremental documentation work. Use `pnpm tsdoc:audit -- --strict` to fail when any exported production symbol is undocumented, or `pnpm tsdoc:audit -- --max-missing <count>` to ratchet coverage over time.
 
 ## Naming
 

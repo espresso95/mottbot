@@ -15,6 +15,7 @@
     "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md,yml,yaml}\"",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" \"vitest.config.ts\"",
+    "tsdoc:audit": "tsx src/tools/tsdoc-audit.ts",
     "start": "node dist/index.js start",
     "test": "vitest run",
     "test:watch": "vitest",
