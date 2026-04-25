@@ -132,6 +132,32 @@ const mcpToolConfigSchema = z
     servers: z.array(mcpServerConfigSchema).default([]),
   })
   .default({});
+const projectTasksConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    repoRoots: z.array(z.string()).default(["."]),
+    worktreeRoot: z.string().default("./data/project-worktrees"),
+    artifactRoot: z.string().default("./data/project-runs"),
+    maxConcurrentProjects: z.number().int().min(1).max(10).default(1),
+    defaultMaxParallelWorkersPerProject: z.number().int().min(1).max(8).default(1),
+    hardMaxParallelWorkersPerProject: z.number().int().min(1).max(8).default(2),
+    maxConcurrentCodexWorkersGlobal: z.number().int().min(1).max(16).default(2),
+    defaultBaseRef: z.string().min(1).default("main"),
+    codex: z
+      .object({
+        command: z.string().min(1).default("codex"),
+        coderProfile: z.string().min(1).default("mottbot-coder"),
+        reviewerProfile: z.string().min(1).default("mottbot-reviewer"),
+        defaultTimeoutMs: z.number().int().min(30_000).max(24 * 60 * 60 * 1000).default(60 * 60 * 1000),
+      })
+      .default({}),
+    approvals: z
+      .object({
+        requireBeforeProjectStart: z.boolean().default(true),
+      })
+      .default({}),
+  })
+  .default({});
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -257,6 +283,7 @@ const rawConfigSchema = z.object({
       masterKey: z.string().min(1).optional(),
     })
     .default({}),
+  projectTasks: projectTasksConfigSchema,
 });
 
 export type AppConfig = {
@@ -357,6 +384,11 @@ export type AppConfig = {
   usage: z.infer<typeof usageBudgetConfigSchema>;
   security: {
     masterKey: string;
+  };
+  projectTasks: z.infer<typeof projectTasksConfigSchema> & {
+    repoRoots: string[];
+    worktreeRoot: string;
+    artifactRoot: string;
   };
 };
 
@@ -491,6 +523,12 @@ export function loadConfig(): AppConfig {
     usage: parsed.usage,
     security: {
       masterKey,
+    },
+    projectTasks: {
+      ...parsed.projectTasks,
+      repoRoots: parsed.projectTasks.repoRoots.map((entry) => path.resolve(entry)),
+      worktreeRoot: path.resolve(parsed.projectTasks.worktreeRoot),
+      artifactRoot: path.resolve(parsed.projectTasks.artifactRoot),
     },
   };
 }
