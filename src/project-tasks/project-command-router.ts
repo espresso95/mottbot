@@ -5,6 +5,7 @@ import type { AppConfig } from "../app/config.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { ProjectTaskScheduler } from "./project-task-scheduler.js";
+import { buildProjectPlan } from "./project-planner.js";
 
 function splitTelegramText(text: string): string[] {
   const maxChars = 3_900;
@@ -84,6 +85,7 @@ export class ProjectCommandRouter {
       return;
     }
     const title = prompt.split(/\s+/).slice(0, 8).join(" ");
+    const plan = buildProjectPlan({ prompt, taskTitle: title });
     const requiresApproval = this.config.projectTasks.approvals.requireBeforeProjectStart;
     const task = this.store.createTask({
       chatId: event.chatId,
@@ -93,17 +95,35 @@ export class ProjectCommandRouter {
       baseRef: this.config.projectTasks.defaultBaseRef,
       title,
       originalPrompt: prompt,
+      planJson: JSON.stringify(plan),
       status: requiresApproval ? "awaiting_approval" : "queued",
       maxParallelWorkers: this.config.projectTasks.defaultMaxParallelWorkersPerProject,
       maxAttemptsPerSubtask: 2,
     });
-    this.store.createSubtask({
-      taskId: task.taskId,
-      title: "primary-worker",
-      role: "worker",
-      prompt,
-      status: "ready",
-    });
+    const createdByStepId = new Map<string, string>();
+    for (const step of plan.steps) {
+      const subtask = this.store.createSubtask({
+        taskId: task.taskId,
+        title: step.title,
+        role: "worker",
+        prompt: step.prompt,
+        status: step.dependsOnStepIds.length === 0 ? "ready" : "blocked",
+      });
+      createdByStepId.set(step.stepId, subtask.subtaskId);
+    }
+    for (const step of plan.steps) {
+      const subtaskId = createdByStepId.get(step.stepId);
+      if (!subtaskId) {
+        continue;
+      }
+      const dependsOnSubtaskIds = step.dependsOnStepIds
+        .map((stepId) => createdByStepId.get(stepId))
+        .filter((value): value is string => typeof value === "string");
+      if (dependsOnSubtaskIds.length === 0) {
+        continue;
+      }
+      this.store.updateSubtask(subtaskId, { dependsOnSubtaskIds });
+    }
     if (requiresApproval) {
       const approval = this.store.createApproval({
         taskId: task.taskId,
@@ -127,7 +147,15 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Task not found.");
       return;
     }
-    const subtaskLines = snapshot.subtasks.map((subtask) => `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}`).join("\n") || "- none";
+    const subtaskLines =
+      snapshot.subtasks
+        .map((subtask) => {
+          const deps = subtask.dependsOnSubtaskIds.length > 0
+            ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
+            : "";
+          return `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}${deps}`;
+        })
+        .join("\n") || "- none";
     await sendReply(
       this.api,
       event,

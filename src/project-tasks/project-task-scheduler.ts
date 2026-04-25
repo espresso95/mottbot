@@ -46,7 +46,9 @@ export class ProjectTaskScheduler {
         continue;
       }
       const subtasks = this.store.listSubtasks(task.taskId);
-      const runningSubtasks = subtasks.filter((subtask) => subtask.status === "running");
+      this.refreshDependencyStates(subtasks);
+      const dependencyRefreshedSubtasks = this.store.listSubtasks(task.taskId);
+      const runningSubtasks = dependencyRefreshedSubtasks.filter((subtask) => subtask.status === "running");
       const activeRuns = this.store.listActiveCliRuns(task.taskId);
       if (runningSubtasks.length > 0 && activeRuns.length === 0) {
         for (const subtask of runningSubtasks) {
@@ -124,6 +126,33 @@ export class ProjectTaskScheduler {
           finishedAt: this.clock.now(),
           finalSummary: summaries,
         });
+      }
+    }
+  }
+
+  private refreshDependencyStates(subtasks: ReturnType<ProjectTaskStore["listSubtasks"]>): void {
+    const byId = new Map(subtasks.map((subtask) => [subtask.subtaskId, subtask]));
+    for (const subtask of subtasks) {
+      if (subtask.status === "completed" || subtask.status === "running" || subtask.status === "failed" || subtask.status === "cancelled" || subtask.status === "skipped") {
+        continue;
+      }
+      if (subtask.dependsOnSubtaskIds.length === 0) {
+        if (subtask.status === "blocked") {
+          this.store.updateSubtask(subtask.subtaskId, { status: "ready" });
+        }
+        continue;
+      }
+      const dependencyStates = subtask.dependsOnSubtaskIds.map((dependencyId) => byId.get(dependencyId)?.status);
+      if (dependencyStates.some((status) => status === "failed" || status === "cancelled" || status === "skipped" || status === undefined)) {
+        this.store.updateSubtask(subtask.subtaskId, {
+          status: "skipped",
+          finishedAt: this.clock.now(),
+          lastError: "Skipped because one or more dependencies did not complete successfully.",
+        });
+        continue;
+      }
+      if (dependencyStates.every((status) => status === "completed") && subtask.status === "blocked") {
+        this.store.updateSubtask(subtask.subtaskId, { status: "ready" });
       }
     }
   }
