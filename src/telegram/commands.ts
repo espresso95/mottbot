@@ -21,7 +21,7 @@ import { handleAgentCommand } from "./agent-commands.js";
 import { handleAuthCommand } from "./auth-commands.js";
 import { commandHelp, formatCommandSection, type CommandHelpEntry } from "./command-formatters.js";
 import { parseCommand } from "./command-parsing.js";
-import { sendReply } from "./command-replies.js";
+import { sendReply, type TelegramInlineKeyboard } from "./command-replies.js";
 import { handleDebugCommand, handleRunsCommand } from "./diagnostic-commands.js";
 import { handleFilesCommand } from "./files-commands.js";
 import { handleGithubCommand } from "./github-commands.js";
@@ -45,7 +45,7 @@ import {
 } from "./session-commands.js";
 import { handleToolApprovalCallback, handleToolCommand, handleToolDenyCallback } from "./tool-commands.js";
 import { handleUsersCommand } from "./user-commands.js";
-import { parseTelegramCallbackData } from "./callback-data.js";
+import { buildRunFilesCallbackData, buildRunNewCallbackData, parseTelegramCallbackData } from "./callback-data.js";
 
 const TELEGRAM_TEXT_MAX_CHARS = 4096;
 
@@ -87,6 +87,17 @@ function callbackStatusText(event: TelegramCallbackEvent, status: string): strin
   const suffix = `${separator}${cleanStatus}`;
   const maxOriginalLength = Math.max(0, TELEGRAM_TEXT_MAX_CHARS - suffix.length);
   return `${original.slice(0, maxOriginalLength).trimEnd()}${suffix}`;
+}
+
+function buildAttachmentRetryGuidanceReplyMarkup(runId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [
+        { text: "New chat", callback_data: buildRunNewCallbackData(runId) },
+        { text: "Files", callback_data: buildRunFilesCallbackData(runId) },
+      ],
+    ],
+  };
 }
 
 /** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
@@ -459,9 +470,9 @@ export class TelegramCommandRouter {
           session,
           runId: action.runId,
         });
-        const copy = this.formatRunRetryResult(result);
+        const copy = this.formatRunRetryResult(result, action.runId);
         await this.answerCallback(event, copy.callbackText, copy.showAlert);
-        await this.editRunCallbackStatus(event, copy.statusText);
+        await this.editRunCallbackStatus(event, copy.statusText, copy.replyMarkup);
         return true;
       }
       if (action.type === "run_new") {
@@ -514,10 +525,14 @@ export class TelegramCommandRouter {
     return false;
   }
 
-  private formatRunRetryResult(result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>): {
+  private formatRunRetryResult(
+    result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>,
+    runId: string,
+  ): {
     callbackText: string;
     statusText: string;
     showAlert: boolean;
+    replyMarkup?: TelegramInlineKeyboard;
   } {
     switch (result) {
       case "queued":
@@ -556,6 +571,7 @@ export class TelegramCommandRouter {
             "I cannot retry this from here because the original message included a file. Send the file again and I will run it as a fresh request.",
           statusText:
             "Retry was not applied. The original message included a file; send the file again to run it as a fresh request.",
+          replyMarkup: buildAttachmentRetryGuidanceReplyMarkup(runId),
           showAlert: true,
         };
     }
@@ -615,14 +631,22 @@ export class TelegramCommandRouter {
     });
   }
 
-  private async editRunCallbackStatus(event: TelegramCallbackEvent, status: string): Promise<void> {
+  private async editRunCallbackStatus(
+    event: TelegramCallbackEvent,
+    status: string,
+    replyMarkup?: TelegramInlineKeyboard,
+  ): Promise<void> {
     try {
       await this.api.editMessageText(event.chatId, event.messageId, callbackStatusText(event, status));
     } catch {
       // Some Telegram messages cannot be edited; keyboard cleanup still prevents stale taps.
     }
     try {
-      await this.api.editMessageReplyMarkup(event.chatId, event.messageId);
+      if (replyMarkup) {
+        await this.api.editMessageReplyMarkup(event.chatId, event.messageId, { reply_markup: replyMarkup });
+      } else {
+        await this.api.editMessageReplyMarkup(event.chatId, event.messageId);
+      }
     } catch {
       // Source message cleanup is best effort after the command has already been handled.
     }

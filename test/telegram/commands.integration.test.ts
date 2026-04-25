@@ -2194,7 +2194,16 @@ describe("TelegramCommandRouter", () => {
       42,
       "Run failed with a file.\n\nRetry was not applied. The original message included a file; send the file again to run it as a fresh request.",
     );
-    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            expect.objectContaining({ text: "New chat", callback_data: expect.stringMatching(/^mb:rn:/) }),
+            expect.objectContaining({ text: "Files", callback_data: expect.stringMatching(/^mb:rf:/) }),
+          ],
+        ],
+      },
+    });
     expect(api.sendMessage).not.toHaveBeenCalled();
 
     api.answerCallbackQuery.mockClear();

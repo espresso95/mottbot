@@ -480,6 +480,83 @@ describe("RunOrchestrator", () => {
     expect(outbox.fail).toHaveBeenCalled();
   });
 
+  it("guides attachment-backed failed runs without offering retry", async () => {
+    const stores = createStores();
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const attachmentIngestor: AttachmentIngestor = {
+      prepare: vi.fn(async () => ({
+        transcriptAttachments: [
+          {
+            kind: "document",
+            fileId: "file-1",
+            fileName: "report.pdf",
+            ingestionStatus: "metadata_only",
+          },
+        ],
+        nativeInputs: [],
+        extractedTexts: [],
+        cachePaths: [],
+      })),
+      cleanup: vi.fn(async () => undefined),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport: {
+        stream: vi.fn(async () => {
+          throw new Error("attachment failure");
+        }),
+      } satisfies ModelTransport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      attachments: attachmentIngestor,
+      attachmentRecords: stores.attachmentRecords,
+    });
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({
+        text: "Review this file.",
+        attachments: [{ kind: "document", fileId: "file-1", fileName: "report.pdf" }],
+      }),
+      session,
+    });
+
+    await flushAsync();
+
+    const failure = vi.mocked(outbox.fail).mock.calls[0];
+    expect(failure?.[1]).toContain("Send the file again to retry it");
+    expect(failure?.[2]?.replyMarkup?.inline_keyboard[0]?.map((button) => button.text)).toEqual(["New chat", "Files"]);
+  });
+
   it("retries a failed run from the original user message", async () => {
     const stores = createStores();
     cleanup.push(() => {

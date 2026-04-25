@@ -62,6 +62,8 @@ import type { ToolApprovalAuditRecord } from "../tools/approval.js";
 const RUN_QUEUE_LEASE_MS = 10 * 60 * 1000;
 const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
+const ATTACHMENT_RETRY_GUIDANCE =
+  "This request included a file. Send the file again to retry it, or use Files below to inspect retained file metadata.";
 
 /** Outbox operations required by run orchestration. */
 export type RunOutbox = Pick<TelegramOutbox, "start" | "update" | "finish" | "fail">;
@@ -387,14 +389,17 @@ function buildCompletedRunReplyMarkup(runId: string): TelegramInlineKeyboard {
   };
 }
 
-function buildFailedRunReplyMarkup(runId: string): TelegramInlineKeyboard {
+function buildFailedRunReplyMarkup(
+  runId: string,
+  options: { retry?: boolean; includeFiles?: boolean } = {},
+): TelegramInlineKeyboard {
+  const row = [
+    ...(options.retry === false ? [] : [{ text: "Retry", callback_data: buildRunRetryCallbackData(runId) }]),
+    { text: "New chat", callback_data: buildRunNewCallbackData(runId) },
+    ...(options.includeFiles ? [{ text: "Files", callback_data: buildRunFilesCallbackData(runId) }] : []),
+  ];
   return {
-    inline_keyboard: [
-      [
-        { text: "Retry", callback_data: buildRunRetryCallbackData(runId) },
-        { text: "New chat", callback_data: buildRunNewCallbackData(runId) },
-      ],
-    ],
+    inline_keyboard: [row],
   };
 }
 
@@ -419,6 +424,10 @@ function hasTranscriptAttachments(contentJson: string | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function appendAttachmentRetryGuidance(text: string): string {
+  return `${text}\n\n${ATTACHMENT_RETRY_GUIDANCE}`;
 }
 
 const TOOL_SIDE_EFFECT_LABELS: Record<ToolSideEffect, string> = {
@@ -859,9 +868,18 @@ export class RunOrchestrator {
         replyToMessageId: params.event.messageId,
         placeholderText: RUN_STATUS_TEXT.starting,
       });
-      await this.outbox.fail(placeholder, formatRunFailedStatus(params.errorMessage), {
-        replyMarkup: buildFailedRunReplyMarkup(run.runId),
-      });
+      const attachmentBacked = hasTranscriptAttachments(params.userPayload.contentJson);
+      const failedStatus = formatRunFailedStatus(params.errorMessage);
+      await this.outbox.fail(
+        placeholder,
+        attachmentBacked ? appendAttachmentRetryGuidance(failedStatus) : failedStatus,
+        {
+          replyMarkup: buildFailedRunReplyMarkup(run.runId, {
+            retry: !attachmentBacked,
+            includeFiles: attachmentBacked,
+          }),
+        },
+      );
     } catch (error) {
       this.logger.warn({ error, runId: run.runId }, "Failed to send enqueue rejection.");
     }
@@ -1234,11 +1252,22 @@ export class RunOrchestrator {
       });
       if (placeholder) {
         try {
-          await this.outbox.fail(placeholder, formatRunFailedStatus(message), {
-            replyMarkup: params.signal.aborted
-              ? buildCancelledRunReplyMarkup(run.runId)
-              : buildFailedRunReplyMarkup(run.runId),
-          });
+          const failedStatus = formatRunFailedStatus(message);
+          const attachmentBacked =
+            !params.signal.aborted &&
+            hasTranscriptAttachments(this.transcripts.getRunMessage(run.runId, "user")?.contentJson);
+          await this.outbox.fail(
+            placeholder,
+            attachmentBacked ? appendAttachmentRetryGuidance(failedStatus) : failedStatus,
+            {
+              replyMarkup: params.signal.aborted
+                ? buildCancelledRunReplyMarkup(run.runId)
+                : buildFailedRunReplyMarkup(run.runId, {
+                    retry: !attachmentBacked,
+                    includeFiles: attachmentBacked,
+                  }),
+            },
+          );
         } catch (outboxError) {
           this.logger.warn({ error: outboxError, runId: run.runId }, "Failed to send run failure status.");
         }

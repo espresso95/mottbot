@@ -49,6 +49,7 @@
 - Run control buttons now mark the original status message and clear stale keyboards after `Stop`, `Retry`, or `New chat` is used.
 - Run control callbacks now use action-oriented text and avoid duplicate chat replies for state-changing button taps.
 - Retry buttons now refuse attachment-backed runs and ask the operator to resend the file, avoiding silent reuse of transient attachment state.
+- Attachment-backed failed runs now keep contextual `New chat` and `Files` buttons instead of offering a dead retry action.
 - Approved tool continuations created from inline buttons are now persisted in `run_queue` and can resume after a service restart before execution starts.
 - Added inline accept, reject, and archive buttons for pending `/memory candidates`.
 - Added `pnpm smoke:telegram-callbacks` for in-process validation of tool and memory callback handlers.
