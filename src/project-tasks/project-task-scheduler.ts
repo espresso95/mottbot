@@ -5,9 +5,31 @@ import type { Clock } from "../shared/clock.js";
 import type { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { WorktreeManager } from "../worktrees/worktree-manager.js";
-import type { CodexCliRun, ProjectSubtask, ProjectTask } from "./project-types.js";
+import type { CodexCliRun, ProjectApproval, ProjectSubtask, ProjectTask } from "./project-types.js";
 
 export type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
+
+export type ProjectTaskActionResult = {
+  ok: boolean;
+  message: string;
+  approvalId?: string;
+};
+
+type PublishApprovalRequest = {
+  openPullRequest: boolean;
+};
+
+function parsePublishApprovalRequest(raw: string): PublishApprovalRequest {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && "openPullRequest" in parsed) {
+      return { openPullRequest: (parsed as { openPullRequest?: unknown }).openPullRequest === true };
+    }
+  } catch {
+    // Malformed approval payloads fall back to the safest publish action.
+  }
+  return { openPullRequest: false };
+}
 
 export class ProjectTaskScheduler {
   private timer?: NodeJS.Timeout;
@@ -38,6 +60,62 @@ export class ProjectTaskScheduler {
     }
     clearInterval(this.timer);
     this.timer = undefined;
+  }
+
+  requestPublishApproval(params: {
+    taskId: string;
+    requestedBy?: string;
+    openPullRequest?: boolean;
+  }): ProjectTaskActionResult {
+    const task = this.store.getTask(params.taskId);
+    if (!task) {
+      return { ok: false, message: "Unknown task id." };
+    }
+    if (task.status !== "completed") {
+      return {
+        ok: false,
+        message: `Task ${task.taskId} is ${task.status}; publish is available after review completes.`,
+      };
+    }
+    if (!task.finalBranch || !task.integrationWorktreePath) {
+      return { ok: false, message: `Task ${task.taskId} does not have an integrated branch to publish.` };
+    }
+    const approval = this.store.createApproval({
+      taskId: task.taskId,
+      kind: "push",
+      requestedBy: params.requestedBy,
+      requestJson: JSON.stringify({ openPullRequest: params.openPullRequest === true }),
+    });
+    const action = params.openPullRequest ? "push the final branch and open a PR" : "push the final branch";
+    return {
+      ok: true,
+      approvalId: approval.approvalId,
+      message: `Created publish approval ${approval.approvalId} to ${action}. Run /project approve ${approval.approvalId}`,
+    };
+  }
+
+  approveApproval(approvalId: string, decidedBy?: string): ProjectTaskActionResult {
+    const approval = this.store.getApproval(approvalId);
+    if (!approval) {
+      return { ok: false, message: `Unknown approval ${approvalId}.` };
+    }
+    if (approval.status !== "pending") {
+      return { ok: false, message: `Approval ${approvalId} is already ${approval.status}.` };
+    }
+    if (approval.kind === "start_project") {
+      this.store.decideApproval(approval.approvalId, {
+        status: "approved",
+        decidedBy,
+      });
+      this.store.updateTask(approval.taskId, {
+        status: "queued",
+      });
+      return { ok: true, message: `Approved ${approvalId}. Task ${approval.taskId} queued.` };
+    }
+    if (approval.kind === "push") {
+      return this.approvePublish(approval, decidedBy);
+    }
+    return { ok: false, message: `Approval kind ${approval.kind} is not supported yet.` };
   }
 
   async tick(): Promise<void> {
@@ -388,6 +466,7 @@ export class ProjectTaskScheduler {
       task.finalBranch ? `Branch: ${task.finalBranch}` : undefined,
       "",
       reviewSummary ? `Review: ${reviewSummary}` : task.finalSummary,
+      task.finalBranch ? `Publish: /project publish ${task.taskId} [pr]` : undefined,
     ]
       .filter((line): line is string => typeof line === "string" && line.length > 0)
       .join("\n")
@@ -396,6 +475,58 @@ export class ProjectTaskScheduler {
       this.reporter({ task, text });
     } catch {
       // Reporting must not change durable project outcome.
+    }
+  }
+
+  private approvePublish(approval: ProjectApproval, decidedBy?: string): ProjectTaskActionResult {
+    const task = this.store.getTask(approval.taskId);
+    if (!task) {
+      return { ok: false, message: `Task ${approval.taskId} no longer exists.` };
+    }
+    if (task.status !== "completed") {
+      return { ok: false, message: `Task ${task.taskId} is ${task.status}; publish is available after completion.` };
+    }
+    if (!task.finalBranch || !task.integrationWorktreePath) {
+      return { ok: false, message: `Task ${task.taskId} does not have an integrated branch to publish.` };
+    }
+    const request = parsePublishApprovalRequest(approval.requestJson);
+    this.store.decideApproval(approval.approvalId, {
+      status: "approved",
+      decidedBy,
+    });
+    try {
+      const result = this.worktrees.publishBranch({
+        repoRoot: task.repoRoot,
+        worktreePath: task.integrationWorktreePath,
+        branchName: task.finalBranch,
+        baseRef: task.baseRef,
+        openPullRequest: request.openPullRequest,
+        title: task.title,
+        body: [`Project task: ${task.taskId}`, "", task.finalSummary ?? "Project Mode completed review."].join("\n"),
+      });
+      const publishSummary = [
+        `Pushed branch: ${task.finalBranch}`,
+        result.pullRequestUrl ? `Pull request: ${result.pullRequestUrl}` : undefined,
+        !result.pullRequestUrl && result.pullRequestOutput
+          ? `Pull request output: ${result.pullRequestOutput}`
+          : undefined,
+      ]
+        .filter((line): line is string => typeof line === "string")
+        .join("\n");
+      this.store.updateTask(task.taskId, {
+        finalSummary: [task.finalSummary, "", "Publish:", publishSummary].filter(Boolean).join("\n"),
+        lastError: undefined,
+      });
+      return {
+        ok: true,
+        message: [`Published ${task.taskId}.`, publishSummary].filter(Boolean).join("\n"),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Publish failed.";
+      this.store.updateTask(task.taskId, {
+        lastError: `Publish failed: ${message}`,
+      });
+      return { ok: false, message: `Publish failed for ${task.taskId}: ${message}` };
     }
   }
 

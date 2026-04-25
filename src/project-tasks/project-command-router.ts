@@ -61,6 +61,10 @@ export class ProjectCommandRouter {
       await this.handleCancel(event, rest[0]);
       return;
     }
+    if (sub === "publish") {
+      await this.handlePublish(event, rest);
+      return;
+    }
     if (sub === "approve") {
       await this.handleApprove(event, rest[0], event.fromUserId);
       return;
@@ -68,7 +72,7 @@ export class ProjectCommandRouter {
     await sendReply(
       this.api,
       event,
-      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | approve <approval>",
+      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | publish <task> [pr] | approve <approval>",
     );
   }
 
@@ -181,6 +185,9 @@ export class ProjectCommandRouter {
         subtaskLines,
         ...(snapshot.task.finalDiffStat ? ["Diff stat:", snapshot.task.finalDiffStat] : []),
         ...(snapshot.task.finalSummary ? ["Summary:", snapshot.task.finalSummary] : []),
+        ...(snapshot.task.status === "completed" && snapshot.task.finalBranch
+          ? [`Publish: /project publish ${snapshot.task.taskId} [pr]`]
+          : []),
         ...(snapshot.task.lastError ? ["Last error:", snapshot.task.lastError] : []),
       ].join("\n"),
     );
@@ -227,28 +234,31 @@ export class ProjectCommandRouter {
     await sendReply(this.api, event, result.message);
   }
 
+  private async handlePublish(event: InboundEvent, args: string[]): Promise<void> {
+    const [taskId, ...options] = args;
+    if (!taskId?.trim()) {
+      await sendReply(this.api, event, "Usage: /project publish <task-id> [pr]");
+      return;
+    }
+    const openPullRequest = options.some((option) => {
+      const normalized = option.toLowerCase();
+      return normalized === "pr" || normalized === "--pr" || normalized === "pull-request";
+    });
+    const result = this.scheduler.requestPublishApproval({
+      taskId: taskId.trim(),
+      requestedBy: event.fromUserId,
+      openPullRequest,
+    });
+    await sendReply(this.api, event, result.message);
+  }
+
   private async handleApprove(event: InboundEvent, approvalId?: string, decidedBy?: string): Promise<void> {
     if (!approvalId?.trim()) {
       await sendReply(this.api, event, "Usage: /project approve <approval-id>");
       return;
     }
-    const approval = this.store.getApproval(approvalId.trim());
-    if (!approval) {
-      await sendReply(this.api, event, `Unknown approval ${approvalId}.`);
-      return;
-    }
-    if (approval.status !== "pending") {
-      await sendReply(this.api, event, `Approval ${approvalId} is already ${approval.status}.`);
-      return;
-    }
-    this.store.decideApproval(approval.approvalId, {
-      status: "approved",
-      decidedBy,
-    });
-    this.store.updateTask(approval.taskId, {
-      status: "queued",
-    });
-    await sendReply(this.api, event, `Approved ${approvalId}. Task ${approval.taskId} queued.`);
+    const result = this.scheduler.approveApproval(approvalId.trim(), decidedBy);
+    await sendReply(this.api, event, result.message);
   }
 
   private resolveRepoRoot(raw: string): string | undefined {

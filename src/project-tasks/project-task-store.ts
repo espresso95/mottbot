@@ -5,6 +5,7 @@ import type {
   CodexCliRun,
   CodexCliRunStatus,
   ProjectApproval,
+  ProjectApprovalKind,
   ProjectStatusSnapshot,
   ProjectSubtask,
   ProjectSubtaskStatus,
@@ -80,7 +81,7 @@ type CodexCliRunRow = {
 type ProjectApprovalRow = {
   approval_id: string;
   task_id: string;
-  kind: "start_project";
+  kind: ProjectApprovalKind;
   status: "pending" | "approved" | "rejected" | "expired";
   requested_by: string | null;
   decided_by: string | null;
@@ -581,6 +582,7 @@ export class ProjectTaskStore {
 
   createApproval(input: {
     taskId: string;
+    kind?: ProjectApprovalKind;
     requestedBy?: string;
     requestJson: string;
     expiresAt?: number;
@@ -589,7 +591,7 @@ export class ProjectTaskStore {
     const approval: ProjectApproval = {
       approvalId: createId(),
       taskId: input.taskId,
-      kind: "start_project",
+      kind: input.kind ?? "start_project",
       status: "pending",
       ...(input.requestedBy ? { requestedBy: input.requestedBy } : {}),
       requestJson: input.requestJson,

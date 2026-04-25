@@ -758,7 +758,7 @@ export class TelegramCommandRouter {
           commandHelp("status", "/status - show session, model, profile, and usage"),
           commandHelp("health", "/health - show runtime health"),
           commandHelp("usage", "/usage [daily|monthly] - show local run usage and configured limits"),
-          commandHelp("project", "/project start|status|tail|cancel|approve - run long project tasks"),
+          commandHelp("project", "/project start|status|tail|cancel|publish|approve - run long project tasks"),
           commandHelp("agent", "/agent [list|show|set|reset] - inspect or change this session agent"),
           commandHelp("model", "/model <provider/model> - change this session model"),
           commandHelp("profile", "/profile [profile-id] - list or select auth profile"),

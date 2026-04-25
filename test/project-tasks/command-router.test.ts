@@ -27,6 +27,16 @@ describe("ProjectCommandRouter", () => {
       };
       const scheduler = {
         cancelTask: (taskId: string) => ({ cancelled: true, message: `Cancelled ${taskId}` }),
+        approveApproval: (approvalId: string, decidedBy?: string) => {
+          const approval = store.getApproval(approvalId);
+          if (!approval) {
+            return { ok: false, message: `Unknown approval ${approvalId}.` };
+          }
+          store.decideApproval(approval.approvalId, { status: "approved", decidedBy });
+          store.updateTask(approval.taskId, { status: "queued" });
+          return { ok: true, message: `Approved ${approvalId}. Task ${approval.taskId} queued.` };
+        },
+        requestPublishApproval: () => ({ ok: false, message: "not used" }),
       };
       const config = {
         projectTasks: {
@@ -80,6 +90,8 @@ describe("ProjectCommandRouter", () => {
       };
       const scheduler = {
         cancelTask: () => ({ cancelled: true, message: "Cancelled" }),
+        approveApproval: () => ({ ok: false, message: "not used" }),
+        requestPublishApproval: () => ({ ok: false, message: "not used" }),
       };
       const config = {
         projectTasks: {
@@ -107,6 +119,58 @@ describe("ProjectCommandRouter", () => {
       expect(sent.at(-1)).toContain("Task ID");
       await router.handle(event, ["cancel", task!.taskId]);
       expect(sent.at(-1)).toContain("Cancelled");
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("creates publish approvals with optional pull requests", async () => {
+    const root = createTempDir();
+    try {
+      fs.mkdirSync(path.join(root, ".git"));
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      const clock: Clock = { now: () => Date.now() };
+      const store = new ProjectTaskStore(db, clock);
+      const sent: string[] = [];
+      const api = {
+        sendMessage: async (_chatId: string, text: string) => {
+          sent.push(text);
+        },
+      };
+      let publishArgs: { taskId: string; requestedBy?: string; openPullRequest?: boolean } | undefined;
+      const scheduler = {
+        cancelTask: () => ({ cancelled: true, message: "Cancelled" }),
+        approveApproval: () => ({ ok: false, message: "not used" }),
+        requestPublishApproval: (params: { taskId: string; requestedBy?: string; openPullRequest?: boolean }) => {
+          publishArgs = params;
+          return { ok: true, approvalId: "approval-1", message: "Created publish approval approval-1" };
+        },
+      };
+      const config = {
+        projectTasks: {
+          enabled: true,
+          repoRoots: [root],
+          approvals: { requireBeforeProjectStart: false },
+          defaultBaseRef: "main",
+          defaultMaxParallelWorkersPerProject: 1,
+        },
+      } as AppConfig;
+      const router = new ProjectCommandRouter(api as never, config, store, scheduler as never);
+      const event: InboundEvent = {
+        updateId: 1,
+        chatId: "chat",
+        chatType: "private",
+        messageId: 2,
+        text: "/project",
+        fromUserId: "u1",
+      };
+
+      await router.handle(event, ["publish", "task-1", "pr"]);
+
+      expect(publishArgs).toEqual({ taskId: "task-1", requestedBy: "u1", openPullRequest: true });
+      expect(sent.at(-1)).toContain("Created publish approval");
       db.close();
     } finally {
       removeTempDir(root);

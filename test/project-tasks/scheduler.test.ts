@@ -36,6 +36,15 @@ function schedulerWorktrees(
     prepareIntegration: (params: { taskId: string }) => { worktreePath: string; branchName: string };
     mergeBranch: (params: { branchName: string }) => { ok: boolean; output: string };
     diffStat: () => string;
+    publishBranch: (params: {
+      repoRoot: string;
+      worktreePath: string;
+      branchName: string;
+      baseRef: string;
+      title: string;
+      body: string;
+      openPullRequest?: boolean;
+    }) => { pushOutput: string; pullRequestUrl?: string; pullRequestOutput?: string };
   }> = {},
 ) {
   return {
@@ -51,6 +60,7 @@ function schedulerWorktrees(
     }),
     mergeBranch: () => ({ ok: true, output: "" }),
     diffStat: () => " README.md | 1 +",
+    publishBranch: () => ({ pushOutput: "pushed" }),
     ...overrides,
   };
 }
@@ -900,6 +910,138 @@ describe("ProjectTaskScheduler", () => {
       expect(reports).toHaveLength(1);
       expect(reports[0]).toContain("Project completed");
       expect(reports[0]).toContain(reviewText);
+      expect(reports[0]).toContain(`/project publish ${task.taskId} [pr]`);
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("creates publish approvals only after review completion", () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 1_000;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "completed",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const runningTask = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "running",
+        originalPrompt: "prompt",
+        status: "running",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const integrationBranch = `mottbot/${task.taskId}/integration`;
+      store.updateTask(task.taskId, {
+        finalBranch: integrationBranch,
+        integrationWorktreePath: path.join(root, "integration"),
+      });
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        schedulerWorktrees(root) as never,
+      );
+
+      expect(scheduler.requestPublishApproval({ taskId: runningTask.taskId }).ok).toBe(false);
+      const result = scheduler.requestPublishApproval({
+        taskId: task.taskId,
+        requestedBy: "operator",
+        openPullRequest: true,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.approvalId).toBeTruthy();
+      const approval = store.getApproval(result.approvalId!);
+      expect(approval?.kind).toBe("push");
+      expect(approval?.requestedBy).toBe("operator");
+      expect(JSON.parse(approval!.requestJson)).toEqual({ openPullRequest: true });
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
+  it("publishes approved branches and records pull request output", () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 1_100;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "completed",
+        maxParallelWorkers: 2,
+        maxAttemptsPerSubtask: 1,
+      });
+      const integrationBranch = `mottbot/${task.taskId}/integration`;
+      const integrationWorktree = path.join(root, "integration");
+      store.updateTask(task.taskId, {
+        finalBranch: integrationBranch,
+        integrationWorktreePath: integrationWorktree,
+        finalSummary: "review complete",
+      });
+      const approval = store.createApproval({
+        taskId: task.taskId,
+        kind: "push",
+        requestedBy: "operator",
+        requestJson: JSON.stringify({ openPullRequest: true }),
+      });
+      const published: Array<{ branchName: string; openPullRequest?: boolean; baseRef: string; title: string }> = [];
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = schedulerWorktrees(root, {
+        publishBranch: ({ branchName, openPullRequest, baseRef, title }) => {
+          published.push({ branchName, openPullRequest, baseRef, title });
+          return { pushOutput: "pushed", pullRequestUrl: "https://github.com/example/repo/pull/123" };
+        },
+      });
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        fakeWorktrees as never,
+      );
+
+      const result = scheduler.approveApproval(approval.approvalId, "admin");
+
+      expect(result.ok).toBe(true);
+      expect(published).toEqual([
+        { branchName: integrationBranch, openPullRequest: true, baseRef: "main", title: "task" },
+      ]);
+      expect(store.getApproval(approval.approvalId)?.status).toBe("approved");
+      const updatedTask = store.getTask(task.taskId);
+      expect(updatedTask?.finalSummary).toContain(`Pushed branch: ${integrationBranch}`);
+      expect(updatedTask?.finalSummary).toContain("https://github.com/example/repo/pull/123");
+      expect(updatedTask?.lastError).toBeUndefined();
       db.close();
     } finally {
       removeTempDir(root);

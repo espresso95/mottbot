@@ -39,12 +39,18 @@ describe("ProjectTaskStore", () => {
         taskId: task.taskId,
         requestJson: "{}",
       });
+      const publishApproval = store.createApproval({
+        taskId: task.taskId,
+        kind: "push",
+        requestJson: '{"openPullRequest":true}',
+      });
 
       expect(store.getTask(task.taskId)?.status).toBe("awaiting_approval");
       expect(store.getTask(task.taskId)?.planJson).toContain("step-1");
       expect(store.listReadySubtasks(task.taskId)).toHaveLength(1);
       expect(store.getSubtask(subtask.subtaskId)?.dependsOnSubtaskIds).toEqual(["dep-1"]);
       expect(store.getApproval(approval.approvalId)?.status).toBe("pending");
+      expect(store.getApproval(publishApproval.approvalId)?.kind).toBe("push");
 
       store.updateTask(task.taskId, { status: "queued" });
       store.updateSubtask(subtask.subtaskId, { status: "running" });

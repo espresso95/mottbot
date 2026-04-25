@@ -23,6 +23,15 @@ export type ProjectSubtaskStatus =
 
 export type CodexCliRunStatus = "starting" | "streaming" | "exited" | "failed" | "cancelled" | "timed_out";
 
+export type ProjectApprovalKind =
+  | "start_project"
+  | "start_worker"
+  | "merge"
+  | "push"
+  | "deploy"
+  | "destructive_git"
+  | "dangerous_sandbox";
+
 export type ProjectTask = {
   taskId: string;
   chatId: string;
@@ -91,7 +100,7 @@ export type CodexCliRun = {
 export type ProjectApproval = {
   approvalId: string;
   taskId: string;
-  kind: "start_project";
+  kind: ProjectApprovalKind;
   status: "pending" | "approved" | "rejected" | "expired";
   requestedBy?: string;
   decidedBy?: string;

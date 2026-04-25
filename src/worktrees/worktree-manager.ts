@@ -35,6 +35,12 @@ export type MergeResult = {
   output: string;
 };
 
+export type PublishBranchResult = {
+  pushOutput: string;
+  pullRequestUrl?: string;
+  pullRequestOutput?: string;
+};
+
 function normalizeDisplayPath(value: string): string {
   return value.split(path.sep).join("/");
 }
@@ -81,6 +87,10 @@ function sanitizeBranchPart(value: string): string {
 
 function shellGit(cwd: string, args: string[]): string {
   return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim();
+}
+
+function shellCommand(cwd: string, command: string, args: string[]): string {
+  return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
 export class WorktreeManager {
@@ -159,6 +169,48 @@ export class WorktreeManager {
     } catch {
       return "";
     }
+  }
+
+  publishBranch(params: {
+    repoRoot: string;
+    worktreePath: string;
+    branchName: string;
+    remoteName?: string;
+    openPullRequest?: boolean;
+    baseRef: string;
+    title: string;
+    body: string;
+  }): PublishBranchResult {
+    this.resolveApprovedRepoRoot(params.repoRoot);
+    const worktreePath = path.resolve(params.worktreePath);
+    if (!isInside(this.worktreeRoot, worktreePath) || !fs.existsSync(worktreePath)) {
+      throw new Error("Integration worktree is missing or outside the project worktree root.");
+    }
+    const remoteName = params.remoteName ?? "origin";
+    const pushOutput = shellGit(worktreePath, ["push", "-u", remoteName, `${params.branchName}:${params.branchName}`]);
+    if (!params.openPullRequest) {
+      return { pushOutput };
+    }
+    const pullRequestOutput = shellCommand(worktreePath, "gh", [
+      "pr",
+      "create",
+      "--base",
+      params.baseRef,
+      "--head",
+      params.branchName,
+      "--title",
+      params.title,
+      "--body",
+      params.body,
+    ]);
+    const pullRequestUrl = pullRequestOutput
+      .split(/\s+/)
+      .find((entry) => /^https:\/\/github\.com\/\S+\/pull\/\d+$/.test(entry));
+    return {
+      pushOutput,
+      ...(pullRequestOutput ? { pullRequestOutput } : {}),
+      ...(pullRequestUrl ? { pullRequestUrl } : {}),
+    };
   }
 
   cleanupSubtask(params: {
