@@ -51,8 +51,11 @@ describe("live validation suite helpers", () => {
       MOTTBOT_LIVE_BOT_USERNAME: "@StartupMottBot",
       MOTTBOT_LIVE_VALIDATION_DRY_RUN: "true",
       MOTTBOT_LIVE_VALIDATION_GROUP_TARGET: "Test Group",
+      MOTTBOT_LIVE_VALIDATION_GROUP_UNMENTIONED_MESSAGE: "unmentioned smoke",
+      MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS: "7000",
       MOTTBOT_LIVE_VALIDATION_FILE_PATHS: "/tmp/a.txt, /tmp/b.png",
       MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT: "true",
+      MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS: "fixture-token",
     });
 
     expect(plan.dryRun).toBe(true);
@@ -64,6 +67,7 @@ describe("live validation suite helpers", () => {
       "usage",
       "reply",
       "group_mention",
+      "group_unmentioned",
       "file",
       "file",
     ]);
@@ -71,9 +75,16 @@ describe("live validation suite helpers", () => {
       MOTTBOT_USER_SMOKE_TARGET: "Test Group",
       MOTTBOT_USER_SMOKE_MESSAGE: "@StartupMottBot run a short live validation health reply.",
     });
-    expect(plan.scenarios.find((scenario) => scenario.kind === "file")?.env).toMatchObject({
+    expect(plan.scenarios.find((scenario) => scenario.kind === "group_unmentioned")?.env).toMatchObject({
+      MOTTBOT_USER_SMOKE_TARGET: "Test Group",
+      MOTTBOT_USER_SMOKE_MESSAGE: "unmentioned smoke",
+      MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
+      MOTTBOT_USER_SMOKE_TIMEOUT_MS: "7000",
+    });
+    expect(plan.scenarios.filter((scenario) => scenario.kind === "file")[0]?.env).toMatchObject({
       MOTTBOT_USER_SMOKE_FILE_PATH: "/tmp/a.txt",
       MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true",
+      MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS: "fixture-token",
     });
   });
 

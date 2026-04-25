@@ -42,7 +42,7 @@ Telegram → SessionQueue → RunOrchestrator → CodexTransport → TelegramOut
 Project Mode adds a sibling path:
 
 ```text
-Telegram → ProjectCommandRouter → ProjectTaskScheduler → CodexCliRunner(s)
+Telegram → ProjectCommandRouter → ProjectTaskScheduler → CodexCliRunner → CodexCliService
 ```
 
 High-level Project Mode internals:
@@ -131,6 +131,8 @@ Design requirements:
 - stream bounded stdout/stderr to artifact logs
 - track pid/exit/signal and timeout outcomes
 - support cancellation and restart reconciliation
+
+The reusable `CodexCliService` owns the actual process spawning, artifact paths, stdout/stderr logs, JSONL parsing, and cancellation. Project Mode uses it through `CodexCliRunner`, which adapts those callbacks into durable SQLite `codex_cli_runs` and `codex_cli_events` rows. The same service also backs the direct `mottbot_codex_job_*` tool handlers for approved, process-local Codex jobs.
 
 ## Worktree and branch strategy
 

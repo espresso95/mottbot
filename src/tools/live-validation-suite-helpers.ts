@@ -9,6 +9,7 @@ export type LiveValidationScenarioKind =
   | "usage"
   | "reply"
   | "group_mention"
+  | "group_unmentioned"
   | "file";
 
 export type LiveValidationScenario = {
@@ -30,6 +31,8 @@ const DEFAULT_BOT_USERNAME = "StartupMottBot";
 const DEFAULT_PRIVATE_MESSAGE = "Use your health snapshot tool and reply with one concise status sentence.";
 const DEFAULT_REPLY_MESSAGE = "Reply with one short acknowledgement for live validation.";
 const DEFAULT_FILE_MESSAGE = "Summarize this live validation attachment in one sentence.";
+const DEFAULT_GROUP_UNMENTIONED_MESSAGE = "Live validation unmentioned group message; the bot should ignore this.";
+const DEFAULT_NO_REPLY_TIMEOUT_MS = "15000";
 
 function splitList(value: string | undefined): string[] {
   return (value ?? "")
@@ -115,7 +118,9 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
   const includeUserSmoke = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_INCLUDE_USER_SMOKE", true);
   const userScenarioRequested =
     !selected ||
-    ["private", "health", "usage", "reply", "group_mention", "file", "files"].some((kind) => selected.has(kind));
+    ["private", "health", "usage", "reply", "group_mention", "group_unmentioned", "file", "files"].some((kind) =>
+      selected.has(kind),
+    );
   if (!includeUserSmoke) {
     skipped.push("user-account smoke scenarios disabled by MOTTBOT_LIVE_VALIDATION_INCLUDE_USER_SMOKE=false.");
     return { enabled, dryRun, scenarios, skipped, issues };
@@ -216,6 +221,28 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
   } else if (!groupTarget && isSelected(selected, "group_mention")) {
     skipped.push("group_mention requires MOTTBOT_LIVE_VALIDATION_GROUP_TARGET.");
   }
+  if (groupTarget && isSelected(selected, "group_unmentioned")) {
+    scenarios.push(
+      scenario({
+        kind: "group_unmentioned",
+        name: "Group unmentioned ignore check",
+        script: "smoke:telegram-user",
+        env: {
+          ...base,
+          MOTTBOT_USER_SMOKE_TARGET: groupTarget,
+          MOTTBOT_USER_SMOKE_MESSAGE:
+            env.MOTTBOT_LIVE_VALIDATION_GROUP_UNMENTIONED_MESSAGE?.trim() || DEFAULT_GROUP_UNMENTIONED_MESSAGE,
+          MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
+          MOTTBOT_USER_SMOKE_TIMEOUT_MS:
+            env.MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS?.trim() ||
+            env.MOTTBOT_USER_SMOKE_TIMEOUT_MS?.trim() ||
+            DEFAULT_NO_REPLY_TIMEOUT_MS,
+        },
+      }),
+    );
+  } else if (!groupTarget && isSelected(selected, "group_unmentioned")) {
+    skipped.push("group_unmentioned requires MOTTBOT_LIVE_VALIDATION_GROUP_TARGET.");
+  }
 
   const filePaths = splitList(env.MOTTBOT_LIVE_VALIDATION_FILE_PATHS);
   if (filePaths.length > 0 && isSelected(selected, "file")) {
@@ -230,6 +257,12 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
             MOTTBOT_USER_SMOKE_TARGET: env.MOTTBOT_LIVE_VALIDATION_FILE_TARGET?.trim() || privateTarget,
             MOTTBOT_USER_SMOKE_FILE_PATH: filePath,
             MOTTBOT_USER_SMOKE_MESSAGE: env.MOTTBOT_LIVE_VALIDATION_FILE_MESSAGE?.trim() || DEFAULT_FILE_MESSAGE,
+            ...(env.MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS?.trim()
+              ? {
+                  MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS:
+                    env.MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS.trim(),
+                }
+              : {}),
             ...(parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT", false)
               ? { MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true" }
               : {}),

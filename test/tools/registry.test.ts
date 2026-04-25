@@ -70,6 +70,8 @@ describe("ToolRegistry", () => {
       "mottbot_google_drive_search",
       "mottbot_google_drive_get_file",
       "mottbot_local_doc_read",
+      "mottbot_codex_job_status",
+      "mottbot_codex_job_tail",
     ]);
   });
 
@@ -146,6 +148,8 @@ describe("ToolRegistry", () => {
         "mottbot_local_doc_append",
         "mottbot_local_doc_replace",
         "mottbot_local_command_run",
+        "mottbot_codex_job_start",
+        "mottbot_codex_job_cancel",
         "mottbot_mcp_call_tool",
         "mottbot_github_issue_create",
         "mottbot_github_issue_comment",

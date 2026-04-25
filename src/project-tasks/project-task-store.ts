@@ -428,6 +428,7 @@ export class ProjectTaskStore {
   }
 
   createCliRun(input: {
+    cliRunId?: string;
     taskId: string;
     subtaskId?: string;
     commandJson: string;
@@ -439,7 +440,7 @@ export class ProjectTaskStore {
   }): CodexCliRun {
     const now = this.clock.now();
     const run: CodexCliRun = {
-      cliRunId: createId(),
+      cliRunId: input.cliRunId ?? createId(),
       taskId: input.taskId,
       ...(input.subtaskId ? { subtaskId: input.subtaskId } : {}),
       commandJson: input.commandJson,

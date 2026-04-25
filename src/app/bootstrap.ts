@@ -42,6 +42,7 @@ import { createTelegramSendToolHandlers } from "../tools/telegram-send-handlers.
 import { createRepositoryToolHandlers } from "../tools/repository-handlers.js";
 import { createLocalWriteToolHandlers } from "../tools/local-write-handlers.js";
 import { createLocalExecToolHandlers } from "../tools/local-exec-handlers.js";
+import { createCodexCliToolHandlers } from "../tools/codex-cli-handlers.js";
 import { createGithubToolHandlers } from "../tools/github-handlers.js";
 import { createMcpToolHandlers } from "../tools/mcp-handlers.js";
 import { GithubCliReadService } from "../tools/github-read.js";
@@ -169,6 +170,7 @@ export async function bootstrapApplication() {
       ...createRepositoryToolHandlers(config.tools.repository),
       ...createLocalWriteToolHandlers(config.tools.localWrite),
       ...createLocalExecToolHandlers(config.tools.localExec),
+      ...createCodexCliToolHandlers(config, systemClock),
       ...createGithubToolHandlers(github),
       ...createMicrosoftTodoToolHandlers(microsoftTodo),
       ...createGoogleDriveToolHandlers(googleDrive),

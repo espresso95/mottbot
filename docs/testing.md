@@ -117,7 +117,7 @@ For repeatable live validation, use:
 pnpm smoke:suite
 ```
 
-In dry-run mode it prints the planned preflight, private conversation, command, reply, group, and attachment checks without sending Telegram messages.
+In dry-run mode it prints the planned preflight, private conversation, command, reply, group mention, group non-mention, and attachment checks without sending Telegram messages.
 
 For local dashboard validation, use:
 

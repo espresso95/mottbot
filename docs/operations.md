@@ -351,6 +351,8 @@ Current side-effecting tools:
 - `mottbot_local_doc_append`: appends plain text to an existing `.md` or `.txt` document under an approved local-write root
 - `mottbot_local_doc_replace`: replaces an existing `.md` or `.txt` document only when the supplied SHA-256 matches the current file
 - `mottbot_local_command_run`: runs one configured local command in an approved workspace root
+- `mottbot_codex_job_start`: starts a `codex exec --json` job in an approved project repository using the Project Mode Codex CLI settings
+- `mottbot_codex_job_cancel`: cancels a running Codex CLI job started by this process
 - `mottbot_mcp_call_tool`: calls one allowlisted tool on one configured MCP stdio server
 - `mottbot_github_issue_create`: creates a GitHub issue through `gh`
 - `mottbot_github_issue_comment`: comments on a GitHub issue through `gh`
@@ -382,6 +384,14 @@ MOTTBOT_LOCAL_EXEC_MAX_OUTPUT_BYTES=40000
 ```
 
 Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve commands. Commands run without shell expansion, with ignored stdin, bounded stdout/stderr, timeout enforcement, a minimal environment, and a working directory under `MOTTBOT_LOCAL_EXEC_ROOTS`. Shells and privilege-changing commands are denied even if they appear in the allowlist.
+
+Codex CLI job tools use Project Mode configuration:
+
+- `projectTasks.repoRoots` controls which git checkout roots can run Codex jobs
+- `projectTasks.artifactRoot` stores stdout, stderr, JSONL events, and final messages
+- `projectTasks.codex.command`, `coderProfile`, and `defaultTimeoutMs` control the CLI command, default profile, and timeout cap
+- `mottbot_codex_job_status` and `mottbot_codex_job_tail` are read-only admin tools
+- direct tool job state is kept in memory for the current process; durable `/project` tasks still persist run state in SQLite
 
 MCP stdio tool calls are scoped by:
 

@@ -28,7 +28,8 @@ export type TsdocAuditResult = {
   undocumented: TsdocAuditSymbol[];
 };
 
-type TsdocAuditCliOptions = {
+/** Parsed command-line options for the TSDoc audit CLI. */
+export type TsdocAuditCliOptions = {
   sourceRoot: string;
   json: boolean;
   limit: number | undefined;
@@ -207,7 +208,8 @@ function readNumericOption(flag: string, value: string | undefined): number {
   return parsed;
 }
 
-function parseCliOptions(argv: string[]): TsdocAuditCliOptions {
+/** Parses command-line flags accepted by the TSDoc audit CLI. */
+export function parseTsdocAuditCliOptions(argv: string[]): TsdocAuditCliOptions {
   const options: TsdocAuditCliOptions = {
     sourceRoot: "src",
     json: false,
@@ -269,8 +271,9 @@ function parseCliOptions(argv: string[]): TsdocAuditCliOptions {
   return options;
 }
 
-function runCli(argv: string[]): number {
-  const options = parseCliOptions(argv);
+/** Runs the TSDoc audit CLI and returns the intended process exit code. */
+export function runTsdocAuditCli(argv: string[]): number {
+  const options = parseTsdocAuditCliOptions(argv);
   const result = createTsdocAuditResult(options.sourceRoot);
   if (options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -282,7 +285,7 @@ function runCli(argv: string[]): number {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
-    process.exitCode = runCli(process.argv.slice(2));
+    process.exitCode = runTsdocAuditCli(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : "TSDoc audit failed."}\n`);
     process.exitCode = 1;

@@ -8,6 +8,7 @@ import { LogLevel } from "telegram/extensions/Logger.js";
 import { loadConfig } from "../app/config.js";
 import {
   buildTelegramUserSmokeConfig,
+  evaluateTelegramUserSmokeStatus,
   isTransientBotStatus,
   type TelegramUserSmokeConfig,
 } from "./telegram-user-smoke-helpers.js";
@@ -249,9 +250,17 @@ async function main(): Promise<void> {
           stableReplyMs: liveConfig.stableReplyMs,
         })
       : {};
+    const expectedSubstring = liveConfig.expectReplyContains;
+    const outcome = evaluateTelegramUserSmokeStatus({
+      waitForReply: liveConfig.waitForReply,
+      expectReply: liveConfig.expectReply,
+      replyText: response.reply?.text,
+      hasLastIncoming: Boolean(response.lastIncoming),
+      ...(expectedSubstring ? { expectReplyContains: expectedSubstring } : {}),
+    });
 
     printJson({
-      status: response.reply ? "passed" : liveConfig.waitForReply ? "timeout" : "sent",
+      status: outcome.status,
       botUsername: liveConfig.botUsername,
       target: liveConfig.target,
       sentMessageId: sent.id,
@@ -260,13 +269,17 @@ async function main(): Promise<void> {
       ...(response.reply ? { reply: response.reply } : {}),
       ...(response.lastIncoming && !response.reply ? { lastIncoming: response.lastIncoming } : {}),
       waitForReply: liveConfig.waitForReply,
+      expectReply: liveConfig.expectReply,
+      ...(expectedSubstring
+        ? { expectReplyContains: expectedSubstring, replyMatchedExpectation: outcome.replyMatchedExpectation }
+        : {}),
       timeoutMs: liveConfig.timeoutMs,
       stableReplyMs: liveConfig.stableReplyMs,
       sessionPath: path.resolve(liveConfig.sessionPath),
       sqlitePath: appConfig.storage.sqlitePath,
     });
 
-    if (liveConfig.waitForReply && !response.reply) {
+    if (liveConfig.waitForReply && outcome.status !== "passed") {
       process.exitCode = 1;
     }
   } finally {

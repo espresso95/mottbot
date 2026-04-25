@@ -747,9 +747,127 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     enabled: true,
     requiresAdmin: true,
   },
+  {
+    name: "mottbot_codex_job_status",
+    description: "Read status and artifact paths for a Codex CLI job started by this Mottbot process.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Codex CLI job id returned by mottbot_codex_job_start.",
+        },
+      },
+      required: ["jobId"],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 32_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_codex_job_tail",
+    description: "Read recent JSONL events for a Codex CLI job started by this Mottbot process.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Codex CLI job id returned by mottbot_codex_job_start.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum recent events to return. Defaults to 20.",
+        },
+      },
+      required: ["jobId"],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 96_000,
+    sideEffect: "read_only",
+    enabled: true,
+    requiresAdmin: true,
+  },
 ] as const;
 
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+  {
+    name: "mottbot_codex_job_start",
+    description: "Start a non-interactive Codex CLI job in an approved project repository after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved project repository root label or path. Required only when multiple roots are configured.",
+        },
+        cwd: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "Optional approved-root-relative working directory. Defaults to the selected repository root.",
+        },
+        prompt: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "Prompt passed to codex exec.",
+        },
+        profile: {
+          type: "string",
+          minLength: 1,
+          maxLength: 100,
+          description: "Optional Codex CLI profile. Defaults to projectTasks.codex.coderProfile.",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 30000,
+          maximum: 86400000,
+          description: "Optional timeout capped by projectTasks.codex.defaultTimeoutMs.",
+        },
+      },
+      required: ["prompt"],
+      additionalProperties: false,
+    },
+    timeoutMs: 5_000,
+    maxOutputBytes: 32_000,
+    sideEffect: "local_exec",
+    enabled: false,
+    requiresAdmin: true,
+  },
+  {
+    name: "mottbot_codex_job_cancel",
+    description: "Cancel a running Codex CLI job started by this Mottbot process after explicit operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Codex CLI job id returned by mottbot_codex_job_start.",
+        },
+      },
+      required: ["jobId"],
+      additionalProperties: false,
+    },
+    timeoutMs: 2_000,
+    maxOutputBytes: 32_000,
+    sideEffect: "process_control",
+    enabled: false,
+    requiresAdmin: true,
+  },
   {
     name: "mottbot_local_note_create",
     description:

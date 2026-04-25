@@ -214,6 +214,13 @@ Local command execution settings:
 - commands run without shell expansion, with ignored stdin and a minimal environment
 - shells and privilege-changing commands are denied even if accidentally configured
 
+Codex CLI job tools:
+
+- `mottbot_codex_job_start` and `mottbot_codex_job_cancel` are side-effecting admin tools and require one-shot approval
+- `mottbot_codex_job_status` and `mottbot_codex_job_tail` are read-only admin tools
+- jobs use `projectTasks.repoRoots`, `projectTasks.artifactRoot`, and `projectTasks.codex` settings
+- direct tool job state is kept in memory for the current process; `/project` tasks remain durable in SQLite
+
 MCP bridge settings:
 
 - `MOTTBOT_MCP_SERVERS_JSON` is a JSON array of configured stdio MCP servers
@@ -318,7 +325,7 @@ Run the suite for real:
 MOTTBOT_LIVE_VALIDATION_ENABLED=true corepack pnpm smoke:suite
 ```
 
-When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are configured, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, and optional attachment fixture checks on top of preflight.
+When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are configured, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, optional group non-mention, and optional attachment fixture checks on top of preflight.
 
 Optional private-chat smoke without manually typing in Telegram:
 
@@ -338,6 +345,8 @@ For group, reply-gating, or attachment smoke checks, add:
 MOTTBOT_USER_SMOKE_TARGET=<group-or-bot-entity>
 MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true
 MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-file
+MOTTBOT_USER_SMOKE_EXPECT_REPLY=false
+MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS=<unique-fixture-phrase>
 ```
 
 Recommended file fixtures for live validation:

@@ -7,6 +7,7 @@ import {
 } from "../../src/shared/run-status.js";
 import {
   buildTelegramUserSmokeConfig,
+  evaluateTelegramUserSmokeStatus,
   isTransientBotStatus,
   normalizeBotUsername,
   parseBooleanEnv,
@@ -39,6 +40,8 @@ describe("telegram user smoke helpers", () => {
           TELEGRAM_API_HASH: "hash",
           MOTTBOT_USER_SMOKE_MESSAGE: "hello",
           MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY: "false",
+          MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
+          MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS: "received",
         },
       }),
     ).toEqual({
@@ -54,7 +57,45 @@ describe("telegram user smoke helpers", () => {
       pollIntervalMs: 2_000,
       stableReplyMs: 4_000,
       waitForReply: false,
+      expectReply: false,
+      expectReplyContains: "received",
     });
+  });
+
+  it("evaluates expected reply and no-reply outcomes", () => {
+    expect(
+      evaluateTelegramUserSmokeStatus({
+        waitForReply: true,
+        expectReply: true,
+        replyText: "attachment includes fixture-token",
+        hasLastIncoming: true,
+        expectReplyContains: "fixture-token",
+      }),
+    ).toEqual({ status: "passed", replyMatchedExpectation: true });
+    expect(
+      evaluateTelegramUserSmokeStatus({
+        waitForReply: true,
+        expectReply: true,
+        replyText: "different text",
+        hasLastIncoming: true,
+        expectReplyContains: "fixture-token",
+      }),
+    ).toEqual({ status: "assertion_failed", replyMatchedExpectation: false });
+    expect(
+      evaluateTelegramUserSmokeStatus({
+        waitForReply: true,
+        expectReply: false,
+        hasLastIncoming: false,
+      }),
+    ).toEqual({ status: "passed" });
+    expect(
+      evaluateTelegramUserSmokeStatus({
+        waitForReply: true,
+        expectReply: false,
+        replyText: "unexpected bot response",
+        hasLastIncoming: true,
+      }),
+    ).toEqual({ status: "unexpected_reply" });
   });
 
   it("identifies transient bot status messages", () => {

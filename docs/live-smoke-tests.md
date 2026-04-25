@@ -69,15 +69,18 @@ The suite always includes `smoke:preflight`. When `TELEGRAM_API_ID`, `TELEGRAM_A
 - `/usage`
 - reply-to-latest-bot-message conversation
 - optional group mention conversation
+- optional group unmentioned ignore check
 - optional attachment fixture uploads
 
 Useful controls:
 
 ```bash
-export MOTTBOT_LIVE_VALIDATION_SCENARIOS=preflight,private,health,usage,reply,group_mention,files
+export MOTTBOT_LIVE_VALIDATION_SCENARIOS=preflight,private,health,usage,reply,group_mention,group_unmentioned,files
 export MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE=true
 export MOTTBOT_LIVE_VALIDATION_GROUP_TARGET=<group-or-bot-entity>
+export MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS=15000
 export MOTTBOT_LIVE_VALIDATION_FILE_PATHS=/absolute/path/a.txt,/absolute/path/b.png
+export MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS=<unique-fixture-phrase>
 export MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT=false
 ```
 
@@ -239,6 +242,8 @@ export MOTTBOT_USER_SMOKE_TARGET=StartupMottBot
 export MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=false
 export MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-image.png
 export MOTTBOT_USER_SMOKE_FORCE_DOCUMENT=false
+export MOTTBOT_USER_SMOKE_EXPECT_REPLY=true
+export MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS="unique expected reply text"
 export MOTTBOT_USER_SMOKE_TIMEOUT_MS=120000
 export MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS=2000
 export MOTTBOT_USER_SMOKE_STABLE_REPLY_MS=4000
@@ -252,8 +257,9 @@ The same harness can drive several previously manual private-chat and group chec
 
 - private chat: leave `MOTTBOT_USER_SMOKE_TARGET` unset or set it to the bot username
 - group mention: set `MOTTBOT_USER_SMOKE_TARGET` to the group entity and include `@<bot username>` in `MOTTBOT_USER_SMOKE_MESSAGE`
+- group ignore check: set `MOTTBOT_USER_SMOKE_TARGET` to the group entity, omit the bot mention, set `MOTTBOT_USER_SMOKE_EXPECT_REPLY=false`, and use a short timeout
 - reply-to-bot gating: set `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true`
-- file upload: set `MOTTBOT_USER_SMOKE_FILE_PATH` to a local image or document fixture
+- file upload: set `MOTTBOT_USER_SMOKE_FILE_PATH` to a local image or document fixture; set `MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS` when the fixture contains a unique phrase the bot should mention
 
 Webhook delivery still requires a public HTTPS endpoint and Telegram webhook registration. The local harness can validate the conversation once webhook delivery is configured, but it cannot create the public endpoint.
 

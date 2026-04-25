@@ -14,9 +14,13 @@ export type TelegramUserSmokeConfig = {
   pollIntervalMs: number;
   stableReplyMs: number;
   waitForReply: boolean;
+  expectReply: boolean;
+  expectReplyContains?: string;
 };
 
 export type TelegramUserSmokeEnv = Record<string, string | undefined>;
+
+export type TelegramUserSmokeStatus = "sent" | "passed" | "assertion_failed" | "timeout" | "unexpected_reply";
 
 const DEFAULT_MESSAGE = "Use your health snapshot tool and tell me the current status.";
 const DEFAULT_SESSION_PATH = "./data/telegram-user-smoke.session";
@@ -96,6 +100,38 @@ export function buildTelegramUserSmokeConfig(params: {
     ),
     stableReplyMs: parsePositiveIntegerEnv(params.env, "MOTTBOT_USER_SMOKE_STABLE_REPLY_MS", DEFAULT_STABLE_REPLY_MS),
     waitForReply: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY", true),
+    expectReply: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_EXPECT_REPLY", true),
+    ...(params.env.MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS?.trim()
+      ? { expectReplyContains: params.env.MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS.trim() }
+      : {}),
+  };
+}
+
+export function evaluateTelegramUserSmokeStatus(params: {
+  waitForReply: boolean;
+  expectReply: boolean;
+  replyText?: string;
+  hasLastIncoming: boolean;
+  expectReplyContains?: string;
+}): { status: TelegramUserSmokeStatus; replyMatchedExpectation?: boolean } {
+  const hasReply = typeof params.replyText === "string";
+  const replyMatchedExpectation = params.expectReplyContains
+    ? hasReply && params.replyText!.includes(params.expectReplyContains)
+    : undefined;
+  const status: TelegramUserSmokeStatus = !params.waitForReply
+    ? "sent"
+    : params.expectReply
+      ? hasReply
+        ? replyMatchedExpectation === false
+          ? "assertion_failed"
+          : "passed"
+        : "timeout"
+      : params.hasLastIncoming
+        ? "unexpected_reply"
+        : "passed";
+  return {
+    status,
+    ...(replyMatchedExpectation !== undefined ? { replyMatchedExpectation } : {}),
   };
 }
 
