@@ -3,12 +3,25 @@ import path from "node:path";
 import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
 import type { InboundEvent, TelegramCallbackEvent } from "../telegram/types.js";
-import type { CodexCliRun, ProjectSubtask } from "./project-types.js";
+import type { CodexCliRun, ProjectStatusSnapshot, ProjectTask } from "./project-types.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { ProjectTaskActionResult, ProjectTaskScheduler } from "./project-task-scheduler.js";
 import { buildProjectPlan } from "./project-planner.js";
-import { buildProjectApprovalCallbackData } from "../telegram/callback-data.js";
+import {
+  buildProjectApprovalCallbackData,
+  buildProjectCleanupCallbackData,
+  buildProjectDetailsCallbackData,
+  buildProjectPublishMainCallbackData,
+} from "../telegram/callback-data.js";
 import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
+import {
+  buildProjectTitle,
+  formatProjectDetails,
+  formatProjectStartApproval,
+  formatProjectStarted,
+  formatProjectStatus,
+  projectReferenceMatches,
+} from "./project-message-formatters.js";
 
 const TELEGRAM_TEXT_MAX_CHARS = 4096;
 
@@ -41,17 +54,24 @@ async function sendReply(
   }
 }
 
-function projectApprovalReplyMarkup(approvalId: string, label: string): TelegramInlineKeyboard {
-  return {
-    inline_keyboard: [
-      [
-        {
-          text: label,
-          callback_data: buildProjectApprovalCallbackData(approvalId),
-        },
-      ],
+function projectApprovalReplyMarkup(approvalId: string, label: string, taskId?: string): TelegramInlineKeyboard {
+  const rows: TelegramInlineKeyboard["inline_keyboard"] = [
+    [
+      {
+        text: label,
+        callback_data: buildProjectApprovalCallbackData(approvalId),
+      },
     ],
-  };
+  ];
+  if (taskId) {
+    rows.push([
+      {
+        text: "Details",
+        callback_data: buildProjectDetailsCallbackData(taskId),
+      },
+    ]);
+  }
+  return { inline_keyboard: rows };
 }
 
 async function clearCallbackKeyboard(api: Api, event: TelegramCallbackEvent): Promise<void> {
@@ -83,30 +103,6 @@ async function editCallbackStatus(api: Api, event: TelegramCallbackEvent, status
   await clearCallbackKeyboard(api, event);
 }
 
-function formatRunDetail(run: CodexCliRun | undefined): string {
-  if (!run) {
-    return "";
-  }
-  const detail = [`latest run ${run.status}`];
-  if (run.lastError) {
-    detail.push(run.lastError);
-  } else if (typeof run.exitCode === "number") {
-    detail.push(`exit ${run.exitCode}`);
-  } else if (run.signal) {
-    detail.push(`signal ${run.signal}`);
-  }
-  return `; ${detail.join(": ")}`;
-}
-
-function formatSubtaskLine(subtask: ProjectSubtask, latestRun: CodexCliRun | undefined): string {
-  const deps =
-    subtask.dependsOnSubtaskIds.length > 0
-      ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
-      : "";
-  const error = subtask.lastError ? `; error: ${subtask.lastError}` : "";
-  return `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}${deps}${error}${formatRunDetail(latestRun)}`;
-}
-
 /** Handles Telegram /project commands and delegates task execution to the project scheduler. */
 export class ProjectCommandRouter {
   constructor(
@@ -129,6 +125,10 @@ export class ProjectCommandRouter {
     }
     if (sub === "status") {
       await this.handleStatus(event, rest[0]);
+      return;
+    }
+    if (sub === "details") {
+      await this.handleDetails(event, rest[0]);
       return;
     }
     if (sub === "tail") {
@@ -154,7 +154,7 @@ export class ProjectCommandRouter {
     await sendReply(
       this.api,
       event,
-      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [main|pr] | approve <approval>",
+      "Usage: /project start <repo> <task> | status [task] | details [task] | tail <subtask> | cancel <task> | cleanup <task> | publish <task> [main|pr] | approve <approval>",
     );
   }
 
@@ -184,6 +184,47 @@ export class ProjectCommandRouter {
     await sendReply(this.api, event, result.message);
   }
 
+  async handleDetailsCallback(event: TelegramCallbackEvent, taskId: string): Promise<void> {
+    if (!this.config.projectTasks.enabled) {
+      await sendReply(this.api, event, "Project mode is disabled.");
+      return;
+    }
+    await this.handleDetails(event, taskId);
+  }
+
+  async handleCleanupCallback(event: TelegramCallbackEvent, taskId: string): Promise<void> {
+    if (!this.config.projectTasks.enabled) {
+      await sendReply(this.api, event, "Project mode is disabled.");
+      return;
+    }
+    const task = this.resolveTaskReference(event.chatId, taskId);
+    if (!task) {
+      await sendReply(this.api, event, "Project task is not available in this chat.");
+      return;
+    }
+    const result = this.scheduler.cleanupTask(task.taskId);
+    await sendReply(this.api, event, result.message);
+  }
+
+  async handlePublishMainCallback(event: TelegramCallbackEvent, taskId: string): Promise<void> {
+    if (!this.config.projectTasks.enabled) {
+      await sendReply(this.api, event, "Project mode is disabled.");
+      return;
+    }
+    const task = this.resolveTaskReference(event.chatId, taskId);
+    if (!task) {
+      await sendReply(this.api, event, "Project task is not available in this chat.");
+      return;
+    }
+    const result = this.scheduler.requestPublishApproval({
+      taskId: task.taskId,
+      requestedBy: event.fromUserId,
+      openPullRequest: false,
+      pushToBaseRef: true,
+    });
+    await sendReply(this.api, event, result.message, this.publishApprovalReplyMarkup(result, task.taskId));
+  }
+
   private async handleStart(event: InboundEvent, args: string[]): Promise<void> {
     const [repoArg, ...promptParts] = args;
     const prompt = promptParts.join(" ").trim();
@@ -200,7 +241,7 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Repo path must point to a git checkout.");
       return;
     }
-    const title = prompt.split(/\s+/).slice(0, 8).join(" ");
+    const title = buildProjectTitle(prompt);
     const plan = buildProjectPlan({ prompt, taskTitle: title });
     const requiresApproval = this.config.projectTasks.approvals.requireBeforeProjectStart;
     const task = this.store.createTask({
@@ -249,18 +290,16 @@ export class ProjectCommandRouter {
       await sendReply(
         this.api,
         event,
-        `Created task ${task.taskId}. Awaiting approval ${approval.approvalId}. Run /project approve ${approval.approvalId}`,
-        projectApprovalReplyMarkup(approval.approvalId, "Approve project"),
+        formatProjectStartApproval({ task, approvalId: approval.approvalId, plan }),
+        projectApprovalReplyMarkup(approval.approvalId, "Approve project", task.taskId),
       );
       return;
     }
-    await sendReply(this.api, event, `Started project task ${task.taskId} in ${repoRoot}.`);
+    await sendReply(this.api, event, formatProjectStarted(task), this.projectTaskReplyMarkup(task));
   }
 
   private async handleStatus(event: InboundEvent, taskId?: string): Promise<void> {
-    const targetTask = taskId?.trim()
-      ? this.store.getTask(taskId.trim())
-      : this.store.listTasksByChat(event.chatId, 1)[0];
+    const targetTask = this.resolveTaskForCommand(event.chatId, taskId);
     if (!targetTask) {
       await sendReply(this.api, event, "No project tasks found.");
       return;
@@ -270,36 +309,29 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Task not found.");
       return;
     }
-    const subtaskLines =
-      snapshot.subtasks
-        .map((subtask) => {
-          const latestRun = this.store.getLatestCliRunForSubtask(subtask.subtaskId);
-          return formatSubtaskLine(subtask, latestRun);
-        })
-        .join("\n") || "- none";
     await sendReply(
       this.api,
       event,
-      [
-        `Project: ${snapshot.task.title}`,
-        `Task ID: ${snapshot.task.taskId}`,
-        `Status: ${snapshot.task.status}`,
-        `Repo: ${snapshot.task.repoRoot}`,
-        ...(snapshot.task.finalBranch ? [`Final branch: ${snapshot.task.finalBranch}`] : []),
-        `Active runs: ${snapshot.activeRuns.length}`,
-        "Subtasks:",
-        subtaskLines,
-        ...(snapshot.task.finalDiffStat ? ["Diff stat:", snapshot.task.finalDiffStat] : []),
-        ...(snapshot.task.finalSummary ? ["Summary:", snapshot.task.finalSummary] : []),
-        ...(snapshot.task.status === "completed" && snapshot.task.finalBranch && snapshot.task.integrationWorktreePath
-          ? [`Publish: /project publish ${snapshot.task.taskId} [main|pr]`]
-          : []),
-        ...(snapshot.task.status === "completed" && snapshot.task.integrationWorktreePath
-          ? [`Cleanup: /project cleanup ${snapshot.task.taskId}`]
-          : []),
-        ...(snapshot.task.lastError ? ["Last error:", snapshot.task.lastError] : []),
-      ].join("\n"),
+      formatProjectStatus({ snapshot, latestRuns: this.latestRuns(snapshot) }),
+      this.projectTaskReplyMarkup(snapshot.task),
     );
+  }
+
+  private async handleDetails(
+    event: Pick<InboundEvent | TelegramCallbackEvent, "chatId" | "messageId" | "threadId">,
+    taskId?: string,
+  ): Promise<void> {
+    const targetTask = this.resolveTaskForCommand(event.chatId, taskId);
+    if (!targetTask) {
+      await sendReply(this.api, event, "No project tasks found.");
+      return;
+    }
+    const snapshot = this.store.projectSnapshot(targetTask.taskId);
+    if (!snapshot) {
+      await sendReply(this.api, event, "Task not found.");
+      return;
+    }
+    await sendReply(this.api, event, formatProjectDetails({ snapshot, latestRuns: this.latestRuns(snapshot) }));
   }
 
   private async handleTail(event: InboundEvent, subtaskId?: string): Promise<void> {
@@ -339,7 +371,12 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Usage: /project cancel <task-id>");
       return;
     }
-    const result = this.scheduler.cancelTask(taskId.trim());
+    const task = this.resolveTaskReference(event.chatId, taskId);
+    if (!task) {
+      await sendReply(this.api, event, "Project task is not available in this chat.");
+      return;
+    }
+    const result = this.scheduler.cancelTask(task.taskId);
     await sendReply(this.api, event, result.message);
   }
 
@@ -348,7 +385,12 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Usage: /project cleanup <task-id>");
       return;
     }
-    const result = this.scheduler.cleanupTask(taskId.trim());
+    const task = this.resolveTaskReference(event.chatId, taskId);
+    if (!task) {
+      await sendReply(this.api, event, "Project task is not available in this chat.");
+      return;
+    }
+    const result = this.scheduler.cleanupTask(task.taskId);
     await sendReply(this.api, event, result.message);
   }
 
@@ -363,13 +405,18 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, publishOptions.message);
       return;
     }
+    const task = this.resolveTaskReference(event.chatId, taskId);
+    if (!task) {
+      await sendReply(this.api, event, "Project task is not available in this chat.");
+      return;
+    }
     const result = this.scheduler.requestPublishApproval({
-      taskId: taskId.trim(),
+      taskId: task.taskId,
       requestedBy: event.fromUserId,
       openPullRequest: publishOptions.openPullRequest,
       pushToBaseRef: publishOptions.pushToBaseRef,
     });
-    await sendReply(this.api, event, result.message, this.publishApprovalReplyMarkup(result));
+    await sendReply(this.api, event, result.message, this.publishApprovalReplyMarkup(result, task.taskId));
   }
 
   private parsePublishOptions(
@@ -410,8 +457,61 @@ export class ProjectCommandRouter {
     await sendReply(this.api, event, result.message);
   }
 
-  private publishApprovalReplyMarkup(result: ProjectTaskActionResult): TelegramInlineKeyboard | undefined {
-    return result.approvalId ? projectApprovalReplyMarkup(result.approvalId, "Approve publish") : undefined;
+  private publishApprovalReplyMarkup(
+    result: ProjectTaskActionResult,
+    taskId: string,
+  ): TelegramInlineKeyboard | undefined {
+    return result.approvalId ? projectApprovalReplyMarkup(result.approvalId, "Approve publish", taskId) : undefined;
+  }
+
+  private projectTaskReplyMarkup(task: ProjectTask): TelegramInlineKeyboard {
+    const rows: TelegramInlineKeyboard["inline_keyboard"] = [
+      [
+        {
+          text: "Details",
+          callback_data: buildProjectDetailsCallbackData(task.taskId),
+        },
+      ],
+    ];
+    if (task.status === "completed" && task.finalBranch && task.integrationWorktreePath) {
+      rows.push([
+        {
+          text: "Publish to main",
+          callback_data: buildProjectPublishMainCallbackData(task.taskId),
+        },
+      ]);
+    }
+    if (task.integrationWorktreePath && ["completed", "failed", "cancelled"].includes(task.status)) {
+      rows.push([
+        {
+          text: "Clean up",
+          callback_data: buildProjectCleanupCallbackData(task.taskId),
+        },
+      ]);
+    }
+    return { inline_keyboard: rows };
+  }
+
+  private latestRuns(snapshot: ProjectStatusSnapshot): Map<string, CodexCliRun | undefined> {
+    return new Map(
+      snapshot.subtasks.map((subtask) => [subtask.subtaskId, this.store.getLatestCliRunForSubtask(subtask.subtaskId)]),
+    );
+  }
+
+  private resolveTaskForCommand(chatId: string, taskId?: string): ProjectTask | undefined {
+    return taskId?.trim() ? this.resolveTaskReference(chatId, taskId) : this.store.listTasksByChat(chatId, 1)[0];
+  }
+
+  private resolveTaskReference(chatId: string, raw: string): ProjectTask | undefined {
+    const reference = raw.trim();
+    if (!reference) {
+      return undefined;
+    }
+    const exact = this.store.getTask(reference);
+    if (exact) {
+      return exact.chatId === chatId ? exact : undefined;
+    }
+    return this.store.listTasksByChat(chatId, 50).find((task) => projectReferenceMatches(task.taskId, reference));
   }
 
   private resolveRepoRoot(raw: string): string | undefined {

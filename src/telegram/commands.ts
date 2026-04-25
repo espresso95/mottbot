@@ -424,7 +424,12 @@ export class TelegramCommandRouter {
       await handleToolDenyCallback(dependencies, action.auditId);
       return true;
     }
-    if (action.type === "project_approve") {
+    if (
+      action.type === "project_approve" ||
+      action.type === "project_details" ||
+      action.type === "project_cleanup" ||
+      action.type === "project_publish_main"
+    ) {
       if (await this.rejectUnauthorizedCallback(event, "project")) {
         return true;
       }
@@ -433,8 +438,23 @@ export class TelegramCommandRouter {
         await sendReply(this.api, event, "Project mode is not available.");
         return true;
       }
-      await this.answerCallback(event, "Processing project approval.");
-      await this.projects.handleApprovalCallback(event, action.approvalId);
+      if (action.type === "project_approve") {
+        await this.answerCallback(event, "Processing project approval.");
+        await this.projects.handleApprovalCallback(event, action.approvalId);
+        return true;
+      }
+      if (action.type === "project_details") {
+        await this.answerCallback(event, "Showing project details.");
+        await this.projects.handleDetailsCallback(event, action.taskId);
+        return true;
+      }
+      if (action.type === "project_cleanup") {
+        await this.answerCallback(event, "Cleaning up project.");
+        await this.projects.handleCleanupCallback(event, action.taskId);
+        return true;
+      }
+      await this.answerCallback(event, "Preparing project publish approval.");
+      await this.projects.handlePublishMainCallback(event, action.taskId);
       return true;
     }
     if (action.type === "memory_accept" || action.type === "memory_reject" || action.type === "memory_archive") {

@@ -144,6 +144,17 @@ function buildCodexCliArgs(params: {
   ];
 }
 
+function childProcessEnv(): NodeJS.ProcessEnv {
+  const nodeBinDir = path.dirname(process.execPath);
+  const currentPath = process.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin";
+  const pathEntries = currentPath.split(path.delimiter).filter(Boolean);
+  const nextPath = pathEntries.includes(nodeBinDir) ? currentPath : [nodeBinDir, currentPath].join(path.delimiter);
+  return {
+    ...process.env,
+    PATH: nextPath,
+  };
+}
+
 /** Reusable service for preparing, spawning, tracking, and cancelling Codex CLI jobs. */
 export class CodexCliService {
   private readonly active = new Map<string, ActiveProcess>();
@@ -193,6 +204,7 @@ export class CodexCliService {
     const jsonlFd = fs.openSync(job.jsonlLogPath, "a");
     const child = spawn(job.command, job.args, {
       cwd: job.cwd,
+      env: childProcessEnv(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });

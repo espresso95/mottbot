@@ -51,6 +51,36 @@ describe("WorktreeManager", () => {
     }
   });
 
+  it("commits dirty project worktree changes", () => {
+    const root = createTempDir();
+    try {
+      createRepo(root);
+      const manager = new WorktreeManager({
+        repoRoots: [root],
+        worktreeRoot: path.join(root, ".mottbot-worktrees"),
+      });
+      const prepared = manager.prepareSubtask({
+        taskId: "task-1",
+        subtaskId: "worker-1",
+        repoRoot: root,
+        baseRef: "main",
+      });
+      fs.writeFileSync(path.join(prepared.worktreePath, "README.md"), "# test\n\nchanged\n", "utf8");
+
+      const result = manager.commitAllChanges({
+        worktreePath: prepared.worktreePath,
+        message: "Project task-1: worker",
+      });
+
+      expect(result.committed).toBe(true);
+      expect(git(prepared.worktreePath, ["status", "--short"])).toBe("");
+      expect(git(prepared.worktreePath, ["log", "-1", "--pretty=%s"])).toBe("Project task-1: worker");
+      expect(git(prepared.worktreePath, ["show", "HEAD:README.md"])).toContain("changed");
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("rejects repositories outside approved roots", () => {
     const approvedRoot = createTempDir();
     const otherRoot = createTempDir();

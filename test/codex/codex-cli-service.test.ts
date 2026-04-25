@@ -72,6 +72,45 @@ describe("CodexCliService", () => {
     }
   });
 
+  it("adds the current Node binary directory to child PATH", async () => {
+    const root = createTempDir();
+    const previousPath = process.env.PATH;
+    try {
+      process.env.PATH = "/usr/bin:/bin";
+      const cliPath = path.join(root, "fake-codex.js");
+      fs.writeFileSync(
+        cliPath,
+        ["#!/usr/bin/env node", "console.log(JSON.stringify({ type: 'env.path', path: process.env.PATH }));"].join(
+          "\n",
+        ),
+        { mode: 0o755 },
+      );
+      const service = createService(root, { command: cliPath });
+      const prepared = service.prepare({
+        jobId: "job-1",
+        cwd: root,
+        prompt: "test prompt",
+        artifactSegments: ["task-1", "subtask-1"],
+      });
+      const events: CodexCliEventRecord[] = [];
+      const finished = new Promise<CodexCliFinishedPatch>((resolve) => {
+        service.start(prepared, {
+          onEvent: (record) => events.push(record),
+          onFinished: resolve,
+        });
+      });
+
+      const patch = await finished;
+      const event = events[0]?.event as { path?: string } | undefined;
+
+      expect(patch.status).toBe("exited");
+      expect(event?.path?.split(path.delimiter)[0]).toBe(path.dirname(process.execPath));
+    } finally {
+      process.env.PATH = previousPath;
+      removeTempDir(root);
+    }
+  });
+
   it("cancels running jobs", async () => {
     const root = createTempDir();
     try {

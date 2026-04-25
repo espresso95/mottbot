@@ -38,6 +38,12 @@ type MergeResult = {
   output: string;
 };
 
+/** Result from committing dirty project-mode worktree changes. */
+export type CommitChangesResult = {
+  committed: boolean;
+  output: string;
+};
+
 /** Output from pushing a project-mode branch and optionally opening a pull request. */
 type PublishBranchResult = {
   pushOutput: string;
@@ -112,6 +118,13 @@ function assertSafeBranchRef(value: string, label: string): void {
   }
 }
 
+function hasUnmergedChanges(status: string): boolean {
+  return status.split(/\r?\n/).some((line) => {
+    const state = line.slice(0, 2);
+    return state.includes("U") || state === "AA" || state === "DD";
+  });
+}
+
 /** Creates, validates, merges, and cleans project-mode Git worktrees within approved roots. */
 export class WorktreeManager {
   private readonly repoRoots: string[];
@@ -181,6 +194,28 @@ export class WorktreeManager {
         .trim();
       return { ok: false, output };
     }
+  }
+
+  commitAllChanges(params: { worktreePath: string; message: string }): CommitChangesResult {
+    const worktreePath = path.resolve(params.worktreePath);
+    const status = shellGit(worktreePath, ["status", "--porcelain"]);
+    if (!status) {
+      return { committed: false, output: "" };
+    }
+    if (hasUnmergedChanges(status)) {
+      throw new Error("Worktree still has unresolved merge conflicts.");
+    }
+    shellGit(worktreePath, ["add", "--all"]);
+    const output = shellGit(worktreePath, [
+      "-c",
+      "user.name=Mottbot Project Mode",
+      "-c",
+      "user.email=mottbot-project-mode@example.invalid",
+      "commit",
+      "-m",
+      params.message,
+    ]);
+    return { committed: true, output };
   }
 
   diffStat(params: { worktreePath: string; baseRef: string }): string {

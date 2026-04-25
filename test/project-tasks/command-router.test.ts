@@ -128,6 +128,12 @@ describe("ProjectCommandRouter", () => {
                 callback_data: `mb:pa:${approvalId}`,
               },
             ],
+            [
+              {
+                text: "Details",
+                callback_data: expect.stringContaining("mb:pd:"),
+              },
+            ],
           ],
         },
       });
@@ -259,7 +265,8 @@ describe("ProjectCommandRouter", () => {
       };
 
       await router.handle(event, ["start", root, "build", "thing"]);
-      expect(sent.at(-1)).toContain("Awaiting approval");
+      expect(sent.at(-1)).toContain("Project ready to start");
+      expect(sent.at(-1)).toContain("Approval:");
       const task = store.listTasksByChat("chat", 1)[0];
       expect(task?.status).toBe("awaiting_approval");
       const approvalId = db.db
@@ -318,7 +325,10 @@ describe("ProjectCommandRouter", () => {
       const task = store.listTasksByChat("chat", 1)[0];
       expect(task).toBeTruthy();
       await router.handle(event, ["status", task!.taskId]);
-      expect(sent.at(-1)).toContain("Task ID");
+      expect(sent.at(-1)).toContain("Project:");
+      expect(sent.at(-1)).toContain("Details: /project details");
+      await router.handle(event, ["details", task!.taskId]);
+      expect(sent.at(-1)).toContain("Task ID:");
       await router.handle(event, ["cancel", task!.taskId]);
       expect(sent.at(-1)).toContain("Cancelled");
       await router.handle(event, ["cleanup", task!.taskId]);
@@ -378,27 +388,38 @@ describe("ProjectCommandRouter", () => {
         text: "/project",
         fromUserId: "u1",
       };
+      const task = store.createTask({
+        chatId: event.chatId,
+        requestedByUserId: event.fromUserId,
+        repoRoot: root,
+        baseRef: "main",
+        title: "publish task",
+        originalPrompt: "publish task",
+        status: "completed",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 2,
+      });
 
-      await router.handle(event, ["publish", "task-1", "pr"]);
+      await router.handle(event, ["publish", task.taskId.slice(0, 8), "pr"]);
 
       expect(publishArgs).toEqual({
-        taskId: "task-1",
+        taskId: task.taskId,
         requestedBy: "u1",
         openPullRequest: true,
         pushToBaseRef: false,
       });
       expect(sent.at(-1)).toContain("Created publish approval");
 
-      await router.handle(event, ["publish", "task-1", "main"]);
+      await router.handle(event, ["publish", task.taskId, "main"]);
 
       expect(publishArgs).toEqual({
-        taskId: "task-1",
+        taskId: task.taskId,
         requestedBy: "u1",
         openPullRequest: false,
         pushToBaseRef: true,
       });
 
-      await router.handle(event, ["publish", "task-1", "main", "pr"]);
+      await router.handle(event, ["publish", task.taskId, "main", "pr"]);
 
       expect(sent.at(-1)).toContain("Choose either main or pr");
 
@@ -406,7 +427,7 @@ describe("ProjectCommandRouter", () => {
 
       expect(sent.at(-1)).toContain("Usage: /project publish");
 
-      await router.handle(event, ["publish", "task-1", "unknown"]);
+      await router.handle(event, ["publish", task.taskId, "unknown"]);
 
       expect(sent.at(-1)).toContain("Unknown publish option unknown");
       db.close();
@@ -491,11 +512,27 @@ describe("ProjectCommandRouter", () => {
 
       await fixture.router.handle(fixture.event, ["status", task.taskId]);
 
+      expect(fixture.sent.at(-1)?.text).toContain("Status: Review passed");
+      expect(fixture.sent.at(-1)?.text).toContain("Needs attention: Older retry failed");
+      expect(fixture.sent.at(-1)?.text).toContain("Publish to main: /project publish PM-");
+      expect(fixture.sent.at(-1)?.text).toContain("Clean up: /project cleanup PM-");
+      expect(fixture.sent.at(-1)?.options).toMatchObject({
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Details", callback_data: expect.stringContaining("mb:pd:") }],
+            [{ text: "Publish to main", callback_data: expect.stringContaining("mb:pb:") }],
+            [{ text: "Clean up", callback_data: expect.stringContaining("mb:pc:") }],
+          ],
+        },
+      });
+
+      await fixture.router.handle(fixture.event, ["details", task.taskId]);
+
       expect(fixture.sent.at(-1)?.text).toContain("Final branch: mottbot/task-1/integration");
       expect(fixture.sent.at(-1)?.text).toContain("depends on");
       expect(fixture.sent.at(-1)?.text).toContain("Diff stat:");
-      expect(fixture.sent.at(-1)?.text).toContain("Publish: /project publish");
-      expect(fixture.sent.at(-1)?.text).toContain("Cleanup: /project cleanup");
+      expect(fixture.sent.at(-1)?.text).toContain("Publish to main: /project publish");
+      expect(fixture.sent.at(-1)?.text).toContain("Clean up: /project cleanup");
       expect(fixture.sent.at(-1)?.text).toContain("Last error:");
 
       await fixture.router.handle(fixture.event, ["tail"]);
@@ -573,8 +610,8 @@ describe("ProjectCommandRouter", () => {
 
       await fixture.router.handle(fixture.event, ["status"]);
 
-      expect(fixture.sent.at(-1)?.text).toContain(`${subtask.subtaskId.slice(0, 8)} worker: running`);
-      expect(fixture.sent.at(-1)?.text).toContain("latest run failed");
+      expect(fixture.sent.at(-1)?.text).toContain("Worker: Worker - Running");
+      expect(fixture.sent.at(-1)?.text).toContain("run Failed");
       expect(fixture.sent.at(-1)?.text).toContain("Codex CLI run was interrupted by process restart.");
     } finally {
       fixture.cleanup();
@@ -635,8 +672,8 @@ describe("ProjectCommandRouter", () => {
 
       await fixture.router.handle(fixture.event, ["status", task.taskId]);
 
-      expect(fixture.sent.at(-1)?.text).toContain("exited worker: failed; latest run exited: exit 2");
-      expect(fixture.sent.at(-1)?.text).toContain("signalled worker: failed; latest run cancelled: signal SIGTERM");
+      expect(fixture.sent.at(-1)?.text).toContain("Worker: exited worker - Failed; run Exited: exit 2");
+      expect(fixture.sent.at(-1)?.text).toContain("Worker: signalled worker - Failed; run Cancelled: signal SIGTERM");
     } finally {
       fixture.cleanup();
     }

@@ -14,6 +14,9 @@ import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 import {
   buildMemoryCandidateAcceptCallbackData,
   buildProjectApprovalCallbackData,
+  buildProjectCleanupCallbackData,
+  buildProjectDetailsCallbackData,
+  buildProjectPublishMainCallbackData,
   buildToolApprovalCallbackData,
   buildToolDenyCallbackData,
 } from "../../src/telegram/callback-data.js";
@@ -2097,6 +2100,9 @@ describe("TelegramCommandRouter", () => {
     };
     const projects = {
       handleApprovalCallback: vi.fn(async () => undefined),
+      handleDetailsCallback: vi.fn(async () => undefined),
+      handleCleanupCallback: vi.fn(async () => undefined),
+      handlePublishMainCallback: vi.fn(async () => undefined),
     };
     const router = new TelegramCommandRouter(
       api as any,
@@ -2135,6 +2141,39 @@ describe("TelegramCommandRouter", () => {
       show_alert: false,
     });
     expect(projects.handleApprovalCallback).toHaveBeenCalledWith(event, "approval-1");
+
+    const detailsEvent = createCallbackEvent({
+      fromUserId: "admin-1",
+      data: buildProjectDetailsCallbackData("task-1"),
+    });
+    await expect(router.maybeHandleCallback(detailsEvent)).resolves.toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Showing project details.",
+      show_alert: false,
+    });
+    expect(projects.handleDetailsCallback).toHaveBeenCalledWith(detailsEvent, "task-1");
+
+    const cleanupEvent = createCallbackEvent({
+      fromUserId: "admin-1",
+      data: buildProjectCleanupCallbackData("task-1"),
+    });
+    await expect(router.maybeHandleCallback(cleanupEvent)).resolves.toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Cleaning up project.",
+      show_alert: false,
+    });
+    expect(projects.handleCleanupCallback).toHaveBeenCalledWith(cleanupEvent, "task-1");
+
+    const publishEvent = createCallbackEvent({
+      fromUserId: "admin-1",
+      data: buildProjectPublishMainCallbackData("task-1"),
+    });
+    await expect(router.maybeHandleCallback(publishEvent)).resolves.toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Preparing project publish approval.",
+      show_alert: false,
+    });
+    expect(projects.handlePublishMainCallback).toHaveBeenCalledWith(publishEvent, "task-1");
 
     api.answerCallbackQuery.mockClear();
     api.sendMessage.mockClear();

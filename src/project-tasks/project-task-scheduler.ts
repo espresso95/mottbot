@@ -6,6 +6,13 @@ import type { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
 import type { ProjectTaskStore } from "./project-task-store.js";
 import type { WorktreeManager } from "../worktrees/worktree-manager.js";
 import type { CodexCliRun, ProjectApproval, ProjectSubtask, ProjectTask } from "./project-types.js";
+import {
+  formatProjectCleanup,
+  formatProjectCompletionReport,
+  formatProjectPublished,
+  formatProjectPublishApproval,
+  formatProjectStartApproved,
+} from "./project-message-formatters.js";
 
 /** Callback used to publish project completion or failure summaries back to Telegram. */
 type ProjectTaskReporter = (params: { task: ProjectTask; text: string }) => void;
@@ -38,6 +45,29 @@ function parsePublishApprovalRequest(raw: string): PublishApprovalRequest {
     // Malformed approval payloads fall back to the safest publish action.
   }
   return { openPullRequest: false, pushToBaseRef: false };
+}
+
+function finalSummaryIndicatesFailure(raw: string): boolean {
+  const text = raw
+    .replace(
+      /\bno\s+blocking\s+(?:findings?|issues?|problems?|failures?|errors?|regressions?|risks?)(?:\s+found)?\b/gi,
+      "",
+    )
+    .replace(/\bno\s+findings?\b/gi, "")
+    .replace(/\bno\s+unresolved\s+(?:conflicts?|issues?|problems?)\b/gi, "");
+  const patterns = [
+    /\bnot ready\b/i,
+    /(?:^|\n)\s*(?:[-*]\s*)?blocking\s*:/i,
+    /\bblocking\s+(?:issues?|problems?|failures?|errors?|regressions?|risks?)\b/i,
+    /\bunresolved\s+(?:conflicts?|issues?|problems?|failures?|errors?)\b/i,
+    /\bfailed to\b/i,
+    /\bfailure:\b/i,
+    /\berror:\b/i,
+    /\b(?:validation|verification|build|typecheck|check)\s+failed\b/i,
+    /\b(?:failed|failing)\s+tests?\b/i,
+    /\btests?:[\s\S]*\b[1-9]\d*\s+failed\b/i,
+  ];
+  return patterns.some((pattern) => pattern.test(text));
 }
 
 /** Polling scheduler that advances project tasks, starts worker runs, and integrates results. */
@@ -111,7 +141,7 @@ export class ProjectTaskScheduler {
     return {
       ok: true,
       approvalId: approval.approvalId,
-      message: `Created publish approval ${approval.approvalId} to ${action}. Run /project approve ${approval.approvalId}`,
+      message: formatProjectPublishApproval({ task, approvalId: approval.approvalId, action }),
     };
   }
 
@@ -138,7 +168,11 @@ export class ProjectTaskScheduler {
       this.store.updateTask(approval.taskId, {
         status: "queued",
       });
-      return { ok: true, message: `Approved ${approvalId}. Task ${approval.taskId} queued.` };
+      const task = this.store.getTask(approval.taskId);
+      return {
+        ok: true,
+        message: task ? formatProjectStartApproved(task) : `Approved ${approvalId}. Task ${approval.taskId} queued.`,
+      };
     }
     if (approval.kind === "push") {
       return this.approvePublish(approval, decidedBy);
@@ -488,18 +522,7 @@ export class ProjectTaskScheduler {
     if (!this.reporter) {
       return;
     }
-    const text = [
-      `Project completed: ${task.title}`,
-      `Task ID: ${task.taskId}`,
-      task.finalBranch ? `Branch: ${task.finalBranch}` : undefined,
-      "",
-      reviewSummary ? `Review: ${reviewSummary}` : task.finalSummary,
-      task.finalBranch ? `Publish: /project publish ${task.taskId} [main|pr]` : undefined,
-      task.integrationWorktreePath ? `Cleanup: /project cleanup ${task.taskId}` : undefined,
-    ]
-      .filter((line): line is string => typeof line === "string" && line.length > 0)
-      .join("\n")
-      .slice(0, 3_900);
+    const text = formatProjectCompletionReport({ task, reviewSummary });
     try {
       this.reporter({ task, text });
     } catch {
@@ -553,7 +576,7 @@ export class ProjectTaskScheduler {
       });
       return {
         ok: true,
-        message: [`Published ${task.taskId}.`, publishSummary].filter(Boolean).join("\n"),
+        message: formatProjectPublished({ task, publishSummary }),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Publish failed.";
@@ -586,15 +609,18 @@ export class ProjectTaskScheduler {
       protectedChanges.length > 0 ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}` : undefined;
     const runFailed =
       latestRun?.status === "failed" || latestRun?.status === "timed_out" || latestRun?.status === "cancelled";
+    const commitError =
+      !runFailed && !finalSummary.failed && !protectedPathError ? this.commitSubtaskChanges(task, subtask) : undefined;
     const lastError =
       protectedPathError ??
+      commitError ??
       latestRun?.lastError ??
       (finalSummary.failed ? finalSummary.text : undefined) ??
       (runFailed ? "Worker failed" : undefined);
     const nextStatus =
       latestRun?.status === "cancelled"
         ? "cancelled"
-        : runFailed || finalSummary.failed || !!protectedPathError
+        : runFailed || finalSummary.failed || !!protectedPathError || !!commitError
           ? "failed"
           : "completed";
     this.store.updateSubtask(subtask.subtaskId, {
@@ -613,6 +639,24 @@ export class ProjectTaskScheduler {
       });
     }
     this.activeSubtasks.delete(subtask.subtaskId);
+  }
+
+  private commitSubtaskChanges(task: ProjectTask, subtask: ProjectSubtask): string | undefined {
+    if (subtask.role !== "worker" && subtask.role !== "integrator") {
+      return undefined;
+    }
+    if (!subtask.worktreePath || !subtask.branchName) {
+      return undefined;
+    }
+    try {
+      this.worktrees.commitAllChanges({
+        worktreePath: subtask.worktreePath,
+        message: `Project ${task.taskId}: ${subtask.title}`,
+      });
+      return undefined;
+    } catch (error) {
+      return `Failed to commit project changes: ${error instanceof Error ? error.message : String(error)}`;
+    }
   }
 
   private startSubtask(task: ProjectTask, subtask: ProjectSubtask): boolean {
@@ -768,7 +812,14 @@ export class ProjectTaskScheduler {
     }
 
     if (targets.size === 0) {
-      return { ok: true, message: `No retained project worktrees or local branches found for ${task.taskId}.` };
+      return {
+        ok: true,
+        message: formatProjectCleanup({
+          task,
+          cleanupSummary: "No retained project worktrees or local branches were found.",
+          removed: false,
+        }),
+      };
     }
 
     for (const target of targets.values()) {
@@ -802,7 +853,7 @@ export class ProjectTaskScheduler {
     });
     return {
       ok: true,
-      message: [`Cleaned ${task.taskId}.`, cleanupSummary].join("\n"),
+      message: formatProjectCleanup({ task, cleanupSummary, removed: true }),
     };
   }
 
@@ -815,6 +866,6 @@ export class ProjectTaskScheduler {
     if (!raw) {
       return { failed: false };
     }
-    return { text: raw.slice(0, 4_000), failed: /\b(error|failed|failure)\b/i.test(raw) };
+    return { text: raw.slice(0, 4_000), failed: finalSummaryIndicatesFailure(raw) };
   }
 }

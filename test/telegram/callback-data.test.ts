@@ -4,6 +4,9 @@ import {
   buildMemoryCandidateArchiveCallbackData,
   buildMemoryCandidateRejectCallbackData,
   buildProjectApprovalCallbackData,
+  buildProjectCleanupCallbackData,
+  buildProjectDetailsCallbackData,
+  buildProjectPublishMainCallbackData,
   buildToolApprovalCallbackData,
   buildToolDenyCallbackData,
   parseTelegramCallbackData,
@@ -22,6 +25,18 @@ describe("Telegram callback data", () => {
     expect(parseTelegramCallbackData(buildProjectApprovalCallbackData("approval-1"))).toEqual({
       type: "project_approve",
       approvalId: "approval-1",
+    });
+    expect(parseTelegramCallbackData(buildProjectDetailsCallbackData("task-1"))).toEqual({
+      type: "project_details",
+      taskId: "task-1",
+    });
+    expect(parseTelegramCallbackData(buildProjectCleanupCallbackData("task-1"))).toEqual({
+      type: "project_cleanup",
+      taskId: "task-1",
+    });
+    expect(parseTelegramCallbackData(buildProjectPublishMainCallbackData("task-1"))).toEqual({
+      type: "project_publish_main",
+      taskId: "task-1",
     });
     expect(parseTelegramCallbackData(buildMemoryCandidateAcceptCallbackData("candidate-1"))).toEqual({
       type: "memory_accept",

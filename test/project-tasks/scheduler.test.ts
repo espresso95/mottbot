@@ -33,6 +33,7 @@ function schedulerWorktrees(
     prepareSubtask: (params: { subtaskId: string }) => { worktreePath: string; branchName: string };
     cleanupSubtask: (params: { worktreePath?: string; branchName?: string; deleteBranch?: boolean }) => void;
     listProtectedChanges: (worktreePath: string) => string[];
+    commitAllChanges: (params: { worktreePath: string; message: string }) => { committed: boolean; output: string };
     prepareIntegration: (params: { taskId: string }) => { worktreePath: string; branchName: string };
     mergeBranch: (params: { branchName: string }) => { ok: boolean; output: string };
     diffStat: () => string;
@@ -55,6 +56,7 @@ function schedulerWorktrees(
     }),
     cleanupSubtask: () => {},
     listProtectedChanges: () => [],
+    commitAllChanges: () => ({ committed: false, output: "" }),
     prepareIntegration: ({ taskId }: { taskId: string }) => ({
       worktreePath: root,
       branchName: `mottbot/${taskId}/integration`,
@@ -549,6 +551,85 @@ describe("ProjectTaskScheduler", () => {
     }
   });
 
+  it("commits completed worker changes before merging the worker branch", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 450;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "task",
+        originalPrompt: "prompt",
+        status: "running",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 1,
+      });
+      const worker = store.createSubtask({
+        taskId: task.taskId,
+        title: "add feature",
+        role: "worker",
+        prompt: "add feature",
+        status: "running",
+      });
+      const workerBranch = "mottbot/test/worker";
+      const workerWorktree = path.join(root, "worker");
+      store.updateSubtask(worker.subtaskId, {
+        branchName: workerBranch,
+        worktreePath: workerWorktree,
+      });
+      const run = store.createCliRun({
+        taskId: task.taskId,
+        subtaskId: worker.subtaskId,
+        commandJson: "{}",
+        cwd: workerWorktree,
+        stdoutLogPath: path.join(root, "worker.out"),
+        stderrLogPath: path.join(root, "worker.err"),
+        jsonlLogPath: path.join(root, "worker.jsonl"),
+      });
+      store.updateCliRun(run.cliRunId, { status: "exited", finishedAt: clock.now() });
+      const events: string[] = [];
+      const fakeRunner = {
+        start: () => "run",
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = schedulerWorktrees(root, {
+        commitAllChanges: ({ message }) => {
+          events.push(`commit:${message}`);
+          return { committed: true, output: "committed" };
+        },
+        mergeBranch: ({ branchName }) => {
+          events.push(`merge:${branchName}`);
+          return { ok: true, output: "" };
+        },
+      });
+      const scheduler = new ProjectTaskScheduler(
+        schedulerConfig(root),
+        clock,
+        store,
+        fakeRunner as never,
+        fakeWorktrees as never,
+      );
+
+      await scheduler.tick();
+
+      expect(store.getSubtask(worker.subtaskId)?.status).toBe("completed");
+      expect(store.getTask(task.taskId)?.status).toBe("reviewing");
+      expect(events[0]).toBe(`commit:Project ${task.taskId}: add feature`);
+      expect(events).toContain(`merge:${workerBranch}`);
+      expect(events.indexOf(`commit:Project ${task.taskId}: add feature`)).toBeLessThan(
+        events.indexOf(`merge:${workerBranch}`),
+      );
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
+
   it("creates an integration branch and merges completed worker branches", async () => {
     const root = createTempDir();
     try {
@@ -931,7 +1012,12 @@ describe("ProjectTaskScheduler", () => {
       });
       store.updateCliRun(run.cliRunId, { status: "exited", finishedAt: clock.now() });
       const finalDir = path.join(root, "artifacts", task.taskId, reviewer.subtaskId);
-      const reviewText = "Ready for operator review. Checks passed.";
+      const reviewText = [
+        "No blocking issues found.",
+        "",
+        "The integrated result is ready for operator review.",
+        "Validation passed with `corepack pnpm test`: 4 tests passed, 0 failed.",
+      ].join("\n");
       await import("node:fs/promises").then(async (fsPromises) => {
         await fsPromises.mkdir(finalDir, { recursive: true });
         await fsPromises.writeFile(path.join(finalDir, "final.md"), reviewText, "utf8");
@@ -969,9 +1055,9 @@ describe("ProjectTaskScheduler", () => {
       expect(completed?.finalSummary).toContain(reviewText);
       expect(cleanedBranches).toEqual(["mottbot/test/worker"]);
       expect(reports).toHaveLength(1);
-      expect(reports[0]).toContain("Project completed");
-      expect(reports[0]).toContain(reviewText);
-      expect(reports[0]).toContain(`/project publish ${task.taskId} [main|pr]`);
+      expect(reports[0]).toContain("Project review passed");
+      expect(reports[0]).toContain("No blocking issues found. The integrated result is ready");
+      expect(reports[0]).toContain("Publish to main: /project publish PM-");
       db.close();
     } finally {
       removeTempDir(root);
@@ -1337,7 +1423,7 @@ describe("ProjectTaskScheduler", () => {
       expect(updatedTask?.finalSummary).toContain("Cleanup:");
       expect(store.getSubtask(worker.subtaskId)?.worktreePath).toBeUndefined();
       expect(store.getSubtask(reviewer.subtaskId)?.branchName).toBeUndefined();
-      expect(scheduler.cleanupTask(task.taskId).message).toContain("No retained project worktrees");
+      expect(scheduler.cleanupTask(task.taskId).message).toContain("No retained project worktrees or local branches");
       db.close();
     } finally {
       removeTempDir(root);

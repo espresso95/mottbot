@@ -328,7 +328,8 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat, then mark the original message as approved or not applied; `/project approve <approval-id>` remains the fallback command
-- `/project status` includes each subtask's latest Codex CLI run state and error, including restart-recovered interrupted runs before the scheduler has reconciled the task
+- `/project status` shows a compact task card with short display IDs, progress, latest run errors, next-step commands, and inline actions when details, publish-to-main, or cleanup are available
+- `/project details [task]` shows the full operator view with full task IDs, repo paths, subtask dependencies, latest Codex CLI run state and error, diff stats, summaries, and retained worktree cleanup details
 
 ## Session Queue
 

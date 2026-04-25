@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Project Mode Telegram UX
+
+- Added compact Project Mode Telegram message formatting with short display IDs, repo names, progress summaries, and clearer next-step commands.
+- Added `/project details [task]` for the verbose operator view with full task IDs, repo paths, subtask run details, diff stats, summaries, and errors.
+- Added Project Mode inline action buttons for details, direct publish-to-main approval requests, and cleanup where the task state supports them.
+
+### Project Mode Integration
+
+- Project Mode now commits successful worker and integrator worktree changes before integration or review, so Codex CLI edits are not lost when the worker leaves files unstaged.
+- Codex CLI child processes now prepend the service Node binary directory to `PATH`, keeping tools such as `corepack` available when the macOS service starts from a sparse launchd environment.
+- Reviewer summaries that report successful checks with phrases such as `0 failed` are no longer misclassified as failed Project Mode tasks.
+
 ### Verification Scripts
 
 - Added `pnpm verify:quick` for static local checks without the slower build and coverage run.
