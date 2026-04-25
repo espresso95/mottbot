@@ -244,7 +244,13 @@ export async function handleMemoryCommand(params: MemoryCommandDependencies): Pr
     await sendReply(
       api,
       event,
-      updated ? `Candidate ${updated.id.slice(0, 8)} updated.` : "No pending candidate found.",
+      updated.updated
+        ? `Candidate ${updated.candidate.id.slice(0, 8)} updated.`
+        : updated.reason === "duplicate_candidate"
+          ? "A pending candidate already has that memory."
+          : updated.reason === "duplicate_memory"
+            ? "Approved memory already has that content."
+            : "No pending candidate found.",
     );
     return;
   }
@@ -372,12 +378,12 @@ export async function handleForgetCommand(params: MemoryCommandDependencies): Pr
     return;
   }
   if (target === "all") {
-    const removed = memories.clear(session.sessionKey);
+    const removed = memories.clearForScopeContext(session);
     await sendReply(api, event, `Forgot ${removed} memories.`);
     return;
   }
   if (target === "auto") {
-    const removed = memories.clear(session.sessionKey, "auto_summary");
+    const removed = memories.clearForScopeContext(session, "auto_summary");
     await sendReply(api, event, `Forgot ${removed} automatic summaries.`);
     return;
   }

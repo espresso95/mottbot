@@ -564,7 +564,7 @@ Useful commands:
 - `/remember scope:personal <fact>` stores approved user-scoped memory when the current Telegram user ID is available
 - `/remember scope:chat <fact>` stores approved chat-scoped memory for the current chat
 - `/remember scope:group <fact>` stores approved group-scoped memory when the route is not a private DM
-- `/remember scope:project:<key> <fact>` stores approved project-scoped memory under the supplied project key
+- `/remember scope:project:<key> <fact>` stores approved project-scoped memory under the supplied project key; the memory is visible when the current `agents.bindings` route has the same `projectKey`
 - `/memory` lists approved memory that applies to the current route
 - `/memory candidates [pending|accepted|rejected|archived|all]` lists model-proposed memory candidates for review and includes inline accept, reject, and archive buttons for pending candidates
 - `/memory accept <candidate-id-prefix>` approves a pending candidate and stores it as accepted memory
@@ -574,7 +574,7 @@ Useful commands:
 - `/memory archive <memory-id-prefix>` hides accepted memory without deleting its row
 - `/memory archive candidate <candidate-id-prefix>` archives a pending candidate
 - `/memory clear candidates` deletes pending candidates for the current session
-- `/forget <memory-id-prefix|all|auto>` removes memory
+- `/forget <memory-id-prefix|all|auto>` removes one matching visible memory, all active memory visible to the current route, or active automatic summaries visible to the current route
 - `/usage [daily|monthly]` shows local run counts by global/chat/session/user/model and configured limits
 
 Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default and require explicit approval before they appear in prompts:
@@ -736,7 +736,7 @@ Archives are written below `~/Library/Logs/mottbot/archive/` by default. Missing
 
 ## Data Retention Operations
 
-`mottbot db prune` removes old operational rows without touching auth profiles or session routes.
+`mottbot db prune` removes old operational rows without touching auth profiles or session routes. It also prunes old archived session-memory rows and old rejected or archived memory candidates.
 
 Default behavior is a dry run:
 
@@ -753,6 +753,7 @@ tsx src/index.ts db prune --older-than-days 30 --yes
 Retention safety rules:
 
 - `queued`, `starting`, and `streaming` runs are never pruned
+- active approved memories, pending candidates, and accepted candidate audit rows are not pruned
 - `active` outbox rows are never pruned
 - `queued` and `claimed` queue rows are retained
 - completed and failed queue rows can be pruned by age

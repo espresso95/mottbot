@@ -351,6 +351,32 @@ describe("memory command handlers", () => {
     expect(memories.listForScopeContext(session)).toHaveLength(0);
   });
 
+  it("forgets all memory visible in the current scope context", async () => {
+    const stores = createStores();
+    cleanup.push(() => closeStores(stores));
+    const api = makeApi();
+    const event = createInboundEvent({ fromUserId: "user-1" });
+    const session = ensureSession(stores, { userId: "user-1" });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    memories.add({
+      sessionKey: session.sessionKey,
+      scope: "session",
+      scopeKey: session.sessionKey,
+      contentText: "Session fact",
+    });
+    memories.add({
+      sessionKey: session.sessionKey,
+      scope: "personal",
+      scopeKey: "user-1",
+      contentText: "Personal fact",
+    });
+
+    await handleForgetCommand({ api: api as any, event, session, args: ["all"], memories });
+
+    expect(sentTexts(api)).toContain("Forgot 2 memories.");
+    expect(memories.listForScopeContext(session)).toEqual([]);
+  });
+
   it("returns clear errors for unavailable memory and invalid candidate operations", async () => {
     const stores = createStores();
     cleanup.push(() => closeStores(stores));

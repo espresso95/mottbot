@@ -449,7 +449,7 @@ Notable fields:
 - `source_candidate_id`
 - timestamps
 
-The model sees approved memory as system context before the recent transcript. Prompt rendering orders pinned accepted memory first, then project, personal, group, chat, session, and automatic summaries. Archived memory is not rendered.
+The model sees approved memory as system context before the recent transcript. Prompt rendering orders pinned accepted memory first, then project, personal, group, chat, session, and automatic summaries. Archived memory is not rendered. Project-scoped memory is visible when the resolved route has a matching `agents.bindings[].projectKey`.
 
 Explicit memory is changed through `/remember`, `/memory`, and `/forget`; automatic summaries are updated only when `memory.autoSummariesEnabled=true` and can be cleared with `/forget auto`.
 
@@ -570,7 +570,8 @@ Current retention policy is explicit but operator-driven:
 - old bot-message ACL rows can be pruned, which means replies to those old Telegram messages will no longer be accepted only by reply relationship
 - auth profiles are updated in place
 - session routes are not pruned by the retention helper
-- consumed or expired tool approvals, session memories, and governance audit rows are retained until explicit future cleanup support is added
+- consumed or expired tool approvals, active session memories, accepted candidate audit rows, and governance audit rows are retained until explicit future cleanup support is added
+- archived session-memory rows and rejected or archived memory candidates can be pruned by age with `mottbot db prune`
 
 There is no automatic compaction or archival task yet. Operators should back up SQLite before destructive pruning.
 

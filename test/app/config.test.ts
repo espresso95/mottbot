@@ -49,7 +49,7 @@ describe("loadConfig", () => {
         agents: {
           defaultId: "file",
           list: [{ id: "file", modelRef: "openai-codex/gpt-5.4-mini", profileId: "openai-codex:ops" }],
-          bindings: [{ agentId: "file", chatId: "chat-1" }],
+          bindings: [{ agentId: "file", chatId: "chat-1", projectKey: "mottbot" }],
         },
         storage: { sqlitePath: "./custom.sqlite" },
         attachments: { cacheDir: "./custom-attachments", maxFileBytes: 1234 },
@@ -89,6 +89,7 @@ describe("loadConfig", () => {
     expect(config.dashboard.enabled).toBe(false);
     expect(config.tools.enableSideEffectTools).toBe(true);
     expect(config.models.transport).toBe("sse");
+    expect(config.agents.bindings[0]?.projectKey).toBe("mottbot");
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
     expect(config.service.label).toBe("ai.mottbot.bot.file");
   });

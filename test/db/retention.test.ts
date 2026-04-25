@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildOperationalRetentionCutoffs, pruneOperationalData } from "../../src/db/retention.js";
+import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { AccessController } from "../../src/telegram/acl.js";
 import { type FakeClock, createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
@@ -36,6 +37,13 @@ describe("operational retention", () => {
       sessionKey: "active-session",
       chatId: "active-chat",
       routeMode: "group",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    stores.sessions.ensure({
+      sessionKey: "memory-session",
+      chatId: "memory-chat",
+      routeMode: "dm",
       profileId: "openai-codex:default",
       modelRef: "openai-codex/gpt-5.4",
     });
@@ -172,6 +180,42 @@ describe("operational retention", () => {
         oldTimestamp,
       );
 
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const archivedMemory = memories.add({
+      sessionKey: "memory-session",
+      contentText: "Archived memory",
+    });
+    stores.database.db
+      .prepare("update session_memories set archived_at = ?, updated_at = ? where id = ?")
+      .run(oldTimestamp, oldTimestamp, archivedMemory.id);
+    const rejectedCandidate = memories.addCandidate({
+      sessionKey: "memory-session",
+      scope: "session",
+      scopeKey: "memory-session",
+      contentText: "Rejected candidate",
+      sensitivity: "low",
+    });
+    if (!rejectedCandidate.inserted) {
+      throw new Error("expected rejected candidate");
+    }
+    memories.rejectCandidate("memory-session", rejectedCandidate.candidate.id, "user-1");
+    stores.database.db
+      .prepare("update memory_candidates set updated_at = ? where id = ?")
+      .run(oldTimestamp, rejectedCandidate.candidate.id);
+    const pendingCandidate = memories.addCandidate({
+      sessionKey: "memory-session",
+      scope: "session",
+      scopeKey: "memory-session",
+      contentText: "Pending candidate",
+      sensitivity: "low",
+    });
+    if (!pendingCandidate.inserted) {
+      throw new Error("expected pending candidate");
+    }
+    stores.database.db
+      .prepare("update memory_candidates set updated_at = ? where id = ?")
+      .run(oldTimestamp, pendingCandidate.candidate.id);
+
     const dryRun = pruneOperationalData({ database: stores.database, cutoffs, dryRun: true });
     expect(dryRun).toMatchObject({
       dryRun: true,
@@ -181,6 +225,8 @@ describe("operational retention", () => {
       telegramBotMessages: 1,
       outboxMessages: 1,
       runs: 1,
+      archivedSessionMemories: 1,
+      memoryCandidates: 1,
     });
     expect(stores.runs.get(terminalRun.runId)).toBeDefined();
 
@@ -193,12 +239,22 @@ describe("operational retention", () => {
       telegramBotMessages: 1,
       outboxMessages: 1,
       runs: 1,
+      archivedSessionMemories: 1,
+      memoryCandidates: 1,
     });
     expect(stores.runs.get(terminalRun.runId)).toBeUndefined();
     expect(stores.runs.get(activeRun.runId)).toMatchObject({ status: "streaming" });
     expect(stores.attachmentRecords.listRecent("terminal-session")).toEqual([]);
     expect(stores.attachmentRecords.listRecent("active-session")).toHaveLength(1);
     expect(stores.sessions.findByChat("active-chat")).toBeDefined();
+    expect(memories.list("memory-session")).toEqual([]);
+    expect(
+      stores.database.db
+        .prepare<unknown[], { count: number }>("select count(*) as count from session_memories where id = ?")
+        .get(archivedMemory.id)?.count,
+    ).toBe(0);
+    expect(memories.listCandidates("memory-session", "rejected")).toEqual([]);
+    expect(memories.listCandidates("memory-session", "pending")).toHaveLength(1);
     expect(stores.updateStore.countProcessed()).toBe(0);
     expect(stores.messageStore.hasMessage({ chatId: "terminal-chat", telegramMessageId: 201 })).toBe(false);
     expect(stores.messageStore.hasMessage({ chatId: "active-chat", telegramMessageId: 301 })).toBe(true);

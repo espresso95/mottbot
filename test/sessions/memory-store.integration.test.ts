@@ -196,7 +196,10 @@ describe("MemoryStore", () => {
         first.candidate.id.slice(0, 8),
         "User prefers concise replies.",
       );
-      expect(updated?.contentText).toBe("User prefers concise replies.");
+      expect(updated).toMatchObject({
+        updated: true,
+        candidate: { contentText: "User prefers concise replies." },
+      });
       const accepted = memories.acceptCandidate({
         sessionKey: session.sessionKey,
         idPrefix: first.candidate.id.slice(0, 8),
@@ -250,6 +253,178 @@ describe("MemoryStore", () => {
       expect(memories.clearCandidates(session.sessionKey)).toBe(1);
       expect(memories.listCandidates(session.sessionKey, "all")).toHaveLength(3);
       expect(() => memories.updateCandidate(session.sessionKey, "", "x")).toThrow("Memory id prefix cannot be empty.");
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("does not accept or edit candidates into duplicate approved memory", () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const memories = new MemoryStore(stores.database, stores.clock);
+      const existing = memories.add({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User prefers concise replies.",
+      });
+      const duplicate = memories.addCandidate({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User prefers concise replies.",
+        sensitivity: "low",
+      });
+      expect(duplicate).toMatchObject({ inserted: false, reason: "duplicate_memory" });
+
+      const candidate = memories.addCandidate({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User likes short answers.",
+        sensitivity: "low",
+      });
+      if (!candidate.inserted) {
+        throw new Error("expected inserted candidate");
+      }
+      expect(
+        memories.updateCandidate(session.sessionKey, candidate.candidate.id.slice(0, 8), existing.contentText),
+      ).toMatchObject({ updated: false, reason: "duplicate_memory" });
+      const duplicateBeforeAccept = memories.add({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User likes short answers.",
+      });
+
+      const accepted = memories.acceptCandidate({
+        sessionKey: session.sessionKey,
+        idPrefix: candidate.candidate.id.slice(0, 8),
+      });
+      expect(accepted?.insertedMemory).toBe(false);
+      expect(accepted?.memory.id).toBe(duplicateBeforeAccept.id);
+
+      const secondCandidate = memories.addCandidate({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User likes short answers.",
+        sensitivity: "low",
+      });
+      expect(secondCandidate).toMatchObject({ inserted: false, reason: "duplicate_memory" });
+      expect(
+        memories
+          .listForScopeContext(session)
+          .map((memory) => memory.contentText)
+          .sort(),
+      ).toEqual(["User likes short answers.", "User prefers concise replies."]);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("applies prompt priority before limiting scoped memory", () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const memories = new MemoryStore(stores.database, stores.clock);
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "Old pinned personal fact",
+        pinned: true,
+      });
+      stores.clock.advance(1);
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "session",
+        scopeKey: session.sessionKey,
+        contentText: "Newest session fact",
+      });
+      stores.clock.advance(1);
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "chat",
+        scopeKey: "chat-1",
+        contentText: "Newer chat fact",
+      });
+
+      expect(memories.listForScopeContext(session, 2).map((memory) => memory.contentText)).toEqual([
+        "Old pinned personal fact",
+        "Newer chat fact",
+      ]);
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
+
+  it("clears all active memories visible in a scope context", () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const memories = new MemoryStore(stores.database, stores.clock);
+      stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-2:user:user-1",
+        chatId: "chat-2",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "session",
+        scopeKey: session.sessionKey,
+        contentText: "Session fact",
+      });
+      memories.add({
+        sessionKey: session.sessionKey,
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "Personal fact",
+      });
+      memories.add({
+        sessionKey: "tg:dm:chat-2:user:user-1",
+        scope: "chat",
+        scopeKey: "chat-2",
+        contentText: "Other chat fact",
+      });
+
+      expect(memories.clearForScopeContext(session)).toBe(2);
+      expect(memories.listForScopeContext(session)).toEqual([]);
+      expect(
+        memories.listForScopeContext({
+          ...session,
+          sessionKey: "tg:dm:chat-2:user:user-1",
+          chatId: "chat-2",
+        }),
+      ).toEqual([expect.objectContaining({ contentText: "Other chat fact" })]);
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

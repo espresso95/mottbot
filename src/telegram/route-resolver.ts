@@ -13,6 +13,10 @@ function matchesBinding(binding: AppConfig["agents"]["bindings"][number], event:
   );
 }
 
+function attachProjectKey(session: SessionRoute, projectKey: string | undefined): SessionRoute {
+  return projectKey ? { ...session, projectKey } : session;
+}
+
 /** Resolves inbound Telegram events to a configured agent and persisted session route. */
 export class RouteResolver {
   constructor(
@@ -20,8 +24,12 @@ export class RouteResolver {
     private readonly sessions: SessionStore,
   ) {}
 
+  private selectBinding(event: InboundEvent): AppConfig["agents"]["bindings"][number] | undefined {
+    return this.config.agents.bindings.find((candidate) => matchesBinding(candidate, event));
+  }
+
   selectAgent(event: InboundEvent): AgentConfig {
-    const binding = this.config.agents.bindings.find((candidate) => matchesBinding(candidate, event));
+    const binding = this.selectBinding(event);
     const agentId = binding?.agentId ?? this.config.agents.defaultId;
     const agent =
       this.config.agents.list.find((candidate) => candidate.id === agentId) ??
@@ -33,9 +41,10 @@ export class RouteResolver {
   }
 
   resolve(event: InboundEvent): SessionRoute {
+    const binding = this.selectBinding(event);
     const existing = this.sessions.findByChat(event.chatId, event.threadId);
     if (existing?.routeMode === "bound") {
-      return existing;
+      return attachProjectKey(existing, binding?.projectKey);
     }
 
     const agent = this.selectAgent(event);
@@ -47,7 +56,7 @@ export class RouteResolver {
       userId: event.chatType === "private" ? event.fromUserId : undefined,
     });
 
-    return this.sessions.ensure({
+    const session = this.sessions.ensure({
       sessionKey: built.sessionKey,
       chatId: event.chatId,
       threadId: event.threadId,
@@ -59,5 +68,6 @@ export class RouteResolver {
       fastMode: agent.fastMode,
       systemPrompt: agent.systemPrompt,
     });
+    return attachProjectKey(session, binding?.projectKey);
   }
 }

@@ -72,6 +72,26 @@ type AddMemoryCandidateResult =
       candidate?: MemoryCandidate;
     };
 
+/** Result of attempting to update a pending candidate while preserving dedupe rules. */
+type UpdateMemoryCandidateResult =
+  | {
+      updated: true;
+      candidate: MemoryCandidate;
+    }
+  | {
+      updated: false;
+      reason: "not_found" | "duplicate_candidate" | "duplicate_memory";
+      candidate?: MemoryCandidate;
+      memory?: SessionMemory;
+    };
+
+/** Result of accepting a pending candidate into approved memory. */
+type AcceptMemoryCandidateResult = {
+  candidate: MemoryCandidate;
+  memory: SessionMemory;
+  insertedMemory: boolean;
+};
+
 type SessionMemoryRow = {
   id: string;
   session_key: string;
@@ -405,12 +425,11 @@ export class MemoryStore {
         `select *
          from session_memories
          where archived_at is null and (${scopeClause})
-         order by updated_at desc
-         limit ?`,
+         order by updated_at desc`,
       )
-      .all(...values, limit)
+      .all(...values)
       .map(mapMemoryRow);
-    return sortMemoriesForPrompt(memories);
+    return sortMemoriesForPrompt(memories).slice(0, limit);
   }
 
   update(sessionKey: string, idPrefix: string, contentText: string): SessionMemory | undefined {
@@ -525,6 +544,31 @@ export class MemoryStore {
     return clear();
   }
 
+  clearForScopeContext(context: MemoryScopeContext, source?: SessionMemorySource): number {
+    const scopes = scopeValues(context);
+    if (scopes.length === 0) {
+      return 0;
+    }
+    const scopeClause = scopes.map(() => "(scope = ? and scope_key = ?)").join(" or ");
+    const scopeParams = scopes.flatMap((row) => [row.scope, row.scopeKey]);
+    const sourceClause = source ? " and source = ?" : "";
+    const params = source ? [...scopeParams, source] : scopeParams;
+    const whereClause = `archived_at is null and (${scopeClause})${sourceClause}`;
+    const detachCandidates = this.database.db.prepare(
+      `update memory_candidates
+       set accepted_memory_id = null
+       where accepted_memory_id in (
+         select id from session_memories where ${whereClause}
+       )`,
+    );
+    const deleteMemories = this.database.db.prepare(`delete from session_memories where ${whereClause}`);
+    const clear = this.database.db.transaction(() => {
+      detachCandidates.run(...params);
+      return deleteMemories.run(...params).changes;
+    });
+    return clear();
+  }
+
   addCandidate(params: {
     sessionKey: string;
     scope: MemoryScope;
@@ -541,7 +585,7 @@ export class MemoryStore {
     if (duplicateCandidate) {
       return { inserted: false, reason: "duplicate_candidate", candidate: duplicateCandidate };
     }
-    if (this.hasDuplicateAcceptedMemory(params.scope, scopeKey, contentText)) {
+    if (this.findDuplicateAcceptedMemory(params.scope, scopeKey, contentText)) {
       return { inserted: false, reason: "duplicate_memory" };
     }
     const now = this.clock.now();
@@ -622,12 +666,22 @@ export class MemoryStore {
     return row ? mapCandidateRow(row) : undefined;
   }
 
-  updateCandidate(sessionKey: string, idPrefix: string, contentText: string): MemoryCandidate | undefined {
+  updateCandidate(sessionKey: string, idPrefix: string, contentText: string): UpdateMemoryCandidateResult {
     const candidate = this.findCandidateByPrefix(sessionKey, idPrefix, "pending");
     if (!candidate) {
-      return undefined;
+      return { updated: false, reason: "not_found" };
     }
     const normalizedText = normalizeMemoryText(contentText);
+    const duplicateCandidate = this.findDuplicateCandidate(candidate.scope, candidate.scopeKey, normalizedText, {
+      excludeCandidateId: candidate.id,
+    });
+    if (duplicateCandidate) {
+      return { updated: false, reason: "duplicate_candidate", candidate: duplicateCandidate };
+    }
+    const duplicateMemory = this.findDuplicateAcceptedMemory(candidate.scope, candidate.scopeKey, normalizedText);
+    if (duplicateMemory) {
+      return { updated: false, reason: "duplicate_memory", memory: duplicateMemory };
+    }
     const now = this.clock.now();
     this.database.db
       .prepare(
@@ -637,9 +691,12 @@ export class MemoryStore {
       )
       .run(normalizedText, now, candidate.id);
     return {
-      ...candidate,
-      contentText: normalizedText,
-      updatedAt: now,
+      updated: true,
+      candidate: {
+        ...candidate,
+        contentText: normalizedText,
+        updatedAt: now,
+      },
     };
   }
 
@@ -648,39 +705,50 @@ export class MemoryStore {
     idPrefix: string;
     decidedByUserId?: string;
     pinned?: boolean;
-  }): { candidate: MemoryCandidate; memory: SessionMemory } | undefined {
-    const candidate = this.findCandidateByPrefix(params.sessionKey, params.idPrefix, "pending");
-    if (!candidate) {
-      return undefined;
-    }
-    const memory = this.add({
-      sessionKey: candidate.sessionKey,
-      contentText: candidate.contentText,
-      source: "model_candidate",
-      scope: candidate.scope,
-      scopeKey: candidate.scopeKey,
-      pinned: params.pinned,
-      sourceCandidateId: candidate.id,
+  }): AcceptMemoryCandidateResult | undefined {
+    const accept = this.database.db.transaction((): AcceptMemoryCandidateResult | undefined => {
+      const candidate = this.findCandidateByPrefix(params.sessionKey, params.idPrefix, "pending");
+      if (!candidate) {
+        return undefined;
+      }
+      const duplicateMemory = this.findDuplicateAcceptedMemory(
+        candidate.scope,
+        candidate.scopeKey,
+        candidate.contentText,
+      );
+      const memory =
+        duplicateMemory ??
+        this.add({
+          sessionKey: candidate.sessionKey,
+          contentText: candidate.contentText,
+          source: "model_candidate",
+          scope: candidate.scope,
+          scopeKey: candidate.scopeKey,
+          pinned: params.pinned,
+          sourceCandidateId: candidate.id,
+        });
+      const now = this.clock.now();
+      this.database.db
+        .prepare(
+          `update memory_candidates
+           set status = 'accepted', decided_by_user_id = ?, decided_at = ?, accepted_memory_id = ?, updated_at = ?
+           where id = ? and status = 'pending'`,
+        )
+        .run(params.decidedByUserId ?? null, now, memory.id, now, candidate.id);
+      return {
+        candidate: {
+          ...candidate,
+          status: "accepted",
+          ...(params.decidedByUserId ? { decidedByUserId: params.decidedByUserId } : {}),
+          decidedAt: now,
+          acceptedMemoryId: memory.id,
+          updatedAt: now,
+        },
+        memory,
+        insertedMemory: !duplicateMemory,
+      };
     });
-    const now = this.clock.now();
-    this.database.db
-      .prepare(
-        `update memory_candidates
-         set status = 'accepted', decided_by_user_id = ?, decided_at = ?, accepted_memory_id = ?, updated_at = ?
-         where id = ?`,
-      )
-      .run(params.decidedByUserId ?? null, now, memory.id, now, candidate.id);
-    return {
-      candidate: {
-        ...candidate,
-        status: "accepted",
-        ...(params.decidedByUserId ? { decidedByUserId: params.decidedByUserId } : {}),
-        decidedAt: now,
-        acceptedMemoryId: memory.id,
-        updatedAt: now,
-      },
-      memory,
-    };
+    return accept();
   }
 
   rejectCandidate(sessionKey: string, idPrefix: string, decidedByUserId?: string): boolean {
@@ -766,6 +834,7 @@ export class MemoryStore {
     scope: MemoryScope,
     scopeKey: string,
     contentText: string,
+    options: { excludeCandidateId?: string } = {},
   ): MemoryCandidate | undefined {
     const target = normalizedComparableText(contentText);
     return this.database.db
@@ -777,10 +846,17 @@ export class MemoryStore {
       )
       .all(scope, scopeKey)
       .map(mapCandidateRow)
-      .find((candidate) => normalizedComparableText(candidate.contentText) === target);
+      .find(
+        (candidate) =>
+          candidate.id !== options.excludeCandidateId && normalizedComparableText(candidate.contentText) === target,
+      );
   }
 
-  private hasDuplicateAcceptedMemory(scope: MemoryScope, scopeKey: string, contentText: string): boolean {
+  private findDuplicateAcceptedMemory(
+    scope: MemoryScope,
+    scopeKey: string,
+    contentText: string,
+  ): SessionMemory | undefined {
     const target = normalizedComparableText(contentText);
     return this.database.db
       .prepare<unknown[], SessionMemoryRow>(
@@ -790,6 +866,6 @@ export class MemoryStore {
       )
       .all(scope, scopeKey)
       .map(mapMemoryRow)
-      .some((memory) => normalizedComparableText(memory.contentText) === target);
+      .find((memory) => normalizedComparableText(memory.contentText) === target);
   }
 }

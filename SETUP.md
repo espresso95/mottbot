@@ -81,7 +81,7 @@ Local state:
 - `dist/`, `coverage/`, SQLite files, logs, and Telegram session files are generated local artifacts and must not be committed.
 - `memory.candidateExtractionEnabled=true` makes the bot ask the configured model for memory candidates after completed runs. Candidates are not used until accepted with `/memory accept <id-prefix>`.
 - `usage` configures optional UTC daily/monthly run caps. Leave all budget values at `0` for no local caps.
-- `agents.list` can define named agents and `agents.bindings` can route Telegram chats to them. Leave both empty to use the synthesized default agent from `auth.defaultProfile` and `models.default`.
+- `agents.list` can define named agents and `agents.bindings` can route Telegram chats to them. A binding can include `projectKey` so approved `scope:project:<key>` memory applies to that route. Leave both empty to use the synthesized default agent from `auth.defaultProfile` and `models.default`.
 - Agent entries can set `profileId`, `modelRef`, `fastMode`, `systemPrompt`, `toolNames`, `toolPolicies`, `maxConcurrentRuns`, and `maxQueuedRuns`. `toolNames` narrows the tools exposed to that agent; `toolPolicies` narrows the global tool policy for specific tools. Omit run limits for unlimited host-local capacity.
 - Owner/admin users can use `/agent list`, `/agent show [agent-id]`, `/agent set <agent-id>`, and `/agent reset` in Telegram. Agent set/reset validates the profile, chat model policy, and local usage budget before changing the route. Use `/debug agents` or the dashboard Agents panel to inspect route counts, run counts, configured limits, and stale persisted agent IDs.
 

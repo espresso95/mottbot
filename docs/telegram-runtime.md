@@ -191,7 +191,7 @@ tg:bound:<bound_name>
 - `topic`
 - `bound`
 
-When a new route is created, `RouteResolver` selects an agent from `agents.bindings` in config. Bindings may match by chat ID, thread ID, chat type, and user ID. The first matching binding wins; otherwise the configured default agent is used.
+When a new route is created, `RouteResolver` selects an agent from `agents.bindings` in config. Bindings may match by chat ID, thread ID, chat type, and user ID. The first matching binding wins; otherwise the configured default agent is used. A binding may also set `projectKey`; that key is attached to the resolved route so approved `project`-scoped memory for the same key is visible to `/memory` and injected into prompts for that route.
 
 The selected agent provides:
 

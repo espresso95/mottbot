@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Memory
+
+- Project-scoped memory now becomes visible to routes whose agent binding declares the matching `projectKey`.
+- Memory candidate accept and edit paths now avoid creating duplicate approved memory.
+- `/forget all` now clears all active approved memory visible to the current route, not only rows stored under the current session key.
+- Automatic summaries now skip medium- and high-sensitivity transcript turns before persistence.
+- `mottbot db prune` now prunes old archived memory rows and old rejected or archived memory candidates.
+
 ### Telegram Command Menu
 
 - Register the bot's top-level slash commands with Telegram on startup, so Telegram clients can suggest commands such as `/project`, `/status`, and `/help` while typing.

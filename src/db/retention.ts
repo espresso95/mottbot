@@ -8,6 +8,7 @@ type OperationalRetentionCutoffs = {
   telegramBotMessagesBefore: number;
   outboxMessagesBefore: number;
   terminalRunsBefore: number;
+  memoriesBefore: number;
 };
 
 /** Counts returned after a retention pass or dry run. */
@@ -21,6 +22,8 @@ type OperationalRetentionResult = {
   outboxMessages: number;
   runQueue: number;
   runs: number;
+  archivedSessionMemories: number;
+  memoryCandidates: number;
 };
 
 const TERMINAL_RUN_STATUSES = ["completed", "failed", "cancelled"] as const;
@@ -46,6 +49,7 @@ export function buildOperationalRetentionCutoffs(params: {
     telegramBotMessagesBefore: cutoff,
     outboxMessagesBefore: cutoff,
     terminalRunsBefore: cutoff,
+    memoriesBefore: cutoff,
   };
 }
 
@@ -147,6 +151,14 @@ export function pruneOperationalData(params: {
       sql: `run_id in (${terminalRunIdsSql})`,
       params: terminalRunParams,
     },
+    archivedSessionMemories: {
+      sql: "archived_at is not null and archived_at < ?",
+      params: [params.cutoffs.memoriesBefore],
+    },
+    memoryCandidates: {
+      sql: "status in ('rejected', 'archived') and updated_at < ?",
+      params: [params.cutoffs.memoriesBefore],
+    },
   };
 
   const counts = {
@@ -172,6 +184,18 @@ export function pruneOperationalData(params: {
     outboxMessages: count(params.database, "outbox_messages", where.outboxMessages.sql, where.outboxMessages.params),
     runQueue: count(params.database, "run_queue", where.runQueue.sql, where.runQueue.params),
     runs: count(params.database, "runs", where.runs.sql, where.runs.params),
+    archivedSessionMemories: count(
+      params.database,
+      "session_memories",
+      where.archivedSessionMemories.sql,
+      where.archivedSessionMemories.params,
+    ),
+    memoryCandidates: count(
+      params.database,
+      "memory_candidates",
+      where.memoryCandidates.sql,
+      where.memoryCandidates.params,
+    ),
   };
 
   if (params.dryRun ?? true) {
@@ -210,6 +234,29 @@ export function pruneOperationalData(params: {
     );
     const runQueue = remove(params.database, "run_queue", where.runQueue.sql, where.runQueue.params);
     const runs = remove(params.database, "runs", where.runs.sql, where.runs.params);
+    params.database.db
+      .prepare(
+        `update memory_candidates
+         set accepted_memory_id = null
+         where accepted_memory_id in (
+           select id
+           from session_memories
+           where ${where.archivedSessionMemories.sql}
+         )`,
+      )
+      .run(...where.archivedSessionMemories.params);
+    const archivedSessionMemories = remove(
+      params.database,
+      "session_memories",
+      where.archivedSessionMemories.sql,
+      where.archivedSessionMemories.params,
+    );
+    const memoryCandidates = remove(
+      params.database,
+      "memory_candidates",
+      where.memoryCandidates.sql,
+      where.memoryCandidates.params,
+    );
     return {
       telegramUpdates,
       messages,
@@ -218,6 +265,8 @@ export function pruneOperationalData(params: {
       outboxMessages,
       runQueue,
       runs,
+      archivedSessionMemories,
+      memoryCandidates,
     };
   })();
 

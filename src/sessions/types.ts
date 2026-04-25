@@ -9,6 +9,7 @@ export type SessionRoute = {
   userId?: string;
   routeMode: SessionRouteMode;
   boundName?: string;
+  projectKey?: string;
   agentId: string;
   profileId: string;
   modelRef: string;

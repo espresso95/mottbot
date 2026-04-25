@@ -34,6 +34,7 @@ const agentRoutingBindingSchema = z.object({
   threadId: z.number().int().min(1).optional(),
   chatType: telegramChatTypeSchema.optional(),
   userId: z.string().min(1).max(128).optional(),
+  projectKey: z.string().min(1).max(200).optional(),
 });
 const agentsConfigSchema = z
   .object({

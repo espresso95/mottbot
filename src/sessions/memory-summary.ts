@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from "./types.js";
+import { classifyMemorySensitivity } from "./memory-sensitivity.js";
 
 function condense(text: string, limit: number): string {
   const safeLimit = Math.max(3, limit);
@@ -20,7 +21,8 @@ export function buildAutomaticMemorySummary(params: {
       role: message.role,
       text: message.contentText?.trim() ?? "",
     }))
-    .filter((message) => message.text.length > 0);
+    .filter((message) => message.text.length > 0)
+    .filter((message) => classifyMemorySensitivity(message.text) === "low");
   if (turns.length < 2) {
     return undefined;
   }

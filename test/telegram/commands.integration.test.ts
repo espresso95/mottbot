@@ -1330,6 +1330,58 @@ describe("TelegramCommandRouter", () => {
     ).toEqual([]);
   });
 
+  it("lists project-scoped memory when the route binding supplies a project key", async () => {
+    const stores = createStores({
+      agents: {
+        defaultId: "main",
+        list: [
+          {
+            id: "main",
+            profileId: "openai-codex:default",
+            modelRef: "openai-codex/gpt-5.4",
+            fastMode: false,
+          },
+        ],
+        bindings: [{ agentId: "main", chatId: "chat-1", projectKey: "mottbot" }],
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = { sendMessage: vi.fn(async () => ({})) };
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const routes = new RouteResolver(stores.config, stores.sessions);
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      routes,
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      { stop: vi.fn(async () => false) } as any,
+      stores.health,
+      undefined,
+      undefined,
+      memories,
+    );
+
+    await router.maybeHandle(
+      createInboundEvent({ text: "/remember scope:project:mottbot Project uses pnpm.", isCommand: true }),
+    );
+    await router.maybeHandle(createInboundEvent({ text: "/memory", isCommand: true }));
+
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Project uses pnpm."),
+      expect.any(Object),
+    );
+    expect(memories.listForScopeContext(routes.resolve(createInboundEvent()))).toEqual([
+      expect.objectContaining({ scope: "project", scopeKey: "mottbot", contentText: "Project uses pnpm." }),
+    ]);
+  });
+
   it("handles memory candidate review commands", async () => {
     const stores = createStores();
     cleanup.push(() => {
