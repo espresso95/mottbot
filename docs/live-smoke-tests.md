@@ -8,7 +8,7 @@ Run these checks only with a dedicated test bot, test chats, and a separate SQLi
 
 Smoke harnesses live under `scripts/smoke/`, not the production `src/tools/` runtime tool boundary. Their inputs are intentionally separate from normal runtime configuration: they are **operator-run scenario inputs** for `pnpm smoke:*` helpers, so they do not change bot behavior unless you run those commands explicitly.
 
-Do not add smoke-only values to `mottbot.config.json` or `.env.example`. Pass them only in the shell that runs the smoke command, or through your local shell tooling.
+Do not add smoke-only values to the primary `mottbot.config.json` or `.env.example`. Pass them as CLI flags, or store lane-specific smoke defaults only in ignored `.local/smoke-lanes/*.json` files.
 
 ## Smoke CLI Flag Policy
 
@@ -25,6 +25,7 @@ Minimal command requirements:
 | `pnpm smoke:preflight`     | none                                                                 | `--test-chat-id`, `--test-message`                                                                                                       |
 | `pnpm smoke:telegram-user` | `--api-id`, `--api-hash`, `--bot-username`                           | `--phone-number`, `--login-code`, `--two-factor-password`, `--user-session`, `--target`, `--message`, timing and reply expectation flags |
 | `pnpm smoke:suite`         | none (plus Telegram user flags only if user-smoke scenarios are run) | `--dry-run`, `--scenario`, `--require-user-smoke`, group/file/message flags                                                              |
+| `pnpm smoke:lane`          | `--lane` or `--config-path`                                          | `--action`, plus the flags accepted by the selected smoke action                                                                         |
 | `pnpm smoke:github-write`  | `--repository`                                                       | `--dry-run`, `--no-dry-run`, `--confirm`, `--title`, `--body`, `--label`, `--pr-number`                                                  |
 | `pnpm smoke:dashboard`     | none                                                                 | `--port`                                                                                                                                 |
 
@@ -89,27 +90,66 @@ pnpm smoke:suite \
 
 Scenario filtering is optional. When omitted, the suite runs every scenario it can run with the available CLI flags and reports skipped optional group/file checks in token-free JSON.
 
-## Required Environment
+## Parallel Live Smoke Lanes
 
-Use a separate `.env` or shell session with:
+True parallel live Telegram smoke requires one Telegram bot token per lane. Do not run multiple polling services against the same bot token; Telegram updates are single-consumer and the services will race each other.
 
-```bash
-export TELEGRAM_BOT_TOKEN=...
-export MOTTBOT_MASTER_KEY=...
-export MOTTBOT_ADMIN_USER_IDS=...
-export MOTTBOT_SQLITE_PATH=./data/mottbot.integration.sqlite
-export MOTTBOT_ATTACHMENT_CACHE_DIR=./data/attachments.integration
+Create one ignored lane config per bot under `.local/smoke-lanes/`:
+
+```json
+{
+  "telegram": {
+    "botToken": "REPLACE_WITH_LANE_BOT_TOKEN",
+    "polling": true,
+    "adminUserIds": ["123456789"]
+  },
+  "storage": {
+    "sqlitePath": "./data/smoke-lane-1/mottbot.sqlite"
+  },
+  "attachments": {
+    "cacheDir": "./data/smoke-lane-1/attachments"
+  },
+  "dashboard": {
+    "port": 8788
+  },
+  "projectTasks": {
+    "repoRoots": ["."],
+    "worktreeRoot": "./data/smoke-lane-1/project-worktrees",
+    "artifactRoot": "./data/smoke-lane-1/project-runs"
+  },
+  "service": {
+    "label": "ai.mottbot.bot.lane-1"
+  },
+  "security": {
+    "masterKey": "REPLACE_WITH_STRONG_LOCAL_SECRET"
+  },
+  "smoke": {
+    "botUsername": "StartupMottBotLane1",
+    "sessionPath": "./data/smoke-lane-1/telegram-user.session"
+  }
+}
 ```
 
-Optional filters:
+The `smoke` object is read only by `pnpm smoke:lane`; the runtime ignores it. Keep these files local and uncommitted.
+
+Run each lane from its own worktree:
 
 ```bash
-export MOTTBOT_ALLOWED_CHAT_IDS=...
-export MOTTBOT_DEFAULT_PROFILE=openai-codex:default
-export MOTTBOT_DEFAULT_MODEL=openai-codex/gpt-5.4
+pnpm smoke:lane --lane lane-1 --action service-restart
+pnpm smoke:lane --lane lane-1 --action preflight
+pnpm smoke:lane --lane lane-1 --dry-run --api-id <api-id> --api-hash <api-hash>
+pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
 ```
 
-Do not reuse the normal development SQLite database for destructive restart or fault-injection checks.
+`pnpm smoke:lane` sets `MOTTBOT_CONFIG_PATH` for the child command, injects the lane `smoke.botUsername` and `smoke.sessionPath` unless you pass explicit flags, and leaves the API ID/hash as one-run CLI flags. Service actions use the lane's `service.label`, so launchd plists and logs do not collide across lanes.
+
+## Required Runtime Config
+
+Use a dedicated ignored config JSON for live validation. At minimum it needs `telegram.botToken`, `security.masterKey`, `telegram.adminUserIds`, and a SQLite path under an ignored directory such as `data/`.
+
+Set `MOTTBOT_CONFIG_PATH` only when you want a command to use a non-default config file. The lane wrapper sets it automatically for child commands.
+
+Do not reuse the normal development SQLite database for destructive restart, parallel live smoke, or fault-injection checks.
 
 ## Preflight
 

@@ -2,9 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { DEFAULT_SERVICE_LABEL, normalizeServiceLabel } from "./service-label.js";
 
 /** launchd label used for the macOS Mottbot service. */
-export const SERVICE_LABEL = "ai.mottbot.bot";
+export const SERVICE_LABEL = DEFAULT_SERVICE_LABEL;
 
 /** Filesystem paths used by the macOS launchd service and its logs. */
 export type LaunchAgentPaths = {
@@ -24,6 +25,12 @@ export type LaunchAgentCommandResult = {
 
 const SERVICE_NODE_PATH_ENV = "MOTTBOT_SERVICE_NODE_PATH";
 
+/** Options that identify one local Mottbot launchd service instance. */
+export type ServiceCommandOptions = {
+  label?: string;
+  configPath?: string;
+};
+
 function xmlEscape(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -37,13 +44,19 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+function serviceLogDir(home: string, label: string): string {
+  const root = path.join(home, "Library", "Logs", "mottbot");
+  return label === DEFAULT_SERVICE_LABEL ? root : path.join(root, label);
+}
+
 /** Resolves the per-user LaunchAgent plist and log paths for a service label. */
 export function launchAgentPaths(label = SERVICE_LABEL): LaunchAgentPaths {
+  const normalizedLabel = normalizeServiceLabel(label);
   const home = os.homedir();
-  const logDir = path.join(home, "Library", "Logs", "mottbot");
+  const logDir = serviceLogDir(home, normalizedLabel);
   return {
-    label,
-    plistPath: path.join(home, "Library", "LaunchAgents", `${label}.plist`),
+    label: normalizedLabel,
+    plistPath: path.join(home, "Library", "LaunchAgents", `${normalizedLabel}.plist`),
     logDir,
     stdoutPath: path.join(logDir, "bot.out.log"),
     stderrPath: path.join(logDir, "bot.err.log"),
@@ -53,17 +66,21 @@ export function launchAgentPaths(label = SERVICE_LABEL): LaunchAgentPaths {
 /** Builds the launchd plist that starts Mottbot from the provided project root. */
 export function buildLaunchAgentPlist(params: {
   label?: string;
+  configPath?: string;
   projectRoot: string;
   nodePath?: string;
   stdoutPath?: string;
   stderrPath?: string;
 }): string {
-  const label = params.label ?? SERVICE_LABEL;
+  const label = normalizeServiceLabel(params.label);
   const paths = launchAgentPaths(label);
   const projectRoot = path.resolve(params.projectRoot);
+  const configPrefix = params.configPath ? `MOTTBOT_CONFIG_PATH=${shellQuote(path.resolve(params.configPath))} ` : "";
   const tsxCli = path.join(projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
   const nodePath = params.nodePath ?? process.execPath;
-  const command = `cd ${shellQuote(projectRoot)} && ${shellQuote(nodePath)} ${shellQuote(tsxCli)} src/index.ts start`;
+  const command = `cd ${shellQuote(projectRoot)} && ${configPrefix}${shellQuote(nodePath)} ${shellQuote(
+    tsxCli,
+  )} src/index.ts start`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -253,7 +270,7 @@ function userDomain(): string {
 }
 
 function serviceTarget(label = SERVICE_LABEL): string {
-  return `${userDomain()}/${label}`;
+  return `${userDomain()}/${normalizeServiceLabel(label)}`;
 }
 
 function runLaunchctl(args: string[]): LaunchAgentCommandResult {
@@ -283,15 +300,18 @@ function ignoreMissingService(result: LaunchAgentCommandResult): void {
 }
 
 /** Writes the LaunchAgent plist and creates the expected log directory. */
-export function installLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
+export function installLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
   ensureDarwin();
-  const paths = launchAgentPaths();
+  const label = normalizeServiceLabel(options.label);
+  const paths = launchAgentPaths(label);
   const nodePath = resolveLaunchAgentNodePath(projectRoot);
   fs.mkdirSync(path.dirname(paths.plistPath), { recursive: true });
   fs.mkdirSync(paths.logDir, { recursive: true });
   fs.writeFileSync(
     paths.plistPath,
     buildLaunchAgentPlist({
+      label,
+      configPath: options.configPath,
       projectRoot,
       nodePath,
       stdoutPath: paths.stdoutPath,
@@ -303,15 +323,16 @@ export function installLaunchAgent(projectRoot = process.cwd()): LaunchAgentPath
 }
 
 /** Stops the loaded LaunchAgent, treating an already-stopped service as success. */
-export function stopLaunchAgent(): void {
+export function stopLaunchAgent(options: ServiceCommandOptions = {}): void {
   ensureDarwin();
-  ignoreMissingService(runLaunchctl(["bootout", serviceTarget()]));
+  ignoreMissingService(runLaunchctl(["bootout", serviceTarget(options.label)]));
 }
 
 /** Installs and bootstraps the LaunchAgent for the current macOS GUI session. */
-export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
-  const paths = installLaunchAgent(projectRoot);
-  stopLaunchAgent();
+export function startLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
+  const label = normalizeServiceLabel(options.label);
+  const paths = installLaunchAgent(projectRoot, { ...options, label });
+  stopLaunchAgent({ label });
   let bootstrap = runLaunchctl(["bootstrap", userDomain(), paths.plistPath]);
   if (bootstrap.status !== 0 && /Bootstrap failed: 5|Input\/output error/i.test(bootstrap.stderr)) {
     sleepMs(1_000);
@@ -320,7 +341,7 @@ export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths 
   if (bootstrap.status !== 0) {
     throw new Error(bootstrap.stderr.trim() || "launchctl bootstrap failed.");
   }
-  const enable = runLaunchctl(["enable", serviceTarget()]);
+  const enable = runLaunchctl(["enable", serviceTarget(label)]);
   if (enable.status !== 0) {
     throw new Error(enable.stderr.trim() || "launchctl enable failed.");
   }
@@ -328,15 +349,15 @@ export function startLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths 
 }
 
 /** Stops and starts the LaunchAgent using the latest generated plist. */
-export function restartLaunchAgent(projectRoot = process.cwd()): LaunchAgentPaths {
-  stopLaunchAgent();
-  return startLaunchAgent(projectRoot);
+export function restartLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
+  stopLaunchAgent(options);
+  return startLaunchAgent(projectRoot, options);
 }
 
 /** Stops the LaunchAgent and removes its plist while leaving logs in place. */
-export function uninstallLaunchAgent(): LaunchAgentPaths {
-  const paths = launchAgentPaths();
-  stopLaunchAgent();
+export function uninstallLaunchAgent(options: ServiceCommandOptions = {}): LaunchAgentPaths {
+  const paths = launchAgentPaths(options.label);
+  stopLaunchAgent(options);
   if (fs.existsSync(paths.plistPath)) {
     fs.unlinkSync(paths.plistPath);
   }
@@ -344,51 +365,57 @@ export function uninstallLaunchAgent(): LaunchAgentPaths {
 }
 
 /** Returns a concise launchctl status summary for operator-facing CLI output. */
-export function serviceStatus(): string {
+export function serviceStatus(options: ServiceCommandOptions = {}): string {
   ensureDarwin();
-  const result = runLaunchctl(["print", serviceTarget()]);
+  const label = normalizeServiceLabel(options.label);
+  const result = runLaunchctl(["print", serviceTarget(label)]);
   if (result.status !== 0) {
-    return `Mottbot service is not loaded (${SERVICE_LABEL}).`;
+    return `Mottbot service is not loaded (${label}).`;
   }
   const lines = result.stdout.split("\n");
   const interesting = lines.filter((line) => /state =|pid =|last exit code =|program =/.test(line)).slice(0, 8);
-  return [`Mottbot service is loaded (${SERVICE_LABEL}).`, ...interesting].join("\n");
+  return [`Mottbot service is loaded (${label}).`, ...interesting].join("\n");
 }
 
 /** Dispatches the service CLI subcommand and returns a process-style exit code. */
-export function runServiceCommand(args: string[], projectRoot = process.cwd()): number {
+export function runServiceCommand(
+  args: string[],
+  projectRoot = process.cwd(),
+  options: ServiceCommandOptions = {},
+): number {
   const [command = "status", ...rest] = args;
+  const label = normalizeServiceLabel(options.label);
   if (command === "install") {
-    const paths = installLaunchAgent(projectRoot);
-    process.stdout.write(`Installed ${SERVICE_LABEL}\nPlist: ${paths.plistPath}\nLogs: ${paths.logDir}\n`);
+    const paths = installLaunchAgent(projectRoot, { ...options, label });
+    process.stdout.write(`Installed ${label}\nPlist: ${paths.plistPath}\nLogs: ${paths.logDir}\n`);
     if (rest.includes("--start")) {
-      startLaunchAgent(projectRoot);
+      startLaunchAgent(projectRoot, { ...options, label });
       process.stdout.write("Started service.\n");
     }
     return 0;
   }
   if (command === "start") {
-    const paths = startLaunchAgent(projectRoot);
-    process.stdout.write(`Started ${SERVICE_LABEL}\nLogs: ${paths.logDir}\n`);
+    const paths = startLaunchAgent(projectRoot, { ...options, label });
+    process.stdout.write(`Started ${label}\nLogs: ${paths.logDir}\n`);
     return 0;
   }
   if (command === "stop") {
-    stopLaunchAgent();
-    process.stdout.write(`Stopped ${SERVICE_LABEL}\n`);
+    stopLaunchAgent({ label });
+    process.stdout.write(`Stopped ${label}\n`);
     return 0;
   }
   if (command === "restart") {
-    const paths = restartLaunchAgent(projectRoot);
-    process.stdout.write(`Restarted ${SERVICE_LABEL}\nLogs: ${paths.logDir}\n`);
+    const paths = restartLaunchAgent(projectRoot, { ...options, label });
+    process.stdout.write(`Restarted ${label}\nLogs: ${paths.logDir}\n`);
     return 0;
   }
   if (command === "uninstall") {
-    const paths = uninstallLaunchAgent();
-    process.stdout.write(`Uninstalled ${SERVICE_LABEL}\nRemoved: ${paths.plistPath}\n`);
+    const paths = uninstallLaunchAgent({ label });
+    process.stdout.write(`Uninstalled ${label}\nRemoved: ${paths.plistPath}\n`);
     return 0;
   }
   if (command === "status") {
-    process.stdout.write(`${serviceStatus()}\n`);
+    process.stdout.write(`${serviceStatus({ label })}\n`);
     return 0;
   }
   process.stderr.write("Usage: mottbot service install [--start] | start | stop | restart | status | uninstall\n");

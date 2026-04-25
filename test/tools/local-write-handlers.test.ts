@@ -227,6 +227,7 @@ describe("local write tool handlers", () => {
     const outside = createTempDir();
     try {
       fs.writeFileSync(path.join(root, "existing.md"), "existing\n");
+      fs.mkdirSync(path.join(root, ".local", "smoke-lanes"), { recursive: true });
       fs.symlinkSync(outside, path.join(root, "outside-link"));
       const handlers = createLocalWriteToolHandlers({
         roots: [root],
@@ -255,6 +256,12 @@ describe("local write tool handlers", () => {
       await expect(
         runTool(handlers.mottbot_local_note_create!, {
           path: "private/draft.md",
+          content: "new\n",
+        }),
+      ).rejects.toThrow(/denied/);
+      await expect(
+        runTool(handlers.mottbot_local_note_create!, {
+          path: ".local/smoke-lanes/draft.md",
           content: "new\n",
         }),
       ).rejects.toThrow(/denied/);

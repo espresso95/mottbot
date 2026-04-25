@@ -65,6 +65,7 @@ describe("local exec tool handlers", () => {
     const root = createTempDir();
     try {
       fs.mkdirSync(path.join(root, "private"));
+      fs.mkdirSync(path.join(root, ".local"));
       const handlers = createLocalExecToolHandlers({
         roots: [root],
         deniedPaths: ["private"],
@@ -105,6 +106,12 @@ describe("local exec tool handlers", () => {
         runTool(handlers.mottbot_local_command_run!, {
           command: process.execPath,
           cwd: "private",
+        }),
+      ).rejects.toThrow(/denied/);
+      await expect(
+        runTool(handlers.mottbot_local_command_run!, {
+          command: process.execPath,
+          cwd: ".local",
         }),
       ).rejects.toThrow(/denied/);
     } finally {

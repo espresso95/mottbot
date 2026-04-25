@@ -90,6 +90,9 @@ Current defaults:
     "instanceLeaseTtlMs": 120000,
     "instanceLeaseRefreshMs": 30000
   },
+  "service": {
+    "label": "ai.mottbot.bot"
+  },
   "usage": {
     "dailyRuns": 0,
     "dailyRunsPerUser": 0,

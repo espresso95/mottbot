@@ -188,7 +188,7 @@ export class OperatorDiagnostics {
 
   serviceStatus(): string {
     try {
-      return (this.options.serviceStatus ?? serviceStatus)();
+      return (this.options.serviceStatus ?? (() => serviceStatus({ label: this.config.service.label })))();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return `Service status unavailable: ${message}`;
@@ -360,6 +360,6 @@ export class OperatorDiagnostics {
   }
 
   private paths(): Pick<LaunchAgentPaths, "stdoutPath" | "stderrPath"> {
-    return this.options.launchAgentPaths ?? launchAgentPaths();
+    return this.options.launchAgentPaths ?? launchAgentPaths(this.config.service.label);
   }
 }

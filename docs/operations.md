@@ -76,6 +76,7 @@ Required items:
 - optional test chat IDs in `telegram.allowedChatIds`
 - a runtime SQLite path such as `storage.sqlitePath` (`./data/mottbot.sqlite`)
 - a separate live-integration SQLite path such as `./data/mottbot.integration.sqlite` when validating without touching runtime data
+- a unique `service.label` and SQLite/session paths for each parallel live-smoke lane
 - a Codex auth source, either `$CODEX_HOME/auth.json` for CLI import or local OAuth through `pnpm auth:login`
 - webhook public URL and secret token values when testing webhook mode
 
@@ -164,6 +165,7 @@ Equivalent `pnpm` scripts:
 - `pnpm smoke:dashboard`
 - `pnpm smoke:local-tools`
 - `pnpm smoke:github-write`
+- `pnpm smoke:lane`
 - `pnpm smoke:suite`
 
 ## Release Verification
@@ -207,6 +209,8 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 `pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires `--api-id` and `--api-hash` from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
 
 The harness also accepts `--target`, `--reply-to-latest-bot-message`, and `--file-path` for group, reply-gating, and attachment smoke checks.
+
+`pnpm smoke:lane --lane <name>` runs preflight, suite, telegram-user, or service actions through `.local/smoke-lanes/<name>.json`. Use it when multiple worktrees need live Telegram smoke at the same time. Each lane must use a different Telegram bot token, `service.label`, SQLite path, project worktree/artifact roots, and smoke session path.
 
 ## User Roles And Chat Governance
 
@@ -296,7 +300,7 @@ MOTTBOT_REPOSITORY_MAX_SEARCH_BYTES=80000
 MOTTBOT_REPOSITORY_COMMAND_TIMEOUT_MS=5000
 ```
 
-Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
+Default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.local`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files. Add comma-separated entries to `MOTTBOT_REPOSITORY_DENIED_PATHS` for project-specific private paths.
 
 GitHub tools use the host GitHub CLI. Authenticate once with `gh auth login`; Mottbot does not store GitHub tokens. Public repositories need ordinary read access; private repositories and workflow inspection require the host `gh` account to have repository and Actions read permissions. Approval-gated issue creation and issue/PR comments require the same host account to have write permission on the target repository.
 

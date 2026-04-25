@@ -154,7 +154,7 @@ Safety rules:
 - the note tool never overwrites existing files
 - full-file replace requires a SHA-256 from `mottbot_local_doc_read`, so stale edits are rejected before writing
 - parent directories are checked after realpath resolution so symlink escapes are rejected
-- built-in denied paths include `.env`, config files, auth files, `.codex`, `.git`, `node_modules`, build output, database files, logs, and Telegram session files
+- built-in denied paths include `.env`, config files, auth files, `.local`, `.codex`, `.git`, `node_modules`, build output, database files, logs, and Telegram session files
 - write output returns path, size, and checksums, not the written content
 
 ## Local Command Scope
@@ -285,7 +285,7 @@ Defaults:
 }
 ```
 
-Built-in denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files.
+Built-in denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.local`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files.
 
 Path safety rules:
 

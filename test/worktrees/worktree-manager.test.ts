@@ -115,8 +115,11 @@ describe("WorktreeManager", () => {
         baseRef: "main",
       });
       fs.writeFileSync(path.join(prepared.worktreePath, ".env.local"), "TOKEN=123", "utf8");
+      fs.mkdirSync(path.join(prepared.worktreePath, ".local", "smoke-lanes"), { recursive: true });
+      fs.writeFileSync(path.join(prepared.worktreePath, ".local", "smoke-lanes", "lane-1.json"), "{}", "utf8");
 
       expect(manager.listProtectedChanges(prepared.worktreePath)).toContain(".env.local");
+      expect(manager.listProtectedChanges(prepared.worktreePath)).toContain(".local/");
     } finally {
       removeTempDir(root);
     }

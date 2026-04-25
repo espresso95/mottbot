@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { fileExists } from "../shared/fs.js";
+import { DEFAULT_SERVICE_LABEL, SERVICE_LABEL_PATTERN } from "./service-label.js";
 
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
@@ -163,6 +164,11 @@ const projectTasksConfigSchema = z
       .default({}),
   })
   .default({});
+const serviceConfigSchema = z
+  .object({
+    label: z.string().regex(SERVICE_LABEL_PATTERN).default(DEFAULT_SERVICE_LABEL),
+  })
+  .default({});
 
 const rawConfigSchema = z.object({
   telegram: z
@@ -305,6 +311,7 @@ const rawConfigSchema = z.object({
     })
     .default({}),
   projectTasks: projectTasksConfigSchema,
+  service: serviceConfigSchema,
 });
 
 /** Fully validated runtime configuration with defaults and filesystem paths resolved. */
@@ -407,6 +414,7 @@ export type AppConfig = {
   security: {
     masterKey: string;
   };
+  service: z.infer<typeof serviceConfigSchema>;
   projectTasks: z.infer<typeof projectTasksConfigSchema> & {
     repoRoots: string[];
     worktreeRoot: string;
@@ -549,6 +557,7 @@ export function loadConfig(): AppConfig {
     security: {
       masterKey,
     },
+    service: parsed.service,
     projectTasks: {
       ...parsed.projectTasks,
       repoRoots: parsed.projectTasks.repoRoots.map((entry) => path.resolve(entry)),

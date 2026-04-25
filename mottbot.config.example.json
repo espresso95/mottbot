@@ -149,6 +149,9 @@
     "monthlyRunsPerModel": 0,
     "warningThresholdPercent": 80
   },
+  "service": {
+    "label": "ai.mottbot.bot"
+  },
   "projectTasks": {
     "enabled": false,
     "repoRoots": ["."],

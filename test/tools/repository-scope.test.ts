@@ -102,6 +102,7 @@ describe("RepositoryScope", () => {
     const outside = createTempDir();
     try {
       writeFile(path.join(root, ".env"), "TOKEN=secret\n");
+      writeFile(path.join(root, ".local/smoke-lanes/lane-1.json"), '{"telegram":{"botToken":"secret"}}\n');
       writeFile(path.join(root, "data/mottbot.sqlite"), "sqlite\n");
       writeFile(path.join(root, "private/notes.txt"), "private\n");
       writeFile(path.join(outside, "outside.txt"), "outside\n");
@@ -118,6 +119,7 @@ describe("RepositoryScope", () => {
       expect(() => scope.resolvePath({ targetPath: "../outside.txt" })).toThrow(/outside the approved root/);
       expect(() => scope.resolvePath({ targetPath: "%2e%2e/outside.txt" })).toThrow(/outside the approved root/);
       expect(() => scope.resolvePath({ targetPath: ".env" })).toThrow(/denied/);
+      expect(() => scope.resolvePath({ targetPath: ".local/smoke-lanes/lane-1.json" })).toThrow(/denied/);
       expect(() => scope.resolvePath({ targetPath: "data/mottbot.sqlite" })).toThrow(/denied/);
       expect(() => scope.resolvePath({ targetPath: "private/notes.txt" })).toThrow(/denied/);
       expect(() => scope.resolvePath({ targetPath: "outside-link" })).toThrow(/outside the approved root/);
@@ -141,7 +143,15 @@ describe("RepositoryScope", () => {
       });
 
       expect(scope.rgGlobs()).toEqual(
-        expect.arrayContaining(["!**/.env", "!**/.env/**", "!**/private", "!**/private/**", "!secrets/*.txt"]),
+        expect.arrayContaining([
+          "!**/.env",
+          "!**/.env/**",
+          "!**/.local",
+          "!**/.local/**",
+          "!**/private",
+          "!**/private/**",
+          "!secrets/*.txt",
+        ]),
       );
     } finally {
       removeTempDir(root);

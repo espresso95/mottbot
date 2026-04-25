@@ -32,6 +32,7 @@ const DEFAULT_DENIED_PATHS = [
   ".env.*",
   "mottbot.config.json",
   "auth.json",
+  ".local",
   ".codex",
   ".git",
   "node_modules",

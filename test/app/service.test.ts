@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildLaunchAgentPlist,
+  launchAgentPaths,
   launchAgentNodeCandidates,
   resolveLaunchAgentNodePath,
   SERVICE_LABEL,
@@ -12,6 +13,7 @@ describe("launchd service helpers", () => {
   it("builds a LaunchAgent plist that runs the bot from the project root", () => {
     const plist = buildLaunchAgentPlist({
       projectRoot: "/Users/mottbot/mottbot",
+      configPath: "/Users/mottbot/mottbot/mottbot.config.json",
       stdoutPath: "/tmp/mottbot.out.log",
       stderrPath: "/tmp/mottbot.err.log",
     });
@@ -20,6 +22,7 @@ describe("launchd service helpers", () => {
     expect(plist).toContain("<key>KeepAlive</key>");
     expect(plist).toContain("<key>ThrottleInterval</key>");
     expect(plist).toContain("node_modules/tsx/dist/cli.mjs");
+    expect(plist).toContain("MOTTBOT_CONFIG_PATH=&apos;/Users/mottbot/mottbot/mottbot.config.json&apos;");
     expect(plist).toContain("src/index.ts start");
     expect(plist).toContain("<string>/tmp/mottbot.out.log</string>");
     expect(plist).toContain("<string>/tmp/mottbot.err.log</string>");
@@ -34,6 +37,19 @@ describe("launchd service helpers", () => {
     });
 
     expect(plist).toContain("&apos;/tmp/node-24/bin/node&apos;");
+  });
+
+  it("uses per-label plist and log paths for parallel smoke lanes", () => {
+    const paths = launchAgentPaths("ai.mottbot.bot.lane-1");
+
+    expect(paths.label).toBe("ai.mottbot.bot.lane-1");
+    expect(paths.plistPath).toContain("ai.mottbot.bot.lane-1.plist");
+    expect(paths.logDir).toContain("mottbot/ai.mottbot.bot.lane-1");
+    expect(paths.stdoutPath).toContain("mottbot/ai.mottbot.bot.lane-1/bot.out.log");
+  });
+
+  it("rejects unsafe service labels", () => {
+    expect(() => launchAgentPaths("bad label")).toThrow(/service label/i);
   });
 
   it("escapes project roots before embedding them into shell and XML strings", () => {

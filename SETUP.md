@@ -191,7 +191,7 @@ Repository tool settings:
 - `MOTTBOT_REPOSITORY_ROOTS=.` approves the current checkout for read-only admin model tools
 - use a comma-separated list for multiple approved roots
 - `MOTTBOT_REPOSITORY_DENIED_PATHS` adds extra denied path segments or relative paths
-- default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files
+- default denied paths include `.env`, `.env.*`, `mottbot.config.json`, `auth.json`, `.local`, `.codex`, `.git`, `node_modules`, `data`, `dist`, `coverage`, SQLite/database files, logs, and Telegram session files
 - repository tools are admin-only and read-only; they can list files, read bounded text slices, search literal text, and inspect git status/branch/commits/diffs
 
 Local write tool settings:
@@ -271,7 +271,7 @@ Import Codex CLI auth into the configured SQLite database:
 corepack pnpm auth:import-cli
 ```
 
-Smoke commands are optional operator-run checks. Their inputs are shell-only test parameters documented in `docs/live-smoke-tests.md`; they are not required app config and should not be added to `mottbot.config.json`.
+Smoke commands are optional operator-run checks. Their one-run scenario inputs are CLI flags documented in `docs/live-smoke-tests.md`. For true parallel live Telegram smoke, create one ignored lane config per test bot under `.local/smoke-lanes/` and run through `corepack pnpm smoke:lane`.
 
 Run the guarded preflight:
 
@@ -323,6 +323,14 @@ corepack pnpm smoke:suite
 ```
 
 When `--api-id`, `--api-hash`, and `--bot-username` are passed, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, optional group non-mention, and optional attachment fixture checks on top of preflight.
+
+Run the same suite through an isolated lane config:
+
+```bash
+corepack pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
+```
+
+Use `corepack pnpm smoke:lane --lane lane-1 --action service-restart` to restart only that lane's launchd service. Each lane must use a different Telegram bot token and `service.label`.
 
 Optional private-chat smoke without manually typing in Telegram:
 

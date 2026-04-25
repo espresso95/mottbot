@@ -76,6 +76,7 @@ describe("loadConfig", () => {
         runtime: { instanceLeaseEnabled: false },
         memory: { autoSummariesEnabled: true, autoSummaryRecentMessages: 16 },
         usage: { dailyRuns: 5, monthlyRunsPerModel: 20, warningThresholdPercent: 75 },
+        service: { label: "ai.mottbot.bot.file" },
       }),
     );
 
@@ -89,6 +90,7 @@ describe("loadConfig", () => {
     expect(config.tools.enableSideEffectTools).toBe(true);
     expect(config.models.transport).toBe("sse");
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
+    expect(config.service.label).toBe("ai.mottbot.bot.file");
   });
 
   it("does not use env overrides for runtime config", () => {
@@ -146,6 +148,28 @@ describe("loadConfig", () => {
       ],
       bindings: [],
     });
+    expect(config.service.label).toBe("ai.mottbot.bot");
+  });
+
+  it("rejects invalid service labels", () => {
+    for (const key of configEnvKeys) {
+      delete process.env[key];
+    }
+    const dir = createTempDir();
+    dirs.push(dir);
+    const file = path.join(dir, "mottbot.config.json");
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        telegram: { botToken: "bot-token" },
+        security: { masterKey: "master" },
+        service: { label: "bad label with spaces" },
+      }),
+    );
+
+    process.env.MOTTBOT_CONFIG_PATH = file;
+
+    expect(() => loadConfig()).toThrow();
   });
 
   it("rejects bindings that reference unknown agents", () => {

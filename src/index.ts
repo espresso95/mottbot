@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
 import { bootstrapApplication } from "./app/bootstrap.js";
-import { loadConfig } from "./app/config.js";
+import { loadConfig, resolveConfigPath } from "./app/config.js";
 import { systemClock } from "./shared/clock.js";
 import { createLogger } from "./shared/logger.js";
 import { SecretBox } from "./shared/crypto.js";
@@ -15,7 +17,7 @@ import { runCodexOAuthLogin } from "./codex/oauth-login.js";
 import { importCodexCliAuthProfile } from "./codex/cli-auth-import.js";
 import { installShutdown } from "./app/shutdown.js";
 import { HealthReporter } from "./app/health.js";
-import { runServiceCommand } from "./app/service.js";
+import { runServiceCommand, type ServiceCommandOptions } from "./app/service.js";
 
 async function runStart(): Promise<void> {
   const app = await bootstrapApplication();
@@ -110,6 +112,64 @@ function readOptionalStringFlag(args: string[], name: string): string | undefine
   return value;
 }
 
+function readServiceLabelFromConfig(configPath: string): string | undefined {
+  if (!fs.existsSync(configPath)) {
+    return undefined;
+  }
+  const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return undefined;
+  }
+  const service = (parsed as { service?: unknown }).service;
+  if (!service || typeof service !== "object" || Array.isArray(service)) {
+    return undefined;
+  }
+  const label = (service as { label?: unknown }).label;
+  return typeof label === "string" && label.trim() ? label.trim() : undefined;
+}
+
+function extractServiceCommand(args: string[]): { args: string[]; options: ServiceCommandOptions } {
+  const commandArgs: string[] = [];
+  let label: string | undefined;
+  let configPath: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const item = args[index];
+    if (!item) {
+      continue;
+    }
+    if (item === "--label" || item === "--config-path") {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        throw new Error(`${item} must be followed by a value.`);
+      }
+      if (item === "--label") {
+        label = value;
+      } else {
+        configPath = value;
+      }
+      index += 1;
+      continue;
+    }
+    if (item.startsWith("--label=")) {
+      label = item.slice("--label=".length).trim();
+      continue;
+    }
+    if (item.startsWith("--config-path=")) {
+      configPath = item.slice("--config-path=".length).trim();
+      continue;
+    }
+    commandArgs.push(item);
+  }
+  const resolvedConfigPath = path.resolve(configPath ?? resolveConfigPath());
+  return {
+    args: commandArgs,
+    options: {
+      label: label ?? readServiceLabelFromConfig(resolvedConfigPath),
+      configPath: resolvedConfigPath,
+    },
+  };
+}
+
 async function runDbPrune(args: string[]): Promise<void> {
   const config = loadConfig();
   const database = new DatabaseClient(config.storage.sqlitePath);
@@ -198,9 +258,9 @@ function printHelp(): void {
       "  mottbot db prune [--older-than-days 30] [--dry-run|--yes]",
       "  mottbot logs status",
       "  mottbot logs rotate [--archive-dir <dir>] [--truncate] [--max-archives 10]",
-      "  mottbot service install [--start]",
-      "  mottbot service start|stop|restart|status|uninstall",
-      "  mottbot restart",
+      "  mottbot service install [--start] [--label <label>] [--config-path <file>]",
+      "  mottbot service start|stop|restart|status|uninstall [--label <label>] [--config-path <file>]",
+      "  mottbot restart [--label <label>] [--config-path <file>]",
       "  mottbot health",
     ].join("\n") + "\n",
   );
@@ -242,13 +302,15 @@ async function main(): Promise<void> {
     return;
   }
   if (group === "service") {
-    process.exitCode = runServiceCommand(subcommand ? [subcommand, ...rest] : rest);
+    const serviceCommand = extractServiceCommand(subcommand ? [subcommand, ...rest] : rest);
+    process.exitCode = runServiceCommand(serviceCommand.args, process.cwd(), serviceCommand.options);
     return;
   }
   if (group === "restart") {
-    process.exitCode = runServiceCommand(
+    const serviceCommand = extractServiceCommand(
       ["restart", subcommand, ...rest].filter((value): value is string => Boolean(value)),
     );
+    process.exitCode = runServiceCommand(serviceCommand.args, process.cwd(), serviceCommand.options);
     return;
   }
   if (group === "health") {

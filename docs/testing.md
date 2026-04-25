@@ -99,7 +99,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
 
-The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight` or the composed `pnpm smoke:suite`. The smoke harness source lives under `scripts/smoke/` so smoke-only inputs stay outside the production runtime modules.
+The CI workflow does not require live Telegram or Codex secrets. Live integration remains a guarded operator-run workflow through `pnpm smoke:preflight`, the composed `pnpm smoke:suite`, or lane-scoped `pnpm smoke:lane` commands. The smoke harness source lives under `scripts/smoke/` so smoke-only inputs stay outside the production runtime modules.
 
 For private-chat live validation without manually typing in Telegram every time, use the optional MTProto harness:
 
@@ -116,6 +116,15 @@ pnpm smoke:suite
 ```
 
 In dry-run mode it prints the planned preflight, private conversation, command, reply, group mention, group non-mention, and attachment checks without sending Telegram messages.
+
+For parallel live Telegram validation, use one ignored lane config and one Telegram bot token per lane:
+
+```bash
+pnpm smoke:lane --lane lane-1 --dry-run --api-id <api-id> --api-hash <api-hash>
+pnpm smoke:lane --lane lane-1 --api-id <api-id> --api-hash <api-hash>
+```
+
+The lane helper sets `MOTTBOT_CONFIG_PATH` for the child command and injects the lane bot username and MTProto session path from `.local/smoke-lanes/<lane>.json`.
 
 For local dashboard validation, use:
 

@@ -6,6 +6,7 @@ dist
 data
 coverage
 .vitest
+.local
 mottbot.config.json
 *.sqlite
 *.sqlite-*

@@ -138,12 +138,14 @@ Operator checklist:
 - Added dry-run/planning controls.
 - The suite composes preflight, private conversation, `/health`, `/usage`, reply, optional group mention, and optional attachment fixture checks.
 - Suite output is token-free JSON with bounded child output for failed checks.
+- Added `pnpm smoke:lane` and JSON-configured service labels so multiple worktrees can run live Telegram smoke in parallel with separate bot tokens.
 
 Operator checklist:
 
 - Run `pnpm smoke:suite --dry-run` before sending live messages.
 - Pass `--api-id`, `--api-hash`, and `--bot-username` to include user-account scenarios.
 - Pass `--group-target` and `--file-path` only for controlled test chats and fixtures.
+- Use one `.local/smoke-lanes/<lane>.json` file, one `service.label`, and one Telegram bot token per parallel live-smoke lane.
 
 ### Model And Cost Controls
 
@@ -252,7 +254,7 @@ Operator checklist:
 - Added admin-only model tools for approved local repository inspection.
 - Added bounded file listing, file reading, literal text search, git status, current branch lookup, recent commits, and git diff summaries.
 - Added repository root and denied-path config through `tools.repository` and `MOTTBOT_REPOSITORY_*`.
-- Denied common secret and generated paths by default, including `.env`, config files, auth files, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files.
+- Denied common secret and generated paths by default, including `.env`, config files, auth files, `.local`, `.git`, `node_modules`, `data`, `dist`, `coverage`, database files, logs, and Telegram session files.
 - Rejected path traversal and symlink escapes through realpath checks.
 
 Operator checklist:

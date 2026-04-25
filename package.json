@@ -38,6 +38,7 @@
     "smoke:dashboard": "tsx scripts/smoke/dashboard-smoke.ts",
     "smoke:local-tools": "tsx scripts/smoke/local-tool-validation-suite.ts",
     "smoke:github-write": "tsx scripts/smoke/github-write-validation-suite.ts",
+    "smoke:lane": "tsx scripts/smoke/smoke-lane.ts",
     "smoke:suite": "tsx scripts/smoke/live-validation-suite.ts"
   },
   "engines": {

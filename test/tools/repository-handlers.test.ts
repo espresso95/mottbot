@@ -52,6 +52,7 @@ describe("repository tool handlers", () => {
       writeFile(path.join(root, "README.md"), "hello repo\n");
       writeFile(path.join(root, "src/index.ts"), "alpha\nneedle\nomega\n");
       writeFile(path.join(root, ".env"), "needle secret\n");
+      writeFile(path.join(root, ".local/smoke-lanes/lane-1.json"), "needle lane secret\n");
       writeFile(path.join(root, "private/secret.txt"), "needle private\n");
       const handlers = createRepositoryToolHandlers(createConfig(root));
 
@@ -66,6 +67,7 @@ describe("repository tool handlers", () => {
         ]),
       });
       expect(JSON.stringify(listed)).not.toContain(".env");
+      expect(JSON.stringify(listed)).not.toContain(".local");
       expect(JSON.stringify(listed)).not.toContain("private/secret.txt");
 
       const read = await runTool(handlers.mottbot_repo_read_file!, {
@@ -87,6 +89,7 @@ describe("repository tool handlers", () => {
         matches: [expect.objectContaining({ path: "src/index.ts", lineNumber: 2 })],
       });
       expect(JSON.stringify(searched)).not.toContain("needle secret");
+      expect(JSON.stringify(searched)).not.toContain("needle lane secret");
       expect(JSON.stringify(searched)).not.toContain("needle private");
     } finally {
       removeTempDir(root);

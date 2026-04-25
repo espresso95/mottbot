@@ -171,6 +171,9 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     security: {
       masterKey: "test-master-key",
     },
+    service: {
+      label: "ai.mottbot.bot",
+    },
   };
   return {
     ...base,
@@ -206,6 +209,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     memory: { ...base.memory, ...overrides.memory },
     usage: { ...base.usage, ...overrides.usage },
     security: { ...base.security, ...overrides.security },
+    service: { ...base.service, ...overrides.service },
   };
 }
 
