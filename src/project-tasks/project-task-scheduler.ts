@@ -124,15 +124,22 @@ export class ProjectTaskScheduler {
     if (params.openPullRequest && params.pushToBaseRef) {
       return { ok: false, message: "Choose either main or pr for publish, not both." };
     }
-    const approval = this.store.createApproval({
-      taskId: task.taskId,
-      kind: "push",
-      requestedBy: params.requestedBy,
-      requestJson: JSON.stringify({
-        openPullRequest: params.openPullRequest === true,
-        pushToBaseRef: params.pushToBaseRef === true,
-      }),
+    const requestJson = JSON.stringify({
+      openPullRequest: params.openPullRequest === true,
+      pushToBaseRef: params.pushToBaseRef === true,
     });
+    const approval =
+      this.store.findPendingApprovalByRequest({
+        taskId: task.taskId,
+        kind: "push",
+        requestJson,
+      }) ??
+      this.store.createApproval({
+        taskId: task.taskId,
+        kind: "push",
+        requestedBy: params.requestedBy,
+        requestJson,
+      });
     const action = params.openPullRequest
       ? "push the final branch and open a PR"
       : params.pushToBaseRef

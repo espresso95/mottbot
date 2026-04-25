@@ -274,6 +274,10 @@ describe("ProjectCommandRouter", () => {
         .get()?.approval_id;
       expect(approvalId).toBeTruthy();
 
+      await router.handle({ ...event, chatId: "other-chat" }, ["approve", approvalId!]);
+      expect(sent.at(-1)).toBe("Project approval is not available in this chat.");
+      expect(store.getTask(task!.taskId)?.status).toBe("awaiting_approval");
+
       await router.handle(event, ["approve", approvalId!]);
       expect(store.getTask(task!.taskId)?.status).toBe("queued");
       db.close();
@@ -540,6 +544,9 @@ describe("ProjectCommandRouter", () => {
 
       await fixture.router.handle(fixture.event, ["tail", "missing-subtask"]);
       expect(fixture.sent.at(-1)?.text).toBe("Unknown subtask missing-subtask.");
+
+      await fixture.router.handle({ ...fixture.event, chatId: "other-chat" }, ["tail", subtask.subtaskId]);
+      expect(fixture.sent.at(-1)?.text).toBe("Project subtask is not available in this chat.");
 
       await fixture.router.handle(fixture.event, ["tail", subtask.subtaskId]);
       expect(fixture.sent.at(-1)?.text).toContain(`No active codex run for ${subtask.subtaskId}.`);

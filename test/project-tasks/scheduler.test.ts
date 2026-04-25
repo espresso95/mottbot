@@ -1122,6 +1122,36 @@ describe("ProjectTaskScheduler", () => {
       expect(approval?.kind).toBe("push");
       expect(approval?.requestedBy).toBe("operator");
       expect(JSON.parse(approval!.requestJson)).toEqual({ openPullRequest: true, pushToBaseRef: false });
+      const duplicate = scheduler.requestPublishApproval({
+        taskId: task.taskId,
+        requestedBy: "other-operator",
+        openPullRequest: true,
+      });
+      expect(duplicate.approvalId).toBe(result.approvalId);
+      expect(
+        db.db
+          .prepare<
+            unknown[],
+            { count: number }
+          >("select count(*) as count from project_approvals where task_id = ? and kind = 'push'")
+          .get(task.taskId)?.count,
+      ).toBe(1);
+
+      const directMain = scheduler.requestPublishApproval({
+        taskId: task.taskId,
+        requestedBy: "operator",
+        pushToBaseRef: true,
+      });
+      expect(directMain.ok).toBe(true);
+      expect(directMain.approvalId).not.toBe(result.approvalId);
+      expect(
+        db.db
+          .prepare<
+            unknown[],
+            { count: number }
+          >("select count(*) as count from project_approvals where task_id = ? and kind = 'push'")
+          .get(task.taskId)?.count,
+      ).toBe(2);
       db.close();
     } finally {
       removeTempDir(root);

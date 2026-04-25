@@ -230,7 +230,7 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
-`pnpm smoke:telegram-callbacks` drives tool approve, tool deny, and memory-candidate accept callback handlers in process against a temporary SQLite database. It verifies callback source-message edits, stale keyboard cleanup, audit writes, and memory acceptance without live Telegram access.
+`pnpm smoke:telegram-callbacks` drives tool approve, tool deny, memory-candidate accept, and Project Mode approval callback handlers in process against a temporary SQLite database. It verifies callback source-message edits, stale keyboard cleanup, audit writes, memory acceptance, and project approval routing without live Telegram access.
 
 `pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `--repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 

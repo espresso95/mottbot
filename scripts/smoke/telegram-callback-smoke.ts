@@ -11,8 +11,11 @@ import type { Clock } from "../../src/shared/clock.js";
 import { MemoryStore } from "../../src/sessions/memory-store.js";
 import { SessionStore } from "../../src/sessions/session-store.js";
 import type { SessionRoute } from "../../src/sessions/types.js";
+import { ProjectCommandRouter } from "../../src/project-tasks/project-command-router.js";
+import { ProjectTaskStore } from "../../src/project-tasks/project-task-store.js";
 import {
   buildMemoryCandidateAcceptCallbackData,
+  buildProjectApprovalCallbackData,
   buildToolApprovalCallbackData,
 } from "../../src/telegram/callback-data.js";
 import { handleMemoryCandidateCallback } from "../../src/telegram/memory-commands.js";
@@ -151,6 +154,7 @@ export async function createTelegramCallbackSmokeResult(): Promise<TelegramCallb
     const registry = createRuntimeToolRegistry({ enableSideEffectTools: true });
     const approvals = new ToolApprovalStore(database, clock);
     const memories = new MemoryStore(database, clock);
+    const projects = new ProjectTaskStore(database, clock);
     const api = new RecordingApi();
     const scenarios = await Promise.all([
       runScenario("tool approval callback", async () => {
@@ -241,6 +245,67 @@ export async function createTelegramCallbackSmokeResult(): Promise<TelegramCallb
         );
         assert(memories.listForScopeContext(session).length === 1, "candidate was not accepted");
         return { acceptedMemories: memories.listForScopeContext(session).length };
+      }),
+      runScenario("project approval callback", async () => {
+        const task = projects.createTask({
+          chatId: "chat-1",
+          repoRoot: tempRoot,
+          baseRef: "main",
+          title: "project smoke",
+          originalPrompt: "ship project smoke",
+          status: "awaiting_approval",
+          maxParallelWorkers: 1,
+          maxAttemptsPerSubtask: 1,
+        });
+        const approval = projects.createApproval({
+          taskId: task.taskId,
+          requestedBy: "admin-1",
+          requestJson: JSON.stringify({ prompt: "ship project smoke" }),
+        });
+        let approvedBy: string | undefined;
+        const router = new ProjectCommandRouter(
+          api as unknown as Api,
+          {
+            projectTasks: {
+              enabled: true,
+              repoRoots: [tempRoot],
+              approvals: { requireBeforeProjectStart: true },
+              defaultBaseRef: "main",
+              defaultMaxParallelWorkersPerProject: 1,
+            },
+          } as AppConfig,
+          projects,
+          {
+            approveApproval: (approvalId: string, decidedBy?: string) => {
+              approvedBy = decidedBy;
+              projects.decideApproval(approvalId, { status: "approved", decidedBy });
+              projects.updateTask(task.taskId, { status: "queued" });
+              return { ok: true, message: `Approved ${approvalId}.` };
+            },
+          } as never,
+        );
+
+        await router.handleApprovalCallback(
+          callbackEvent({
+            callbackQueryId: "callback-4",
+            data: buildProjectApprovalCallbackData(approval.approvalId),
+            messageText: "Project ready to start.",
+          }),
+          approval.approvalId,
+        );
+
+        assert(approvedBy === "admin-1", "project approval callback did not pass the operator id");
+        assert(projects.getTask(task.taskId)?.status === "queued", "project approval did not queue the task");
+        assert(
+          api.calls.some(
+            (call) =>
+              call.method === "editMessageText" &&
+              typeof call.args[2] === "string" &&
+              call.args[2].includes("Approved project request."),
+          ),
+          "project approval callback did not mark the source message",
+        );
+        return { taskStatus: projects.getTask(task.taskId)?.status };
       }),
     ]);
     const failed = scenarios.some((scenario) => scenario.status === "failed");

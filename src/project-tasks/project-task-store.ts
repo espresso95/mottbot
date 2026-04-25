@@ -641,6 +641,27 @@ export class ProjectTaskStore {
     return row ? mapApproval(row) : undefined;
   }
 
+  findPendingApprovalByRequest(input: {
+    taskId: string;
+    kind: ProjectApprovalKind;
+    requestJson: string;
+  }): ProjectApproval | undefined {
+    const row = this.database.db
+      .prepare<unknown[], ProjectApprovalRow>(
+        `select *
+         from project_approvals
+         where task_id = ?
+           and kind = ?
+           and status = 'pending'
+           and request_json = ?
+           and (expires_at is null or expires_at > ?)
+         order by created_at desc
+         limit 1`,
+      )
+      .get(input.taskId, input.kind, input.requestJson, this.clock.now());
+    return row ? mapApproval(row) : undefined;
+  }
+
   decideApproval(
     approvalId: string,
     params: { status: "approved" | "rejected" | "expired"; decidedBy?: string; note?: string },

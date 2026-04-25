@@ -165,13 +165,9 @@ export class ProjectCommandRouter {
       return;
     }
     const normalizedApprovalId = approvalId.trim();
-    const approval = this.store.getApproval(normalizedApprovalId);
-    if (approval) {
-      const task = this.store.getTask(approval.taskId);
-      if (task?.chatId !== event.chatId) {
-        await sendReply(this.api, event, "Project approval is not available in this chat.");
-        return;
-      }
+    if (!this.approvalAvailableInChat(event.chatId, normalizedApprovalId)) {
+      await sendReply(this.api, event, "Project approval is not available in this chat.");
+      return;
     }
     const result = this.scheduler.approveApproval(normalizedApprovalId, event.fromUserId);
     await editCallbackStatus(
@@ -345,6 +341,11 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, `Unknown subtask ${id}.`);
       return;
     }
+    const task = this.store.getTask(subtask.taskId);
+    if (task?.chatId !== event.chatId) {
+      await sendReply(this.api, event, "Project subtask is not available in this chat.");
+      return;
+    }
     const runs = this.store.listActiveCliRuns(subtask.taskId);
     const run = runs.find((entry) => entry.subtaskId === subtask.subtaskId) ?? runs.at(-1);
     if (!run) {
@@ -453,7 +454,12 @@ export class ProjectCommandRouter {
       await sendReply(this.api, event, "Usage: /project approve <approval-id>");
       return;
     }
-    const result = this.scheduler.approveApproval(approvalId.trim(), decidedBy);
+    const normalizedApprovalId = approvalId.trim();
+    if (!this.approvalAvailableInChat(event.chatId, normalizedApprovalId)) {
+      await sendReply(this.api, event, "Project approval is not available in this chat.");
+      return;
+    }
+    const result = this.scheduler.approveApproval(normalizedApprovalId, decidedBy);
     await sendReply(this.api, event, result.message);
   }
 
@@ -512,6 +518,15 @@ export class ProjectCommandRouter {
       return exact.chatId === chatId ? exact : undefined;
     }
     return this.store.listTasksByChat(chatId, 50).find((task) => projectReferenceMatches(task.taskId, reference));
+  }
+
+  private approvalAvailableInChat(chatId: string, approvalId: string): boolean {
+    const approval = this.store.getApproval(approvalId);
+    if (!approval) {
+      return true;
+    }
+    const task = this.store.getTask(approval.taskId);
+    return task?.chatId === chatId;
   }
 
   private resolveRepoRoot(raw: string): string | undefined {

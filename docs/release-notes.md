@@ -11,6 +11,7 @@
 - Added compact Project Mode Telegram message formatting with short display IDs, repo names, progress summaries, and clearer next-step commands.
 - Added `/project details [task]` for the verbose operator view with full task IDs, repo paths, subtask run details, diff stats, summaries, and errors.
 - Added Project Mode inline action buttons for details, direct publish-to-main approval requests, and cleanup where the task state supports them.
+- Project Mode approval and tail slash commands now enforce the same chat ownership checks as inline callbacks, and repeated publish requests reuse the existing pending approval for the same task/action.
 
 ### Project Mode Integration
 
