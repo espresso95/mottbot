@@ -1,159 +1,62 @@
 import type { Api } from "grammy";
 import type { AgentConfig, AppConfig } from "../app/config.js";
-import { importCodexCliAuthProfile } from "../codex/cli-auth-import.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
 import { isCodexModelRef, isKnownCodexModelRef, KNOWN_CODEX_MODEL_REFS_TEXT } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
 import { fetchCodexUsage } from "../codex/usage.js";
-import type { CodexUsageSnapshot } from "../codex/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { UsageBudgetService } from "../runs/usage-budget.js";
 import type { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 import type { RouteResolver } from "./route-resolver.js";
-import { splitTelegramText } from "./formatting.js";
-import type { InboundEvent, ParsedCommand } from "./types.js";
+import type { InboundEvent } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
-import type { ToolApprovalAuditRecord, ToolApprovalDecision, ToolApprovalStore } from "../tools/approval.js";
+import type { ToolApprovalDecision, ToolApprovalStore } from "../tools/approval.js";
 import type { ToolCallerRole, ToolPolicyEngine } from "../tools/policy.js";
 import type { ToolDefinition, ToolRegistry } from "../tools/registry.js";
-import {
-  isMemoryCandidateStatus,
-  isMemoryScope,
-  resolveMemoryScopeKey,
-  type MemoryCandidateStatus,
-  type MemoryStore,
-  type MemoryScope,
-  type SessionMemory,
-  type MemoryCandidate,
-} from "../sessions/memory-store.js";
+import type { MemoryStore } from "../sessions/memory-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
-import type { AttachmentRecord, AttachmentRecordStore } from "../sessions/attachment-store.js";
+import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
+import type { GithubReadOperations } from "../tools/github-read.js";
+import { handleAuthCommand } from "./auth-commands.js";
 import {
-  formatGithubIssues,
-  formatGithubPullRequests,
-  formatGithubRepositoryMetadata,
-  formatGithubStatusSummary,
-  formatGithubWorkflowRuns,
-  type GithubReadOperations,
-} from "../tools/github-read.js";
+  TOOL_AUDIT_DECISION_CODES,
+  commandHelp,
+  formatAgentDetails,
+  formatAgentLine,
+  formatChatPolicy,
+  formatCommandSection,
+  formatGovernanceAuditRecord,
+  formatRoleRecord,
+  formatToolAuditRecord,
+  formatUsageSummary,
+  isToolAuditDecisionCode,
+  type CommandHelpEntry,
+} from "./command-formatters.js";
+import {
+  PROFILE_ID_PATTERN,
+  normalizeBindingName,
+  normalizeFreeText,
+  normalizeSingleArg,
+  parseBoundedLimit,
+  parseCommand,
+  validateBindingName,
+} from "./command-parsing.js";
+import { sendReply } from "./command-replies.js";
+import { handleDebugCommand, handleRunsCommand } from "./diagnostic-commands.js";
+import { handleFilesCommand } from "./files-commands.js";
+import { handleGithubCommand } from "./github-commands.js";
 import {
   isGovernanceOperatorRole,
   parseChatGovernancePolicy,
   parseTelegramUserRole,
   type ChatGovernancePolicy,
-  type GovernanceAuditRecord,
-  type StoredChatGovernancePolicy,
-  type StoredTelegramUserRole,
   type TelegramGovernanceStore,
   type TelegramUserRole,
 } from "./governance.js";
-
-function parseCommand(text: string): ParsedCommand {
-  const trimmed = text.trim();
-  const [head = "", ...rest] = trimmed.split(/\s+/);
-  const command = head.replace(/^\//, "").replace(/@.+$/, "").toLowerCase();
-  return {
-    command,
-    args: rest,
-    raw: trimmed,
-  };
-}
-
-const PROFILE_ID_PATTERN = /^[A-Za-z0-9:_./-]{1,128}$/;
-const MAX_BINDING_NAME_LENGTH = 64;
-
-function normalizeSingleArg(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function normalizeBindingName(raw: string[]): string {
-  return raw.join(" ").replace(/\s+/g, " ").trim() || "here";
-}
-
-function validateBindingName(value: string): boolean {
-  return value.length <= MAX_BINDING_NAME_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
-}
-
-function normalizeFreeText(args: string[]): string {
-  return args.join(" ").replace(/\s+/g, " ").trim();
-}
-
-function formatMemoryRecord(memory: SessionMemory): string {
-  const labels = [
-    memory.scope,
-    memory.source === "auto_summary" ? "auto" : memory.source === "model_candidate" ? "candidate" : "explicit",
-    memory.pinned ? "pinned" : undefined,
-  ].filter(Boolean);
-  return `- ${memory.id.slice(0, 8)} [${labels.join(", ")}]: ${memory.contentText}`;
-}
-
-function formatMemoryCandidate(candidate: MemoryCandidate): string {
-  const details = [
-    `scope=${candidate.scope}`,
-    `sensitivity=${candidate.sensitivity}`,
-    candidate.reason ? `reason=${candidate.reason}` : undefined,
-  ].filter(Boolean);
-  return `- ${candidate.id.slice(0, 8)} [${details.join(", ")}]: ${candidate.contentText}`;
-}
-
-function parseMemoryScopeArgs(
-  session: SessionRoute,
-  args: string[],
-): { scope: MemoryScope; scopeKey: string; contentArgs: string[] } | { error: string } {
-  const first = args[0];
-  if (!first?.startsWith("scope:")) {
-    return { scope: "session", scopeKey: session.sessionKey, contentArgs: args };
-  }
-  const parts = first.split(":");
-  const scope = parts[1]?.trim().toLowerCase();
-  if (!scope || !isMemoryScope(scope)) {
-    return { error: "Usage: /remember [scope:session|personal|chat|group|project:<key>] <fact>" };
-  }
-  const explicitScopeKey = parts.length > 2 ? parts.slice(2).join(":") : undefined;
-  const scopeKey = resolveMemoryScopeKey({
-    context: session,
-    scope,
-    explicitScopeKey: scope === "project" ? explicitScopeKey : undefined,
-  });
-  if (!scopeKey) {
-    return { error: `Cannot use ${scope} memory scope in this chat.` };
-  }
-  return {
-    scope,
-    scopeKey,
-    contentArgs: args.slice(1),
-  };
-}
-
-function formatReset(resetAt: number | undefined): string {
-  return typeof resetAt === "number" ? `, resets ${new Date(resetAt).toISOString()}` : "";
-}
-
-function formatUsageSummary(usage: CodexUsageSnapshot): string {
-  const windows = usage.windows.map(
-    (window) => `${window.label}: ${window.usedPercent}%${formatReset(window.resetAt)}`,
-  );
-  return [
-    ...(usage.plan ? [`Plan: ${usage.plan}`] : []),
-    ...(windows.length > 0 ? windows : ["No usage windows reported"]),
-  ].join("; ");
-}
-
-function formatCommandSection(title: string, commands: string[]): string | undefined {
-  if (commands.length === 0) {
-    return undefined;
-  }
-  return [title, ...commands.map((command) => `- ${command}`)].join("\n");
-}
-
-type CommandHelpEntry = {
-  commands: readonly string[];
-  text: string;
-};
+import { handleForgetCommand, handleMemoryCommand, handleRememberCommand } from "./memory-commands.js";
 
 type CommandVisibility =
   | { allowed: true }
@@ -161,141 +64,6 @@ type CommandVisibility =
       allowed: false;
       reason: "chat_not_allowed" | "role_not_allowed" | "command_not_allowed" | "group_policy_required";
     };
-
-function commandHelp(commands: string | readonly string[], text: string): CommandHelpEntry {
-  return {
-    commands: typeof commands === "string" ? [commands] : commands,
-    text,
-  };
-}
-
-function formatAttachmentRecord(record: AttachmentRecord): string {
-  const name = record.fileName?.split(/[\\/]/).at(-1)?.replace(/\s+/g, " ").trim() || record.kind;
-  const extraction = [
-    record.extractionKind,
-    record.extractionStatus,
-    record.extractionReason,
-    record.language ? `lang=${record.language}` : undefined,
-    record.promptTextChars !== undefined ? `prompt=${record.promptTextChars}` : undefined,
-    record.extractionTruncated ? "truncated" : undefined,
-  ].filter(Boolean);
-  const details = [
-    record.mimeType,
-    record.fileSize !== undefined ? `${record.fileSize} bytes` : undefined,
-    record.ingestionStatus,
-    record.ingestionReason,
-    extraction.length > 0 ? `extraction=${extraction.join("/")}` : undefined,
-  ].filter(Boolean);
-  return `- ${record.id.slice(0, 8)} ${name}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
-}
-
-function formatRoleRecord(record: StoredTelegramUserRole): string {
-  const source = record.source === "config" ? "config" : "database";
-  const details = [
-    source,
-    record.grantedByUserId ? `by=${record.grantedByUserId}` : undefined,
-    record.reason ? `reason=${truncateSingleLine(record.reason, 80)}` : undefined,
-  ].filter(Boolean);
-  return `- ${record.userId}: ${record.role}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
-}
-
-function formatChatPolicy(record: StoredChatGovernancePolicy | undefined, chatId: string): string {
-  if (!record) {
-    return `No chat policy set for ${chatId}.`;
-  }
-  return [
-    `Chat policy for ${record.chatId}:`,
-    JSON.stringify(record.policy, null, 2),
-    `Updated: ${new Date(record.updatedAt).toISOString()}${record.updatedByUserId ? ` by ${record.updatedByUserId}` : ""}`,
-  ].join("\n");
-}
-
-function formatGovernanceAuditRecord(record: GovernanceAuditRecord): string {
-  const at = new Date(record.createdAt).toISOString();
-  const details = [
-    record.actorUserId ? `actor=${record.actorUserId}` : undefined,
-    record.targetUserId ? `target=${record.targetUserId}` : undefined,
-    record.chatId ? `chat=${record.chatId}` : undefined,
-    record.role ? `role=${record.role}` : undefined,
-    record.previousRole ? `previous=${record.previousRole}` : undefined,
-    record.reason ? `reason=${truncateSingleLine(record.reason, 80)}` : undefined,
-  ].filter(Boolean);
-  return `- ${at} ${record.action}${details.length > 0 ? ` ${details.join(" ")}` : ""}`;
-}
-
-const TOOL_AUDIT_DECISION_CODES: readonly ToolApprovalDecision["code"][] = [
-  "read_only",
-  "policy_allowed",
-  "policy_missing",
-  "role_denied",
-  "chat_denied",
-  "approval_required",
-  "approval_expired",
-  "approval_mismatch",
-  "approved",
-  "operator_approved",
-  "revoked",
-];
-
-function isToolAuditDecisionCode(value: string): value is ToolApprovalDecision["code"] {
-  return TOOL_AUDIT_DECISION_CODES.includes(value as ToolApprovalDecision["code"]);
-}
-
-function truncateSingleLine(value: string, maxChars: number): string {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= maxChars) {
-    return singleLine;
-  }
-  return `${singleLine.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
-}
-
-function formatToolAuditRecord(record: ToolApprovalAuditRecord): string {
-  const at = new Date(record.decidedAt).toISOString();
-  const scope = [
-    record.sessionKey ? `session=${record.sessionKey}` : undefined,
-    record.runId ? `run=${record.runId.slice(0, 8)}` : undefined,
-    record.approvedByUserId ? `by=${record.approvedByUserId}` : undefined,
-    record.requestFingerprint ? `request=${record.requestFingerprint.slice(0, 12)}` : undefined,
-  ].filter(Boolean);
-  const preview = record.previewText ? ` preview="${truncateSingleLine(record.previewText, 120)}"` : "";
-  return `- ${at} ${record.toolName} ${record.allowed ? "allowed" : "denied"}:${record.decisionCode} (${record.sideEffect})${
-    scope.length > 0 ? ` ${scope.join(" ")}` : ""
-  }${preview}`;
-}
-
-function formatAgentLine(agent: AgentConfig, params: { currentId?: string; defaultId: string }): string {
-  const labels = [
-    agent.id === params.defaultId ? "default" : undefined,
-    agent.id === params.currentId ? "current" : undefined,
-    agent.fastMode ? "fast" : undefined,
-    agent.toolNames && agent.toolNames.length > 0 ? `tools=${agent.toolNames.length}` : undefined,
-  ].filter(Boolean);
-  const display = agent.displayName ? ` (${agent.displayName})` : "";
-  return `- ${agent.id}${display}${labels.length > 0 ? ` [${labels.join(", ")}]` : ""}: ${agent.modelRef}, ${agent.profileId}`;
-}
-
-function formatAgentDetails(agent: AgentConfig): string {
-  return [
-    `Agent: ${agent.id}${agent.displayName ? ` (${agent.displayName})` : ""}`,
-    `Model: ${agent.modelRef}`,
-    `Profile: ${agent.profileId}`,
-    `Fast mode: ${agent.fastMode ? "on" : "off"}`,
-    `System prompt: ${agent.systemPrompt ? "configured" : "not set"}`,
-    `Tool allow-list: ${agent.toolNames && agent.toolNames.length > 0 ? agent.toolNames.join(", ") : "all policy-allowed tools"}`,
-    `Tool policy overrides: ${agent.toolPolicies ? Object.keys(agent.toolPolicies).join(", ") || "none" : "none"}`,
-    `Max concurrent runs: ${agent.maxConcurrentRuns ?? "unlimited"}`,
-    `Max queued runs: ${agent.maxQueuedRuns ?? "unlimited"}`,
-  ].join("\n");
-}
-
-async function sendReply(api: Api, event: InboundEvent, text: string): Promise<void> {
-  for (const chunk of splitTelegramText(text)) {
-    await api.sendMessage(event.chatId, chunk, {
-      ...(typeof event.threadId === "number" ? { message_thread_id: event.threadId } : {}),
-      reply_parameters: { message_id: event.messageId },
-    });
-  }
-}
 
 /** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
 export class TelegramCommandRouter {
@@ -395,16 +163,37 @@ export class TelegramCommandRouter {
         return true;
       }
       case "runs": {
-        await this.handleRunsCommand(event, session, parsed.args);
+        await handleRunsCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          diagnostics: this.diagnostics,
+          isAdmin: this.isAdmin(event),
+        });
         return true;
       }
       case "debug": {
-        await this.handleDebugCommand(event, session, parsed.args);
+        await handleDebugCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          health: this.health,
+          diagnostics: this.diagnostics,
+          isAdmin: this.isAdmin(event),
+        });
         return true;
       }
       case "github":
       case "gh": {
-        await this.handleGithubCommand(event, parsed.args);
+        await handleGithubCommand({
+          api: this.api,
+          event,
+          args: parsed.args,
+          github: this.github,
+          isAdmin: this.isAdmin(event),
+        });
         return true;
       }
       case "users": {
@@ -412,71 +201,46 @@ export class TelegramCommandRouter {
         return true;
       }
       case "remember": {
-        if (!this.memories) {
-          await sendReply(this.api, event, "Memory is not available.");
-          return true;
-        }
-        const scoped = parseMemoryScopeArgs(session, parsed.args);
-        if ("error" in scoped) {
-          await sendReply(this.api, event, scoped.error);
-          return true;
-        }
-        if (this.governance && !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: scoped.scope })) {
-          await sendReply(this.api, event, `Memory scope ${scoped.scope} is not allowed in this chat.`);
-          return true;
-        }
-        const contentText = normalizeFreeText(scoped.contentArgs);
-        if (!contentText) {
-          await sendReply(this.api, event, "Usage: /remember [scope:session|personal|chat|group|project:<key>] <fact>");
-          return true;
-        }
-        try {
-          const memory = this.memories.add({
-            sessionKey: session.sessionKey,
-            contentText,
-            scope: scoped.scope,
-            scopeKey: scoped.scopeKey,
-          });
-          await sendReply(this.api, event, `Remembered ${memory.id.slice(0, 8)} for ${memory.scope} scope.`);
-        } catch (error) {
-          await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
-        }
+        await handleRememberCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          memories: this.memories,
+          governance: this.governance,
+        });
         return true;
       }
       case "memory": {
-        if (!this.memories) {
-          await sendReply(this.api, event, "Memory is not available.");
-          return true;
-        }
-        await this.handleMemoryCommand(event, session, parsed.args);
+        await handleMemoryCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          memories: this.memories,
+          governance: this.governance,
+        });
         return true;
       }
       case "forget": {
-        if (!this.memories) {
-          await sendReply(this.api, event, "Memory is not available.");
-          return true;
-        }
-        const target = normalizeSingleArg(parsed.args[0]);
-        if (!target) {
-          await sendReply(this.api, event, "Usage: /forget <memory-id-prefix|all>");
-          return true;
-        }
-        if (target === "all") {
-          const removed = this.memories.clear(session.sessionKey);
-          await sendReply(this.api, event, `Forgot ${removed} memories.`);
-          return true;
-        }
-        if (target === "auto") {
-          const removed = this.memories.clear(session.sessionKey, "auto_summary");
-          await sendReply(this.api, event, `Forgot ${removed} automatic summaries.`);
-          return true;
-        }
-        const removed = this.memories.removeForScopeContext(session, target);
-        await sendReply(this.api, event, removed ? "Memory forgotten." : "No matching memory found.");
+        await handleForgetCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          memories: this.memories,
+        });
         return true;
       }
       case "files": {
-        await this.handleFilesCommand(event, session, parsed.args);
+        await handleFilesCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          attachments: this.attachments,
+          transcripts: this.transcripts,
+        });
         return true;
       }
       case "model": {
@@ -567,41 +331,13 @@ export class TelegramCommandRouter {
         return true;
       }
       case "auth": {
-        const sub = parsed.args[0]?.toLowerCase();
-        if (sub === "status") {
-          const profiles = this.authProfiles.list();
-          await sendReply(
-            this.api,
-            event,
-            profiles.length > 0
-              ? profiles
-                  .map(
-                    (profile) => `${profile.profileId}: ${profile.source}${profile.email ? ` (${profile.email})` : ""}`,
-                  )
-                  .join("\n")
-              : "No auth profiles configured.",
-          );
-          return true;
-        }
-        if (sub === "import-cli") {
-          const result = importCodexCliAuthProfile({
-            store: this.authProfiles,
-            profileId: this.config.auth.defaultProfile,
-          });
-          await sendReply(
-            this.api,
-            event,
-            result.imported
-              ? `Imported Codex CLI credentials into ${result.profileId}.`
-              : "No Codex CLI ChatGPT auth.json was found.",
-          );
-          return true;
-        }
-        if (sub === "login") {
-          await sendReply(this.api, event, "Run `pnpm auth:login` on the host machine to complete local OAuth login.");
-          return true;
-        }
-        await sendReply(this.api, event, "Usage: /auth status | /auth import-cli | /auth login");
+        await handleAuthCommand({
+          api: this.api,
+          event,
+          args: parsed.args,
+          config: this.config,
+          authProfiles: this.authProfiles,
+        });
         return true;
       }
       default:
@@ -1087,7 +823,7 @@ export class TelegramCommandRouter {
       if (!(await this.requireAdmin(event, "inspect user governance audit records"))) {
         return;
       }
-      const limit = this.parseBoundedLimit(args[1], 10);
+      const limit = parseBoundedLimit(args[1], 10);
       const records = this.governance.listAudit(limit);
       await sendReply(
         this.api,
@@ -1180,11 +916,6 @@ export class TelegramCommandRouter {
     }
   }
 
-  private parseBoundedLimit(value: string | undefined, fallback: number): number {
-    const parsed = Number(value ?? fallback);
-    return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 50) : fallback;
-  }
-
   private formatUsersHelp(event: InboundEvent): string {
     const commands = [
       "/users me - show your role",
@@ -1205,428 +936,6 @@ export class TelegramCommandRouter {
         : []),
     ];
     return ["User governance", ...commands.map((command) => `- ${command}`)].join("\n");
-  }
-
-  private async handleMemoryCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    const memories = this.memories;
-    if (!memories) {
-      await sendReply(this.api, event, "Memory is not available.");
-      return;
-    }
-    const sub = args[0]?.toLowerCase();
-    if (!sub || sub === "list") {
-      const records = memories.listForScopeContext(session);
-      await sendReply(
-        this.api,
-        event,
-        records.length > 0
-          ? ["Approved memory:", ...records.map(formatMemoryRecord)].join("\n")
-          : "No approved memory.",
-      );
-      return;
-    }
-    if (sub === "candidates") {
-      const requestedStatus = args[1]?.toLowerCase();
-      const status: MemoryCandidateStatus | "all" =
-        requestedStatus === "all"
-          ? "all"
-          : requestedStatus && isMemoryCandidateStatus(requestedStatus)
-            ? requestedStatus
-            : "pending";
-      const candidates = memories.listCandidates(session.sessionKey, status);
-      await sendReply(
-        this.api,
-        event,
-        candidates.length > 0
-          ? [`Memory candidates (${status}):`, ...candidates.map(formatMemoryCandidate)].join("\n")
-          : `No ${status} memory candidates.`,
-      );
-      return;
-    }
-    if (sub === "accept") {
-      const prefix = normalizeSingleArg(args[1]);
-      if (!prefix) {
-        await sendReply(this.api, event, "Usage: /memory accept <candidate-id-prefix>");
-        return;
-      }
-      const candidate = memories
-        .listCandidates(session.sessionKey, "pending", 50)
-        .filter((record) => record.id.startsWith(prefix));
-      if (
-        candidate.length === 1 &&
-        candidate[0] &&
-        this.governance &&
-        !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: candidate[0].scope })
-      ) {
-        await sendReply(this.api, event, `Memory scope ${candidate[0].scope} is not allowed in this chat.`);
-        return;
-      }
-      const accepted = memories.acceptCandidate({
-        sessionKey: session.sessionKey,
-        idPrefix: prefix,
-        decidedByUserId: event.fromUserId,
-      });
-      await sendReply(
-        this.api,
-        event,
-        accepted
-          ? `Accepted ${accepted.memory.id.slice(0, 8)} for ${accepted.memory.scope} memory.`
-          : "No pending candidate found.",
-      );
-      return;
-    }
-    if (sub === "reject") {
-      const prefix = normalizeSingleArg(args[1]);
-      if (!prefix) {
-        await sendReply(this.api, event, "Usage: /memory reject <candidate-id-prefix>");
-        return;
-      }
-      const rejected = memories.rejectCandidate(session.sessionKey, prefix, event.fromUserId);
-      await sendReply(this.api, event, rejected ? "Candidate rejected." : "No pending candidate found.");
-      return;
-    }
-    if (sub === "edit") {
-      const prefix = normalizeSingleArg(args[1]);
-      const contentText = normalizeFreeText(args.slice(2));
-      if (!prefix || !contentText) {
-        await sendReply(this.api, event, "Usage: /memory edit <candidate-id-prefix> <replacement fact>");
-        return;
-      }
-      const updated = memories.updateCandidate(session.sessionKey, prefix, contentText);
-      await sendReply(
-        this.api,
-        event,
-        updated ? `Candidate ${updated.id.slice(0, 8)} updated.` : "No pending candidate found.",
-      );
-      return;
-    }
-    if (sub === "pin" || sub === "unpin") {
-      const prefix = normalizeSingleArg(args[1]);
-      if (!prefix) {
-        await sendReply(this.api, event, `Usage: /memory ${sub} <memory-id-prefix>`);
-        return;
-      }
-      const pinned = memories.pinForScopeContext(session, prefix, sub === "pin");
-      await sendReply(
-        this.api,
-        event,
-        pinned ? `Memory ${sub === "pin" ? "pinned" : "unpinned"}.` : "No matching memory found.",
-      );
-      return;
-    }
-    if (sub === "archive") {
-      const targetType = args[1]?.toLowerCase();
-      if (targetType === "candidate") {
-        const prefix = normalizeSingleArg(args[2]);
-        if (!prefix) {
-          await sendReply(this.api, event, "Usage: /memory archive candidate <candidate-id-prefix>");
-          return;
-        }
-        const archived = memories.archiveCandidate(session.sessionKey, prefix, event.fromUserId);
-        await sendReply(this.api, event, archived ? "Candidate archived." : "No pending candidate found.");
-        return;
-      }
-      const prefix = normalizeSingleArg(args[1]);
-      if (!prefix) {
-        await sendReply(this.api, event, "Usage: /memory archive <memory-id-prefix>");
-        return;
-      }
-      const archived = memories.archiveForScopeContext(session, prefix);
-      await sendReply(this.api, event, archived ? "Memory archived." : "No matching memory found.");
-      return;
-    }
-    if (sub === "clear" && args[1]?.toLowerCase() === "candidates") {
-      const removed = memories.clearCandidates(session.sessionKey);
-      await sendReply(this.api, event, `Cleared ${removed} pending memory candidates.`);
-      return;
-    }
-    await sendReply(
-      this.api,
-      event,
-      "Usage: /memory [list] | candidates [status|all] | accept <id> | reject <id> | edit <id> <text> | pin <id> | unpin <id> | archive <id> | archive candidate <id> | clear candidates",
-    );
-  }
-
-  private async handleRunsCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    if (!(await this.requireAdmin(event, "inspect runs"))) {
-      return;
-    }
-    if (!this.diagnostics) {
-      await sendReply(this.api, event, "Diagnostics are not available.");
-      return;
-    }
-    const limit = Number(args[0] ?? 10);
-    await sendReply(
-      this.api,
-      event,
-      this.diagnostics.recentRunsText({
-        limit: Number.isInteger(limit) ? limit : 10,
-        sessionKey: args.includes("here") ? session.sessionKey : undefined,
-      }),
-    );
-  }
-
-  private async handleFilesCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    if (!this.attachments) {
-      await sendReply(this.api, event, "File metadata is not available.");
-      return;
-    }
-    const sub = args[0]?.toLowerCase();
-    if (!sub || sub === "list") {
-      const limit = Number(args[1] ?? 10);
-      const records = this.attachments.listRecent(session.sessionKey, Number.isInteger(limit) ? limit : 10);
-      await sendReply(
-        this.api,
-        event,
-        records.length > 0
-          ? ["Recent files:", ...records.map(formatAttachmentRecord)].join("\n")
-          : "No files recorded for this session.",
-      );
-      return;
-    }
-    if (sub === "clear" || (sub === "forget" && args[1]?.toLowerCase() === "all")) {
-      const removed = this.attachments.clearSession(session.sessionKey);
-      const transcriptRows = this.transcripts.removeAttachmentMetadata({ sessionKey: session.sessionKey });
-      await sendReply(
-        this.api,
-        event,
-        `Forgot ${removed} file records and updated ${transcriptRows} transcript messages.`,
-      );
-      return;
-    }
-    if (sub === "forget") {
-      const prefix = normalizeSingleArg(args[1]);
-      if (!prefix) {
-        await sendReply(this.api, event, "Usage: /files forget <file-id-prefix|all>");
-        return;
-      }
-      const matches = this.attachments.findByIdPrefix(session.sessionKey, prefix);
-      if (matches.length === 0) {
-        await sendReply(this.api, event, "No matching file record found.");
-        return;
-      }
-      if (matches.length > 1) {
-        await sendReply(this.api, event, "File ID prefix is ambiguous. Use more characters from /files.");
-        return;
-      }
-      const record = matches[0]!;
-      const removed = this.attachments.remove(session.sessionKey, record.id);
-      const transcriptRows = this.transcripts.removeAttachmentMetadata({
-        sessionKey: session.sessionKey,
-        runId: record.runId,
-        recordId: record.id,
-      });
-      await sendReply(
-        this.api,
-        event,
-        removed > 0
-          ? `Forgot file ${record.id.slice(0, 8)} and updated ${transcriptRows} transcript messages.`
-          : "No matching file record found.",
-      );
-      return;
-    }
-    await sendReply(
-      this.api,
-      event,
-      "Usage: /files [list [limit]] | /files forget <file-id-prefix|all> | /files clear",
-    );
-  }
-
-  private async handleDebugCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    if (!(await this.requireAdmin(event, "inspect diagnostics"))) {
-      return;
-    }
-    if (!this.diagnostics) {
-      await sendReply(this.api, event, "Diagnostics are not available.");
-      return;
-    }
-    const sub = args[0]?.toLowerCase() ?? "summary";
-    if (sub === "summary") {
-      await sendReply(
-        this.api,
-        event,
-        [
-          this.health.formatForText(),
-          "",
-          this.diagnostics.configText(),
-          "",
-          this.diagnostics.recentRunsText({ limit: 5, sessionKey: session.sessionKey }),
-        ].join("\n"),
-      );
-      return;
-    }
-    if (sub === "service") {
-      await sendReply(this.api, event, this.diagnostics.serviceStatus());
-      return;
-    }
-    if (sub === "runs") {
-      const limit = Number(args[1] ?? 10);
-      await sendReply(
-        this.api,
-        event,
-        this.diagnostics.recentRunsText({
-          limit: Number.isInteger(limit) ? limit : 10,
-          sessionKey: args.includes("here") ? session.sessionKey : undefined,
-        }),
-      );
-      return;
-    }
-    if (sub === "agents") {
-      await sendReply(this.api, event, this.diagnostics.agentDiagnosticsText());
-      return;
-    }
-    if (sub === "errors") {
-      const limit = Number(args[1] ?? 10);
-      await sendReply(this.api, event, this.diagnostics.recentErrorsText(Number.isInteger(limit) ? limit : 10));
-      return;
-    }
-    if (sub === "logs") {
-      const stream = args[1] === "stdout" || args[1] === "stderr" || args[1] === "both" ? args[1] : "both";
-      const rawLines = Number(stream === args[1] ? (args[2] ?? 40) : (args[1] ?? 40));
-      await sendReply(
-        this.api,
-        event,
-        this.diagnostics.recentLogsText({
-          stream,
-          lines: Number.isInteger(rawLines) ? rawLines : 40,
-        }),
-      );
-      return;
-    }
-    if (sub === "config") {
-      await sendReply(this.api, event, this.diagnostics.configText());
-      return;
-    }
-    await sendReply(
-      this.api,
-      event,
-      "Usage: /debug [summary|service|runs [limit] [here]|agents|errors [limit]|logs [stdout|stderr|both] [lines]|config]",
-    );
-  }
-
-  private parseGithubArgs(args: string[], defaultLimit = 5): { limit: number; repository?: string } {
-    let limit = defaultLimit;
-    let repository: string | undefined;
-    for (const raw of args) {
-      const value = raw.trim();
-      if (!value) {
-        continue;
-      }
-      if (/^\d+$/.test(value)) {
-        limit = Math.min(Math.max(Number(value), 1), 50);
-        continue;
-      }
-      repository = value.startsWith("repo:") ? value.slice("repo:".length) : value;
-    }
-    return {
-      limit,
-      ...(repository ? { repository } : {}),
-    };
-  }
-
-  private async handleGithubCommand(event: InboundEvent, args: string[]): Promise<void> {
-    if (!(await this.requireAdmin(event, "inspect GitHub"))) {
-      return;
-    }
-    if (!this.github) {
-      await sendReply(this.api, event, "GitHub integration is not available.");
-      return;
-    }
-    const requestedSub = args[0]?.toLowerCase();
-    const knownSubcommands = new Set([
-      "help",
-      "status",
-      "repo",
-      "prs",
-      "pulls",
-      "issues",
-      "runs",
-      "ci",
-      "failures",
-      "failed",
-    ]);
-    const sub = requestedSub && knownSubcommands.has(requestedSub) ? requestedSub : "status";
-    const rest = sub === "status" && requestedSub && !knownSubcommands.has(requestedSub) ? args : args.slice(1);
-    const parsed = this.parseGithubArgs(rest);
-    try {
-      if (sub === "help") {
-        await sendReply(
-          this.api,
-          event,
-          [
-            "GitHub commands",
-            "- /github status [repository]",
-            "- /github repo [repository]",
-            "- /github prs [limit] [repository]",
-            "- /github issues [limit] [repository]",
-            "- /github runs [limit] [repository]",
-            "- /github failures [limit] [repository]",
-          ].join("\n"),
-        );
-        return;
-      }
-      if (sub === "status") {
-        const [metadata, pullRequests, issues, runs] = await Promise.all([
-          this.github.repository({ repository: parsed.repository }),
-          this.github.openPullRequests({ repository: parsed.repository, limit: parsed.limit }),
-          this.github.recentIssues({ repository: parsed.repository, limit: parsed.limit }),
-          this.github.ciStatus({ repository: parsed.repository, limit: parsed.limit }),
-        ]);
-        await sendReply(
-          this.api,
-          event,
-          formatGithubStatusSummary({
-            metadata,
-            pullRequests: pullRequests.pullRequests,
-            pullRequestsTruncated: pullRequests.truncated,
-            issues: issues.issues,
-            issuesTruncated: issues.truncated,
-            runs: runs.runs,
-          }),
-        );
-        return;
-      }
-      if (sub === "repo") {
-        await sendReply(this.api, event, formatGithubRepositoryMetadata(await this.github.repository(parsed)));
-        return;
-      }
-      if (sub === "prs" || sub === "pulls") {
-        const result = await this.github.openPullRequests(parsed);
-        await sendReply(this.api, event, formatGithubPullRequests(result.repository, result.pullRequests));
-        return;
-      }
-      if (sub === "issues") {
-        const result = await this.github.recentIssues(parsed);
-        await sendReply(this.api, event, formatGithubIssues(result.repository, result.issues));
-        return;
-      }
-      if (sub === "runs" || sub === "ci") {
-        const result = await this.github.ciStatus(parsed);
-        await sendReply(
-          this.api,
-          event,
-          formatGithubWorkflowRuns({ repository: result.repository, title: "Recent workflow runs", runs: result.runs }),
-        );
-        return;
-      }
-      if (sub === "failures" || sub === "failed") {
-        const result = await this.github.recentWorkflowFailures(parsed);
-        await sendReply(
-          this.api,
-          event,
-          formatGithubWorkflowRuns({
-            repository: result.repository,
-            title: "Recent failed workflow runs",
-            runs: result.runs,
-          }),
-        );
-        return;
-      }
-    } catch (error) {
-      await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
-      return;
-    }
-    await sendReply(this.api, event, "Usage: /github status|repo|prs|issues|runs|failures [limit] [repository]");
   }
 
   private async handleToolCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
