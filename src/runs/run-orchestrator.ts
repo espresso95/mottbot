@@ -1543,6 +1543,8 @@ export class RunOrchestrator {
       }).slice(0, this.config.memory.candidateMaxPerRun);
       let inserted = 0;
       let accepted = 0;
+      let duplicateCandidates = 0;
+      let duplicateApprovedMemories = 0;
       for (const candidate of candidates) {
         const outcome = this.memories.addCandidate({
           sessionKey: params.session.sessionKey,
@@ -1556,6 +1558,10 @@ export class RunOrchestrator {
         });
         if (outcome.inserted) {
           inserted += 1;
+        } else if (outcome.reason === "duplicate_candidate") {
+          duplicateCandidates += 1;
+        } else if (outcome.reason === "duplicate_memory") {
+          duplicateApprovedMemories += 1;
         }
         if (
           this.config.memory.candidateApprovalPolicy === "auto" &&
@@ -1568,6 +1574,9 @@ export class RunOrchestrator {
           });
           if (acceptedCandidate) {
             accepted += 1;
+            if (!acceptedCandidate.insertedMemory) {
+              duplicateApprovedMemories += 1;
+            }
           }
         }
       }
@@ -1581,6 +1590,8 @@ export class RunOrchestrator {
             inserted,
             accepted,
             pending: Math.max(0, inserted - accepted),
+            duplicateCandidates,
+            duplicateApprovedMemories,
           },
           "Stored memory candidates.",
         );
@@ -1591,6 +1602,8 @@ export class RunOrchestrator {
             phase: params.phase,
             provider: result.provider,
             parsed: candidates.length,
+            duplicateCandidates,
+            duplicateApprovedMemories,
           },
           "Memory extraction completed without stored candidates.",
         );

@@ -971,6 +971,113 @@ describe("RunOrchestrator", () => {
     ]);
   });
 
+  it("logs duplicate memory candidate counts during extraction", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+        candidateRecentMessages: 8,
+        candidateMaxPerRun: 5,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    memories.addCandidate({
+      sessionKey: session.sessionKey,
+      scope: "personal",
+      scopeKey: "user-1",
+      contentText: "User prefers pnpm for repository checks.",
+      sensitivity: "low",
+    });
+    memories.add({
+      sessionKey: session.sessionKey,
+      scope: "personal",
+      scopeKey: "user-1",
+      contentText: "User prefers concise replies.",
+      source: "explicit",
+    });
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport: ModelTransport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "Got it.", transport: "sse", requestIdentity: "req-answer" };
+        })
+        .mockImplementationOnce(async () => ({
+          text: JSON.stringify({
+            candidates: [
+              {
+                contentText: "User prefers pnpm for repository checks.",
+                reason: "Preference appeared in the latest conversation.",
+                scope: "personal",
+                sensitivity: "low",
+              },
+              {
+                contentText: "User prefers concise replies.",
+                reason: "Preference appeared in the latest conversation.",
+                scope: "personal",
+                sensitivity: "low",
+              },
+            ],
+          }),
+          transport: "sse",
+          requestIdentity: "req-memory-candidates",
+        })),
+    };
+    const infoSpy = vi.spyOn(stores.logger, "info");
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories,
+    });
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Use pnpm and concise replies." }),
+      session,
+    });
+    await flushAsync();
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parsed: 2,
+        duplicateCandidates: 1,
+        duplicateApprovedMemories: 1,
+      }),
+      "Memory extraction completed without stored candidates.",
+    );
+  });
+
   it("uses LM Studio pre-response extraction before building the main prompt", async () => {
     const stores = createStores({
       memory: {
