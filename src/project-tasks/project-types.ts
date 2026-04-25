@@ -32,6 +32,7 @@ export type ProjectTask = {
   baseRef: string;
   title: string;
   originalPrompt: string;
+  planJson?: string;
   status: ProjectTaskStatus;
   maxParallelWorkers: number;
   maxAttemptsPerSubtask: number;
@@ -50,6 +51,7 @@ export type ProjectSubtask = {
   title: string;
   role: "planner" | "worker" | "integrator" | "reviewer";
   prompt: string;
+  dependsOnSubtaskIds: string[];
   status: ProjectSubtaskStatus;
   branchName?: string;
   worktreePath?: string;

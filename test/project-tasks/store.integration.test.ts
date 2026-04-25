@@ -22,6 +22,7 @@ describe("ProjectTaskStore", () => {
         baseRef: "main",
         title: "test task",
         originalPrompt: "build a thing",
+        planJson: '{"steps":[{"stepId":"step-1"}]}',
         status: "awaiting_approval",
         maxParallelWorkers: 1,
         maxAttemptsPerSubtask: 2,
@@ -31,6 +32,7 @@ describe("ProjectTaskStore", () => {
         title: "worker",
         role: "worker",
         prompt: "do work",
+        dependsOnSubtaskIds: ["dep-1"],
         status: "ready",
       });
       const approval = store.createApproval({
@@ -39,7 +41,9 @@ describe("ProjectTaskStore", () => {
       });
 
       expect(store.getTask(task.taskId)?.status).toBe("awaiting_approval");
+      expect(store.getTask(task.taskId)?.planJson).toContain("step-1");
       expect(store.listReadySubtasks(task.taskId)).toHaveLength(1);
+      expect(store.getSubtask(subtask.subtaskId)?.dependsOnSubtaskIds).toEqual(["dep-1"]);
       expect(store.getApproval(approval.approvalId)?.status).toBe("pending");
 
       store.updateTask(task.taskId, { status: "queued" });

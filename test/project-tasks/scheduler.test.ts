@@ -94,4 +94,62 @@ describe("ProjectTaskScheduler", () => {
       removeTempDir(root);
     }
   });
+
+  it("gates blocked subtasks on dependency completion", async () => {
+    const root = createTempDir();
+    try {
+      const db = new DatabaseClient(path.join(root, "mottbot.sqlite"));
+      migrateDatabase(db);
+      let now = 10;
+      const clock: Clock = { now: () => ++now };
+      const store = new ProjectTaskStore(db, clock);
+      const task = store.createTask({
+        chatId: "chat",
+        repoRoot: root,
+        baseRef: "main",
+        title: "title",
+        originalPrompt: "prompt",
+        status: "queued",
+        maxParallelWorkers: 1,
+        maxAttemptsPerSubtask: 1,
+      });
+      const first = store.createSubtask({ taskId: task.taskId, title: "first", role: "worker", prompt: "first", status: "ready" });
+      const second = store.createSubtask({
+        taskId: task.taskId,
+        title: "second",
+        role: "worker",
+        prompt: "second",
+        status: "blocked",
+        dependsOnSubtaskIds: [first.subtaskId],
+      });
+      const starts: string[] = [];
+      const fakeRunner = {
+        start: ({ subtaskId }: { subtaskId: string }) => {
+          starts.push(subtaskId);
+          return `run-${subtaskId}`;
+        },
+        cancelSubtask: (_id: string) => true,
+      };
+      const fakeWorktrees = {
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        cleanupSubtask: () => {},
+        listProtectedChanges: () => [],
+      };
+      const config = { projectTasks: { enabled: true, artifactRoot: path.join(root, "artifacts") } } as AppConfig;
+      const scheduler = new ProjectTaskScheduler(config, clock, store, fakeRunner as never, fakeWorktrees as never);
+
+      await scheduler.tick();
+      expect(starts).toEqual([first.subtaskId]);
+      expect(store.getSubtask(second.subtaskId)?.status).toBe("blocked");
+
+      store.updateSubtask(first.subtaskId, { status: "completed", finishedAt: clock.now(), resultSummary: "done" });
+      await scheduler.tick();
+      expect(store.getSubtask(second.subtaskId)?.status).toBe("running");
+      expect(starts).toEqual([first.subtaskId, second.subtaskId]);
+
+      db.close();
+    } finally {
+      removeTempDir(root);
+    }
+  });
 });

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Project Mode Phase 3 (Planner Output, Subtask Graph, Dependency Gating)
+
+- Added a lightweight project planner that derives a deterministic subtask plan from `/project start` prompts and stores it in `project_tasks.plan_json`.
+- Updated project task persistence to track per-subtask dependency edges through `dependsOnSubtaskIds` backed by `project_subtasks.depends_on_json`.
+- Updated `/project status` output to include dependency hints for blocked or sequenced subtasks.
+- Updated the scheduler to reconcile dependency states before launch: blocked subtasks move to ready when all dependencies complete, and automatically skip when dependencies fail/cancel.
+- Added planner and scheduler tests for subtask graph construction and dependency gating behavior.
+
 ### Project Mode Phase 2 (Worktrees, Path Protections, Cleanup)
 
 - Added a dedicated `WorktreeManager` to create isolated Git worktrees per project subtask and branch each worker under `mottbot/<task>/<subtask>`.

@@ -21,6 +21,7 @@ type ProjectTaskRow = {
   base_ref: string;
   title: string;
   original_prompt: string;
+  plan_json: string | null;
   status: ProjectTaskStatus;
   max_parallel_workers: number;
   max_attempts_per_subtask: number;
@@ -39,6 +40,7 @@ type ProjectSubtaskRow = {
   title: string;
   role: "planner" | "worker" | "integrator" | "reviewer";
   prompt: string;
+  depends_on_json: string;
   status: ProjectSubtaskStatus;
   branch_name: string | null;
   worktree_path: string | null;
@@ -96,6 +98,7 @@ function mapTask(row: ProjectTaskRow): ProjectTask {
     baseRef: row.base_ref,
     title: row.title,
     originalPrompt: row.original_prompt,
+    ...(row.plan_json ? { planJson: row.plan_json } : {}),
     status: row.status,
     maxParallelWorkers: row.max_parallel_workers,
     maxAttemptsPerSubtask: row.max_attempts_per_subtask,
@@ -116,6 +119,7 @@ function mapSubtask(row: ProjectSubtaskRow): ProjectSubtask {
     title: row.title,
     role: row.role,
     prompt: row.prompt,
+    dependsOnSubtaskIds: parseDependsOnJson(row.depends_on_json),
     status: row.status,
     ...(row.branch_name ? { branchName: row.branch_name } : {}),
     ...(row.worktree_path ? { worktreePath: row.worktree_path } : {}),
@@ -168,6 +172,18 @@ function mapApproval(row: ProjectApprovalRow): ProjectApproval {
   };
 }
 
+function parseDependsOnJson(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 export class ProjectTaskStore {
   constructor(
     private readonly database: DatabaseClient,
@@ -182,6 +198,7 @@ export class ProjectTaskStore {
     baseRef: string;
     title: string;
     originalPrompt: string;
+    planJson?: string;
     status: ProjectTaskStatus;
     maxParallelWorkers: number;
     maxAttemptsPerSubtask: number;
@@ -197,6 +214,7 @@ export class ProjectTaskStore {
       title: input.title,
       originalPrompt: input.originalPrompt,
       status: input.status,
+      ...(input.planJson ? { planJson: input.planJson } : {}),
       maxParallelWorkers: input.maxParallelWorkers,
       maxAttemptsPerSubtask: input.maxAttemptsPerSubtask,
       createdAt: now,
@@ -204,8 +222,8 @@ export class ProjectTaskStore {
     };
     this.database.db.prepare(`insert into project_tasks (
       task_id, chat_id, requested_by_user_id, requested_by_username, repo_root, base_ref, title, original_prompt,
-      status, max_parallel_workers, max_attempts_per_subtask, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      plan_json, status, max_parallel_workers, max_attempts_per_subtask, created_at, updated_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       task.taskId,
       task.chatId,
       task.requestedByUserId ?? null,
@@ -214,6 +232,7 @@ export class ProjectTaskStore {
       task.baseRef,
       task.title,
       task.originalPrompt,
+      task.planJson ?? null,
       task.status,
       task.maxParallelWorkers,
       task.maxAttemptsPerSubtask,
@@ -223,7 +242,14 @@ export class ProjectTaskStore {
     return task;
   }
 
-  createSubtask(input: { taskId: string; title: string; role: "planner" | "worker" | "integrator" | "reviewer"; prompt: string; status: ProjectSubtaskStatus }): ProjectSubtask {
+  createSubtask(input: {
+    taskId: string;
+    title: string;
+    role: "planner" | "worker" | "integrator" | "reviewer";
+    prompt: string;
+    dependsOnSubtaskIds?: string[];
+    status: ProjectSubtaskStatus;
+  }): ProjectSubtask {
     const now = this.clock.now();
     const subtask: ProjectSubtask = {
       subtaskId: createId(),
@@ -231,19 +257,21 @@ export class ProjectTaskStore {
       title: input.title,
       role: input.role,
       prompt: input.prompt,
+      dependsOnSubtaskIds: input.dependsOnSubtaskIds ?? [],
       status: input.status,
       attempt: 0,
       createdAt: now,
       updatedAt: now,
     };
     this.database.db.prepare(`insert into project_subtasks (
-      subtask_id, task_id, title, role, prompt, status, attempt, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      subtask_id, task_id, title, role, prompt, depends_on_json, status, attempt, created_at, updated_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       subtask.subtaskId,
       subtask.taskId,
       subtask.title,
       subtask.role,
       subtask.prompt,
+      JSON.stringify(subtask.dependsOnSubtaskIds),
       subtask.status,
       subtask.attempt,
       subtask.createdAt,
@@ -303,13 +331,14 @@ export class ProjectTaskStore {
       updatedAt: this.clock.now(),
     };
     this.database.db.prepare(`update project_tasks set
-      requested_by_user_id=?, requested_by_username=?, title=?, original_prompt=?, status=?, max_parallel_workers=?,
+      requested_by_user_id=?, requested_by_username=?, title=?, original_prompt=?, plan_json=?, status=?, max_parallel_workers=?,
       max_attempts_per_subtask=?, updated_at=?, started_at=?, finished_at=?, last_error=?, final_summary=?, final_branch=?
       where task_id=?`).run(
       next.requestedByUserId ?? null,
       next.requestedByUsername ?? null,
       next.title,
       next.originalPrompt,
+      next.planJson ?? null,
       next.status,
       next.maxParallelWorkers,
       next.maxAttemptsPerSubtask,
@@ -335,11 +364,12 @@ export class ProjectTaskStore {
       updatedAt: this.clock.now(),
     };
     this.database.db.prepare(`update project_subtasks set
-      title=?, role=?, prompt=?, status=?, branch_name=?, worktree_path=?, codex_session_id=?, attempt=?, updated_at=?,
+      title=?, role=?, prompt=?, depends_on_json=?, status=?, branch_name=?, worktree_path=?, codex_session_id=?, attempt=?, updated_at=?,
       started_at=?, finished_at=?, result_summary=?, last_error=? where subtask_id=?`).run(
       next.title,
       next.role,
       next.prompt,
+      JSON.stringify(next.dependsOnSubtaskIds),
       next.status,
       next.branchName ?? null,
       next.worktreePath ?? null,
