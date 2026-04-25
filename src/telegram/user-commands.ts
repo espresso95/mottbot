@@ -63,7 +63,7 @@ function parseChatPolicySetArgs(
 }
 
 /** Formats the user governance help text visible to the current caller. */
-export function formatUsersHelp(params: Pick<UserCommandDependencies, "isAdmin" | "isOwner">): string {
+function formatUsersHelp(params: Pick<UserCommandDependencies, "isAdmin" | "isOwner">): string {
   const commands = [
     "/users me - show your role",
     ...(params.isAdmin

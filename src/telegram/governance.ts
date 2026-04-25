@@ -6,7 +6,7 @@ import type { ToolCallerRole } from "../tools/policy.js";
 import type { NormalizedAttachment } from "./types.js";
 
 /** Ordered Telegram roles used for user governance and tool policy bridging. */
-export const TELEGRAM_USER_ROLES = ["owner", "admin", "trusted", "user"] as const;
+const TELEGRAM_USER_ROLES = ["owner", "admin", "trusted", "user"] as const;
 
 /** User role assigned by config or runtime governance commands. */
 export type TelegramUserRole = (typeof TELEGRAM_USER_ROLES)[number];

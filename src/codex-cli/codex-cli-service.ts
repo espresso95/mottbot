@@ -125,7 +125,7 @@ export function buildCodexCliJobPaths(artifactRoot: string, artifactSegments: re
 }
 
 /** Builds the Codex CLI exec arguments for a prepared job. */
-export function buildCodexCliArgs(params: {
+function buildCodexCliArgs(params: {
   cwd: string;
   profile: string;
   finalMessagePath: string;

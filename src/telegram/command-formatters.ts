@@ -142,7 +142,7 @@ export function isToolAuditDecisionCode(value: string): value is ToolApprovalDec
 }
 
 /** Truncates a value to a single line for compact Telegram command output. */
-export function truncateSingleLine(value: string, maxChars: number): string {
+function truncateSingleLine(value: string, maxChars: number): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= maxChars) {
     return singleLine;

@@ -34,7 +34,7 @@ export type MemoryCandidateCallbackDependencies = {
 };
 
 /** Supported inline-button actions for one pending memory candidate. */
-export type MemoryCandidateCallbackAction = "accept" | "reject" | "archive";
+type MemoryCandidateCallbackAction = "accept" | "reject" | "archive";
 
 function memoryCandidateKeyboard(candidates: readonly MemoryCandidate[]): TelegramInlineKeyboard | undefined {
   const rows = candidates.flatMap((candidate) => {
@@ -90,7 +90,7 @@ async function refreshCandidateKeyboard(
 }
 
 /** Parses optional memory scope arguments accepted by /remember. */
-export function parseMemoryScopeArgs(
+function parseMemoryScopeArgs(
   session: SessionRoute,
   args: string[],
 ): { scope: MemoryScope; scopeKey: string; contentArgs: string[] } | { error: string } {

@@ -4,7 +4,7 @@ import type { ParsedCommand } from "./types.js";
 export const PROFILE_ID_PATTERN = /^[A-Za-z0-9:_./-]{1,128}$/;
 
 /** Maximum visible label length accepted by Telegram route bindings. */
-export const MAX_BINDING_NAME_LENGTH = 64;
+const MAX_BINDING_NAME_LENGTH = 64;
 
 /** Parses a Telegram slash command into the command name, arguments, and raw text. */
 export function parseCommand(text: string): ParsedCommand {

@@ -17,7 +17,7 @@ function trimNonEmptyString(value: unknown): string | undefined {
 }
 
 /** Decodes the unsigned JWT payload from a Codex access token for local metadata extraction. */
-export function decodeCodexJwtPayload(accessToken: string): Record<string, unknown> | null {
+function decodeCodexJwtPayload(accessToken: string): Record<string, unknown> | null {
   const parts = accessToken.split(".");
   const payloadSegment = parts[1];
   if (parts.length !== 3 || !payloadSegment) {

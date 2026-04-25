@@ -188,7 +188,7 @@ export function launchAgentNodeCandidates(env: NodeJS.ProcessEnv = process.env):
 }
 
 /** Probes whether a Node binary can start Mottbot's TypeScript service and load native SQLite bindings. */
-export function probeLaunchAgentNode(nodePath: string, projectRoot: string): LaunchAgentCommandResult {
+function probeLaunchAgentNode(nodePath: string, projectRoot: string): LaunchAgentCommandResult {
   const resolvedRoot = path.resolve(projectRoot);
   const script = `
 const fs = require("node:fs");
@@ -300,7 +300,7 @@ function ignoreMissingService(result: LaunchAgentCommandResult): void {
 }
 
 /** Writes the LaunchAgent plist and creates the expected log directory. */
-export function installLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
+function installLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
   ensureDarwin();
   const label = normalizeServiceLabel(options.label);
   const paths = launchAgentPaths(label);
@@ -323,13 +323,13 @@ export function installLaunchAgent(projectRoot = process.cwd(), options: Service
 }
 
 /** Stops the loaded LaunchAgent, treating an already-stopped service as success. */
-export function stopLaunchAgent(options: ServiceCommandOptions = {}): void {
+function stopLaunchAgent(options: ServiceCommandOptions = {}): void {
   ensureDarwin();
   ignoreMissingService(runLaunchctl(["bootout", serviceTarget(options.label)]));
 }
 
 /** Installs and bootstraps the LaunchAgent for the current macOS GUI session. */
-export function startLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
+function startLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
   const label = normalizeServiceLabel(options.label);
   const paths = installLaunchAgent(projectRoot, { ...options, label });
   stopLaunchAgent({ label });
@@ -349,13 +349,13 @@ export function startLaunchAgent(projectRoot = process.cwd(), options: ServiceCo
 }
 
 /** Stops and starts the LaunchAgent using the latest generated plist. */
-export function restartLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
+function restartLaunchAgent(projectRoot = process.cwd(), options: ServiceCommandOptions = {}): LaunchAgentPaths {
   stopLaunchAgent(options);
   return startLaunchAgent(projectRoot, options);
 }
 
 /** Stops the LaunchAgent and removes its plist while leaving logs in place. */
-export function uninstallLaunchAgent(options: ServiceCommandOptions = {}): LaunchAgentPaths {
+function uninstallLaunchAgent(options: ServiceCommandOptions = {}): LaunchAgentPaths {
   const paths = launchAgentPaths(options.label);
   stopLaunchAgent(options);
   if (fs.existsSync(paths.plistPath)) {

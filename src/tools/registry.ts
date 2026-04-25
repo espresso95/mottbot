@@ -91,7 +91,7 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_BYTES = 1_000_000;
 
 /** Built-in tools that inspect local or remote state without side effects. */
-export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_health_snapshot",
     description: "Read a token-free Mottbot runtime health snapshot.",
@@ -812,7 +812,7 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 ] as const;
 
 /** Built-in tools that can write, call external APIs, or control local processes. */
-export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_codex_job_start",
     description:
@@ -1391,7 +1391,7 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 ] as const;
 
 /** Default full tool catalog before runtime side-effect filtering. */
-export const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+const DEFAULT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   ...READ_ONLY_TOOL_DEFINITIONS,
   ...SIDE_EFFECT_TOOL_DEFINITIONS,
 ] as const;

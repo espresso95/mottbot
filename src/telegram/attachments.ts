@@ -58,7 +58,7 @@ export type AttachmentIngestor = {
 };
 
 /** Operator-safe attachment ingestion failure with a stable error code. */
-export class AttachmentIngestionError extends Error {
+class AttachmentIngestionError extends Error {
   constructor(
     readonly code:
       | "attachment.missing_file_id"

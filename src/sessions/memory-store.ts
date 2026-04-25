@@ -4,13 +4,10 @@ import { createId } from "../shared/ids.js";
 import type { SessionRoute, SessionRouteMode } from "./types.js";
 
 /** Supported visibility scopes for approved long-term memories. */
-export const MEMORY_SCOPES = ["session", "personal", "chat", "group", "project"] as const;
-
-/** Supported sensitivity levels for proposed memory candidates. */
-export const MEMORY_CANDIDATE_SENSITIVITIES = ["low", "medium", "high"] as const;
+const MEMORY_SCOPES = ["session", "personal", "chat", "group", "project"] as const;
 
 /** Workflow states for model-proposed memory candidates. */
-export const MEMORY_CANDIDATE_STATUSES = ["pending", "accepted", "rejected", "archived"] as const;
+const MEMORY_CANDIDATE_STATUSES = ["pending", "accepted", "rejected", "archived"] as const;
 
 /** Persisted approved memory that can be injected into future prompts. */
 export type SessionMemory = {
@@ -34,7 +31,7 @@ export type SessionMemorySource = "explicit" | "auto_summary" | "model_candidate
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
 
 /** Candidate privacy sensitivity used for operator review. */
-export type MemoryCandidateSensitivity = (typeof MEMORY_CANDIDATE_SENSITIVITIES)[number];
+export type MemoryCandidateSensitivity = "low" | "medium" | "high";
 
 /** Candidate review workflow state. */
 export type MemoryCandidateStatus = (typeof MEMORY_CANDIDATE_STATUSES)[number];

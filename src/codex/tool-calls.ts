@@ -45,7 +45,7 @@ export function normalizeCodexToolCall(value: unknown): CodexToolCall | undefine
 }
 
 /** Normalizes partial Codex tool-call progress from unknown stream data. */
-export function normalizeCodexToolCallProgress(value: unknown): CodexToolCallProgress | undefined {
+function normalizeCodexToolCallProgress(value: unknown): CodexToolCallProgress | undefined {
   if (!isRecord(value) || value.type !== "toolCall") {
     return undefined;
   }

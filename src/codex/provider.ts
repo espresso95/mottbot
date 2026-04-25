@@ -1,7 +1,7 @@
 import type { TransportMode } from "./types.js";
 
 /** Stable provider id used in model references, auth profiles, and capability maps. */
-export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
+const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
 
 /** ChatGPT backend base URL used by the subscription-backed Codex transport. */
 export const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -10,7 +10,7 @@ export const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 export const OPENAI_CODEX_API = "openai-codex-responses";
 
 /** Curated model refs advertised by help text and validation messages. */
-export const KNOWN_CODEX_MODEL_REFS = [
+const KNOWN_CODEX_MODEL_REFS = [
   "openai-codex/gpt-5.4",
   "openai-codex/gpt-5.4-mini",
   "openai-codex/gpt-5.3-codex-spark",
