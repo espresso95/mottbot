@@ -445,13 +445,12 @@ export class TelegramCommandRouter {
       const session = this.routes.resolve(inbound);
       if (action.type === "run_stop") {
         const stopped = await this.orchestrator.stop(session.sessionKey, action.runId);
-        const message = stopped ? "Active run cancelled." : "No matching active run.";
-        await this.answerCallback(event, message, !stopped);
+        const callbackText = stopped ? "I stopped the active run." : "I could not find an active run to stop.";
+        await this.answerCallback(event, callbackText, !stopped);
         await this.editRunCallbackStatus(
           event,
-          stopped ? "Run cancelled." : "Stop could not be applied. No matching active run.",
+          stopped ? "Stopped the active run." : "Stop was not applied. I could not find an active run.",
         );
-        await sendReply(this.api, event, message);
         return true;
       }
       if (action.type === "run_retry") {
@@ -460,24 +459,16 @@ export class TelegramCommandRouter {
           session,
           runId: action.runId,
         });
-        const message = this.formatRunRetryResult(result);
-        await this.answerCallback(event, message, result !== "queued");
-        await this.editRunCallbackStatus(
-          event,
-          result === "queued" ? "Retry queued." : `Retry could not be applied. ${message}`,
-        );
-        await sendReply(this.api, event, message);
+        const copy = this.formatRunRetryResult(result);
+        await this.answerCallback(event, copy.callbackText, copy.showAlert);
+        await this.editRunCallbackStatus(event, copy.statusText);
         return true;
       }
       if (action.type === "run_new") {
-        await this.answerCallback(event, "Starting a new chat.");
-        await handleResetCommand({
-          api: this.api,
-          event: inbound,
-          session,
-          transcripts: this.transcripts,
-        });
-        await this.editRunCallbackStatus(event, "New chat started. Previous transcript cleared.");
+        const message = "I started a new chat and cleared the previous context.";
+        await this.answerCallback(event, message);
+        this.transcripts.clearSession(session.sessionKey);
+        await this.editRunCallbackStatus(event, message);
         return true;
       }
       if (action.type === "run_usage") {
@@ -523,20 +514,50 @@ export class TelegramCommandRouter {
     return false;
   }
 
-  private formatRunRetryResult(result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>): string {
+  private formatRunRetryResult(result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>): {
+    callbackText: string;
+    statusText: string;
+    showAlert: boolean;
+  } {
     switch (result) {
       case "queued":
-        return "Retry queued.";
+        return {
+          callbackText: "Retrying that request now.",
+          statusText: "Retrying that request now.",
+          showAlert: false,
+        };
       case "not_found":
-        return "Run is no longer available.";
+        return {
+          callbackText: "I cannot retry that run because it is no longer available.",
+          statusText: "Retry was not applied. The run is no longer available.",
+          showAlert: true,
+        };
       case "wrong_session":
-        return "Run is not available in this session.";
+        return {
+          callbackText: "I cannot retry that run from this chat.",
+          statusText: "Retry was not applied. The run belongs to another session.",
+          showAlert: true,
+        };
       case "not_retryable":
-        return "Run is not retryable.";
+        return {
+          callbackText: "This run cannot be retried.",
+          statusText: "Retry was not applied. This run is not in a retryable state.",
+          showAlert: true,
+        };
       case "no_user_message":
-        return "Original user message is no longer available.";
+        return {
+          callbackText: "I cannot retry because the original user message is no longer available.",
+          statusText: "Retry was not applied. The original user message is no longer available.",
+          showAlert: true,
+        };
       case "attachments_not_retryable":
-        return "Attachment-backed runs cannot be retried from the button. Send the file again to retry.";
+        return {
+          callbackText:
+            "I cannot retry this from here because the original message included a file. Send the file again and I will run it as a fresh request.",
+          statusText:
+            "Retry was not applied. The original message included a file; send the file again to run it as a fresh request.",
+          showAlert: true,
+        };
     }
   }
 

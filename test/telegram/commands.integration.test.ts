@@ -2142,12 +2142,12 @@ describe("TelegramCommandRouter", () => {
     ).resolves.toBe(true);
     expect(orchestrator.stop).toHaveBeenCalledWith("tg:dm:chat-1:user:user-1", "run-1");
     expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Active run cancelled.",
+      text: "I stopped the active run.",
       show_alert: false,
     });
-    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run is active.\n\nRun cancelled.");
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run is active.\n\nStopped the active run.");
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Active run cancelled.", expect.any(Object));
+    expect(api.sendMessage).not.toHaveBeenCalled();
 
     api.answerCallbackQuery.mockClear();
     api.editMessageReplyMarkup.mockClear();
@@ -2165,12 +2165,12 @@ describe("TelegramCommandRouter", () => {
       runId: "run-1",
     });
     expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Retry queued.",
+      text: "Retrying that request now.",
       show_alert: false,
     });
-    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run failed.\n\nRetry queued.");
+    expect(api.editMessageText).toHaveBeenCalledWith("chat-1", 42, "Run failed.\n\nRetrying that request now.");
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Retry queued.", expect.any(Object));
+    expect(api.sendMessage).not.toHaveBeenCalled();
 
     api.answerCallbackQuery.mockClear();
     api.editMessageReplyMarkup.mockClear();
@@ -2184,7 +2184,7 @@ describe("TelegramCommandRouter", () => {
       ),
     ).resolves.toBe(true);
     const attachmentRetryMessage =
-      "Attachment-backed runs cannot be retried from the button. Send the file again to retry.";
+      "I cannot retry this from here because the original message included a file. Send the file again and I will run it as a fresh request.";
     expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
       text: attachmentRetryMessage,
       show_alert: true,
@@ -2192,10 +2192,10 @@ describe("TelegramCommandRouter", () => {
     expect(api.editMessageText).toHaveBeenCalledWith(
       "chat-1",
       42,
-      `Run failed with a file.\n\nRetry could not be applied. ${attachmentRetryMessage}`,
+      "Run failed with a file.\n\nRetry was not applied. The original message included a file; send the file again to run it as a fresh request.",
     );
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", attachmentRetryMessage, expect.any(Object));
+    expect(api.sendMessage).not.toHaveBeenCalled();
 
     api.answerCallbackQuery.mockClear();
     api.editMessageReplyMarkup.mockClear();
@@ -2213,13 +2213,17 @@ describe("TelegramCommandRouter", () => {
       ),
     ).resolves.toBe(true);
     expect(stores.transcripts.listRecent("tg:dm:chat-1:user:user-1")).toEqual([]);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "I started a new chat and cleared the previous context.",
+      show_alert: false,
+    });
     expect(api.editMessageText).toHaveBeenCalledWith(
       "chat-1",
       42,
-      "Run complete.\n\nNew chat started. Previous transcript cleared.",
+      "Run complete.\n\nI started a new chat and cleared the previous context.",
     );
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Session transcript cleared.", expect.any(Object));
+    expect(api.sendMessage).not.toHaveBeenCalled();
 
     await expect(
       router.maybeHandleCallback(createCallbackEvent({ data: buildRunUsageCallbackData("run-1") })),

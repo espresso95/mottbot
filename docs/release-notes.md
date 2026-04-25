@@ -47,6 +47,7 @@
 - Tool approval prompts now include structured Telegram cards with tool, action, side-effect, target, expiration, and request metadata before the Approve/Deny buttons.
 - Added inline run controls: active runs can be stopped, failed runs can be retried or cleared, and completed runs can jump to new chat, usage, or retained file metadata actions.
 - Run control buttons now mark the original status message and clear stale keyboards after `Stop`, `Retry`, or `New chat` is used.
+- Run control callbacks now use action-oriented text and avoid duplicate chat replies for state-changing button taps.
 - Retry buttons now refuse attachment-backed runs and ask the operator to resend the file, avoiding silent reuse of transient attachment state.
 - Approved tool continuations created from inline buttons are now persisted in `run_queue` and can resume after a service restart before execution starts.
 - Added inline accept, reject, and archive buttons for pending `/memory candidates`.
