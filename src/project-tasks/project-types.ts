@@ -30,6 +30,8 @@ export type ProjectTask = {
   requestedByUsername?: string;
   repoRoot: string;
   baseRef: string;
+  integrationBranch?: string;
+  integrationWorktreePath?: string;
   title: string;
   originalPrompt: string;
   planJson?: string;
@@ -43,6 +45,7 @@ export type ProjectTask = {
   lastError?: string;
   finalSummary?: string;
   finalBranch?: string;
+  finalDiffStat?: string;
 };
 
 export type ProjectSubtask = {

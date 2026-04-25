@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Project Mode Phase 5 (Integration Branch Workflow)
+
+- Added a minimal integration branch workflow after all worker subtasks complete.
+- The scheduler now prepares an integration worktree, merges completed worker branches in order, records the final integration branch and diff stat, and cleans up merged worker branches.
+- Successful worker completion now removes the worker worktree while preserving the worker branch until integration.
+- Merge conflicts create a ready `integrator` subtask in the integration worktree with bounded conflict context for Codex CLI conflict resolution.
+- Added scheduler tests for successful branch integration, conflict-worker queueing, and running an integrator in the integration worktree.
+
 ### Project Mode Phase 4 (Parallel Worker Scheduling)
 
 - Updated the project scheduler to launch multiple ready subtasks in one tick when concurrency limits allow it.

@@ -49,6 +49,10 @@ export class ProjectTaskScheduler {
         }
         task = this.store.updateTask(task.taskId, { status: "running", startedAt: this.clock.now() });
       }
+      if (task.status === "integrating") {
+        activeWorkerCount = this.handleIntegratingTask(task, activeWorkerCount, activeProjectIds);
+        continue;
+      }
       if (task.status !== "running") {
         continue;
       }
@@ -60,7 +64,7 @@ export class ProjectTaskScheduler {
       let activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
       const readySubtasks = this.store
         .listReadySubtasks(task.taskId)
-        .filter((subtask) => subtask.status === "ready" || subtask.status === "queued");
+        .filter((subtask) => subtask.role === "worker" && (subtask.status === "ready" || subtask.status === "queued"));
       const perProjectLimit = this.perProjectWorkerLimit(task);
       for (const subtask of readySubtasks) {
         if (activeRunsForTask >= perProjectLimit) {
@@ -85,8 +89,8 @@ export class ProjectTaskScheduler {
       }
 
       const refreshedSubtasks = this.store.listSubtasks(task.taskId);
-      const total = refreshedSubtasks.length;
-      const completed = refreshedSubtasks.filter((subtask) => subtask.status === "completed").length;
+      const workerSubtasks = refreshedSubtasks.filter((subtask) => subtask.role === "worker");
+      const completedWorkers = workerSubtasks.filter((subtask) => subtask.status === "completed");
       const failed = refreshedSubtasks.find((subtask) => subtask.status === "failed");
       if (failed) {
         this.store.updateTask(task.taskId, {
@@ -96,15 +100,8 @@ export class ProjectTaskScheduler {
         });
         continue;
       }
-      if (total > 0 && completed === total) {
-        const summaries = refreshedSubtasks
-          .map((subtask) => `- ${subtask.title}: ${subtask.resultSummary ?? "completed"}`)
-          .join("\n");
-        this.store.updateTask(task.taskId, {
-          status: "completed",
-          finishedAt: this.clock.now(),
-          finalSummary: summaries,
-        });
+      if (workerSubtasks.length > 0 && completedWorkers.length === workerSubtasks.length) {
+        this.beginIntegration(task, completedWorkers);
       }
     }
   }
@@ -126,6 +123,161 @@ export class ProjectTaskScheduler {
 
   private globalWorkerLimit(): number {
     return Math.max(1, this.config.projectTasks.maxConcurrentCodexWorkersGlobal ?? 1);
+  }
+
+  private handleIntegratingTask(
+    task: ProjectTask,
+    activeWorkerCount: number,
+    activeProjectIds: Set<string>,
+  ): number {
+    this.finishTerminalSubtasks(task, this.store.listSubtasks(task.taskId));
+    const subtasks = this.store.listSubtasks(task.taskId);
+    const failedIntegrator = subtasks.find((subtask) =>
+      subtask.role === "integrator" && (subtask.status === "failed" || subtask.status === "cancelled")
+    );
+    if (failedIntegrator) {
+      this.store.updateTask(task.taskId, {
+        status: failedIntegrator.status === "cancelled" ? "cancelled" : "failed",
+        finishedAt: this.clock.now(),
+        lastError: failedIntegrator.lastError ?? "Integration worker failed.",
+      });
+      return activeWorkerCount;
+    }
+
+    const activeRunsForTask = this.store.listActiveCliRuns(task.taskId).length;
+    const completedIntegrator = subtasks.find((subtask) => subtask.role === "integrator" && subtask.status === "completed");
+    if (completedIntegrator && activeRunsForTask === 0) {
+      this.completeIntegration(task, subtasks);
+      return activeWorkerCount;
+    }
+
+    const nextIntegrator = subtasks.find((subtask) =>
+      subtask.role === "integrator" && (subtask.status === "ready" || subtask.status === "queued")
+    );
+    if (!nextIntegrator || activeRunsForTask > 0) {
+      return activeWorkerCount;
+    }
+    if (activeWorkerCount >= this.globalWorkerLimit()) {
+      return activeWorkerCount;
+    }
+    if (!activeProjectIds.has(task.taskId) && activeProjectIds.size >= this.maxConcurrentProjects()) {
+      return activeWorkerCount;
+    }
+    if (this.startSubtask(task, nextIntegrator)) {
+      activeProjectIds.add(task.taskId);
+      return activeWorkerCount + 1;
+    }
+    return activeWorkerCount;
+  }
+
+  private beginIntegration(task: ProjectTask, completedWorkers: ProjectSubtask[]): void {
+    let prepared: { worktreePath: string; branchName: string };
+    try {
+      prepared = this.worktrees.prepareIntegration({
+        taskId: task.taskId,
+        repoRoot: task.repoRoot,
+        baseRef: task.baseRef,
+      });
+    } catch (error) {
+      this.store.updateTask(task.taskId, {
+        status: "failed",
+        finishedAt: this.clock.now(),
+        lastError: error instanceof Error ? error.message : "Failed to prepare integration worktree.",
+      });
+      return;
+    }
+
+    const integrationTask = this.store.updateTask(task.taskId, {
+      status: "integrating",
+      integrationBranch: prepared.branchName,
+      integrationWorktreePath: prepared.worktreePath,
+    });
+    for (const worker of completedWorkers) {
+      if (!worker.branchName) {
+        continue;
+      }
+      const merge = this.worktrees.mergeBranch({
+        worktreePath: prepared.worktreePath,
+        branchName: worker.branchName,
+      });
+      if (!merge.ok) {
+        this.queueConflictResolver({
+          task: integrationTask,
+          workers: completedWorkers,
+          conflictBranch: worker.branchName,
+          mergeOutput: merge.output,
+        });
+        return;
+      }
+    }
+    this.completeIntegration(integrationTask, completedWorkers);
+  }
+
+  private queueConflictResolver(params: {
+    task: ProjectTask;
+    workers: ProjectSubtask[];
+    conflictBranch: string;
+    mergeOutput: string;
+  }): void {
+    const prompt = [
+      "Resolve the integration merge conflict for this Mottbot project task.",
+      `Project task: ${params.task.taskId}`,
+      `Integration branch: ${params.task.integrationBranch ?? "unknown"}`,
+      `Conflicting worker branch: ${params.conflictBranch}`,
+      "",
+      "You are already in the integration worktree. Resolve conflicts, keep the completed worker changes, run relevant checks if practical, and finish the merge commit.",
+      "",
+      "Merge output:",
+      params.mergeOutput.slice(0, 4_000) || "No merge output captured.",
+    ].join("\n");
+    const integrator = this.store.createSubtask({
+      taskId: params.task.taskId,
+      title: "Resolve integration conflicts",
+      role: "integrator",
+      prompt,
+      dependsOnSubtaskIds: params.workers.map((worker) => worker.subtaskId),
+      status: "ready",
+    });
+    this.store.updateSubtask(integrator.subtaskId, {
+      branchName: params.task.integrationBranch,
+      worktreePath: params.task.integrationWorktreePath,
+    });
+    this.store.updateTask(params.task.taskId, {
+      status: "integrating",
+      lastError: `Integration conflict while merging ${params.conflictBranch}; queued ${integrator.subtaskId}.`,
+    });
+  }
+
+  private completeIntegration(task: ProjectTask, subtasks: ProjectSubtask[]): void {
+    const workerSubtasks = subtasks.filter((subtask) => subtask.role === "worker");
+    const summaries = workerSubtasks
+      .map((subtask) => `- ${subtask.title}: ${subtask.resultSummary ?? "completed"}`)
+      .join("\n");
+    const finalDiffStat = task.integrationWorktreePath
+      ? this.worktrees.diffStat({ worktreePath: task.integrationWorktreePath, baseRef: task.baseRef }).slice(0, 4_000)
+      : undefined;
+    this.store.updateTask(task.taskId, {
+      status: "completed",
+      finishedAt: this.clock.now(),
+      finalBranch: task.integrationBranch,
+      ...(finalDiffStat ? { finalDiffStat } : {}),
+      finalSummary: [
+        summaries,
+        task.integrationBranch ? `Integrated branch: ${task.integrationBranch}` : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    for (const subtask of workerSubtasks) {
+      if (!subtask.worktreePath && !subtask.branchName) {
+        continue;
+      }
+      this.worktrees.cleanupSubtask({
+        repoRoot: task.repoRoot,
+        worktreePath: subtask.worktreePath,
+        branchName: subtask.branchName,
+      });
+    }
   }
 
   private finishTerminalSubtasks(task: ProjectTask, subtasks: ProjectSubtask[]): void {
@@ -157,17 +309,20 @@ export class ProjectTaskScheduler {
       latestRun?.lastError ??
       (finalSummary.failed ? finalSummary.text : undefined) ??
       (runFailed ? "Worker failed" : undefined);
+    const nextStatus = latestRun?.status === "cancelled" ? "cancelled" : runFailed || finalSummary.failed || !!protectedPathError ? "failed" : "completed";
     this.store.updateSubtask(subtask.subtaskId, {
-      status: latestRun?.status === "cancelled" ? "cancelled" : runFailed || finalSummary.failed || !!protectedPathError ? "failed" : "completed",
+      status: nextStatus,
       finishedAt: this.clock.now(),
       ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
       ...(lastError ? { lastError } : {}),
     });
-    if (subtask.worktreePath || subtask.branchName) {
+    const keepIntegrationWorktree = subtask.role === "integrator";
+    if ((subtask.worktreePath || subtask.branchName) && !keepIntegrationWorktree) {
       this.worktrees.cleanupSubtask({
         repoRoot: task.repoRoot,
         worktreePath: subtask.worktreePath,
         branchName: subtask.branchName,
+        deleteBranch: nextStatus !== "completed",
       });
     }
     this.activeSubtasks.delete(subtask.subtaskId);
@@ -175,13 +330,19 @@ export class ProjectTaskScheduler {
 
   private startSubtask(task: ProjectTask, subtask: ProjectSubtask): boolean {
     let prepared: { worktreePath: string; branchName: string } | undefined;
+    const usesExistingWorktree =
+      subtask.role === "integrator" &&
+      typeof subtask.worktreePath === "string" &&
+      typeof subtask.branchName === "string";
     try {
-      prepared = this.worktrees.prepareSubtask({
-        taskId: task.taskId,
-        subtaskId: subtask.subtaskId,
-        repoRoot: task.repoRoot,
-        baseRef: task.baseRef,
-      });
+      prepared = usesExistingWorktree
+        ? { worktreePath: subtask.worktreePath!, branchName: subtask.branchName! }
+        : this.worktrees.prepareSubtask({
+            taskId: task.taskId,
+            subtaskId: subtask.subtaskId,
+            repoRoot: task.repoRoot,
+            baseRef: task.baseRef,
+          });
       this.store.updateSubtask(subtask.subtaskId, {
         status: "running",
         startedAt: this.clock.now(),
@@ -199,7 +360,7 @@ export class ProjectTaskScheduler {
       return true;
     } catch (error) {
       this.activeSubtasks.delete(subtask.subtaskId);
-      if (prepared) {
+      if (prepared && !usesExistingWorktree) {
         this.worktrees.cleanupSubtask({
           repoRoot: task.repoRoot,
           worktreePath: prepared.worktreePath,
