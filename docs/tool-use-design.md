@@ -391,7 +391,7 @@ The operator can approve the latest pending request in the current session:
 /tool approve mottbot_restart_service planned restart
 ```
 
-Telegram run responses also include inline buttons for pending side-effect approvals. Button callbacks approve the exact persisted pending audit request encoded in the callback data, then store the same session-scoped, request-fingerprinted one-shot approval as the slash command path.
+Telegram run responses also include inline buttons for pending side-effect approvals. Button callbacks approve or deny the exact persisted pending audit request encoded in the callback data. Approve stores the same session-scoped, request-fingerprinted one-shot approval as the slash command path, clears the inline keyboard, and queues a continuation run in the same session. Deny records an operator denial and clears the keyboard without continuing.
 
 When a latest pending request exists, the stored approval includes the request fingerprint. A later call with different arguments cannot consume that approval.
 
@@ -401,7 +401,7 @@ Audit inspection:
 /tool audit [limit] [here] [tool:<name>] [code:<decision>]
 ```
 
-`here` filters to the current session. Decision codes include `policy_allowed`, `policy_missing`, `role_denied`, `chat_denied`, `approval_required`, `approval_expired`, `approval_mismatch`, `approved`, `operator_approved`, and `revoked`.
+`here` filters to the current session. Decision codes include `policy_allowed`, `policy_missing`, `role_denied`, `chat_denied`, `approval_required`, `approval_expired`, `approval_mismatch`, `approved`, `operator_approved`, `operator_denied`, and `revoked`.
 
 ## Phase: Tool Use Design And Safety
 

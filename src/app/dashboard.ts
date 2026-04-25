@@ -102,6 +102,7 @@ const TOOL_DECISION_CODES = new Set<ToolApprovalDecision["code"]>([
   "approval_mismatch",
   "approved",
   "operator_approved",
+  "operator_denied",
   "revoked",
 ]);
 

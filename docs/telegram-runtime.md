@@ -295,7 +295,7 @@ Chat policy JSON accepts:
 - `/tool revoke <tool-name>`
 - `/tool audit [limit] [here] [tool:<name>] [code:<decision>]`
 
-When a run hits a side-effecting tool without an active approval, the final Telegram response includes an inline approval button for each pending request. The typed `/tool approve` command remains available as a fallback.
+When a run hits a side-effecting tool without an active approval, the final Telegram response includes inline approve and deny buttons for each pending request. Approving from the button creates the request-fingerprinted one-shot approval, removes the stale keyboard, and queues a continuation run in the same session. Denying records an operator denial and does not continue. The typed `/tool approve` command remains available as a fallback.
 
 ### Current command behavior
 
@@ -324,7 +324,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/tool help` and `/tools` explain tool commands for the current caller after command policy filtering
 - `/tool approve` and `/tool revoke` are owner/admin controls for side-effecting tools
 - `/tool approve` binds to the latest pending approval preview in the current session when one exists
-- inline tool approval buttons approve the exact pending audit request encoded in the button and re-check the caller role and session before creating the one-shot approval
+- inline tool approval buttons approve or deny the exact pending audit request encoded in the button and re-check the caller role and session before recording the operator decision
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
 - Project Mode start and publish approval prompts include inline approval buttons; `/project approve <approval-id>` remains the fallback command
 

@@ -29,7 +29,7 @@ import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
 import type { TelegramReactionService } from "../telegram/reactions.js";
-import { buildToolApprovalCallbackData } from "../telegram/callback-data.js";
+import { buildToolApprovalCallbackData, buildToolDenyCallbackData } from "../telegram/callback-data.js";
 import type { TelegramInlineKeyboard } from "../telegram/command-replies.js";
 import type { Message as ProviderMessage } from "@mariozechner/pi-ai";
 import {
@@ -136,6 +136,10 @@ function buildToolApprovalReplyMarkup(results: ToolExecutionResult[]): TelegramI
         {
           text: `Approve ${shortName}`.slice(0, 64),
           callback_data: buildToolApprovalCallbackData(result.approvalRequestId),
+        },
+        {
+          text: "Deny",
+          callback_data: buildToolDenyCallbackData(result.approvalRequestId),
         },
       ],
     ];

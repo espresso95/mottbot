@@ -4,7 +4,7 @@
 
 ### Telegram Approval Buttons
 
-- Added inline Telegram approval buttons for side-effecting tool approval prompts, with callback handling that reuses the existing request-fingerprinted one-shot approval store.
+- Added inline Telegram approve and deny buttons for side-effecting tool approval prompts. Approve now clears the keyboard and queues a same-session continuation run; deny records `operator_denied` without continuing.
 - Added inline approval buttons for Project Mode start and publish approvals while keeping `/tool approve` and `/project approve` as command fallbacks.
 
 ### Service Runtime Hardening

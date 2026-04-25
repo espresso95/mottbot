@@ -39,7 +39,7 @@ import {
   handleUnbindCommand,
   handleUsageCommand,
 } from "./session-commands.js";
-import { handleToolApprovalCallback, handleToolCommand } from "./tool-commands.js";
+import { handleToolApprovalCallback, handleToolCommand, handleToolDenyCallback } from "./tool-commands.js";
 import { handleUsersCommand } from "./user-commands.js";
 import { parseTelegramCallbackData } from "./callback-data.js";
 
@@ -377,23 +377,32 @@ export class TelegramCommandRouter {
     if (!action) {
       return false;
     }
-    if (action.type === "tool_approve") {
+    if (action.type === "tool_approve" || action.type === "tool_deny") {
       if (await this.rejectUnauthorizedCallback(event, "tool")) {
         return true;
       }
       const inbound = inboundEventFromCallback(event);
-      await handleToolApprovalCallback(
-        {
-          api: this.api,
-          event,
-          session: this.routes.resolve(inbound),
-          toolsConfig: this.config.tools,
-          isAdmin: this.isAdmin(inbound),
-          toolRegistry: this.toolRegistry,
-          toolApprovals: this.toolApprovals,
+      const session = this.routes.resolve(inbound);
+      const dependencies = {
+        api: this.api,
+        event,
+        session,
+        toolsConfig: this.config.tools,
+        isAdmin: this.isAdmin(inbound),
+        toolRegistry: this.toolRegistry,
+        toolApprovals: this.toolApprovals,
+        continueAfterApproval: async (params: { event: InboundEvent; session: SessionRoute }) => {
+          await this.orchestrator.enqueueMessage({
+            event: params.event,
+            session: params.session,
+          });
         },
-        action.auditId,
-      );
+      };
+      if (action.type === "tool_approve") {
+        await handleToolApprovalCallback(dependencies, action.auditId);
+        return true;
+      }
+      await handleToolDenyCallback(dependencies, action.auditId);
       return true;
     }
     if (action.type === "project_approve") {

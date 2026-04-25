@@ -1,6 +1,11 @@
 import type { Api } from "grammy";
 import type { AppConfig } from "../app/config.js";
-import type { ToolApprovalDecision, ToolApprovalStore } from "../tools/approval.js";
+import type {
+  StoredToolApproval,
+  ToolApprovalAuditRecord,
+  ToolApprovalDecision,
+  ToolApprovalStore,
+} from "../tools/approval.js";
 import type { ModelToolDeclaration, ToolDefinition, ToolRegistry } from "../tools/registry.js";
 import type { SessionRoute } from "../sessions/types.js";
 import {
@@ -38,6 +43,12 @@ export type ToolApprovalCallbackDependencies = {
   isAdmin: boolean;
   toolRegistry?: ToolRegistry;
   toolApprovals?: ToolApprovalStore;
+  continueAfterApproval?: (params: {
+    event: InboundEvent;
+    session: SessionRoute;
+    pending: ToolApprovalAuditRecord;
+    approval: StoredToolApproval;
+  }) => Promise<void>;
 };
 
 /** Parsed filters for /tool audit. */
@@ -177,17 +188,118 @@ async function answerCallback(api: Api, event: TelegramCallbackEvent, text: stri
   });
 }
 
+async function clearCallbackKeyboard(api: Api, event: TelegramCallbackEvent): Promise<void> {
+  try {
+    await api.editMessageReplyMarkup(event.chatId, event.messageId);
+  } catch {
+    // The approval decision has already been recorded; stale keyboard cleanup is best effort.
+  }
+}
+
+function inboundEventFromCallback(event: TelegramCallbackEvent, text: string): InboundEvent {
+  return {
+    updateId: event.updateId,
+    chatId: event.chatId,
+    chatType: event.chatType,
+    messageId: event.messageId,
+    ...(typeof event.threadId === "number" ? { threadId: event.threadId } : {}),
+    ...(event.fromUserId ? { fromUserId: event.fromUserId } : {}),
+    ...(event.fromUsername ? { fromUsername: event.fromUsername } : {}),
+    text,
+    entities: [],
+    attachments: [],
+    mentionsBot: false,
+    isCommand: false,
+    arrivedAt: event.arrivedAt,
+  };
+}
+
+function continuationPrompt(params: { pending: ToolApprovalAuditRecord; approval: StoredToolApproval }): string {
+  return [
+    `Tool approval granted for ${params.approval.toolName}.`,
+    params.pending.previewText ? `Approved preview:\n${params.pending.previewText}` : undefined,
+    "Continue the previous user request now. Retry the approved tool call with the same intended arguments. If the approval no longer matches, explain what changed.",
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n\n");
+}
+
+function existingRequestDecisionMessage(record: ToolApprovalAuditRecord): string | undefined {
+  if (record.decisionCode === "operator_approved") {
+    return "This request was already approved.";
+  }
+  if (record.decisionCode === "operator_denied") {
+    return "This request was already denied.";
+  }
+  return undefined;
+}
+
+async function resolvePendingToolCallback(
+  params: ToolApprovalCallbackDependencies,
+  auditId: string,
+): Promise<
+  | {
+      pending: ToolApprovalAuditRecord;
+      definition: ToolDefinition;
+      previousDecision?: ToolApprovalAuditRecord;
+    }
+  | undefined
+> {
+  const { api, event, session, toolApprovals, toolRegistry } = params;
+  if (!toolRegistry || !toolApprovals) {
+    await answerCallback(api, event, "Tool approvals are not available.", true);
+    await sendReply(api, event, "Tool approvals are not available.");
+    return undefined;
+  }
+
+  const pending = toolApprovals.findPendingRequestById({
+    id: auditId,
+    sessionKey: session.sessionKey,
+  });
+  if (!pending) {
+    const message = "No matching pending approval request found for this session.";
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return undefined;
+  }
+
+  let definition: ToolDefinition;
+  try {
+    definition = toolRegistry.resolve(pending.toolName, { allowSideEffects: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return undefined;
+  }
+  if (definition.sideEffect === "read_only") {
+    const message = `Tool ${definition.name} is read-only and does not need approval.`;
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return undefined;
+  }
+
+  const previousDecision = pending.requestFingerprint
+    ? toolApprovals.findLatestOperatorDecisionForRequest({
+        sessionKey: session.sessionKey,
+        toolName: definition.name,
+        requestFingerprint: pending.requestFingerprint,
+        ...(pending.runId ? { runId: pending.runId } : {}),
+      })
+    : undefined;
+  return {
+    pending,
+    definition,
+    ...(previousDecision ? { previousDecision } : {}),
+  };
+}
+
 /** Handles inline approval button callbacks for pending side-effecting tool requests. */
 export async function handleToolApprovalCallback(
   params: ToolApprovalCallbackDependencies,
   auditId: string,
 ): Promise<void> {
-  const { api, event, session, toolApprovals, toolRegistry, toolsConfig, isAdmin } = params;
-  if (!toolRegistry || !toolApprovals) {
-    await answerCallback(api, event, "Tool approvals are not available.", true);
-    await sendReply(api, event, "Tool approvals are not available.");
-    return;
-  }
+  const { api, event, session, toolApprovals, toolsConfig, isAdmin, continueAfterApproval } = params;
   if (!isAdmin || !event.fromUserId) {
     const message = "Only owner/admin roles can approve side-effecting tools.";
     await answerCallback(api, event, message, true);
@@ -200,30 +312,16 @@ export async function handleToolApprovalCallback(
     return;
   }
 
-  const pending = toolApprovals.findPendingRequestById({
-    id: auditId,
-    sessionKey: session.sessionKey,
-  });
-  if (!pending) {
-    const message = "No matching pending approval request found for this session.";
-    await answerCallback(api, event, message, true);
-    await sendReply(api, event, message);
+  const resolved = await resolvePendingToolCallback(params, auditId);
+  if (!resolved || !toolApprovals) {
     return;
   }
-
-  let definition: ToolDefinition;
-  try {
-    definition = toolRegistry.resolve(pending.toolName, { allowSideEffects: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await answerCallback(api, event, message, true);
-    await sendReply(api, event, message);
-    return;
-  }
-  if (definition.sideEffect === "read_only") {
-    const message = `Tool ${definition.name} is read-only and does not need approval.`;
-    await answerCallback(api, event, message, true);
-    await sendReply(api, event, message);
+  const { pending, definition, previousDecision } = resolved;
+  const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
+  if (previousDecisionMessage) {
+    await clearCallbackKeyboard(api, event);
+    await answerCallback(api, event, previousDecisionMessage);
+    await sendReply(api, event, previousDecisionMessage);
     return;
   }
 
@@ -235,6 +333,7 @@ export async function handleToolApprovalCallback(
     const message = `Approval for ${definition.name} is already active until ${new Date(
       activeApproval.expiresAt,
     ).toISOString()}.`;
+    await clearCallbackKeyboard(api, event);
     await answerCallback(api, event, "Already approved.");
     await sendReply(api, event, message);
     return;
@@ -262,15 +361,79 @@ export async function handleToolApprovalCallback(
     reason,
     requestFingerprint: pending.requestFingerprint,
     previewText: pending.previewText,
+    ...(pending.runId ? { runId: pending.runId } : {}),
   });
-  await answerCallback(api, event, `Approved ${approval.toolName}.`);
-  await sendReply(
-    api,
-    event,
-    `Approved ${approval.toolName} for this session and requested preview until ${new Date(
-      approval.expiresAt,
-    ).toISOString()}.`,
-  );
+  await clearCallbackKeyboard(api, event);
+  await answerCallback(api, event, `Approved ${approval.toolName}. Continuing.`);
+  if (!continueAfterApproval) {
+    await sendReply(
+      api,
+      event,
+      `Approved ${approval.toolName} for this session and requested preview until ${new Date(
+        approval.expiresAt,
+      ).toISOString()}.`,
+    );
+    return;
+  }
+  try {
+    await continueAfterApproval({
+      event: inboundEventFromCallback(event, continuationPrompt({ pending, approval })),
+      session,
+      pending,
+      approval,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await sendReply(api, event, `Approved ${approval.toolName}, but automatic continuation failed: ${message}`);
+  }
+}
+
+/** Handles inline deny button callbacks for pending side-effecting tool requests. */
+export async function handleToolDenyCallback(params: ToolApprovalCallbackDependencies, auditId: string): Promise<void> {
+  const { api, event, session, toolApprovals, toolsConfig, isAdmin } = params;
+  if (!isAdmin || !event.fromUserId) {
+    const message = "Only owner/admin roles can deny side-effecting tools.";
+    await answerCallback(api, event, message, true);
+    await sendReply(api, event, message);
+    return;
+  }
+  if (!toolsConfig.enableSideEffectTools) {
+    await answerCallback(api, event, "Side-effecting tools are disabled on this host.", true);
+    await sendReply(api, event, "Side-effecting tools are disabled on this host.");
+    return;
+  }
+
+  const resolved = await resolvePendingToolCallback(params, auditId);
+  if (!resolved || !toolApprovals) {
+    return;
+  }
+  const { pending, definition, previousDecision } = resolved;
+  const previousDecisionMessage = previousDecision ? existingRequestDecisionMessage(previousDecision) : undefined;
+  if (previousDecisionMessage) {
+    await clearCallbackKeyboard(api, event);
+    await answerCallback(api, event, previousDecisionMessage);
+    await sendReply(api, event, previousDecisionMessage);
+    return;
+  }
+
+  const reason = "telegram button deny";
+  toolApprovals.recordAudit({
+    sessionKey: session.sessionKey,
+    ...(pending.runId ? { runId: pending.runId } : {}),
+    toolName: definition.name,
+    sideEffect: definition.sideEffect,
+    allowed: false,
+    decisionCode: "operator_denied",
+    requestedAt: pending.requestedAt,
+    decidedAt: event.arrivedAt,
+    approvedByUserId: event.fromUserId,
+    reason,
+    requestFingerprint: pending.requestFingerprint,
+    previewText: pending.previewText,
+  });
+  await clearCallbackKeyboard(api, event);
+  await answerCallback(api, event, `Denied ${definition.name}.`);
+  await sendReply(api, event, `Denied ${definition.name}. The pending request will not continue.`);
 }
 
 /** Handles /tool and /tools approval, audit, and status subcommands. */
@@ -377,6 +540,7 @@ export async function handleToolCommand(params: ToolCommandDependencies): Promis
       sideEffect: definition.sideEffect,
       allowed: true,
       decisionCode: "operator_approved",
+      ...(pending?.runId ? { runId: pending.runId } : {}),
       requestedAt: pending?.requestedAt ?? approval.approvedAt,
       decidedAt: approval.approvedAt,
       approvedByUserId: event.fromUserId,

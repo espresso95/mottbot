@@ -11,7 +11,11 @@ import { OperatorDiagnostics } from "../../src/app/diagnostics.js";
 import type { GithubReadOperations } from "../../src/tools/github-read.js";
 import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
 import { UsageBudgetService } from "../../src/runs/usage-budget.js";
-import { buildProjectApprovalCallbackData, buildToolApprovalCallbackData } from "../../src/telegram/callback-data.js";
+import {
+  buildProjectApprovalCallbackData,
+  buildToolApprovalCallbackData,
+  buildToolDenyCallbackData,
+} from "../../src/telegram/callback-data.js";
 
 vi.mock("../../src/codex/usage.js", () => ({
   fetchCodexUsage: vi.fn(async () => ({
@@ -1591,7 +1595,12 @@ describe("TelegramCommandRouter", () => {
     });
     const api = {
       answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageReplyMarkup: vi.fn(async () => ({})),
       sendMessage: vi.fn(async () => ({})),
+    };
+    const orchestrator = {
+      stop: vi.fn(async () => false),
+      enqueueMessage: vi.fn(async () => undefined),
     };
     const approvals = new ToolApprovalStore(stores.database, stores.clock);
     const session = stores.sessions.ensure({
@@ -1627,7 +1636,7 @@ describe("TelegramCommandRouter", () => {
       stores.transcripts,
       stores.authProfiles,
       { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
+      orchestrator as any,
       stores.health,
       createRuntimeToolRegistry({ enableSideEffectTools: true }),
       approvals,
@@ -1642,10 +1651,29 @@ describe("TelegramCommandRouter", () => {
 
     expect(handled).toBe(true);
     expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Approved mottbot_restart_service.",
+      text: "Approved mottbot_restart_service. Continuing.",
       show_alert: false,
     });
-    expect(api.sendMessage).toHaveBeenCalledWith(
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(orchestrator.enqueueMessage).toHaveBeenCalledWith({
+      event: expect.objectContaining({
+        chatId: "chat-1",
+        messageId: 42,
+        fromUserId: "admin-1",
+        text: expect.stringContaining("Continue the previous user request now."),
+      }),
+      session: expect.objectContaining({
+        sessionKey: "tg:dm:chat-1:user:admin-1",
+      }),
+    });
+    expect(orchestrator.enqueueMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          text: expect.stringContaining("Approval preview text"),
+        }),
+      }),
+    );
+    expect(api.sendMessage).not.toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Approved mottbot_restart_service"),
       expect.any(Object),
@@ -1656,6 +1684,97 @@ describe("TelegramCommandRouter", () => {
         approvedByUserId: "admin-1",
         requestFingerprint: "request-fingerprint",
         previewText: "Approval preview text",
+      }),
+    ]);
+  });
+
+  it("denies pending side-effecting tool requests from callback buttons", async () => {
+    const stores = createStores({
+      tools: {
+        enableSideEffectTools: true,
+        approvalTtlMs: 60_000,
+        restartDelayMs: 60_000,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const api = {
+      answerCallbackQuery: vi.fn(async () => ({})),
+      editMessageReplyMarkup: vi.fn(async () => ({})),
+      sendMessage: vi.fn(async () => ({})),
+    };
+    const orchestrator = {
+      stop: vi.fn(async () => false),
+      enqueueMessage: vi.fn(async () => undefined),
+    };
+    const approvals = new ToolApprovalStore(stores.database, stores.clock);
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:admin-1",
+      chatId: "chat-1",
+      userId: "admin-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const run = stores.runs.create({
+      sessionKey: session.sessionKey,
+      modelRef: session.modelRef,
+      profileId: session.profileId,
+    });
+    const pending = approvals.recordAudit({
+      sessionKey: session.sessionKey,
+      runId: run.runId,
+      toolName: "mottbot_restart_service",
+      sideEffect: "process_control",
+      allowed: false,
+      decisionCode: "approval_required",
+      requestedAt: stores.clock.now(),
+      decidedAt: stores.clock.now(),
+      requestFingerprint: "request-fingerprint",
+      previewText: "Approval preview text",
+    });
+    const router = new TelegramCommandRouter(
+      api as any,
+      stores.config,
+      new RouteResolver(stores.config, stores.sessions),
+      stores.sessions,
+      stores.transcripts,
+      stores.authProfiles,
+      { resolve: vi.fn() } as any,
+      orchestrator as any,
+      stores.health,
+      createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      approvals,
+    );
+
+    const handled = await router.maybeHandleCallback(
+      createCallbackEvent({
+        fromUserId: "admin-1",
+        data: buildToolDenyCallbackData(pending.id!),
+      }),
+    );
+
+    expect(handled).toBe(true);
+    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
+      text: "Denied mottbot_restart_service.",
+      show_alert: false,
+    });
+    expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
+    expect(orchestrator.enqueueMessage).not.toHaveBeenCalled();
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      "Denied mottbot_restart_service. The pending request will not continue.",
+      expect.any(Object),
+    );
+    expect(approvals.listActive("tg:dm:chat-1:user:admin-1")).toEqual([]);
+    expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "operator_denied" })).toEqual([
+      expect.objectContaining({
+        toolName: "mottbot_restart_service",
+        requestFingerprint: "request-fingerprint",
+        previewText: "Approval preview text",
+        approvedByUserId: "admin-1",
       }),
     ]);
   });

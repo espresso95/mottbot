@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProjectApprovalCallbackData,
   buildToolApprovalCallbackData,
+  buildToolDenyCallbackData,
   parseTelegramCallbackData,
 } from "../../src/telegram/callback-data.js";
 
@@ -9,6 +10,10 @@ describe("Telegram callback data", () => {
   it("builds and parses approval callback payloads", () => {
     expect(parseTelegramCallbackData(buildToolApprovalCallbackData("audit-1"))).toEqual({
       type: "tool_approve",
+      auditId: "audit-1",
+    });
+    expect(parseTelegramCallbackData(buildToolDenyCallbackData("audit-1"))).toEqual({
+      type: "tool_deny",
       auditId: "audit-1",
     });
     expect(parseTelegramCallbackData(buildProjectApprovalCallbackData("approval-1"))).toEqual({

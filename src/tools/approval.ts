@@ -37,6 +37,7 @@ export type ToolApprovalDecision = {
     | "approval_mismatch"
     | "approved"
     | "operator_approved"
+    | "operator_denied"
     | "revoked";
   message: string;
 };
@@ -316,6 +317,28 @@ export class ToolApprovalStore {
          limit 1`,
       )
       .get(params.id, params.sessionKey);
+    return mapAuditRow(row);
+  }
+
+  findLatestOperatorDecisionForRequest(params: {
+    sessionKey: string;
+    toolName: string;
+    requestFingerprint: string;
+    runId?: string;
+  }): ToolApprovalAuditRecord | undefined {
+    const row = this.database.db
+      .prepare<unknown[], ToolApprovalAuditRow>(
+        `select *
+         from tool_approval_audit
+         where session_key = ?
+           and tool_name = ?
+           and request_fingerprint = ?
+           and run_id is ?
+           and decision_code in ('operator_approved', 'operator_denied')
+         order by decided_at desc, created_at desc
+         limit 1`,
+      )
+      .get(params.sessionKey, params.toolName, params.requestFingerprint, params.runId ?? null);
     return mapAuditRow(row);
   }
 

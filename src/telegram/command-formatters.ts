@@ -23,6 +23,7 @@ export const TOOL_AUDIT_DECISION_CODES: readonly ToolApprovalDecision["code"][] 
   "approval_mismatch",
   "approved",
   "operator_approved",
+  "operator_denied",
   "revoked",
 ];
 

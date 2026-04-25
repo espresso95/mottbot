@@ -428,15 +428,18 @@ Policy fields are `allowedRoles`, `allowedChatIds`, `requiresApproval`, `dryRun`
 Approval flow:
 
 1. The model requests a side-effecting tool call and receives an approval-required denial with a sanitized preview.
-2. An owner/admin approves the latest pending request for the current session:
+2. An owner/admin taps the inline approve button, or approves the latest pending request for the current session:
 
    ```text
    /tool approve mottbot_local_note_create approved draft note
    ```
 
-3. The next matching model tool call in that session consumes the approval.
-4. The bot records audit rows in SQLite.
-5. The matching tool call executes once and consumes the approval.
+3. Button approval removes the stale keyboard and queues a continuation run in the same session.
+4. The next matching model tool call in that session consumes the approval.
+5. The bot records audit rows in SQLite.
+6. The matching tool call executes once and consumes the approval.
+
+The inline deny button records `operator_denied`, removes the keyboard, and does not continue the run.
 
 If an approval was created from a pending preview, the approval is bound to that request fingerprint and cannot be reused for different arguments.
 

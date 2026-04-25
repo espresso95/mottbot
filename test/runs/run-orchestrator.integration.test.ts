@@ -1428,6 +1428,10 @@ describe("RunOrchestrator", () => {
                 text: "Approve restart service",
                 callback_data: expect.stringMatching(/^mb:ta:/),
               }),
+              expect.objectContaining({
+                text: "Deny",
+                callback_data: expect.stringMatching(/^mb:td:/),
+              }),
             ],
           ],
         },
