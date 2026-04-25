@@ -97,7 +97,7 @@ Operator checklist:
 - Leave `MOTTBOT_LOCAL_EXEC_ALLOWED_COMMANDS` empty until you intentionally approve specific commands.
 - Configure MCP servers with explicit `allowedTools`; do not point the bridge at broad or destructive tool servers for first validation.
 - Validate GitHub writes against a disposable repository or disposable issue/PR before using them on real project work.
-- Start GitHub write validation with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true pnpm smoke:github-write`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`.
+- Start GitHub write validation with `pnpm smoke:github-write --repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue`.
 - Run `pnpm smoke:local-tools` before live Telegram approval tests.
 - Use `/tool audit here` after approval tests to confirm previews, approvals, and execution decisions.
 
@@ -131,9 +131,9 @@ Operator checklist:
 
 Operator checklist:
 
-- Run `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite` before sending live messages.
-- Set `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` to include user-account scenarios.
-- Set `MOTTBOT_LIVE_VALIDATION_GROUP_TARGET` and `MOTTBOT_LIVE_VALIDATION_FILE_PATHS` only for controlled test chats and fixtures.
+- Run `pnpm smoke:suite --dry-run` before sending live messages.
+- Pass `--api-id`, `--api-hash`, and `--bot-username` to include user-account scenarios.
+- Pass `--group-target` and `--file-path` only for controlled test chats and fixtures.
 
 ### Model And Cost Controls
 

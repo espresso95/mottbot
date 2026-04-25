@@ -196,17 +196,17 @@ env TELEGRAM_BOT_TOKEN=local-check MOTTBOT_MASTER_KEY=local-check MOTTBOT_PREFER
 corepack pnpm smoke:preflight
 ```
 
-No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered by setting the live smoke environment described in `docs/live-smoke-tests.md`. Smoke harness code lives under `scripts/smoke/`; those inputs are not runtime configuration.
+No CI secrets are required for the default gate. Live Telegram and live Codex checks remain operator-triggered with the smoke CLI flags described in `docs/live-smoke-tests.md`. Smoke harness code lives under `scripts/smoke/`; those inputs are not runtime configuration.
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
-`pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true`; live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
+`pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `--repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 
-`pnpm smoke:suite` composes preflight and optional MTProto user-account checks into a repeatable live validation matrix. `MOTTBOT_LIVE_VALIDATION_DRY_RUN=true` prints the planned checks without sending messages.
+`pnpm smoke:suite` composes preflight and optional MTProto user-account checks into a repeatable live validation matrix. `--dry-run` prints the planned checks without sending messages.
 
-`pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires a Telegram API ID/hash from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
+`pnpm smoke:telegram-user` is an optional MTProto user-account harness for private-chat live validation. It requires `--api-id` and `--api-hash` from `my.telegram.org`, logs in as the operator's Telegram user, stores an ignored session file under `data/` to avoid repeated login prompts, and must not be used in CI. This session file is only for the smoke harness; the bot runtime does not depend on it.
 
-The harness also accepts `MOTTBOT_USER_SMOKE_TARGET`, `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE`, and `MOTTBOT_USER_SMOKE_FILE_PATH` for group, reply-gating, and attachment smoke checks.
+The harness also accepts `--target`, `--reply-to-latest-bot-message`, and `--file-path` for group, reply-gating, and attachment smoke checks.
 
 ## User Roles And Chat Governance
 
@@ -338,12 +338,10 @@ MOTTBOT_GOOGLE_DRIVE_MAX_BYTES=120000
 Live GitHub write validation is separate from normal startup and intentionally guarded:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
-MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
-pnpm smoke:github-write
+pnpm smoke:github-write --repository owner/disposable-repo --dry-run
 ```
 
-To perform real writes, set `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=false` and `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`. The harness creates one disposable issue, comments on it, and optionally comments on `MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER` when set.
+To perform real writes, pass `--no-dry-run --confirm create-live-github-issue`. The harness creates one disposable issue, comments on it, and optionally comments on `--pr-number` when set.
 
 Side-effecting tools are disabled unless the host explicitly sets:
 
@@ -730,7 +728,7 @@ Preflight checks:
 Suite dry run:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_DRY_RUN=true pnpm smoke:suite
+pnpm smoke:suite --dry-run
 ```
 
 Suite execution:

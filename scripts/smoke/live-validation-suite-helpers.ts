@@ -1,7 +1,14 @@
-import { normalizeBotUsername, parseBooleanEnv } from "./telegram-user-smoke-helpers.js";
-
-/** Environment map consumed by live validation planning helpers. */
-export type LiveValidationEnv = Record<string, string | undefined>;
+import {
+  booleanFlag,
+  parseCliArgs,
+  positiveIntegerFlag,
+  pushBooleanFlag,
+  pushNumberFlag,
+  pushStringFlag,
+  stringFlag,
+  stringListFlag,
+} from "./cli-args.js";
+import { normalizeBotUsername, type TelegramUserSmokeOptions } from "./telegram-user-smoke-helpers.js";
 
 /** Supported live validation scenario categories. */
 export type LiveValidationScenarioKind =
@@ -14,12 +21,33 @@ export type LiveValidationScenarioKind =
   | "group_unmentioned"
   | "file";
 
+/** CLI options consumed by live validation planning helpers. */
+export type LiveValidationOptions = TelegramUserSmokeOptions & {
+  dryRun?: boolean;
+  scenarios?: string[];
+  requireUserSmoke?: boolean;
+  includeUserSmoke?: boolean;
+  testChatId?: string;
+  testMessage?: string;
+  privateTarget?: string;
+  privateMessage?: string;
+  replyMessage?: string;
+  groupTarget?: string;
+  groupMessage?: string;
+  groupUnmentionedMessage?: string;
+  noReplyTimeoutMs?: number;
+  filePaths?: string[];
+  fileTarget?: string;
+  fileMessage?: string;
+  fileExpectReplyContains?: string;
+};
+
 /** One script invocation planned for live validation. */
 export type LiveValidationScenario = {
   kind: LiveValidationScenarioKind;
   name: string;
   script: "smoke:preflight" | "smoke:telegram-user";
-  env: Record<string, string>;
+  args: string[];
 };
 
 /** Planned live validation scenarios plus skip and blocking-issue metadata. */
@@ -36,17 +64,52 @@ const DEFAULT_PRIVATE_MESSAGE = "Use your health snapshot tool and reply with on
 const DEFAULT_REPLY_MESSAGE = "Reply with one short acknowledgement for live validation.";
 const DEFAULT_FILE_MESSAGE = "Summarize this live validation attachment in one sentence.";
 const DEFAULT_GROUP_UNMENTIONED_MESSAGE = "Live validation unmentioned group message; the bot should ignore this.";
-const DEFAULT_NO_REPLY_TIMEOUT_MS = "15000";
+const DEFAULT_NO_REPLY_TIMEOUT_MS = 15_000;
 
-function splitList(value: string | undefined): string[] {
-  return (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+/** Builds live validation options from CLI flags. */
+export function parseLiveValidationOptions(argv: readonly string[]): LiveValidationOptions {
+  const args = parseCliArgs(argv);
+  const scenarios = [...stringListFlag(args, "scenario"), ...stringListFlag(args, "scenarios")];
+  const filePaths = [...stringListFlag(args, "file-path"), ...stringListFlag(args, "file-paths")];
+  return {
+    dryRun: booleanFlag(args, "dry-run", false),
+    ...(scenarios.length > 0 ? { scenarios } : {}),
+    requireUserSmoke: booleanFlag(args, "require-user-smoke", false),
+    includeUserSmoke: booleanFlag(args, "include-user-smoke", true),
+    ...(stringFlag(args, "test-chat-id") ? { testChatId: stringFlag(args, "test-chat-id") } : {}),
+    ...(stringFlag(args, "test-message") ? { testMessage: stringFlag(args, "test-message") } : {}),
+    ...(positiveIntegerFlag(args, "api-id") ? { apiId: positiveIntegerFlag(args, "api-id") } : {}),
+    ...(stringFlag(args, "api-hash") ? { apiHash: stringFlag(args, "api-hash") } : {}),
+    ...(stringFlag(args, "bot-username") ? { botUsername: stringFlag(args, "bot-username") } : {}),
+    ...(stringFlag(args, "phone-number") ? { phoneNumber: stringFlag(args, "phone-number") } : {}),
+    ...(stringFlag(args, "login-code") ? { loginCode: stringFlag(args, "login-code") } : {}),
+    ...(stringFlag(args, "two-factor-password") ? { twoFactorPassword: stringFlag(args, "two-factor-password") } : {}),
+    ...(stringFlag(args, "user-session") ? { userSession: stringFlag(args, "user-session") } : {}),
+    ...(stringFlag(args, "session-path") ? { sessionPath: stringFlag(args, "session-path") } : {}),
+    timeoutMs: positiveIntegerFlag(args, "timeout-ms"),
+    pollIntervalMs: positiveIntegerFlag(args, "poll-interval-ms"),
+    stableReplyMs: positiveIntegerFlag(args, "stable-reply-ms"),
+    ...(stringFlag(args, "private-target") ? { privateTarget: stringFlag(args, "private-target") } : {}),
+    ...(stringFlag(args, "private-message") ? { privateMessage: stringFlag(args, "private-message") } : {}),
+    ...(stringFlag(args, "reply-message") ? { replyMessage: stringFlag(args, "reply-message") } : {}),
+    ...(stringFlag(args, "group-target") ? { groupTarget: stringFlag(args, "group-target") } : {}),
+    ...(stringFlag(args, "group-message") ? { groupMessage: stringFlag(args, "group-message") } : {}),
+    ...(stringFlag(args, "group-unmentioned-message")
+      ? { groupUnmentionedMessage: stringFlag(args, "group-unmentioned-message") }
+      : {}),
+    noReplyTimeoutMs: positiveIntegerFlag(args, "no-reply-timeout-ms"),
+    ...(filePaths.length > 0 ? { filePaths } : {}),
+    ...(stringFlag(args, "file-target") ? { fileTarget: stringFlag(args, "file-target") } : {}),
+    ...(stringFlag(args, "file-message") ? { fileMessage: stringFlag(args, "file-message") } : {}),
+    ...(stringFlag(args, "file-expect-reply-contains")
+      ? { fileExpectReplyContains: stringFlag(args, "file-expect-reply-contains") }
+      : {}),
+    forceDocument: booleanFlag(args, "force-document", false),
+  };
 }
 
-function selectedScenarios(env: LiveValidationEnv): Set<string> | undefined {
-  const selected = splitList(env.MOTTBOT_LIVE_VALIDATION_SCENARIOS);
+function selectedScenarios(options: LiveValidationOptions): Set<string> | undefined {
+  const selected = options.scenarios?.map((item) => item.trim()).filter(Boolean) ?? [];
   return selected.length > 0 ? new Set(selected.map((item) => item.toLowerCase())) : undefined;
 }
 
@@ -54,87 +117,78 @@ function isSelected(selected: Set<string> | undefined, kind: LiveValidationScena
   return !selected || selected.has(kind) || (kind === "file" && selected.has("files"));
 }
 
-function userSmokeBaseEnv(env: LiveValidationEnv): Record<string, string> {
-  const apiId = env.TELEGRAM_API_ID?.trim();
-  const apiHash = env.TELEGRAM_API_HASH?.trim();
-  const botUsername = normalizeBotUsername(env.MOTTBOT_LIVE_BOT_USERNAME ?? DEFAULT_BOT_USERNAME);
-  return {
-    MOTTBOT_LIVE_BOT_USERNAME: botUsername,
-    MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY: "true",
-    ...(apiId ? { TELEGRAM_API_ID: apiId } : {}),
-    ...(apiHash ? { TELEGRAM_API_HASH: apiHash } : {}),
-    ...(env.TELEGRAM_USER_SESSION?.trim() ? { TELEGRAM_USER_SESSION: env.TELEGRAM_USER_SESSION.trim() } : {}),
-    ...(env.TELEGRAM_PHONE_NUMBER?.trim() ? { TELEGRAM_PHONE_NUMBER: env.TELEGRAM_PHONE_NUMBER.trim() } : {}),
-    ...(env.TELEGRAM_LOGIN_CODE?.trim() ? { TELEGRAM_LOGIN_CODE: env.TELEGRAM_LOGIN_CODE.trim() } : {}),
-    ...(env.TELEGRAM_2FA_PASSWORD?.trim() ? { TELEGRAM_2FA_PASSWORD: env.TELEGRAM_2FA_PASSWORD.trim() } : {}),
-    ...(env.MOTTBOT_USER_SMOKE_SESSION_PATH?.trim()
-      ? { MOTTBOT_USER_SMOKE_SESSION_PATH: env.MOTTBOT_USER_SMOKE_SESSION_PATH.trim() }
-      : {}),
-    ...(env.MOTTBOT_USER_SMOKE_TIMEOUT_MS?.trim()
-      ? { MOTTBOT_USER_SMOKE_TIMEOUT_MS: env.MOTTBOT_USER_SMOKE_TIMEOUT_MS.trim() }
-      : {}),
-    ...(env.MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS?.trim()
-      ? { MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS: env.MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS.trim() }
-      : {}),
-    ...(env.MOTTBOT_USER_SMOKE_STABLE_REPLY_MS?.trim()
-      ? { MOTTBOT_USER_SMOKE_STABLE_REPLY_MS: env.MOTTBOT_USER_SMOKE_STABLE_REPLY_MS.trim() }
-      : {}),
-  };
+function userSmokeBaseArgs(options: LiveValidationOptions, botUsername: string): string[] {
+  const args: string[] = [];
+  pushNumberFlag(args, "api-id", options.apiId);
+  pushStringFlag(args, "api-hash", options.apiHash);
+  pushStringFlag(args, "bot-username", botUsername);
+  pushStringFlag(args, "phone-number", options.phoneNumber);
+  pushStringFlag(args, "login-code", options.loginCode);
+  pushStringFlag(args, "two-factor-password", options.twoFactorPassword);
+  pushStringFlag(args, "user-session", options.userSession);
+  pushStringFlag(args, "session-path", options.sessionPath);
+  pushNumberFlag(args, "timeout-ms", options.timeoutMs);
+  pushNumberFlag(args, "poll-interval-ms", options.pollIntervalMs);
+  pushNumberFlag(args, "stable-reply-ms", options.stableReplyMs);
+  return args;
 }
 
 function scenario(params: {
   kind: LiveValidationScenarioKind;
   name: string;
   script: LiveValidationScenario["script"];
-  env: Record<string, string>;
+  args: string[];
 }): LiveValidationScenario {
   return {
     kind: params.kind,
     name: params.name,
     script: params.script,
-    env: params.env,
+    args: params.args,
   };
 }
 
-/** Builds a live validation plan from environment flags and Telegram credentials. */
-export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationPlan {
+/** Builds a live validation plan from CLI options and Telegram credentials. */
+export function buildLiveValidationPlan(options: LiveValidationOptions): LiveValidationPlan {
   const enabled = true;
   const scenarios: LiveValidationScenario[] = [];
   const skipped: string[] = [];
   const issues: string[] = [];
-  const dryRun = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_DRY_RUN", false);
-  const selected = selectedScenarios(env);
+  const dryRun = options.dryRun ?? false;
+  const selected = selectedScenarios(options);
 
   if (isSelected(selected, "preflight")) {
+    const args: string[] = [];
+    pushStringFlag(args, "test-chat-id", options.testChatId);
+    pushStringFlag(args, "test-message", options.testMessage);
     scenarios.push(
       scenario({
         kind: "preflight",
         name: "Live preflight",
         script: "smoke:preflight",
-        env: {},
+        args,
       }),
     );
   } else {
-    skipped.push("preflight excluded by MOTTBOT_LIVE_VALIDATION_SCENARIOS.");
+    skipped.push("preflight excluded by --scenario.");
   }
 
-  const hasUserCredentials = Boolean(env.TELEGRAM_API_ID?.trim() && env.TELEGRAM_API_HASH?.trim());
-  const requireUserSmoke = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE", false);
-  const includeUserSmoke = parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_INCLUDE_USER_SMOKE", true);
+  const hasUserCredentials = Boolean(options.apiId && options.apiHash?.trim());
+  const requireUserSmoke = options.requireUserSmoke ?? false;
+  const includeUserSmoke = options.includeUserSmoke ?? true;
   const userScenarioRequested =
     !selected ||
     ["private", "health", "usage", "reply", "group_mention", "group_unmentioned", "file", "files"].some((kind) =>
       selected.has(kind),
     );
   if (!includeUserSmoke) {
-    skipped.push("user-account smoke scenarios disabled by MOTTBOT_LIVE_VALIDATION_INCLUDE_USER_SMOKE=false.");
+    skipped.push("user-account smoke scenarios disabled by --no-include-user-smoke.");
     return { enabled, dryRun, scenarios, skipped, issues };
   }
   if (!userScenarioRequested) {
     return { enabled, dryRun, scenarios, skipped, issues };
   }
   if (!hasUserCredentials) {
-    const reason = "TELEGRAM_API_ID and TELEGRAM_API_HASH are required for user-account smoke scenarios.";
+    const reason = "--api-id and --api-hash are required for user-account smoke scenarios.";
     if (requireUserSmoke) {
       issues.push(reason);
     } else {
@@ -143,140 +197,121 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
     return { enabled, dryRun, scenarios, skipped, issues };
   }
 
-  const base = userSmokeBaseEnv(env);
-  const botUsername = base.MOTTBOT_LIVE_BOT_USERNAME;
-  if (!botUsername) {
-    throw new Error("MOTTBOT_LIVE_BOT_USERNAME was not resolved.");
-  }
-  const privateTarget = env.MOTTBOT_LIVE_VALIDATION_PRIVATE_TARGET?.trim() || botUsername;
+  const botUsername = normalizeBotUsername(options.botUsername ?? DEFAULT_BOT_USERNAME);
+  const base = userSmokeBaseArgs(options, botUsername);
+  const privateTarget = options.privateTarget?.trim() || botUsername;
   if (isSelected(selected, "private")) {
+    const args = [...base];
+    pushStringFlag(args, "target", privateTarget);
+    pushStringFlag(args, "message", options.privateMessage?.trim() || DEFAULT_PRIVATE_MESSAGE);
     scenarios.push(
       scenario({
         kind: "private",
         name: "Private model conversation",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: privateTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE: env.MOTTBOT_LIVE_VALIDATION_PRIVATE_MESSAGE?.trim() || DEFAULT_PRIVATE_MESSAGE,
-        },
+        args,
       }),
     );
   }
   if (isSelected(selected, "health")) {
+    const args = [...base];
+    pushStringFlag(args, "target", privateTarget);
+    pushStringFlag(args, "message", "/health");
     scenarios.push(
       scenario({
         kind: "health",
         name: "Private /health command",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: privateTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE: "/health",
-        },
+        args,
       }),
     );
   }
   if (isSelected(selected, "usage")) {
+    const args = [...base];
+    pushStringFlag(args, "target", privateTarget);
+    pushStringFlag(args, "message", "/usage");
     scenarios.push(
       scenario({
         kind: "usage",
         name: "Private /usage command",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: privateTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE: "/usage",
-        },
+        args,
       }),
     );
   }
   if (isSelected(selected, "reply")) {
+    const args = [...base];
+    pushStringFlag(args, "target", privateTarget);
+    pushStringFlag(args, "message", options.replyMessage?.trim() || DEFAULT_REPLY_MESSAGE);
+    pushBooleanFlag(args, "reply-to-latest-bot-message", true, false);
     scenarios.push(
       scenario({
         kind: "reply",
         name: "Reply-to-latest-bot-message conversation",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: privateTarget,
-          MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE: "true",
-          MOTTBOT_USER_SMOKE_MESSAGE: env.MOTTBOT_LIVE_VALIDATION_REPLY_MESSAGE?.trim() || DEFAULT_REPLY_MESSAGE,
-        },
+        args,
       }),
     );
   }
 
-  const groupTarget = env.MOTTBOT_LIVE_VALIDATION_GROUP_TARGET?.trim();
+  const groupTarget = options.groupTarget?.trim();
   if (groupTarget && isSelected(selected, "group_mention")) {
+    const args = [...base];
+    pushStringFlag(args, "target", groupTarget);
+    pushStringFlag(
+      args,
+      "message",
+      options.groupMessage?.trim() || `@${botUsername} run a short live validation health reply.`,
+    );
     scenarios.push(
       scenario({
         kind: "group_mention",
         name: "Group mention conversation",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: groupTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE:
-            env.MOTTBOT_LIVE_VALIDATION_GROUP_MESSAGE?.trim() ||
-            `@${botUsername} run a short live validation health reply.`,
-        },
+        args,
       }),
     );
   } else if (!groupTarget && isSelected(selected, "group_mention")) {
-    skipped.push("group_mention requires MOTTBOT_LIVE_VALIDATION_GROUP_TARGET.");
+    skipped.push("group_mention requires --group-target.");
   }
   if (groupTarget && isSelected(selected, "group_unmentioned")) {
+    const args = [...base];
+    pushStringFlag(args, "target", groupTarget);
+    pushStringFlag(args, "message", options.groupUnmentionedMessage?.trim() || DEFAULT_GROUP_UNMENTIONED_MESSAGE);
+    pushBooleanFlag(args, "expect-reply", false, true);
+    pushNumberFlag(args, "timeout-ms", options.noReplyTimeoutMs ?? options.timeoutMs ?? DEFAULT_NO_REPLY_TIMEOUT_MS);
     scenarios.push(
       scenario({
         kind: "group_unmentioned",
         name: "Group unmentioned ignore check",
         script: "smoke:telegram-user",
-        env: {
-          ...base,
-          MOTTBOT_USER_SMOKE_TARGET: groupTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE:
-            env.MOTTBOT_LIVE_VALIDATION_GROUP_UNMENTIONED_MESSAGE?.trim() || DEFAULT_GROUP_UNMENTIONED_MESSAGE,
-          MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
-          MOTTBOT_USER_SMOKE_TIMEOUT_MS:
-            env.MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS?.trim() ||
-            env.MOTTBOT_USER_SMOKE_TIMEOUT_MS?.trim() ||
-            DEFAULT_NO_REPLY_TIMEOUT_MS,
-        },
+        args,
       }),
     );
   } else if (!groupTarget && isSelected(selected, "group_unmentioned")) {
-    skipped.push("group_unmentioned requires MOTTBOT_LIVE_VALIDATION_GROUP_TARGET.");
+    skipped.push("group_unmentioned requires --group-target.");
   }
 
-  const filePaths = splitList(env.MOTTBOT_LIVE_VALIDATION_FILE_PATHS);
+  const filePaths = options.filePaths ?? [];
   if (filePaths.length > 0 && isSelected(selected, "file")) {
     filePaths.forEach((filePath, index) => {
+      const args = [...base];
+      pushStringFlag(args, "target", options.fileTarget?.trim() || privateTarget);
+      pushStringFlag(args, "file-path", filePath);
+      pushStringFlag(args, "message", options.fileMessage?.trim() || DEFAULT_FILE_MESSAGE);
+      pushStringFlag(args, "expect-reply-contains", options.fileExpectReplyContains);
+      pushBooleanFlag(args, "force-document", options.forceDocument, false);
       scenarios.push(
         scenario({
           kind: "file",
           name: `Attachment fixture ${index + 1}`,
           script: "smoke:telegram-user",
-          env: {
-            ...base,
-            MOTTBOT_USER_SMOKE_TARGET: env.MOTTBOT_LIVE_VALIDATION_FILE_TARGET?.trim() || privateTarget,
-            MOTTBOT_USER_SMOKE_FILE_PATH: filePath,
-            MOTTBOT_USER_SMOKE_MESSAGE: env.MOTTBOT_LIVE_VALIDATION_FILE_MESSAGE?.trim() || DEFAULT_FILE_MESSAGE,
-            ...(env.MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS?.trim()
-              ? {
-                  MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS:
-                    env.MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS.trim(),
-                }
-              : {}),
-            ...(parseBooleanEnv(env, "MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT", false)
-              ? { MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true" }
-              : {}),
-          },
+          args,
         }),
       );
     });
   } else if (filePaths.length === 0 && isSelected(selected, "file")) {
-    skipped.push("file scenarios require MOTTBOT_LIVE_VALIDATION_FILE_PATHS.");
+    skipped.push("file scenarios require --file-path.");
   }
 
   return { enabled, dryRun, scenarios, skipped, issues };

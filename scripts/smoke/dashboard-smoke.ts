@@ -13,6 +13,7 @@ import type { Clock } from "../../src/shared/clock.js";
 import { systemClock } from "../../src/shared/clock.js";
 import { SecretBox } from "../../src/shared/crypto.js";
 import { createLogger } from "../../src/shared/logger.js";
+import { parseCliArgs, positiveIntegerFlag } from "./cli-args.js";
 
 /** Result produced by the dashboard smoke test harness. */
 export type DashboardSmokeResult = {
@@ -90,8 +91,7 @@ function firstAgentSummary(value: unknown): DashboardSmokeResult["firstAgent"] {
 /** Starts a local dashboard instance and verifies the HTML and runtime API surfaces. */
 export async function createDashboardSmokeResult(options: DashboardSmokeOptions = {}): Promise<DashboardSmokeResult> {
   const baseConfig = options.config ?? loadConfig();
-  const envPort = Number(process.env.MOTTBOT_DASHBOARD_SMOKE_PORT);
-  const port = options.port ?? (Number.isInteger(envPort) && envPort > 0 ? envPort : await findAvailablePort());
+  const port = options.port ?? (await findAvailablePort());
   const config: AppConfig = {
     ...baseConfig,
     dashboard: {
@@ -162,7 +162,10 @@ export async function createDashboardSmokeResult(options: DashboardSmokeOptions 
 }
 
 async function main(): Promise<void> {
-  const result = await createDashboardSmokeResult();
+  const args = parseCliArgs(process.argv.slice(2));
+  const result = await createDashboardSmokeResult({
+    port: positiveIntegerFlag(args, "port"),
+  });
   printJson(result);
   if (result.status !== "passed") {
     process.exitCode = 1;

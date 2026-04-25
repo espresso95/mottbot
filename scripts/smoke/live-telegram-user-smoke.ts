@@ -10,6 +10,7 @@ import {
   buildTelegramUserSmokeConfig,
   evaluateTelegramUserSmokeStatus,
   isTransientBotStatus,
+  parseTelegramUserSmokeOptions,
   type TelegramUserSmokeConfig,
 } from "./telegram-user-smoke-helpers.js";
 
@@ -49,21 +50,24 @@ async function prompt(label: string): Promise<string> {
   }
 }
 
-async function readCredential(params: { envName: string; promptLabel: string; allowPrompt: boolean }): Promise<string> {
-  const fromEnv = process.env[params.envName]?.trim();
-  if (fromEnv) {
-    return fromEnv;
+async function readCredential(params: {
+  value?: string;
+  flagName: string;
+  promptLabel: string;
+  allowPrompt: boolean;
+}): Promise<string> {
+  const fromFlag = params.value?.trim();
+  if (fromFlag) {
+    return fromFlag;
   }
   if (!params.allowPrompt) {
-    throw new Error(`Missing ${params.envName}; run interactively or provide it in the environment.`);
+    throw new Error(`Missing --${params.flagName}; run interactively or provide it as a CLI flag.`);
   }
   return prompt(params.promptLabel);
 }
 
 async function startUserClient(config: TelegramUserSmokeConfig): Promise<TelegramClient> {
-  const stringSession = new sessions.StringSession(
-    process.env.TELEGRAM_USER_SESSION?.trim() || readSession(config.sessionPath),
-  );
+  const stringSession = new sessions.StringSession(config.userSession?.trim() || readSession(config.sessionPath));
   const client = new TelegramClient(stringSession, config.apiId, config.apiHash, {
     baseLogger: new Logger(LogLevel.NONE),
     connectionRetries: 5,
@@ -72,19 +76,22 @@ async function startUserClient(config: TelegramUserSmokeConfig): Promise<Telegra
   await client.start({
     phoneNumber: () =>
       readCredential({
-        envName: "TELEGRAM_PHONE_NUMBER",
+        value: config.phoneNumber,
+        flagName: "phone-number",
         promptLabel: "Telegram phone number: ",
         allowPrompt,
       }),
     phoneCode: (isCodeViaApp) =>
       readCredential({
-        envName: "TELEGRAM_LOGIN_CODE",
+        value: config.loginCode,
+        flagName: "login-code",
         promptLabel: isCodeViaApp ? "Telegram app login code: " : "Telegram SMS login code: ",
         allowPrompt,
       }),
     password: (hint) =>
       readCredential({
-        envName: "TELEGRAM_2FA_PASSWORD",
+        value: config.twoFactorPassword,
+        flagName: "two-factor-password",
         promptLabel: hint ? `Telegram 2FA password (${hint}): ` : "Telegram 2FA password: ",
         allowPrompt,
       }),
@@ -150,7 +157,7 @@ async function sendSmokeMessage(params: {
     });
   }
   if (!fs.existsSync(params.config.filePath)) {
-    throw new Error(`MOTTBOT_USER_SMOKE_FILE_PATH does not exist: ${params.config.filePath}`);
+    throw new Error(`--file-path does not exist: ${params.config.filePath}`);
   }
   const sendFileParams: Parameters<TelegramClient["sendFile"]>[1] = {
     file: params.config.filePath,
@@ -219,9 +226,10 @@ async function waitForReply(params: {
 
 async function main(): Promise<void> {
   const appConfig = loadConfig();
+  const options = parseTelegramUserSmokeOptions(process.argv.slice(2));
   const liveConfig = buildTelegramUserSmokeConfig({
-    env: process.env,
-    fallbackBotUsername: process.env.MOTTBOT_LIVE_BOT_USERNAME ?? "StartupMottBot",
+    options,
+    fallbackBotUsername: "StartupMottBot",
   });
 
   const client = await startUserClient(liveConfig);

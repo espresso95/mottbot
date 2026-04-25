@@ -6,6 +6,7 @@ import { DatabaseClient } from "../../src/db/client.js";
 import { migrateDatabase } from "../../src/db/migrate.js";
 import { systemClock } from "../../src/shared/clock.js";
 import { SecretBox } from "../../src/shared/crypto.js";
+import { parseCliArgs, stringFlag } from "./cli-args.js";
 
 type MigrationVersionRow = {
   version: number;
@@ -105,18 +106,19 @@ async function sendTelegramSmokeMessage(params: {
 }
 
 async function main(): Promise<void> {
+  const args = parseCliArgs(process.argv.slice(2));
   const config = loadConfig();
   const telegramBot = await readTelegramBot(config.telegram.botToken);
-  const liveTestChatId = process.env.MOTTBOT_LIVE_TEST_CHAT_ID?.trim();
+  const liveTestChatId = stringFlag(args, "test-chat-id");
   const outboundCheck = liveTestChatId
     ? await sendTelegramSmokeMessage({
         token: config.telegram.botToken,
         chatId: liveTestChatId,
-        text: process.env.MOTTBOT_LIVE_TEST_MESSAGE?.trim() || "Mottbot live smoke outbound check.",
+        text: stringFlag(args, "test-message") || "Mottbot live smoke outbound check.",
       })
     : ({
         status: "skipped",
-        reason: "Set MOTTBOT_LIVE_TEST_CHAT_ID to send a guarded outbound Telegram check.",
+        reason: "Pass --test-chat-id to send a guarded outbound Telegram check.",
       } satisfies TelegramOutboundCheck);
   const database = new DatabaseClient(config.storage.sqlitePath);
   try {

@@ -300,23 +300,20 @@ Run the dashboard smoke validation:
 corepack pnpm smoke:dashboard
 ```
 
-This starts a temporary loopback dashboard-only server, fetches the dashboard HTML and runtime API, verifies the Agents panel and agent summary payload, then shuts the temporary server down. It does not start a Telegram poller, so it is safe to run while the service is already running. Set `MOTTBOT_DASHBOARD_SMOKE_PORT=<port>` only when you need a fixed local port.
+This starts a temporary loopback dashboard-only server, fetches the dashboard HTML and runtime API, verifies the Agents panel and agent summary payload, then shuts the temporary server down. It does not start a Telegram poller, so it is safe to run while the service is already running. Pass `--port <port>` only when you need a fixed local port.
 
 Dry-run the guarded GitHub write validation:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
-MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
-corepack pnpm smoke:github-write
+corepack pnpm smoke:github-write --repository owner/disposable-repo --dry-run
 ```
 
-Only run live GitHub write validation against disposable targets. Live writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue`.
+Only run live GitHub write validation against disposable targets. Live writes require `--no-dry-run --confirm create-live-github-issue`.
 
 Run the repeatable suite dry run:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
-corepack pnpm smoke:suite
+corepack pnpm smoke:suite --dry-run
 ```
 
 Run the suite for real:
@@ -325,15 +322,15 @@ Run the suite for real:
 corepack pnpm smoke:suite
 ```
 
-When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are configured, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, optional group non-mention, and optional attachment fixture checks on top of preflight.
+When `--api-id`, `--api-hash`, and `--bot-username` are passed, the suite adds private conversation, `/health`, `/usage`, reply, optional group mention, optional group non-mention, and optional attachment fixture checks on top of preflight.
 
 Optional private-chat smoke without manually typing in Telegram:
 
 ```bash
-TELEGRAM_API_ID=<api-id-from-my.telegram.org> \
-TELEGRAM_API_HASH=<api-hash-from-my.telegram.org> \
-MOTTBOT_LIVE_BOT_USERNAME=<bot-username-without-@> \
-corepack pnpm smoke:telegram-user
+corepack pnpm smoke:telegram-user \
+  --api-id <api-id-from-my.telegram.org> \
+  --api-hash <api-hash-from-my.telegram.org> \
+  --bot-username <bot-username-without-@>
 ```
 
 The first run logs in with your Telegram user account and stores an ignored session file under `data/`. This file is optional and only supports the local smoke harness; the production bot does not need it. Treat it like account access, do not commit it, and use this harness only with your own Telegram account and a controlled test bot.
@@ -341,11 +338,11 @@ The first run logs in with your Telegram user account and stores an ignored sess
 For group, reply-gating, or attachment smoke checks, add:
 
 ```bash
-MOTTBOT_USER_SMOKE_TARGET=<group-or-bot-entity>
-MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true
-MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-file
-MOTTBOT_USER_SMOKE_EXPECT_REPLY=false
-MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS=<unique-fixture-phrase>
+--target <group-or-bot-entity>
+--reply-to-latest-bot-message
+--file-path /absolute/path/to/test-file
+--no-expect-reply
+--expect-reply-contains <unique-fixture-phrase>
 ```
 
 Recommended file fixtures for live validation:
@@ -525,7 +522,7 @@ After the service is running:
 
 1. Send `/health` to the bot in a private Telegram chat.
 2. Send `hello` to verify a model-backed response.
-3. Optionally run `corepack pnpm smoke:telegram-user` with the guarded MTProto environment above to verify inbound private-chat delivery from the CLI.
+3. Optionally run `corepack pnpm smoke:telegram-user` with the guarded MTProto flags above to verify inbound private-chat delivery from the CLI.
 4. Run:
 
 ```bash

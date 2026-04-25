@@ -80,12 +80,10 @@ This exercises the real tool executor and approval path for local document appen
 Run the guarded GitHub write smoke in dry-run mode:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
-MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
-pnpm smoke:github-write
+pnpm smoke:github-write --repository owner/disposable-repo --dry-run
 ```
 
-Live GitHub writes require `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue` and should only target disposable repositories or disposable issues/PRs.
+Live GitHub writes require `--no-dry-run --confirm create-live-github-issue` and should only target disposable repositories or disposable issues/PRs.
 
 ## CI Verification
 
@@ -109,7 +107,7 @@ For private-chat live validation without manually typing in Telegram every time,
 pnpm smoke:telegram-user
 ```
 
-It requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
+It requires `--api-id` and `--api-hash`, stores an ignored local user session so repeated manual login is not required, and is intentionally excluded from CI and coverage. That session is optional smoke-test state, not production bot data.
 
 For repeatable live validation, use:
 

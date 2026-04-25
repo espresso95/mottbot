@@ -14,51 +14,44 @@ describe("live validation suite runner", () => {
     expect(result.exitCode).toBe(0);
     expect(result.report).toMatchObject({
       status: "dry-run",
-      scenarios: [{ kind: "preflight", script: "smoke:preflight", envKeys: [] }],
+      scenarios: [{ kind: "preflight", script: "smoke:preflight", argKeys: [] }],
     });
   });
 
   it("returns blocked when required user credentials are missing", async () => {
     const result = await createLiveValidationSuiteResult({
       plan: buildLiveValidationPlan({
-        MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE: "true",
+        requireUserSmoke: true,
       }),
     });
 
     expect(result.exitCode).toBe(1);
     expect(result.report).toMatchObject({
       status: "blocked",
-      issues: ["TELEGRAM_API_ID and TELEGRAM_API_HASH are required for user-account smoke scenarios."],
+      issues: ["--api-id and --api-hash are required for user-account smoke scenarios."],
     });
   });
 
   it("returns a dry-run plan without secret values", async () => {
     const result = await createLiveValidationSuiteResult({
       plan: buildLiveValidationPlan({
-        TELEGRAM_API_ID: "12345",
-        TELEGRAM_API_HASH: "secret-hash",
-        MOTTBOT_LIVE_VALIDATION_DRY_RUN: "true",
-        MOTTBOT_LIVE_VALIDATION_SCENARIOS: "usage",
+        apiId: 12345,
+        apiHash: "secret-hash",
+        dryRun: true,
+        scenarios: ["usage"],
       }),
     });
 
     expect(result.exitCode).toBe(0);
     expect(result.report).toEqual({
       status: "dry-run",
-      skipped: ["preflight excluded by MOTTBOT_LIVE_VALIDATION_SCENARIOS."],
+      skipped: ["preflight excluded by --scenario."],
       scenarios: [
         {
           kind: "usage",
           name: "Private /usage command",
           script: "smoke:telegram-user",
-          envKeys: [
-            "MOTTBOT_LIVE_BOT_USERNAME",
-            "MOTTBOT_USER_SMOKE_MESSAGE",
-            "MOTTBOT_USER_SMOKE_TARGET",
-            "MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY",
-            "TELEGRAM_API_HASH",
-            "TELEGRAM_API_ID",
-          ],
+          argKeys: ["--api-hash", "--api-id", "--bot-username", "--message", "--target"],
         },
       ],
     });
@@ -77,9 +70,9 @@ describe("live validation suite runner", () => {
       }),
     );
     const plan = buildLiveValidationPlan({
-      TELEGRAM_API_ID: "12345",
-      TELEGRAM_API_HASH: "hash",
-      MOTTBOT_LIVE_VALIDATION_SCENARIOS: "health,usage",
+      apiId: 12345,
+      apiHash: "hash",
+      scenarios: ["health", "usage"],
     });
 
     const result = await createLiveValidationSuiteResult({ plan, run });
@@ -107,9 +100,9 @@ describe("live validation suite runner", () => {
       }),
     );
     const plan = buildLiveValidationPlan({
-      TELEGRAM_API_ID: "12345",
-      TELEGRAM_API_HASH: "hash",
-      MOTTBOT_LIVE_VALIDATION_SCENARIOS: "health,usage",
+      apiId: 12345,
+      apiHash: "hash",
+      scenarios: ["health", "usage"],
     });
 
     const result = await createLiveValidationSuiteResult({ plan, run });

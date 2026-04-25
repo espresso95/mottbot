@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { listCliFlagNames } from "./cli-args.js";
 import {
   buildLiveValidationPlan,
+  parseLiveValidationOptions,
   type LiveValidationPlan,
   type LiveValidationScenario,
 } from "./live-validation-suite-helpers.js";
@@ -54,13 +56,14 @@ function parseJsonOutput(stdout: string): unknown | undefined {
 
 /* v8 ignore start */
 async function runScenario(item: LiveValidationScenario): Promise<ScenarioResult> {
-  const child = spawn("corepack", ["pnpm", "--silent", item.script], {
-    env: {
-      ...process.env,
-      ...item.env,
+  const child = spawn(
+    "corepack",
+    ["pnpm", "--silent", item.script, ...(item.args.length > 0 ? ["--", ...item.args] : [])],
+    {
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
   const stdout: Buffer[] = [];
   const stderr: Buffer[] = [];
   child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
@@ -109,11 +112,11 @@ export async function createLiveValidationSuiteResult(params: {
       report: {
         status: "dry-run",
         skipped: plan.skipped,
-        scenarios: plan.scenarios.map(({ kind, name, script, env }) => ({
+        scenarios: plan.scenarios.map(({ kind, name, script, args }) => ({
           kind,
           name,
           script,
-          envKeys: Object.keys(env).sort(),
+          argKeys: listCliFlagNames(args),
         })),
       },
     };
@@ -136,8 +139,9 @@ export async function createLiveValidationSuiteResult(params: {
 }
 
 async function main(): Promise<void> {
+  const options = parseLiveValidationOptions(process.argv.slice(2));
   const result = await createLiveValidationSuiteResult({
-    plan: buildLiveValidationPlan(process.env),
+    plan: buildLiveValidationPlan(options),
     argv: process.argv,
   });
   printJson(result.report);

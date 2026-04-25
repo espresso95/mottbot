@@ -18,6 +18,7 @@ import {
 } from "../../src/tools/github-read.js";
 import { createToolRequestFingerprint } from "../../src/tools/policy.js";
 import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
+import { booleanFlag, parseCliArgs, positiveIntegerFlag, stringFlag, stringListFlag } from "./cli-args.js";
 
 type GithubWriteSmokeStatus = "passed" | "failed" | "skipped" | "dry-run" | "blocked";
 
@@ -49,6 +50,17 @@ type GithubWriteSmokePlan = {
   issues: string[];
 };
 
+/** CLI options for the guarded GitHub write smoke harness. */
+export type GithubWriteSmokeOptions = {
+  dryRun?: boolean;
+  repository?: string;
+  confirm?: string;
+  title?: string;
+  body?: string;
+  labels?: string[];
+  prNumber?: number;
+};
+
 const ADMIN_USER_ID = "github-write-validation-admin";
 const SESSION_KEY = "github-write-validation-session";
 const CONFIRMATION_PHRASE = "create-live-github-issue";
@@ -66,17 +78,6 @@ function printJson(value: unknown): void {
 function optionalString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
-}
-
-function labelsFromEnv(value: string | undefined): string[] {
-  return [
-    ...new Set(
-      (value ?? "")
-        .split(",")
-        .map((label) => label.trim())
-        .filter(Boolean),
-    ),
-  ].slice(0, 10);
 }
 
 function readGithubToolConfigFromRuntime(): {
@@ -98,34 +99,34 @@ function readGithubToolConfigFromRuntime(): {
   }
 }
 
-function prNumberFromEnv(value: string | undefined): number | undefined {
-  if (!optionalString(value)) {
-    return undefined;
-  }
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+/** Builds GitHub write smoke options from CLI flags. */
+export function parseGithubWriteSmokeOptions(argv: readonly string[]): GithubWriteSmokeOptions {
+  const args = parseCliArgs(argv);
+  const labels = [...stringListFlag(args, "label"), ...stringListFlag(args, "labels")];
+  return {
+    dryRun: booleanFlag(args, "dry-run", true),
+    ...(stringFlag(args, "repository") ? { repository: stringFlag(args, "repository") } : {}),
+    ...(stringFlag(args, "confirm") ? { confirm: stringFlag(args, "confirm") } : {}),
+    ...(stringFlag(args, "title") ? { title: stringFlag(args, "title") } : {}),
+    ...(stringFlag(args, "body") ? { body: stringFlag(args, "body") } : {}),
+    ...(labels.length > 0 ? { labels } : {}),
+    ...(positiveIntegerFlag(args, "pr-number") ? { prNumber: positiveIntegerFlag(args, "pr-number") } : {}),
+  };
 }
 
-/** Builds the GitHub write smoke plan from environment variables without performing writes. */
-export function buildGithubWriteSmokePlan(env: NodeJS.ProcessEnv): GithubWriteSmokePlan {
-  const repository = optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY) ?? "";
-  const prNumberRaw = optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER);
-  const prNumber = prNumberFromEnv(prNumberRaw);
-  const title =
-    optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_TITLE) ??
-    `[mottbot smoke] GitHub write validation ${new Date().toISOString()}`;
+/** Builds the GitHub write smoke plan from CLI options without performing writes. */
+export function buildGithubWriteSmokePlan(options: GithubWriteSmokeOptions): GithubWriteSmokePlan {
+  const repository = optionalString(options.repository) ?? "";
+  const title = optionalString(options.title) ?? `[mottbot smoke] GitHub write validation ${new Date().toISOString()}`;
   const body =
-    optionalString(env.MOTTBOT_GITHUB_WRITE_SMOKE_BODY) ??
+    optionalString(options.body) ??
     "This disposable issue was created by the guarded Mottbot GitHub write smoke harness.";
-  const labels = labelsFromEnv(env.MOTTBOT_GITHUB_WRITE_SMOKE_LABELS);
-  const dryRun = env.MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN !== "false";
-  const confirmed = env.MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM === CONFIRMATION_PHRASE;
+  const labels = [...new Set(options.labels ?? [])].slice(0, 10);
+  const dryRun = options.dryRun ?? true;
+  const confirmed = options.confirm === CONFIRMATION_PHRASE;
   const issues = [
-    !repository ? "MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY is required." : undefined,
-    !dryRun && !confirmed ? `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM must equal ${CONFIRMATION_PHRASE}.` : undefined,
-    prNumberRaw && prNumber === undefined
-      ? "MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER must be a positive integer when set."
-      : undefined,
+    !repository ? "--repository is required." : undefined,
+    !dryRun && !confirmed ? `--confirm must equal ${CONFIRMATION_PHRASE}.` : undefined,
   ].filter((issue): issue is string => Boolean(issue));
   return {
     dryRun,
@@ -134,7 +135,7 @@ export function buildGithubWriteSmokePlan(env: NodeJS.ProcessEnv): GithubWriteSm
     title,
     body,
     labels,
-    ...(prNumber ? { prNumber } : {}),
+    ...(options.prNumber ? { prNumber: options.prNumber } : {}),
     issues,
   };
 }
@@ -242,12 +243,11 @@ async function runScenarioOnce(
 /** Executes or dry-runs the guarded GitHub write smoke scenarios. */
 export async function createGithubWriteValidationSuiteResult(
   params: {
-    env?: NodeJS.ProcessEnv;
+    options?: GithubWriteSmokeOptions;
     github?: GithubReadOperations & GithubWriteOperations;
   } = {},
 ): Promise<GithubWriteSmokeResult> {
-  const env = params.env ?? process.env;
-  const plan = buildGithubWriteSmokePlan(env);
+  const plan = buildGithubWriteSmokePlan(params.options ?? {});
   if (plan.issues.length > 0 && !plan.dryRun) {
     return {
       status: "blocked",
@@ -375,7 +375,9 @@ export async function createGithubWriteValidationSuiteResult(
 }
 
 async function main(): Promise<void> {
-  const result = await createGithubWriteValidationSuiteResult();
+  const result = await createGithubWriteValidationSuiteResult({
+    options: parseGithubWriteSmokeOptions(process.argv.slice(2)),
+  });
   printJson(result);
   process.exitCode = result.status === "failed" || result.status === "blocked" ? 1 : 0;
 }

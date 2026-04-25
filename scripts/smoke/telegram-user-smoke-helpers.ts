@@ -1,4 +1,12 @@
 import { isTransientRunStatus } from "../../src/shared/run-status.js";
+import {
+  booleanFlag,
+  parseBooleanValue,
+  parseCliArgs,
+  positiveIntegerFlag,
+  stringFlag,
+  type ParsedCliArgs,
+} from "./cli-args.js";
 
 /** Parsed configuration for a user-account Telegram smoke test. */
 export type TelegramUserSmokeConfig = {
@@ -17,10 +25,34 @@ export type TelegramUserSmokeConfig = {
   waitForReply: boolean;
   expectReply: boolean;
   expectReplyContains?: string;
+  phoneNumber?: string;
+  loginCode?: string;
+  twoFactorPassword?: string;
+  userSession?: string;
 };
 
-/** Environment map consumed by Telegram user smoke helpers. */
-export type TelegramUserSmokeEnv = Record<string, string | undefined>;
+/** CLI options consumed by Telegram user smoke helpers. */
+export type TelegramUserSmokeOptions = {
+  apiId?: number;
+  apiHash?: string;
+  botUsername?: string;
+  target?: string;
+  message?: string;
+  filePath?: string;
+  forceDocument?: boolean;
+  replyToLatestBotMessage?: boolean;
+  sessionPath?: string;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  stableReplyMs?: number;
+  waitForReply?: boolean;
+  expectReply?: boolean;
+  expectReplyContains?: string;
+  phoneNumber?: string;
+  loginCode?: string;
+  twoFactorPassword?: string;
+  userSession?: string;
+};
 
 /** Outcome status for a user-account Telegram smoke interaction. */
 export type TelegramUserSmokeStatus = "sent" | "passed" | "assertion_failed" | "timeout" | "unexpected_reply";
@@ -35,82 +67,85 @@ const DEFAULT_STABLE_REPLY_MS = 4_000;
 export function normalizeBotUsername(value: string): string {
   const trimmed = value.trim().replace(/^@+/, "");
   if (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(trimmed)) {
-    throw new Error("MOTTBOT_LIVE_BOT_USERNAME must be a Telegram username such as StartupMottBot.");
+    throw new Error("--bot-username must be a Telegram username such as StartupMottBot.");
   }
   return trimmed;
 }
 
-/** Parses a positive integer environment variable with a fallback. */
-export function parsePositiveIntegerEnv(env: TelegramUserSmokeEnv, name: string, fallback: number): number {
-  const raw = env[name]?.trim();
-  if (!raw) {
-    return fallback;
-  }
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-  return parsed;
+/** Parses common boolean flag strings with a fallback. */
+export function parseBooleanOption(name: string, value: string | undefined, fallback: boolean): boolean {
+  return parseBooleanValue(name, value, fallback);
 }
 
-/** Parses common boolean environment variable strings with a fallback. */
-export function parseBooleanEnv(env: TelegramUserSmokeEnv, name: string, fallback: boolean): boolean {
-  const raw = env[name]?.trim().toLowerCase();
-  if (!raw) {
-    return fallback;
-  }
-  if (["1", "true", "yes", "on"].includes(raw)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(raw)) {
-    return false;
-  }
-  throw new Error(`${name} must be true or false.`);
+/** Builds Telegram user smoke options from CLI flags. */
+export function parseTelegramUserSmokeOptions(argv: readonly string[]): TelegramUserSmokeOptions {
+  const args = parseCliArgs(argv);
+  return telegramUserSmokeOptionsFromArgs(args);
 }
 
-/** Builds validated Telegram user smoke configuration from environment variables. */
+/** Builds Telegram user smoke options from parsed CLI args. */
+export function telegramUserSmokeOptionsFromArgs(args: ParsedCliArgs): TelegramUserSmokeOptions {
+  return {
+    ...(positiveIntegerFlag(args, "api-id") ? { apiId: positiveIntegerFlag(args, "api-id") } : {}),
+    ...(stringFlag(args, "api-hash") ? { apiHash: stringFlag(args, "api-hash") } : {}),
+    ...(stringFlag(args, "bot-username") ? { botUsername: stringFlag(args, "bot-username") } : {}),
+    ...(stringFlag(args, "target") ? { target: stringFlag(args, "target") } : {}),
+    ...(stringFlag(args, "message") ? { message: stringFlag(args, "message") } : {}),
+    ...(stringFlag(args, "file-path") ? { filePath: stringFlag(args, "file-path") } : {}),
+    forceDocument: booleanFlag(args, "force-document", false),
+    replyToLatestBotMessage: booleanFlag(args, "reply-to-latest-bot-message", false),
+    ...(stringFlag(args, "session-path") ? { sessionPath: stringFlag(args, "session-path") } : {}),
+    timeoutMs: positiveIntegerFlag(args, "timeout-ms", DEFAULT_TIMEOUT_MS),
+    pollIntervalMs: positiveIntegerFlag(args, "poll-interval-ms", DEFAULT_POLL_INTERVAL_MS),
+    stableReplyMs: positiveIntegerFlag(args, "stable-reply-ms", DEFAULT_STABLE_REPLY_MS),
+    waitForReply: booleanFlag(args, "wait-for-reply", true),
+    expectReply: booleanFlag(args, "expect-reply", true),
+    ...(stringFlag(args, "expect-reply-contains")
+      ? { expectReplyContains: stringFlag(args, "expect-reply-contains") }
+      : {}),
+    ...(stringFlag(args, "phone-number") ? { phoneNumber: stringFlag(args, "phone-number") } : {}),
+    ...(stringFlag(args, "login-code") ? { loginCode: stringFlag(args, "login-code") } : {}),
+    ...(stringFlag(args, "two-factor-password") ? { twoFactorPassword: stringFlag(args, "two-factor-password") } : {}),
+    ...(stringFlag(args, "user-session") ? { userSession: stringFlag(args, "user-session") } : {}),
+  };
+}
+
+/** Builds validated Telegram user smoke configuration from CLI options. */
 export function buildTelegramUserSmokeConfig(params: {
-  env: TelegramUserSmokeEnv;
+  options: TelegramUserSmokeOptions;
   fallbackBotUsername: string;
 }): TelegramUserSmokeConfig {
-  const apiIdRaw = params.env.TELEGRAM_API_ID?.trim();
-  const apiHash = params.env.TELEGRAM_API_HASH?.trim();
-  if (!apiIdRaw) {
-    throw new Error("Missing TELEGRAM_API_ID.");
+  const apiId = params.options.apiId;
+  const apiHash = params.options.apiHash?.trim();
+  if (!apiId) {
+    throw new Error("Missing --api-id.");
   }
   if (!apiHash) {
-    throw new Error("Missing TELEGRAM_API_HASH.");
+    throw new Error("Missing --api-hash.");
   }
-  const apiId = Number(apiIdRaw);
-  if (!Number.isInteger(apiId) || apiId < 1) {
-    throw new Error("TELEGRAM_API_ID must be a positive integer.");
-  }
+  const botUsername = normalizeBotUsername(params.options.botUsername ?? params.fallbackBotUsername);
   return {
     apiId,
     apiHash,
-    botUsername: normalizeBotUsername(params.env.MOTTBOT_LIVE_BOT_USERNAME ?? params.fallbackBotUsername),
-    target:
-      params.env.MOTTBOT_USER_SMOKE_TARGET?.trim() ||
-      normalizeBotUsername(params.env.MOTTBOT_LIVE_BOT_USERNAME ?? params.fallbackBotUsername),
-    message: params.env.MOTTBOT_USER_SMOKE_MESSAGE?.trim() || DEFAULT_MESSAGE,
-    ...(params.env.MOTTBOT_USER_SMOKE_FILE_PATH?.trim()
-      ? { filePath: params.env.MOTTBOT_USER_SMOKE_FILE_PATH.trim() }
+    botUsername,
+    target: params.options.target?.trim() || botUsername,
+    message: params.options.message?.trim() || DEFAULT_MESSAGE,
+    ...(params.options.filePath?.trim() ? { filePath: params.options.filePath.trim() } : {}),
+    forceDocument: params.options.forceDocument ?? false,
+    replyToLatestBotMessage: params.options.replyToLatestBotMessage ?? false,
+    sessionPath: params.options.sessionPath?.trim() || DEFAULT_SESSION_PATH,
+    timeoutMs: params.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    pollIntervalMs: params.options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+    stableReplyMs: params.options.stableReplyMs ?? DEFAULT_STABLE_REPLY_MS,
+    waitForReply: params.options.waitForReply ?? true,
+    expectReply: params.options.expectReply ?? true,
+    ...(params.options.expectReplyContains?.trim()
+      ? { expectReplyContains: params.options.expectReplyContains.trim() }
       : {}),
-    forceDocument: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_FORCE_DOCUMENT", false),
-    replyToLatestBotMessage: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE", false),
-    sessionPath: params.env.MOTTBOT_USER_SMOKE_SESSION_PATH?.trim() || DEFAULT_SESSION_PATH,
-    timeoutMs: parsePositiveIntegerEnv(params.env, "MOTTBOT_USER_SMOKE_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
-    pollIntervalMs: parsePositiveIntegerEnv(
-      params.env,
-      "MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS",
-      DEFAULT_POLL_INTERVAL_MS,
-    ),
-    stableReplyMs: parsePositiveIntegerEnv(params.env, "MOTTBOT_USER_SMOKE_STABLE_REPLY_MS", DEFAULT_STABLE_REPLY_MS),
-    waitForReply: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY", true),
-    expectReply: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_EXPECT_REPLY", true),
-    ...(params.env.MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS?.trim()
-      ? { expectReplyContains: params.env.MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS.trim() }
-      : {}),
+    ...(params.options.phoneNumber?.trim() ? { phoneNumber: params.options.phoneNumber.trim() } : {}),
+    ...(params.options.loginCode?.trim() ? { loginCode: params.options.loginCode.trim() } : {}),
+    ...(params.options.twoFactorPassword?.trim() ? { twoFactorPassword: params.options.twoFactorPassword.trim() } : {}),
+    ...(params.options.userSession?.trim() ? { userSession: params.options.userSession.trim() } : {}),
   };
 }
 

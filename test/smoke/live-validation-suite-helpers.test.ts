@@ -3,15 +3,11 @@ import { buildLiveValidationPlan } from "../../scripts/smoke/live-validation-sui
 
 describe("live validation suite helpers", () => {
   it("always enables the suite plan", () => {
-    expect(
-      buildLiveValidationPlan({
-        MOTTBOT_LIVE_VALIDATION_DRY_RUN: "false",
-      }),
-    ).toEqual({
+    expect(buildLiveValidationPlan({ dryRun: false })).toEqual({
       enabled: true,
       dryRun: false,
-      scenarios: [{ kind: "preflight", name: "Live preflight", script: "smoke:preflight", env: {} }],
-      skipped: ["TELEGRAM_API_ID and TELEGRAM_API_HASH are required for user-account smoke scenarios."],
+      scenarios: [{ kind: "preflight", name: "Live preflight", script: "smoke:preflight", args: [] }],
+      skipped: ["--api-id and --api-hash are required for user-account smoke scenarios."],
       issues: [],
     });
   });
@@ -25,37 +21,33 @@ describe("live validation suite helpers", () => {
         kind: "preflight",
         name: "Live preflight",
         script: "smoke:preflight",
-        env: {},
+        args: [],
       },
     ]);
-    expect(plan.skipped).toContain(
-      "TELEGRAM_API_ID and TELEGRAM_API_HASH are required for user-account smoke scenarios.",
-    );
+    expect(plan.skipped).toContain("--api-id and --api-hash are required for user-account smoke scenarios.");
     expect(plan.issues).toEqual([]);
   });
 
   it("does not require user credentials when the scenario filter selects only preflight", () => {
-    const plan = buildLiveValidationPlan({
-      MOTTBOT_LIVE_VALIDATION_SCENARIOS: "preflight",
-    });
+    const plan = buildLiveValidationPlan({ scenarios: ["preflight"] });
 
     expect(plan.scenarios.map((scenario) => scenario.kind)).toEqual(["preflight"]);
     expect(plan.skipped).toEqual([]);
     expect(plan.issues).toEqual([]);
   });
 
-  it("builds user, group, and file scenarios from env", () => {
+  it("builds user, group, and file scenarios from CLI options", () => {
     const plan = buildLiveValidationPlan({
-      TELEGRAM_API_ID: "12345",
-      TELEGRAM_API_HASH: "hash",
-      MOTTBOT_LIVE_BOT_USERNAME: "@StartupMottBot",
-      MOTTBOT_LIVE_VALIDATION_DRY_RUN: "true",
-      MOTTBOT_LIVE_VALIDATION_GROUP_TARGET: "Test Group",
-      MOTTBOT_LIVE_VALIDATION_GROUP_UNMENTIONED_MESSAGE: "unmentioned smoke",
-      MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS: "7000",
-      MOTTBOT_LIVE_VALIDATION_FILE_PATHS: "/tmp/a.txt, /tmp/b.png",
-      MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT: "true",
-      MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS: "fixture-token",
+      apiId: 12345,
+      apiHash: "hash",
+      botUsername: "@StartupMottBot",
+      dryRun: true,
+      groupTarget: "Test Group",
+      groupUnmentionedMessage: "unmentioned smoke",
+      noReplyTimeoutMs: 7000,
+      filePaths: ["/tmp/a.txt", "/tmp/b.png"],
+      forceDocument: true,
+      fileExpectReplyContains: "fixture-token",
     });
 
     expect(plan.dryRun).toBe(true);
@@ -71,30 +63,39 @@ describe("live validation suite helpers", () => {
       "file",
       "file",
     ]);
-    expect(plan.scenarios.find((scenario) => scenario.kind === "group_mention")?.env).toMatchObject({
-      MOTTBOT_USER_SMOKE_TARGET: "Test Group",
-      MOTTBOT_USER_SMOKE_MESSAGE: "@StartupMottBot run a short live validation health reply.",
-    });
-    expect(plan.scenarios.find((scenario) => scenario.kind === "group_unmentioned")?.env).toMatchObject({
-      MOTTBOT_USER_SMOKE_TARGET: "Test Group",
-      MOTTBOT_USER_SMOKE_MESSAGE: "unmentioned smoke",
-      MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
-      MOTTBOT_USER_SMOKE_TIMEOUT_MS: "7000",
-    });
-    expect(plan.scenarios.find((scenario) => scenario.kind === "file")?.env).toMatchObject({
-      MOTTBOT_USER_SMOKE_FILE_PATH: "/tmp/a.txt",
-      MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true",
-      MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS: "fixture-token",
-    });
+    expect(plan.scenarios.find((scenario) => scenario.kind === "group_mention")?.args).toEqual(
+      expect.arrayContaining([
+        "--target",
+        "Test Group",
+        "--message",
+        "@StartupMottBot run a short live validation health reply.",
+      ]),
+    );
+    expect(plan.scenarios.find((scenario) => scenario.kind === "group_unmentioned")?.args).toEqual(
+      expect.arrayContaining([
+        "--target",
+        "Test Group",
+        "--message",
+        "unmentioned smoke",
+        "--no-expect-reply",
+        "--timeout-ms",
+        "7000",
+      ]),
+    );
+    expect(plan.scenarios.find((scenario) => scenario.kind === "file")?.args).toEqual(
+      expect.arrayContaining([
+        "--file-path",
+        "/tmp/a.txt",
+        "--force-document",
+        "--expect-reply-contains",
+        "fixture-token",
+      ]),
+    );
   });
 
   it("reports a blocking issue when user smoke is required without credentials", () => {
-    const plan = buildLiveValidationPlan({
-      MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE: "true",
-    });
+    const plan = buildLiveValidationPlan({ requireUserSmoke: true });
 
-    expect(plan.issues).toEqual([
-      "TELEGRAM_API_ID and TELEGRAM_API_HASH are required for user-account smoke scenarios.",
-    ]);
+    expect(plan.issues).toEqual(["--api-id and --api-hash are required for user-account smoke scenarios."]);
   });
 });

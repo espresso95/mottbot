@@ -42,7 +42,7 @@ describe("GitHub write validation suite", () => {
   it("returns a dry-run plan with repository when no enable flag is set", async () => {
     await expect(
       createGithubWriteValidationSuiteResult({
-        env: { MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke" },
+        options: { repository: "espresso95/mottbot-smoke" },
       }),
     ).resolves.toMatchObject({
       status: "dry-run",
@@ -52,10 +52,10 @@ describe("GitHub write validation suite", () => {
 
   it("returns a dry-run plan without requiring confirmation", async () => {
     const result = await createGithubWriteValidationSuiteResult({
-      env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "true",
-        MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
-        MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER: "7",
+      options: {
+        dryRun: true,
+        repository: "espresso95/mottbot-smoke",
+        prNumber: 7,
       },
     });
 
@@ -84,27 +84,22 @@ describe("GitHub write validation suite", () => {
 
   it("blocks live writes without repository and confirmation", async () => {
     const result = await createGithubWriteValidationSuiteResult({
-      env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "false",
-      },
+      options: { dryRun: false },
     });
 
     expect(result).toMatchObject({
       status: "blocked",
-      issues: [
-        "MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY is required.",
-        "MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM must equal create-live-github-issue.",
-      ],
+      issues: ["--repository is required.", "--confirm must equal create-live-github-issue."],
     });
   });
 
-  it("parses labels and pull request numbers from environment", () => {
+  it("parses labels and pull request numbers from CLI options", () => {
     expect(
       buildGithubWriteSmokePlan({
-        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "true",
-        MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
-        MOTTBOT_GITHUB_WRITE_SMOKE_LABELS: "smoke, smoke ,bot",
-        MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER: "7",
+        dryRun: true,
+        repository: "espresso95/mottbot-smoke",
+        labels: ["smoke", "smoke", "bot"],
+        prNumber: 7,
       }),
     ).toMatchObject({
       labels: ["smoke", "bot"],
@@ -116,14 +111,14 @@ describe("GitHub write validation suite", () => {
   it("runs issue and pull request write scenarios through approvals", async () => {
     const github = createGithub();
     const result = await createGithubWriteValidationSuiteResult({
-      env: {
-        MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN: "false",
-        MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM: "create-live-github-issue",
-        MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY: "espresso95/mottbot-smoke",
-        MOTTBOT_GITHUB_WRITE_SMOKE_TITLE: "Smoke issue",
-        MOTTBOT_GITHUB_WRITE_SMOKE_BODY: "Smoke body",
-        MOTTBOT_GITHUB_WRITE_SMOKE_LABELS: "smoke",
-        MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER: "7",
+      options: {
+        dryRun: false,
+        confirm: "create-live-github-issue",
+        repository: "espresso95/mottbot-smoke",
+        title: "Smoke issue",
+        body: "Smoke body",
+        labels: ["smoke"],
+        prNumber: 7,
       },
       github,
     });

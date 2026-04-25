@@ -10,8 +10,8 @@ import {
   evaluateTelegramUserSmokeStatus,
   isTransientBotStatus,
   normalizeBotUsername,
-  parseBooleanEnv,
-  parsePositiveIntegerEnv,
+  parseBooleanOption,
+  parseTelegramUserSmokeOptions,
 } from "../../scripts/smoke/telegram-user-smoke-helpers.js";
 
 describe("telegram user smoke helpers", () => {
@@ -20,28 +20,46 @@ describe("telegram user smoke helpers", () => {
     expect(() => normalizeBotUsername("bad")).toThrow("Telegram username");
   });
 
-  it("parses guarded env values", () => {
-    expect(parsePositiveIntegerEnv({}, "TIMEOUT", 10)).toBe(10);
-    expect(parsePositiveIntegerEnv({ TIMEOUT: "25" }, "TIMEOUT", 10)).toBe(25);
-    expect(() => parsePositiveIntegerEnv({ TIMEOUT: "0" }, "TIMEOUT", 10)).toThrow("positive integer");
+  it("parses guarded CLI values", () => {
+    expect(parseBooleanOption("wait", undefined, true)).toBe(true);
+    expect(parseBooleanOption("wait", "false", true)).toBe(false);
+    expect(parseBooleanOption("wait", "yes", false)).toBe(true);
+    expect(() => parseBooleanOption("wait", "maybe", false)).toThrow("true or false");
 
-    expect(parseBooleanEnv({}, "WAIT", true)).toBe(true);
-    expect(parseBooleanEnv({ WAIT: "false" }, "WAIT", true)).toBe(false);
-    expect(parseBooleanEnv({ WAIT: "yes" }, "WAIT", false)).toBe(true);
-    expect(() => parseBooleanEnv({ WAIT: "maybe" }, "WAIT", false)).toThrow("true or false");
+    expect(
+      parseTelegramUserSmokeOptions([
+        "--api-id",
+        "12345",
+        "--api-hash=hash",
+        "--message",
+        "hello",
+        "--no-wait-for-reply",
+        "--expect-reply=false",
+        "--expect-reply-contains",
+        "received",
+      ]),
+    ).toMatchObject({
+      apiId: 12345,
+      apiHash: "hash",
+      message: "hello",
+      waitForReply: false,
+      expectReply: false,
+      expectReplyContains: "received",
+    });
+    expect(() => parseTelegramUserSmokeOptions(["--api-id", "0"])).toThrow("positive integer");
   });
 
-  it("builds smoke config from env", () => {
+  it("builds smoke config from CLI options", () => {
     expect(
       buildTelegramUserSmokeConfig({
         fallbackBotUsername: "StartupMottBot",
-        env: {
-          TELEGRAM_API_ID: "12345",
-          TELEGRAM_API_HASH: "hash",
-          MOTTBOT_USER_SMOKE_MESSAGE: "hello",
-          MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY: "false",
-          MOTTBOT_USER_SMOKE_EXPECT_REPLY: "false",
-          MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS: "received",
+        options: {
+          apiId: 12345,
+          apiHash: "hash",
+          message: "hello",
+          waitForReply: false,
+          expectReply: false,
+          expectReplyContains: "received",
         },
       }),
     ).toEqual({

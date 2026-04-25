@@ -10,23 +10,23 @@ Smoke harnesses live under `scripts/smoke/`, not the production `src/tools/` run
 
 Do not add smoke-only values to `mottbot.config.json` or `.env.example`. Pass them only in the shell that runs the smoke command, or through your local shell tooling.
 
-## Smoke Variable Policy
+## Smoke CLI Flag Policy
 
-You do not need a permanent second `.env` file with every smoke variable set.
+You do not need a permanent second `.env` file with every smoke input set.
 
-- Export only the variables needed for the command you are about to run.
-- Unset sensitive one-time values (for example `TELEGRAM_LOGIN_CODE`) after the run.
+- Pass only the flags needed for the command you are about to run.
+- Avoid persisting sensitive one-time values such as `--login-code`.
 - Treat every value in the table below as a smoke script input, not application configuration.
 
 Minimal command requirements:
 
-| Command                    | Required variables                                                              | Optional variables                                                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm smoke:preflight`     | none                                                                            | `MOTTBOT_LIVE_TEST_CHAT_ID`, `MOTTBOT_LIVE_TEST_MESSAGE`                                                                               |
-| `pnpm smoke:telegram-user` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `MOTTBOT_LIVE_BOT_USERNAME`             | `TELEGRAM_PHONE_NUMBER`, `TELEGRAM_LOGIN_CODE`, `TELEGRAM_2FA_PASSWORD`, `TELEGRAM_USER_SESSION`, `MOTTBOT_USER_SMOKE_*` tuning values |
-| `pnpm smoke:suite`         | none (plus Telegram user credentials only if user-smoke scenarios are included) | `MOTTBOT_LIVE_VALIDATION_*` scenario filters/messages/fixtures                                                                         |
-| `pnpm smoke:github-write`  | `MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY`                                         | `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN`, `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM`, title/body/labels/PR number overrides                      |
-| `pnpm smoke:dashboard`     | none                                                                            | `MOTTBOT_DASHBOARD_SMOKE_PORT`                                                                                                         |
+| Command                    | Required flags                                                       | Optional flags                                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm smoke:preflight`     | none                                                                 | `--test-chat-id`, `--test-message`                                                                                                       |
+| `pnpm smoke:telegram-user` | `--api-id`, `--api-hash`, `--bot-username`                           | `--phone-number`, `--login-code`, `--two-factor-password`, `--user-session`, `--target`, `--message`, timing and reply expectation flags |
+| `pnpm smoke:suite`         | none (plus Telegram user flags only if user-smoke scenarios are run) | `--dry-run`, `--scenario`, `--require-user-smoke`, group/file/message flags                                                              |
+| `pnpm smoke:github-write`  | `--repository`                                                       | `--dry-run`, `--no-dry-run`, `--confirm`, `--title`, `--body`, `--label`, `--pr-number`                                                  |
+| `pnpm smoke:dashboard`     | none                                                                 | `--port`                                                                                                                                 |
 
 ## Safety Guard
 
@@ -41,12 +41,12 @@ Preflight loads config, validates the bot token with Telegram `getMe`, runs migr
 Optional outbound Telegram delivery check:
 
 ```bash
-export MOTTBOT_LIVE_TEST_CHAT_ID=<operator-or-test-chat-id>
-export MOTTBOT_LIVE_TEST_MESSAGE="Mottbot live smoke outbound check."
-pnpm smoke:preflight
+pnpm smoke:preflight \
+  --test-chat-id <operator-or-test-chat-id> \
+  --test-message "Mottbot live smoke outbound check."
 ```
 
-When `MOTTBOT_LIVE_TEST_CHAT_ID` is set, preflight sends one silent Telegram message and reports the resulting `messageId`. This proves Bot API outbound delivery, but it does not prove inbound user updates.
+When `--test-chat-id` is passed, preflight sends one silent Telegram message and reports the resulting `messageId`. This proves Bot API outbound delivery, but it does not prove inbound user updates.
 
 For private chats, the target user must have already opened or started the bot. Telegram rejects bot-initiated conversations with users who have not done that.
 
@@ -61,11 +61,10 @@ pnpm smoke:suite
 Start with a dry run to see exactly which checks will execute without sending Telegram messages:
 
 ```bash
-MOTTBOT_LIVE_VALIDATION_DRY_RUN=true \
-pnpm smoke:suite
+pnpm smoke:suite --dry-run
 ```
 
-The suite always includes `smoke:preflight`. When `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `MOTTBOT_LIVE_BOT_USERNAME` are present, it also composes the MTProto user-account harness into:
+The suite always includes `smoke:preflight`. When `--api-id`, `--api-hash`, and `--bot-username` are present, it also composes the MTProto user-account harness into:
 
 - private model conversation
 - `/health`
@@ -78,16 +77,17 @@ The suite always includes `smoke:preflight`. When `TELEGRAM_API_ID`, `TELEGRAM_A
 Useful controls:
 
 ```bash
-export MOTTBOT_LIVE_VALIDATION_SCENARIOS=preflight,private,health,usage,reply,group_mention,group_unmentioned,files
-export MOTTBOT_LIVE_VALIDATION_REQUIRE_USER_SMOKE=true
-export MOTTBOT_LIVE_VALIDATION_GROUP_TARGET=<group-or-bot-entity>
-export MOTTBOT_LIVE_VALIDATION_NO_REPLY_TIMEOUT_MS=15000
-export MOTTBOT_LIVE_VALIDATION_FILE_PATHS=/absolute/path/a.txt,/absolute/path/b.png
-export MOTTBOT_LIVE_VALIDATION_FILE_EXPECT_REPLY_CONTAINS=<unique-fixture-phrase>
-export MOTTBOT_LIVE_VALIDATION_FORCE_DOCUMENT=false
+pnpm smoke:suite \
+  --scenario preflight,private,health,usage,reply,group_mention,group_unmentioned,files \
+  --require-user-smoke \
+  --group-target <group-or-bot-entity> \
+  --no-reply-timeout-ms 15000 \
+  --file-path /absolute/path/a.txt \
+  --file-path /absolute/path/b.png \
+  --file-expect-reply-contains <unique-fixture-phrase>
 ```
 
-Scenario filtering is optional. When omitted, the suite runs every scenario it can run with the available environment and reports skipped optional group/file checks in token-free JSON.
+Scenario filtering is optional. When omitted, the suite runs every scenario it can run with the available CLI flags and reports skipped optional group/file checks in token-free JSON.
 
 ## Required Environment
 
@@ -144,7 +144,7 @@ Expected result:
 - `telegramBot.username` matches the test bot
 - `migrations` includes version `1`
 - `authProfiles` is at least `1`
-- `outboundCheck.status` is `skipped` unless `MOTTBOT_LIVE_TEST_CHAT_ID` is set
+- `outboundCheck.status` is `skipped` unless `--test-chat-id` is passed
 
 ## Automation Boundary
 
@@ -176,25 +176,23 @@ GitHub write validation intentionally lives outside the normal live suite becaus
 Dry-run plan:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=true \
-MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
-pnpm smoke:github-write
+pnpm smoke:github-write --repository owner/disposable-repo --dry-run
 ```
 
 Live issue creation and issue comment:
 
 ```bash
-MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN=false \
-MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM=create-live-github-issue \
-MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY=owner/disposable-repo \
-MOTTBOT_GITHUB_WRITE_SMOKE_LABELS=smoke \
-pnpm smoke:github-write
+pnpm smoke:github-write \
+  --repository owner/disposable-repo \
+  --no-dry-run \
+  --confirm create-live-github-issue \
+  --label smoke
 ```
 
 Optional pull request comment validation:
 
 ```bash
-export MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER=<disposable-pr-number>
+pnpm smoke:github-write --repository owner/disposable-repo --pr-number <disposable-pr-number>
 ```
 
 The harness uses the same side-effect registry, approval store, request fingerprinting, and `mottbot_github_*` handlers that the model uses at runtime. It uses the host `gh` CLI for auth; Mottbot does not store GitHub tokens.
@@ -210,17 +208,22 @@ pnpm smoke:telegram-user
 Required Telegram user API credentials:
 
 ```bash
-export TELEGRAM_API_ID=<api-id-from-my.telegram.org>
-export TELEGRAM_API_HASH=<api-hash-from-my.telegram.org>
-export MOTTBOT_LIVE_BOT_USERNAME=StartupMottBot
+pnpm smoke:telegram-user \
+  --api-id <api-id-from-my.telegram.org> \
+  --api-hash <api-hash-from-my.telegram.org> \
+  --bot-username StartupMottBot
 ```
 
-First login also needs the Telegram phone number and login code. You can provide them interactively, or through environment variables for one run:
+First login also needs the Telegram phone number and login code. You can provide them interactively, or through CLI flags for one run:
 
 ```bash
-export TELEGRAM_PHONE_NUMBER=+15555555555
-export TELEGRAM_LOGIN_CODE=12345
-export TELEGRAM_2FA_PASSWORD=optional-account-2fa-password
+pnpm smoke:telegram-user \
+  --api-id <api-id-from-my.telegram.org> \
+  --api-hash <api-hash-from-my.telegram.org> \
+  --bot-username StartupMottBot \
+  --phone-number +15555555555 \
+  --login-code 12345 \
+  --two-factor-password optional-account-2fa-password
 ```
 
 The harness stores a reusable MTProto string session at:
@@ -240,29 +243,29 @@ Default behavior:
 Useful overrides:
 
 ```bash
-export MOTTBOT_USER_SMOKE_MESSAGE="hello from the MTProto smoke test"
-export MOTTBOT_USER_SMOKE_TARGET=StartupMottBot
-export MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=false
-export MOTTBOT_USER_SMOKE_FILE_PATH=/absolute/path/to/test-image.png
-export MOTTBOT_USER_SMOKE_FORCE_DOCUMENT=false
-export MOTTBOT_USER_SMOKE_EXPECT_REPLY=true
-export MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS="unique expected reply text"
-export MOTTBOT_USER_SMOKE_TIMEOUT_MS=120000
-export MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS=2000
-export MOTTBOT_USER_SMOKE_STABLE_REPLY_MS=4000
-export MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY=true
-export MOTTBOT_USER_SMOKE_SESSION_PATH=./data/telegram-user-smoke.session
+pnpm smoke:telegram-user \
+  --api-id <api-id-from-my.telegram.org> \
+  --api-hash <api-hash-from-my.telegram.org> \
+  --bot-username StartupMottBot \
+  --message "hello from the MTProto smoke test" \
+  --target StartupMottBot \
+  --file-path /absolute/path/to/test-image.png \
+  --expect-reply-contains "unique expected reply text" \
+  --timeout-ms 120000 \
+  --poll-interval-ms 2000 \
+  --stable-reply-ms 4000 \
+  --session-path ./data/telegram-user-smoke.session
 ```
 
 This harness is intentionally separate from the bot runtime. Use it only with your own Telegram account and controlled test bots.
 
 The same harness can drive several previously manual private-chat and group checks:
 
-- private chat: leave `MOTTBOT_USER_SMOKE_TARGET` unset or set it to the bot username
-- group mention: set `MOTTBOT_USER_SMOKE_TARGET` to the group entity and include `@<bot username>` in `MOTTBOT_USER_SMOKE_MESSAGE`
-- group ignore check: set `MOTTBOT_USER_SMOKE_TARGET` to the group entity, omit the bot mention, set `MOTTBOT_USER_SMOKE_EXPECT_REPLY=false`, and use a short timeout
-- reply-to-bot gating: set `MOTTBOT_USER_SMOKE_REPLY_TO_LATEST_BOT_MESSAGE=true`
-- file upload: set `MOTTBOT_USER_SMOKE_FILE_PATH` to a local image or document fixture; set `MOTTBOT_USER_SMOKE_EXPECT_REPLY_CONTAINS` when the fixture contains a unique phrase the bot should mention
+- private chat: leave `--target` unset or set it to the bot username
+- group mention: set `--target` to the group entity and include `@<bot username>` in `--message`
+- group ignore check: set `--target` to the group entity, omit the bot mention, pass `--no-expect-reply`, and use a short `--timeout-ms`
+- reply-to-bot gating: pass `--reply-to-latest-bot-message`
+- file upload: pass `--file-path` with a local image or document fixture; use `--expect-reply-contains` when the fixture contains a unique phrase the bot should mention
 
 Webhook delivery still requires a public HTTPS endpoint and Telegram webhook registration. The local harness can validate the conversation once webhook delivery is configured, but it cannot create the public endpoint.
 
