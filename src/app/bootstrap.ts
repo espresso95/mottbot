@@ -51,11 +51,6 @@ import { createMicrosoftTodoToolHandlers } from "../tools/microsoft-todo-handler
 import { GoogleDriveService } from "../tools/google-drive.js";
 import { createGoogleDriveToolHandlers } from "../tools/google-drive-handlers.js";
 import { TelegramGovernanceStore } from "../telegram/governance.js";
-import { ProjectTaskStore } from "../project-tasks/project-task-store.js";
-import { CodexCliRunner } from "../codex-cli/codex-cli-runner.js";
-import { ProjectTaskScheduler } from "../project-tasks/project-task-scheduler.js";
-import { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
-import { WorktreeManager } from "../worktrees/worktree-manager.js";
 
 /** Wires persistent stores, Telegram ingress, Codex transport, tools, and lifecycle hooks. */
 export async function bootstrapApplication() {
@@ -99,17 +94,6 @@ export async function bootstrapApplication() {
     ttlMs: config.runtime.instanceLeaseTtlMs,
     refreshMs: config.runtime.instanceLeaseRefreshMs,
   });
-  const projectTaskStore = new ProjectTaskStore(database, systemClock);
-  const codexCliRunner = new CodexCliRunner(projectTaskStore, systemClock, {
-    command: config.projectTasks.codex.command,
-    coderProfile: config.projectTasks.codex.coderProfile,
-    defaultTimeoutMs: config.projectTasks.codex.defaultTimeoutMs,
-    artifactRoot: config.projectTasks.artifactRoot,
-  });
-  const worktrees = new WorktreeManager({
-    repoRoots: config.projectTasks.repoRoots,
-    worktreeRoot: config.projectTasks.worktreeRoot,
-  });
 
   const routeResolver = new RouteResolver(config, sessionStore);
   const provisionalBot = new TelegramBotServer(
@@ -121,18 +105,6 @@ export async function bootstrapApplication() {
     {} as never,
     routeResolver,
     {} as never,
-  );
-  const projectScheduler = new ProjectTaskScheduler(
-    config,
-    systemClock,
-    projectTaskStore,
-    codexCliRunner,
-    worktrees,
-    ({ task, text }) => {
-      void provisionalBot.api.sendMessage(task.chatId, text).catch((error) => {
-        logger.warn({ error, taskId: task.taskId }, "Failed to send project completion report.");
-      });
-    },
   );
   const reactions = new TelegramReactionService(provisionalBot.api);
   const toolRegistry = createRuntimeToolRegistry({
@@ -250,7 +222,6 @@ export async function bootstrapApplication() {
     },
   });
   orchestrator.recoverQueuedRuns();
-  const projectCommands = new ProjectCommandRouter(provisionalBot.api, config, projectTaskStore, projectScheduler);
   const commands = new TelegramCommandRouter(
     provisionalBot.api,
     config,
@@ -270,7 +241,6 @@ export async function bootstrapApplication() {
     github,
     governance,
     usageBudget,
-    projectCommands,
   );
   const bot = new TelegramBotServer(
     config,
@@ -306,14 +276,6 @@ export async function bootstrapApplication() {
         leaseStarted = true;
         await dashboard.start();
         dashboardStarted = true;
-        const recoveredProjectRuns = projectTaskStore.recoverInterruptedCliRuns();
-        if (recoveredProjectRuns > 0) {
-          logger.warn(
-            { recoveredProjectRuns },
-            "Recovered interrupted Project Mode Codex CLI runs after process restart.",
-          );
-        }
-        projectScheduler.start();
         await bot.start();
       } catch (error) {
         if (dashboardStarted) {
@@ -327,7 +289,6 @@ export async function bootstrapApplication() {
     },
     async stop() {
       await bot.stop();
-      projectScheduler.stop();
       await dashboard.stop();
       instanceLease.stop();
       database.close();

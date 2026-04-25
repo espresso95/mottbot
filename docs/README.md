@@ -33,18 +33,18 @@ These documents describe the current Telegram-first Codex bot runtime, operator 
 - Read `codex-subscription-provider.md` if your main interest is the subscription-backed Codex path.
 - Read `telegram-runtime.md` and `data-model.md` if you want to reproduce the runtime behavior in another codebase.
 - Read `testing.md` and `operations.md` if you want to ship or extend this repo.
-- Read `tool-use-design.md` before enabling side-effecting model tools or Project Mode Codex jobs.
+- Read `tool-use-design.md` before enabling side-effecting model tools or Codex CLI jobs.
 
 ## Status
 
 Current runtime summary:
 
 - Telegram polling or webhook ingress with ACL, route resolution, per-session serialization, and durable outbox behavior.
-- SQLite-backed auth, sessions, transcripts, runs, queue state, tool approvals, memory, roles, chat policy, and Project Mode task state.
+- SQLite-backed auth, sessions, transcripts, runs, queue state, tool approvals, memory, roles, and chat policy.
 - Subscription-backed `openai-codex` provider integration with local OAuth, Codex CLI auth import, token refresh, and transport fallback.
 - Named agents, route bindings, local usage budgets, attachment extraction, approved memory, and admin diagnostics.
 - Deny-by-default model tools with admin-only read tools and opt-in approval-gated side effects.
-- Feature-flagged Project Mode for durable Codex CLI coding tasks in isolated Git worktrees with review and publish approvals.
+- Approval-gated Codex CLI job tools for coding tasks in configured repositories.
 - Local operator dashboard, guarded live smoke commands, disposable local tool validation, backup/restore validation, log rotation, and host-local lease protection.
 
 Known gaps:

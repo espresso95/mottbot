@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Coding Mode Removal
+
+- Removed the previous coding-mode command routing, callback payloads, scheduler/store/worktree code, SQLite tables, and tests.
+- Kept the `mottbot_codex_job_*` tools available for approved Codex CLI jobs in configured repositories under `codexJobs`.
+
 ### Memory
 
 - Project-scoped memory now becomes visible to routes whose agent binding declares the matching `projectKey`.
@@ -12,20 +17,11 @@
 
 ### Telegram Command Menu
 
-- Register the bot's top-level slash commands with Telegram on startup, so Telegram clients can suggest commands such as `/project`, `/status`, and `/help` while typing.
+- Register the bot's top-level slash commands with Telegram on startup, so Telegram clients can suggest commands such as `/status` and `/help` while typing.
 
-### Project Mode Telegram UX
+### Codex CLI Integration
 
-- Added compact Project Mode Telegram message formatting with short display IDs, repo names, progress summaries, and clearer next-step commands.
-- Added `/project details [task]` for the verbose operator view with full task IDs, repo paths, subtask run details, diff stats, summaries, and errors.
-- Added Project Mode inline action buttons for details, direct publish-to-main approval requests, and cleanup where the task state supports them.
-- Project Mode approval and tail slash commands now enforce the same chat ownership checks as inline callbacks, and repeated publish requests reuse the existing pending approval for the same task/action.
-
-### Project Mode Integration
-
-- Project Mode now commits successful worker and integrator worktree changes before integration or review, so Codex CLI edits are not lost when the worker leaves files unstaged.
 - Codex CLI child processes now prepend the service Node binary directory to `PATH`, keeping tools such as `corepack` available when the macOS service starts from a sparse launchd environment.
-- Reviewer summaries that report successful checks with phrases such as `0 failed` are no longer misclassified as failed Project Mode tasks.
 
 ### Verification Scripts
 
@@ -39,17 +35,11 @@
 ### Callback Approval Hardening
 
 - Tool approval button callbacks now expire with the configured approval TTL, record `approval_expired`, and treat replayed approve/deny/expired callbacks as the original operator decision.
-- Project Mode approval callbacks now re-check the originating chat before approval, and expired Project Mode approvals are marked `expired` before any start or publish action runs.
-- Project Mode callback denials now return the same owner/admin-only message as the slash-command path.
 
 ### Automatic Service Sync
 
 - Added a guarded `sync:service` workflow that fast-forwards a clean checkout from `origin/main`, verifies the build and health check, then restarts the macOS service with the configured Node runtime.
 - Added install, status, and uninstall scripts for a separate `ai.mottbot.sync-main` LaunchAgent timer.
-
-### Project Mode Recovery Visibility
-
-- Updated `/project status` to show each subtask's latest Codex CLI run state and error, so restart-recovered interrupted runs are visible immediately to operators.
 
 ### Telegram Approval Buttons
 
@@ -61,65 +51,11 @@
 - Approved tool continuations created from inline buttons are now persisted in `run_queue` and can resume after a service restart before execution starts.
 - Added inline accept, reject, and archive buttons for pending `/memory candidates`.
 - Added `pnpm smoke:telegram-callbacks` for in-process validation of tool and memory callback handlers.
-- Added inline approval buttons for Project Mode start and publish approvals. Callback handling now marks the source message as approved or not applied while keeping `/tool approve` and `/project approve` as command fallbacks.
 
 ### Service Runtime Hardening
 
 - LaunchAgent install and restart now probe candidate Node binaries and only write a service plist for a Node runtime that can load the repo's native `better-sqlite3` binding.
 - Added `MOTTBOT_SERVICE_NODE_PATH` as an explicit operator override for the Node binary used by the macOS service.
-
-### Project Mode Cleanup
-
-- Added `/project cleanup <task-id>` for terminal project tasks; it removes retained Project Mode worktrees and local branches after operator review or publish.
-- `/project status` now offers cleanup only while a retained integration worktree is still available, and hides publish after cleanup removes the local integration worktree.
-- Added scheduler and command-router coverage for explicit cleanup.
-
-### Project Mode Publish Approvals
-
-- Added `/project publish <task-id> [main|pr]` for completed project tasks; it creates an explicit `push` approval before any remote write.
-- `/project approve <approval-id>` now executes approved Project Mode publish requests, pushing the final integration branch, pushing the verified result to the task base ref, or optionally opening a GitHub pull request.
-- Final project reports and `/project status` now point operators at the publish approval command after review completion.
-- Added tests for publish approval creation, approved branch publishing, direct base-ref publishing, optional PR output recording, and local git push behavior.
-
-### Project Mode Phase 6 (Reviewer Stage And Final Report)
-
-- Added a reviewer stage after integration succeeds; Project Mode now queues a `reviewer` subtask in the integration worktree before marking the task complete.
-- Reviewer subtasks run with the configured Codex reviewer profile while preserving the integrated branch and worktree for final inspection.
-- Final task summaries now include worker summaries, reviewer output, and the integrated branch.
-- Added a final Telegram completion report for completed project tasks.
-- Updated `/project status` to show the final branch and captured diff stat when available.
-
-### Project Mode Phase 5 (Integration Branch Workflow)
-
-- Added a minimal integration branch workflow after all worker subtasks complete.
-- The scheduler now prepares an integration worktree, merges completed worker branches in order, records the final integration branch and diff stat, and cleans up merged worker branches.
-- Successful worker completion now removes the worker worktree while preserving the worker branch until integration.
-- Merge conflicts create a ready `integrator` subtask in the integration worktree with bounded conflict context for Codex CLI conflict resolution.
-- Added scheduler tests for successful branch integration, conflict-worker queueing, and running an integrator in the integration worktree.
-
-### Project Mode Phase 4 (Parallel Worker Scheduling)
-
-- Updated the project scheduler to launch multiple ready subtasks in one tick when concurrency limits allow it.
-- Enforced `maxConcurrentProjects`, per-task `maxParallelWorkers`, `hardMaxParallelWorkersPerProject`, and `maxConcurrentCodexWorkersGlobal` for Codex CLI worker launch.
-- Updated running-subtask reconciliation so one completed worker can be finalized while sibling workers in the same project are still active.
-- Added scheduler tests for per-project caps, global worker caps, active-project caps, and mixed terminal/active worker state.
-
-### Project Mode Phase 3 (Planner Output, Subtask Graph, Dependency Gating)
-
-- Added a lightweight project planner that derives a deterministic subtask plan from `/project start` prompts and stores it in `project_tasks.plan_json`.
-- Updated project task persistence to track per-subtask dependency edges through `dependsOnSubtaskIds` backed by `project_subtasks.depends_on_json`.
-- Updated `/project status` output to include dependency hints for blocked or sequenced subtasks.
-- Updated the scheduler to reconcile dependency states before launch: blocked subtasks move to ready when all dependencies complete, and automatically skip when dependencies fail/cancel.
-- Added planner and scheduler tests for subtask graph construction and dependency gating behavior.
-
-### Project Mode Phase 2 (Worktrees, Path Protections, Cleanup)
-
-- Added a dedicated `WorktreeManager` to create isolated Git worktrees per project subtask and branch each worker under `mottbot/<task>/<subtask>`.
-- Updated the project scheduler to run Codex workers inside per-subtask worktrees instead of the primary checkout.
-- Added automatic worktree and branch cleanup on subtask completion and project cancellation.
-- Added protected-path violation checks on modified files before marking a subtask successful.
-- Hardened `/project start` repository root validation with realpath checks to prevent symlink-based root escapes.
-- Added worktree-manager tests covering worktree lifecycle, approved-root enforcement, and protected-path detection.
 
 ### Named Agents And Route Bindings
 

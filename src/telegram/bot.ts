@@ -28,7 +28,6 @@ const TELEGRAM_COMMAND_MENU = [
   { command: "status", description: "Show session status" },
   { command: "health", description: "Show runtime health" },
   { command: "usage", description: "Show local run usage" },
-  { command: "project", description: "Run Project Mode tasks" },
   { command: "agent", description: "Inspect or change this session agent" },
   { command: "model", description: "Change this session model" },
   { command: "profile", description: "List or select auth profile" },

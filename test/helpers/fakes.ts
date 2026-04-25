@@ -174,6 +174,15 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     service: {
       label: "ai.mottbot.bot",
     },
+    codexJobs: {
+      repoRoots: [tempDir],
+      artifactRoot: path.join(tempDir, "codex-jobs"),
+      codex: {
+        command: "codex",
+        coderProfile: "mottbot-coder",
+        defaultTimeoutMs: 60 * 60 * 1000,
+      },
+    },
   };
   return {
     ...base,
@@ -210,6 +219,14 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     usage: { ...base.usage, ...overrides.usage },
     security: { ...base.security, ...overrides.security },
     service: { ...base.service, ...overrides.service },
+    codexJobs: {
+      ...base.codexJobs,
+      ...overrides.codexJobs,
+      codex: {
+        ...base.codexJobs.codex,
+        ...overrides.codexJobs?.codex,
+      },
+    },
   };
 }
 

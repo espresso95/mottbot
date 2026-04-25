@@ -112,10 +112,9 @@ Create one ignored lane config per bot under `.local/smoke-lanes/`:
   "dashboard": {
     "port": 8788
   },
-  "projectTasks": {
+  "codexJobs": {
     "repoRoots": ["."],
-    "worktreeRoot": "./data/smoke-lane-1/project-worktrees",
-    "artifactRoot": "./data/smoke-lane-1/project-runs"
+    "artifactRoot": "./data/smoke-lane-1/codex-jobs"
   },
   "service": {
     "label": "ai.mottbot.bot.lane-1"

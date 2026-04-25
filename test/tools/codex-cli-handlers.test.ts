@@ -25,7 +25,7 @@ const definition: ToolDefinition = {
 
 function configFor(root: string, command: string): AppConfig {
   return {
-    projectTasks: {
+    codexJobs: {
       repoRoots: [root],
       artifactRoot: path.join(root, "artifacts"),
       codex: {

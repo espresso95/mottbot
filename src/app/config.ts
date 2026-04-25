@@ -134,33 +134,20 @@ const mcpToolConfigSchema = z
     servers: z.array(mcpServerConfigSchema).default([]),
   })
   .default({});
-const projectTasksConfigSchema = z
+const codexJobsConfigSchema = z
   .object({
-    enabled: z.boolean().default(false),
     repoRoots: z.array(z.string()).default(["."]),
-    worktreeRoot: z.string().default("./data/project-worktrees"),
-    artifactRoot: z.string().default("./data/project-runs"),
-    maxConcurrentProjects: z.number().int().min(1).max(10).default(1),
-    defaultMaxParallelWorkersPerProject: z.number().int().min(1).max(8).default(1),
-    hardMaxParallelWorkersPerProject: z.number().int().min(1).max(8).default(2),
-    maxConcurrentCodexWorkersGlobal: z.number().int().min(1).max(16).default(2),
-    defaultBaseRef: z.string().min(1).default("main"),
+    artifactRoot: z.string().default("./data/codex-jobs"),
     codex: z
       .object({
         command: z.string().min(1).default("codex"),
         coderProfile: z.string().min(1).default("mottbot-coder"),
-        reviewerProfile: z.string().min(1).default("mottbot-reviewer"),
         defaultTimeoutMs: z
           .number()
           .int()
           .min(30_000)
           .max(24 * 60 * 60 * 1000)
           .default(60 * 60 * 1000),
-      })
-      .default({}),
-    approvals: z
-      .object({
-        requireBeforeProjectStart: z.boolean().default(true),
       })
       .default({}),
   })
@@ -311,7 +298,7 @@ const rawConfigSchema = z.object({
       masterKey: z.string().min(1).optional(),
     })
     .default({}),
-  projectTasks: projectTasksConfigSchema,
+  codexJobs: codexJobsConfigSchema,
   service: serviceConfigSchema,
 });
 
@@ -416,9 +403,8 @@ export type AppConfig = {
     masterKey: string;
   };
   service: z.infer<typeof serviceConfigSchema>;
-  projectTasks: z.infer<typeof projectTasksConfigSchema> & {
+  codexJobs: z.infer<typeof codexJobsConfigSchema> & {
     repoRoots: string[];
-    worktreeRoot: string;
     artifactRoot: string;
   };
 };
@@ -559,11 +545,10 @@ export function loadConfig(): AppConfig {
       masterKey,
     },
     service: parsed.service,
-    projectTasks: {
-      ...parsed.projectTasks,
-      repoRoots: parsed.projectTasks.repoRoots.map((entry) => path.resolve(entry)),
-      worktreeRoot: path.resolve(parsed.projectTasks.worktreeRoot),
-      artifactRoot: path.resolve(parsed.projectTasks.artifactRoot),
+    codexJobs: {
+      ...parsed.codexJobs,
+      repoRoots: parsed.codexJobs.repoRoots.map((entry) => path.resolve(entry)),
+      artifactRoot: path.resolve(parsed.codexJobs.artifactRoot),
     },
   };
 }

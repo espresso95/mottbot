@@ -8,7 +8,7 @@ import type { Clock } from "../shared/clock.js";
 /** Lifecycle state for a reusable Codex CLI job. */
 export type CodexCliJobStatus = "starting" | "streaming" | "exited" | "failed" | "cancelled" | "timed_out";
 
-/** Runtime settings shared by Codex CLI job services and project workers. */
+/** Runtime settings for Codex CLI job services. */
 export type CodexCliServiceConfig = {
   command: string;
   coderProfile: string;

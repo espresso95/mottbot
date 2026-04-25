@@ -29,7 +29,7 @@ Implemented:
 - opt-in MCP stdio bridge calls to configured servers and allowlisted MCP tools
 - opt-in Telegram message and reaction tools restricted to the current chat or configured approved targets
 - opt-in GitHub issue creation and issue/PR comments through the host GitHub CLI
-- opt-in Codex CLI job tools for approved project repositories, using the same reusable CLI service as Project Mode
+- opt-in Codex CLI job tools for approved project repositories, using the reusable Codex CLI service
 - read-only operator diagnostics tools for service status, recent runs, recent errors, and recent logs
 - per-tool runtime policies loaded from `tools.policies`
 - sanitized approval previews and request fingerprints for side-effecting calls
@@ -111,7 +111,7 @@ Disabled reserved tools:
 | `mottbot_local_doc_append`      | `local_write`     | opt-in | Appends plain text to existing `.md` or `.txt` files under approved local-write roots; requires one-shot admin approval before execution.                                            |
 | `mottbot_local_doc_replace`     | `local_write`     | opt-in | Replaces existing `.md` or `.txt` files under approved local-write roots only when the supplied SHA-256 matches the current file; requires one-shot admin approval before execution. |
 | `mottbot_local_command_run`     | `local_exec`      | opt-in | Runs one host-allowlisted command in an approved workspace root without shell expansion; requires one-shot admin approval before execution.                                          |
-| `mottbot_codex_job_start`       | `local_exec`      | opt-in | Starts `codex exec --json` in an approved project repository using configured Project Mode Codex settings; requires one-shot admin approval before execution.                        |
+| `mottbot_codex_job_start`       | `local_exec`      | opt-in | Starts `codex exec --json` in an approved project repository using configured Codex CLI job settings; requires one-shot admin approval before execution.                             |
 | `mottbot_codex_job_cancel`      | `process_control` | opt-in | Sends SIGTERM to a Codex CLI job started by this process; requires one-shot admin approval before execution.                                                                         |
 | `mottbot_mcp_call_tool`         | `network_write`   | opt-in | Calls one allowlisted tool on one configured MCP stdio server; requires one-shot admin approval before execution.                                                                    |
 | `mottbot_github_issue_create`   | `github_write`    | opt-in | Creates a GitHub issue through the host `gh` CLI; requires one-shot admin approval before execution.                                                                                 |
@@ -185,7 +185,7 @@ Safety rules:
 
 ## Codex CLI Jobs
 
-Codex CLI job tools are governed by `projectTasks.repoRoots`, `projectTasks.artifactRoot`, and `projectTasks.codex`.
+Codex CLI job tools are governed by `codexJobs.repoRoots`, `codexJobs.artifactRoot`, and `codexJobs.codex`.
 
 Safety rules:
 
@@ -193,10 +193,10 @@ Safety rules:
 - optional `cwd` must stay inside the selected approved root and pass the repository denied-path checks
 - start and cancel are side-effecting admin tools and require the normal one-shot approval flow
 - status and tail are read-only admin tools
-- job state is host-process-local; durable Project Mode tasks still persist their run state in SQLite
-- stdout, stderr, parsed JSONL events, and final messages are written under `projectTasks.artifactRoot`
+- job state is host-process-local
+- stdout, stderr, parsed JSONL events, and final messages are written under `codexJobs.artifactRoot`
 
-Project Mode uses the same `CodexCliService` process/log/event implementation through its `CodexCliRunner` adapter, while the direct tools keep their own lightweight in-memory job index.
+The direct tools keep a lightweight in-memory job index around `CodexCliService`.
 
 ## MCP Stdio Bridge
 

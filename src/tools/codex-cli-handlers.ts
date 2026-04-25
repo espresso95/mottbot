@@ -111,7 +111,7 @@ function eventSummary(record: CodexCliEventRecord): Record<string, unknown> {
 /** Creates tool handlers for starting, inspecting, and cancelling reusable Codex CLI jobs. */
 export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Partial<Record<string, ToolHandler>> {
   const scope = createRepositoryScope({
-    roots: config.projectTasks.repoRoots,
+    roots: config.codexJobs.repoRoots,
     deniedPaths: [],
     maxReadBytes: 1,
     maxSearchMatches: 1,
@@ -119,10 +119,10 @@ export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Par
     commandTimeoutMs: 1,
   });
   const service = new CodexCliService(clock, {
-    command: config.projectTasks.codex.command,
-    coderProfile: config.projectTasks.codex.coderProfile,
-    defaultTimeoutMs: config.projectTasks.codex.defaultTimeoutMs,
-    artifactRoot: config.projectTasks.artifactRoot,
+    command: config.codexJobs.codex.command,
+    coderProfile: config.codexJobs.codex.coderProfile,
+    defaultTimeoutMs: config.codexJobs.codex.defaultTimeoutMs,
+    artifactRoot: config.codexJobs.artifactRoot,
   });
   const jobs = new Map<string, CodexToolJob>();
 
@@ -147,8 +147,8 @@ export function createCodexCliToolHandlers(config: AppConfig, clock: Clock): Par
         targetPath: optionalString(input.cwd),
       });
       const requestedTimeout =
-        typeof input.timeoutMs === "number" ? input.timeoutMs : config.projectTasks.codex.defaultTimeoutMs;
-      const timeoutMs = Math.min(requestedTimeout, config.projectTasks.codex.defaultTimeoutMs);
+        typeof input.timeoutMs === "number" ? input.timeoutMs : config.codexJobs.codex.defaultTimeoutMs;
+      const timeoutMs = Math.min(requestedTimeout, config.codexJobs.codex.defaultTimeoutMs);
       const jobId = createId();
       const prepared = service.prepare({
         jobId,

@@ -17,9 +17,8 @@ function writeLaneConfig(root: string, lane: string, overrides: Record<string, u
         dashboard: { port: 8788 },
         storage: { sqlitePath: `./data/${lane}/mottbot.sqlite` },
         attachments: { cacheDir: `./data/${lane}/attachments` },
-        projectTasks: {
-          worktreeRoot: `./data/${lane}/project-worktrees`,
-          artifactRoot: `./data/${lane}/project-runs`,
+        codexJobs: {
+          artifactRoot: `./data/${lane}/codex-jobs`,
         },
         smoke: {
           botUsername: "StartupMottBotLane1",

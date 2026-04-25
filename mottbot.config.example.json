@@ -152,24 +152,13 @@
   "service": {
     "label": "ai.mottbot.bot"
   },
-  "projectTasks": {
-    "enabled": false,
+  "codexJobs": {
     "repoRoots": ["."],
-    "worktreeRoot": "./data/project-worktrees",
-    "artifactRoot": "./data/project-runs",
-    "maxConcurrentProjects": 1,
-    "defaultMaxParallelWorkersPerProject": 1,
-    "hardMaxParallelWorkersPerProject": 2,
-    "maxConcurrentCodexWorkersGlobal": 2,
-    "defaultBaseRef": "main",
+    "artifactRoot": "./data/codex-jobs",
     "codex": {
       "command": "codex",
       "coderProfile": "mottbot-coder",
-      "reviewerProfile": "mottbot-reviewer",
       "defaultTimeoutMs": 3600000
-    },
-    "approvals": {
-      "requireBeforeProjectStart": true
     }
   },
   "security": {

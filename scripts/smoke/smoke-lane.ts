@@ -310,7 +310,7 @@ export function createSmokeLaneDoctorReport(argv: readonly string[], cwd = proce
   const dashboard = objectField(raw, "dashboard");
   const service = objectField(raw, "service");
   const security = objectField(raw, "security");
-  const projectTasks = objectField(raw, "projectTasks");
+  const codexJobs = objectField(raw, "codexJobs");
   const smoke = objectField(raw, "smoke");
   const rawServiceLabel = stringField(service, "label");
   const serviceLabel = rawServiceLabel ? normalizeServiceLabel(rawServiceLabel) : undefined;
@@ -368,8 +368,7 @@ export function createSmokeLaneDoctorReport(argv: readonly string[], cwd = proce
     },
     pathCheck({ name: "sqlite path", rawPath: sqlitePath, lane, cwd }),
     pathCheck({ name: "attachment cache path", rawPath: stringField(attachments, "cacheDir"), lane, cwd }),
-    pathCheck({ name: "project worktree path", rawPath: stringField(projectTasks, "worktreeRoot"), lane, cwd }),
-    pathCheck({ name: "project artifact path", rawPath: stringField(projectTasks, "artifactRoot"), lane, cwd }),
+    pathCheck({ name: "Codex job artifact path", rawPath: stringField(codexJobs, "artifactRoot"), lane, cwd }),
     pathCheck({ name: "smoke user session path", rawPath: sessionPath, lane, cwd }),
     duplicateCheck({
       name: "sibling service label uniqueness",

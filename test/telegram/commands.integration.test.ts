@@ -13,10 +13,6 @@ import { TelegramGovernanceStore } from "../../src/telegram/governance.js";
 import { UsageBudgetService } from "../../src/runs/usage-budget.js";
 import {
   buildMemoryCandidateAcceptCallbackData,
-  buildProjectApprovalCallbackData,
-  buildProjectCleanupCallbackData,
-  buildProjectDetailsCallbackData,
-  buildProjectPublishMainCallbackData,
   buildRunFilesCallbackData,
   buildRunNewCallbackData,
   buildRunRetryCallbackData,
@@ -208,48 +204,6 @@ describe("TelegramCommandRouter", () => {
 
     expect(handled).toBe(true);
     expect(api.sendMessage).not.toHaveBeenCalled();
-  });
-
-  it("limits Project Mode commands to owner/admin callers", async () => {
-    const stores = createStores();
-    cleanup.push(() => {
-      stores.database.close();
-      removeTempDir(stores.tempDir);
-    });
-    const api = { sendMessage: vi.fn(async () => ({})) };
-    const projects = { handle: vi.fn(async () => undefined) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      projects as any,
-    );
-
-    await router.maybeHandle(createInboundEvent({ text: "/project status", fromUserId: "user-1", isCommand: true }));
-    await router.maybeHandle(createInboundEvent({ text: "/project status", fromUserId: "admin-1", isCommand: true }));
-
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      "Only owner/admin roles can use Project Mode.",
-      expect.any(Object),
-    );
-    expect(projects.handle).toHaveBeenCalledTimes(1);
-    expect(projects.handle).toHaveBeenCalledWith(expect.objectContaining({ fromUserId: "admin-1" }), ["status"]);
   });
 
   it("handles /status with usage data", async () => {
@@ -2144,119 +2098,6 @@ describe("TelegramCommandRouter", () => {
     expect(api.editMessageReplyMarkup).toHaveBeenCalledWith("chat-1", 42);
     expect(approvals.listAudit({ sessionKey: session.sessionKey, decisionCode: "approval_expired" })).toHaveLength(1);
   });
-
-  it("routes project approval callbacks and ignores unknown callback data", async () => {
-    const stores = createStores();
-    cleanup.push(() => {
-      stores.database.close();
-      removeTempDir(stores.tempDir);
-    });
-    const api = {
-      answerCallbackQuery: vi.fn(async () => ({})),
-      sendMessage: vi.fn(async () => ({})),
-    };
-    const projects = {
-      handleApprovalCallback: vi.fn(async () => undefined),
-      handleDetailsCallback: vi.fn(async () => undefined),
-      handleCleanupCallback: vi.fn(async () => undefined),
-      handlePublishMainCallback: vi.fn(async () => undefined),
-    };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      projects as any,
-    );
-
-    await expect(router.maybeHandleCallback(createCallbackEvent({ data: "not-mottbot-callback" }))).resolves.toBe(
-      false,
-    );
-
-    const event = createCallbackEvent({
-      fromUserId: "admin-1",
-      data: buildProjectApprovalCallbackData("approval-1"),
-    });
-    await expect(router.maybeHandleCallback(event)).resolves.toBe(true);
-
-    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Processing project approval.",
-      show_alert: false,
-    });
-    expect(projects.handleApprovalCallback).toHaveBeenCalledWith(event, "approval-1");
-
-    const detailsEvent = createCallbackEvent({
-      fromUserId: "admin-1",
-      data: buildProjectDetailsCallbackData("task-1"),
-    });
-    await expect(router.maybeHandleCallback(detailsEvent)).resolves.toBe(true);
-    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Showing project details.",
-      show_alert: false,
-    });
-    expect(projects.handleDetailsCallback).toHaveBeenCalledWith(detailsEvent, "task-1");
-
-    const cleanupEvent = createCallbackEvent({
-      fromUserId: "admin-1",
-      data: buildProjectCleanupCallbackData("task-1"),
-    });
-    await expect(router.maybeHandleCallback(cleanupEvent)).resolves.toBe(true);
-    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Cleaning up project.",
-      show_alert: false,
-    });
-    expect(projects.handleCleanupCallback).toHaveBeenCalledWith(cleanupEvent, "task-1");
-
-    const publishEvent = createCallbackEvent({
-      fromUserId: "admin-1",
-      data: buildProjectPublishMainCallbackData("task-1"),
-    });
-    await expect(router.maybeHandleCallback(publishEvent)).resolves.toBe(true);
-    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Preparing project publish approval.",
-      show_alert: false,
-    });
-    expect(projects.handlePublishMainCallback).toHaveBeenCalledWith(publishEvent, "task-1");
-
-    api.answerCallbackQuery.mockClear();
-    api.sendMessage.mockClear();
-    projects.handleApprovalCallback.mockClear();
-
-    await expect(
-      router.maybeHandleCallback(
-        createCallbackEvent({
-          fromUserId: "user-1",
-          data: buildProjectApprovalCallbackData("approval-1"),
-        }),
-      ),
-    ).resolves.toBe(true);
-
-    expect(api.answerCallbackQuery).toHaveBeenCalledWith("callback-1", {
-      text: "Only owner/admin roles can use Project Mode.",
-      show_alert: true,
-    });
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      "Only owner/admin roles can use Project Mode.",
-      expect.any(Object),
-    );
-    expect(projects.handleApprovalCallback).not.toHaveBeenCalled();
-  });
-
   it("handles run action callbacks", async () => {
     const stores = createStores();
     cleanup.push(() => {

@@ -131,19 +131,16 @@ src/
   db/
   models/
   ops/
-  project-tasks/
   runs/
   sessions/
   shared/
   telegram/
   tools/
-  worktrees/
 test/
   app/
   codex/
   db/
   ops/
-  project-tasks/
   runs/
   sessions/
   shared/
@@ -165,9 +162,8 @@ At process boot, `bootstrapApplication()` performs these steps:
 5. Create the session, transcript, run, and transport state stores.
 6. Create the token resolver, transport wrapper, and usage budget service.
 7. Create a provisional bot to obtain an API object for the outbox.
-8. Create the outbox, orchestrator, and command router.
-9. Create Project Mode stores and schedulers when configured.
-10. Create the final Telegram bot server and return a start/stop handle.
+8. Create the outbox, tool registry, orchestrator, and command router.
+9. Create the final Telegram bot server and return a start/stop handle.
 
 This is all done inside one process. There is no separate queue worker, external scheduler, or sidecar service.
 

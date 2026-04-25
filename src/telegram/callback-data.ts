@@ -1,9 +1,5 @@
 /** Parsed Telegram callback action for inline approval buttons. */
 type TelegramCallbackAction =
-  | { type: "project_approve"; approvalId: string }
-  | { type: "project_details"; taskId: string }
-  | { type: "project_cleanup"; taskId: string }
-  | { type: "project_publish_main"; taskId: string }
   | { type: "run_stop"; runId: string }
   | { type: "run_retry"; runId: string }
   | { type: "run_new"; runId: string }
@@ -16,10 +12,6 @@ type TelegramCallbackAction =
   | { type: "memory_archive"; candidateId: string };
 
 const PREFIX = "mb";
-const PROJECT_APPROVE = "pa";
-const PROJECT_DETAILS = "pd";
-const PROJECT_CLEANUP = "pc";
-const PROJECT_PUBLISH_MAIN = "pb";
 const RUN_STOP = "rs";
 const RUN_RETRY = "rr";
 const RUN_NEW = "rn";
@@ -37,26 +29,6 @@ function assertCallbackDataFits(data: string): string {
     throw new Error("Telegram callback data is too long.");
   }
   return data;
-}
-
-/** Builds compact callback data for approving a Project Mode approval request. */
-export function buildProjectApprovalCallbackData(approvalId: string): string {
-  return assertCallbackDataFits(`${PREFIX}:${PROJECT_APPROVE}:${approvalId}`);
-}
-
-/** Builds compact callback data for showing Project Mode task details. */
-export function buildProjectDetailsCallbackData(taskId: string): string {
-  return assertCallbackDataFits(`${PREFIX}:${PROJECT_DETAILS}:${taskId}`);
-}
-
-/** Builds compact callback data for cleaning up retained Project Mode task worktrees. */
-export function buildProjectCleanupCallbackData(taskId: string): string {
-  return assertCallbackDataFits(`${PREFIX}:${PROJECT_CLEANUP}:${taskId}`);
-}
-
-/** Builds compact callback data for requesting a direct Project Mode publish to the base ref. */
-export function buildProjectPublishMainCallbackData(taskId: string): string {
-  return assertCallbackDataFits(`${PREFIX}:${PROJECT_PUBLISH_MAIN}:${taskId}`);
 }
 
 /** Builds compact callback data for stopping the active run from its status message. */
@@ -115,18 +87,6 @@ export function parseTelegramCallbackData(data: string): TelegramCallbackAction 
   const id = rest.join(":").trim();
   if (prefix !== PREFIX || !id) {
     return undefined;
-  }
-  if (action === PROJECT_APPROVE) {
-    return { type: "project_approve", approvalId: id };
-  }
-  if (action === PROJECT_DETAILS) {
-    return { type: "project_details", taskId: id };
-  }
-  if (action === PROJECT_CLEANUP) {
-    return { type: "project_cleanup", taskId: id };
-  }
-  if (action === PROJECT_PUBLISH_MAIN) {
-    return { type: "project_publish_main", taskId: id };
   }
   if (action === RUN_STOP) {
     return { type: "run_stop", runId: id };

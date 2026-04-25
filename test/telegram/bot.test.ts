@@ -94,13 +94,11 @@ describe("TelegramBotServer", () => {
     });
 
     expect(botApi.getMe).toHaveBeenCalled();
-    expect(botApi.setMyCommands).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        { command: "help", description: "Show available commands" },
-        { command: "project", description: "Run Project Mode tasks" },
-        { command: "status", description: "Show session status" },
-      ]),
+    const registeredCommands = botApi.setMyCommands.mock.calls[0]?.[0].map(
+      (entry: { command: string }) => entry.command,
     );
+    expect(registeredCommands).toEqual(expect.arrayContaining(["help", "status"]));
+    expect(registeredCommands).not.toContain("project");
     expect(commands.maybeHandle).toHaveBeenCalled();
     expect(access.evaluate).toHaveBeenCalled();
     expect(routes.resolve).toHaveBeenCalled();

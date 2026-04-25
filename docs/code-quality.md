@@ -82,9 +82,8 @@ ESLint also enforces module-boundary rules where the current architecture has cl
 
 - `src/shared/*` stays independent from runtime and domain modules
 - `src/db/*` depends only on storage-local code and shared infrastructure
-- `src/codex/*` stays isolated from Telegram, sessions, project tasks, CLI workers, and worktrees
-- Telegram runtime helpers stay free of Codex, project-task, and worktree orchestration imports
-- worktree helpers stay reusable Git/filesystem utilities
+- `src/codex/*` stays isolated from Telegram, sessions, and CLI workers
+- Telegram runtime helpers stay free of Codex orchestration imports
 - the reusable Codex CLI service and JSONL parser stay independent from app runtime modules
 
 Command and orchestration files still own some cross-module wiring, so boundary rules are intentionally scoped to the seams that are enforceable without a broader refactor.

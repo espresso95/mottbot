@@ -235,7 +235,7 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 `pnpm smoke:local-tools` creates disposable temp roots, drives the real tool executor and approval path, validates local document append/replace, allowlisted local command execution, and a configured test MCP stdio call, then removes the temp files. It does not send Telegram messages or use production tool roots.
 
-`pnpm smoke:telegram-callbacks` drives tool approve, tool deny, memory-candidate accept, and Project Mode approval callback handlers in process against a temporary SQLite database. It verifies callback source-message edits, stale keyboard cleanup, audit writes, memory acceptance, and project approval routing without live Telegram access.
+`pnpm smoke:telegram-callbacks` drives tool approve, tool deny, and memory-candidate accept callback handlers in process against a temporary SQLite database. It verifies callback source-message edits, stale keyboard cleanup, audit writes, and memory acceptance without live Telegram access.
 
 `pnpm smoke:github-write` validates approval-gated GitHub issue creation and issue/PR comments through the host `gh` CLI. Start with `--repository owner/disposable-repo --dry-run`; live writes require `--no-dry-run --confirm create-live-github-issue` and should target only a disposable repository or disposable issue/PR.
 
@@ -245,7 +245,7 @@ No CI secrets are required for the default gate. Live Telegram and live Codex ch
 
 The harness also accepts `--target`, `--reply-to-latest-bot-message`, and `--file-path` for group, reply-gating, and attachment smoke checks.
 
-`pnpm smoke:lane --lane <name>` runs doctor, preflight, suite, telegram-user, or service actions through `.local/smoke-lanes/<name>.json`. Use it when multiple worktrees need live Telegram smoke at the same time. Each lane must use a different Telegram bot token, `service.label`, dashboard port, SQLite path, project worktree/artifact roots, and smoke session path. Run `pnpm smoke:lane --lane <name> --action doctor` first for local token-free isolation checks. Relative paths in lane configs resolve from the worktree where the command runs.
+`pnpm smoke:lane --lane <name>` runs doctor, preflight, suite, telegram-user, or service actions through `.local/smoke-lanes/<name>.json`. Use it when multiple worktrees need live Telegram smoke at the same time. Each lane must use a different Telegram bot token, `service.label`, dashboard port, SQLite path, Codex job artifact root, and smoke session path. Run `pnpm smoke:lane --lane <name> --action doctor` first for local token-free isolation checks. Relative paths in lane configs resolve from the worktree where the command runs.
 
 ## User Roles And Chat Governance
 
@@ -422,7 +422,7 @@ Current side-effecting tools:
 - `mottbot_local_doc_append`: appends plain text to an existing `.md` or `.txt` document under an approved local-write root
 - `mottbot_local_doc_replace`: replaces an existing `.md` or `.txt` document only when the supplied SHA-256 matches the current file
 - `mottbot_local_command_run`: runs one configured local command in an approved workspace root
-- `mottbot_codex_job_start`: starts a `codex exec --json` job in an approved project repository using the Project Mode Codex CLI settings
+- `mottbot_codex_job_start`: starts a `codex exec --json` job in an approved project repository using the Codex CLI job settings
 - `mottbot_codex_job_cancel`: cancels a running Codex CLI job started by this process
 - `mottbot_mcp_call_tool`: calls one allowlisted tool on one configured MCP stdio server
 - `mottbot_github_issue_create`: creates a GitHub issue through `gh`
@@ -468,13 +468,13 @@ Local command execution is scoped by:
 
 Leave `tools.localExec.allowedCommands` empty until you intentionally approve commands. Commands run without shell expansion, with ignored stdin, bounded stdout/stderr, timeout enforcement, a minimal environment, and a working directory under `tools.localExec.roots`. Shells and privilege-changing commands are denied even if they appear in the allowlist.
 
-Codex CLI job tools use Project Mode configuration:
+Codex CLI job tools use the `codexJobs` configuration block:
 
-- `projectTasks.repoRoots` controls which git checkout roots can run Codex jobs
-- `projectTasks.artifactRoot` stores stdout, stderr, JSONL events, and final messages
-- `projectTasks.codex.command`, `coderProfile`, and `defaultTimeoutMs` control the CLI command, default profile, and timeout cap
+- `codexJobs.repoRoots` controls which git checkout roots can run Codex jobs
+- `codexJobs.artifactRoot` stores stdout, stderr, JSONL events, and final messages
+- `codexJobs.codex.command`, `coderProfile`, and `defaultTimeoutMs` control the CLI command, default profile, and timeout cap
 - `mottbot_codex_job_status` and `mottbot_codex_job_tail` are read-only admin tools
-- direct tool job state is kept in memory for the current process; durable `/project` tasks still persist run state in SQLite
+- direct tool job state is kept in memory for the current process
 
 MCP stdio tool calls are scoped by:
 
@@ -921,7 +921,6 @@ Current runtime:
 Runtime controls are exposed through Telegram commands:
 
 - `/status`
-- `/project` (owner/admin-only, feature-flagged long-running project tasks)
 - `/usage [daily|monthly]`
 - `/health`
 - `/model`

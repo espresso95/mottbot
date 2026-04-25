@@ -6,7 +6,6 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
 import type { UsageBudgetService } from "../runs/usage-budget.js";
-import type { ProjectCommandRouter } from "../project-tasks/project-command-router.js";
 import type { RouteResolver } from "./route-resolver.js";
 import type { InboundEvent, TelegramCallbackEvent } from "./types.js";
 import type { HealthReporter } from "../app/health.js";
@@ -54,12 +53,7 @@ type CommandVisibility =
   | { allowed: true }
   | {
       allowed: false;
-      reason:
-        | "chat_not_allowed"
-        | "role_not_allowed"
-        | "command_not_allowed"
-        | "group_policy_required"
-        | "project_admin_required";
+      reason: "chat_not_allowed" | "role_not_allowed" | "command_not_allowed" | "group_policy_required";
     };
 
 function inboundEventFromCallback(event: TelegramCallbackEvent): InboundEvent {
@@ -116,7 +110,6 @@ export class TelegramCommandRouter {
     private readonly github?: GithubReadOperations,
     private readonly governance?: TelegramGovernanceStore,
     private readonly usageBudget?: UsageBudgetService,
-    private readonly projects?: ProjectCommandRouter,
   ) {}
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
@@ -161,14 +154,6 @@ export class TelegramCommandRouter {
           args: parsed.args,
           usageBudget: this.usageBudget,
         });
-        return true;
-      }
-      case "project": {
-        if (!this.projects) {
-          await sendReply(this.api, event, "Project mode is not available.");
-          return true;
-        }
-        await this.projects.handle(event, parsed.args);
         return true;
       }
       case "agent": {
@@ -517,39 +502,6 @@ export class TelegramCommandRouter {
       });
       return true;
     }
-    if (
-      action.type === "project_approve" ||
-      action.type === "project_details" ||
-      action.type === "project_cleanup" ||
-      action.type === "project_publish_main"
-    ) {
-      if (await this.rejectUnauthorizedCallback(event, "project")) {
-        return true;
-      }
-      if (!this.projects) {
-        await this.answerCallback(event, "Project mode is not available.", true);
-        await sendReply(this.api, event, "Project mode is not available.");
-        return true;
-      }
-      if (action.type === "project_approve") {
-        await this.answerCallback(event, "Processing project approval.");
-        await this.projects.handleApprovalCallback(event, action.approvalId);
-        return true;
-      }
-      if (action.type === "project_details") {
-        await this.answerCallback(event, "Showing project details.");
-        await this.projects.handleDetailsCallback(event, action.taskId);
-        return true;
-      }
-      if (action.type === "project_cleanup") {
-        await this.answerCallback(event, "Cleaning up project.");
-        await this.projects.handleCleanupCallback(event, action.taskId);
-        return true;
-      }
-      await this.answerCallback(event, "Preparing project publish approval.");
-      await this.projects.handlePublishMainCallback(event, action.taskId);
-      return true;
-    }
     if (action.type === "memory_accept" || action.type === "memory_reject" || action.type === "memory_archive") {
       if (await this.rejectUnauthorizedCallback(event, "memory")) {
         return true;
@@ -613,10 +565,6 @@ export class TelegramCommandRouter {
       );
       return true;
     }
-    if (decision.reason === "project_admin_required") {
-      await sendReply(this.api, event, "Only owner/admin roles can use Project Mode.");
-      return true;
-    }
     return true;
   }
 
@@ -633,9 +581,7 @@ export class TelegramCommandRouter {
           ? "Your role is not allowed to use this chat."
           : decision.reason === "command_not_allowed"
             ? "Your role is not allowed to run this command in this chat."
-            : decision.reason === "project_admin_required"
-              ? "Only owner/admin roles can use Project Mode."
-              : "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.";
+            : "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.";
     await this.answerCallback(event, message, true);
     await sendReply(this.api, event, message);
     return true;
@@ -671,9 +617,6 @@ export class TelegramCommandRouter {
     }
     if (this.governance && !this.governance.isChatAllowed({ chatId: event.chatId, userId: event.fromUserId })) {
       return { allowed: false, reason: "role_not_allowed" };
-    }
-    if (command === "project") {
-      return { allowed: false, reason: "project_admin_required" };
     }
     if (
       this.governance &&
@@ -770,7 +713,6 @@ export class TelegramCommandRouter {
           commandHelp("status", "/status - show session, model, profile, and usage"),
           commandHelp("health", "/health - show runtime health"),
           commandHelp("usage", "/usage [daily|monthly] - show local run usage and configured limits"),
-          commandHelp("project", "/project start|status|tail|cancel|cleanup|publish|approve - run long project tasks"),
           commandHelp("agent", "/agent [list|show|set|reset] - inspect or change this session agent"),
           commandHelp("model", "/model <provider/model> - change this session model"),
           commandHelp("profile", "/profile [profile-id] - list or select auth profile"),

@@ -216,7 +216,7 @@ Admins can inspect agent state with `/debug agents` or the dashboard Agents pane
 
 `TelegramCommandRouter` handles commands before the ACL-model pipeline.
 
-On startup, the bot registers its top-level slash commands with Telegram so clients can suggest commands such as `/project`, `/status`, and `/help` while typing. Telegram command menus only support top-level commands; subcommands such as `/project details` remain documented through `/help` and `/commands`.
+On startup, the bot registers its top-level slash commands with Telegram so clients can suggest commands such as `/status` and `/help` while typing. Telegram command menus only support top-level commands; model-visible tools such as the Codex job tools remain available through the normal tool policy path, not as Telegram commands.
 
 ### Command authorization
 
@@ -225,7 +225,6 @@ Current policy:
 - owner/admin roles can run commands in any chat, including chats outside `telegram.allowedChatIds`
 - `telegram.adminUserIds` are treated as protected owners and cannot be revoked from Telegram
 - normal and trusted users can run commands only in private chats by default
-- `/project` commands are owner/admin-only because they can read local task logs and mutate local git worktrees
 - when `telegram.allowedChatIds` is non-empty, non-operator private commands are rejected unless the chat is listed
 - group and supergroup commands from non-operators are rejected unless a chat policy explicitly allows the command for that role
 - chat governance can restrict allowed roles, allowed commands, allowed models, allowed model tools, memory scopes, and stricter attachment limits per chat
@@ -236,7 +235,6 @@ Current policy:
 - `/help`
 - `/commands`
 - `/status`
-- `/project` (feature-flagged long-running project tasks)
 - `/usage [daily|monthly]`
 - `/health`
 - `/model <provider/model>`
@@ -302,7 +300,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 ### Current command behavior
 
 - `/help` and `/commands` return caller-aware command discovery based on role, chat type, enabled runtime features, and per-chat command policy
-- `/status` includes session key, model, profile, fast mode, profile count, and usage when available; `/project` starts, monitors, publishes, and cleans up durable Codex CLI project tasks when enabled
+- `/status` includes session key, model, profile, fast mode, profile count, and usage when available
 - `/usage` reports local UTC daily or monthly run counts for the current global/chat/session/user/model context and shows configured limits without exposing account identifiers or tokens
 - `/health` returns a lightweight runtime snapshot
 - `/model` updates `session_routes.model_ref` only for known built-in Codex model refs
@@ -331,9 +329,6 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - retry buttons replay only text-backed failed or cancelled runs; attachment-backed runs ask the operator to send the file again so transient attachment cache state is not silently reused
 - inline memory candidate buttons accept, reject, or archive pending candidates from `/memory candidates`
 - `/tool audit` is owner/admin-only and lists bounded policy/approval audit decisions, optionally filtered to `here`, `tool:<name>`, and `code:<decision>`
-- Project Mode start and publish approval prompts include inline approval buttons that re-check owner/admin status and originating chat, then mark the original message as approved or not applied; `/project approve <approval-id>` remains the fallback command and enforces the same originating-chat ownership check
-- `/project status` shows a compact task card with short display IDs, progress, latest run errors, next-step commands, and inline actions when details, publish-to-main, or cleanup are available
-- `/project details [task]` shows the full operator view with full task IDs, repo paths, subtask dependencies, latest Codex CLI run state and error, diff stats, summaries, and retained worktree cleanup details
 
 ## Session Queue
 

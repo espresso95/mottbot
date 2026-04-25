@@ -189,8 +189,8 @@ Codex CLI job tools:
 
 - `mottbot_codex_job_start` and `mottbot_codex_job_cancel` are side-effecting admin tools and require one-shot approval
 - `mottbot_codex_job_status` and `mottbot_codex_job_tail` are read-only admin tools
-- jobs use `projectTasks.repoRoots`, `projectTasks.artifactRoot`, and `projectTasks.codex` settings
-- direct tool job state is kept in memory for the current process; `/project` tasks remain durable in SQLite
+- jobs use `codexJobs.repoRoots`, `codexJobs.artifactRoot`, and `codexJobs.codex` settings
+- direct tool job state is kept in memory for the current process
 
 MCP bridge settings:
 
