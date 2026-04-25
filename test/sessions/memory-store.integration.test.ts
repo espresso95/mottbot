@@ -255,4 +255,45 @@ describe("MemoryStore", () => {
       removeTempDir(stores.tempDir);
     }
   });
+
+  it("clears accepted candidate memories without deleting candidate history", () => {
+    const stores = createStores();
+    try {
+      const session = stores.sessions.ensure({
+        sessionKey: "tg:dm:chat-1:user:user-1",
+        chatId: "chat-1",
+        userId: "user-1",
+        routeMode: "dm",
+        profileId: "openai-codex:default",
+        modelRef: "openai-codex/gpt-5.4",
+      });
+      const memories = new MemoryStore(stores.database, stores.clock);
+      const candidate = memories.addCandidate({
+        sessionKey: session.sessionKey,
+        scope: "session",
+        scopeKey: session.sessionKey,
+        contentText: "User prefers examples with assertions.",
+        sensitivity: "low",
+      });
+      if (!candidate.inserted) {
+        throw new Error("expected inserted candidate");
+      }
+      const accepted = memories.acceptCandidate({
+        sessionKey: session.sessionKey,
+        idPrefix: candidate.candidate.id.slice(0, 8),
+        decidedByUserId: "user-1",
+      });
+      if (!accepted) {
+        throw new Error("expected accepted candidate");
+      }
+
+      expect(memories.listCandidates(session.sessionKey, "accepted")[0]?.acceptedMemoryId).toBe(accepted.memory.id);
+      expect(memories.clear(session.sessionKey)).toBe(1);
+      expect(memories.listForScopeContext(session)).toEqual([]);
+      expect(memories.listCandidates(session.sessionKey, "accepted")[0]?.acceptedMemoryId).toBeUndefined();
+    } finally {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    }
+  });
 });

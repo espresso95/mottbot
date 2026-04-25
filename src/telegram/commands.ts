@@ -1,9 +1,7 @@
 import type { Api } from "grammy";
 import type { AgentConfig, AppConfig } from "../app/config.js";
 import type { AuthProfileStore } from "../codex/auth-store.js";
-import { isCodexModelRef, isKnownCodexModelRef, KNOWN_CODEX_MODEL_REFS_TEXT } from "../codex/provider.js";
 import type { CodexTokenResolver } from "../codex/token-resolver.js";
-import { fetchCodexUsage } from "../codex/usage.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { RunOrchestrator } from "../runs/run-orchestrator.js";
@@ -20,28 +18,27 @@ import type { SessionRoute } from "../sessions/types.js";
 import type { OperatorDiagnostics } from "../app/diagnostics.js";
 import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { GithubReadOperations } from "../tools/github-read.js";
+import { handleAgentCommand } from "./agent-commands.js";
 import { handleAuthCommand } from "./auth-commands.js";
-import {
-  commandHelp,
-  formatAgentDetails,
-  formatAgentLine,
-  formatCommandSection,
-  formatUsageSummary,
-  type CommandHelpEntry,
-} from "./command-formatters.js";
-import {
-  PROFILE_ID_PATTERN,
-  normalizeBindingName,
-  normalizeSingleArg,
-  parseCommand,
-  validateBindingName,
-} from "./command-parsing.js";
+import { commandHelp, formatCommandSection, type CommandHelpEntry } from "./command-formatters.js";
+import { parseCommand } from "./command-parsing.js";
 import { sendReply } from "./command-replies.js";
 import { handleDebugCommand, handleRunsCommand } from "./diagnostic-commands.js";
 import { handleFilesCommand } from "./files-commands.js";
 import { handleGithubCommand } from "./github-commands.js";
 import { isGovernanceOperatorRole, type TelegramGovernanceStore, type TelegramUserRole } from "./governance.js";
 import { handleForgetCommand, handleMemoryCommand, handleRememberCommand } from "./memory-commands.js";
+import {
+  handleBindCommand,
+  handleFastCommand,
+  handleModelCommand,
+  handleProfileCommand,
+  handleResetCommand,
+  handleStatusCommand,
+  handleStopCommand,
+  handleUnbindCommand,
+  handleUsageCommand,
+} from "./session-commands.js";
 import { handleToolApprovalCallback, handleToolCommand } from "./tool-commands.js";
 import { handleUsersCommand } from "./user-commands.js";
 import { parseTelegramCallbackData } from "./callback-data.js";
@@ -116,31 +113,13 @@ export class TelegramCommandRouter {
         return true;
       }
       case "status": {
-        const authCount = this.authProfiles.list().length;
-        let usageSummary = "Usage unavailable";
-        try {
-          const auth = await this.tokenResolver.resolve(session.profileId);
-          const usage = await fetchCodexUsage({
-            accessToken: auth.accessToken,
-            accountId: auth.accountId,
-          });
-          usageSummary = formatUsageSummary(usage);
-        } catch {
-          // keep fallback summary
-        }
-        await sendReply(
-          this.api,
+        await handleStatusCommand({
+          api: this.api,
           event,
-          [
-            `Session: ${session.sessionKey}`,
-            `Agent: ${session.agentId}`,
-            `Model: ${session.modelRef}`,
-            `Profile: ${session.profileId}`,
-            `Fast mode: ${session.fastMode ? "on" : "off"}`,
-            `Auth profiles: ${authCount}`,
-            `Usage: ${usageSummary}`,
-          ].join("\n"),
-        );
+          session,
+          authProfiles: this.authProfiles,
+          tokenResolver: this.tokenResolver,
+        });
         return true;
       }
       case "health": {
@@ -148,7 +127,13 @@ export class TelegramCommandRouter {
         return true;
       }
       case "usage": {
-        await this.handleUsageCommand(event, session, parsed.args);
+        await handleUsageCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          usageBudget: this.usageBudget,
+        });
         return true;
       }
       case "project": {
@@ -160,7 +145,19 @@ export class TelegramCommandRouter {
         return true;
       }
       case "agent": {
-        await this.handleAgentCommand(event, session, parsed.args);
+        await handleAgentCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          config: this.config,
+          authProfiles: this.authProfiles,
+          sessions: this.sessions,
+          routes: this.routes,
+          usageBudget: this.usageBudget,
+          governance: this.governance,
+          isAdmin: this.isAdmin(event),
+        });
         return true;
       }
       case "tool": {
@@ -283,90 +280,73 @@ export class TelegramCommandRouter {
         return true;
       }
       case "model": {
-        const nextModelRef = normalizeSingleArg(parsed.args[0]);
-        if (!nextModelRef) {
-          await sendReply(this.api, event, "Usage: /model <provider/model>");
-          return true;
-        }
-        if (!isKnownCodexModelRef(nextModelRef)) {
-          await sendReply(
-            this.api,
-            event,
-            `Unknown model ${nextModelRef}. Supported models: ${KNOWN_CODEX_MODEL_REFS_TEXT}.`,
-          );
-          return true;
-        }
-        if (this.governance && !this.governance.isModelAllowed({ chatId: event.chatId, modelRef: nextModelRef })) {
-          await sendReply(this.api, event, `Model ${nextModelRef} is not allowed in this chat.`);
-          return true;
-        }
-        this.sessions.setModelRef(session.sessionKey, nextModelRef);
-        await sendReply(this.api, event, `Model set to ${nextModelRef}.`);
+        await handleModelCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          sessions: this.sessions,
+          governance: this.governance,
+        });
         return true;
       }
       case "profile": {
-        const nextProfileId = normalizeSingleArg(parsed.args[0]);
-        if (!nextProfileId) {
-          const profiles = this.authProfiles.list();
-          await sendReply(
-            this.api,
-            event,
-            profiles.length > 0
-              ? `Profiles:\n${profiles.map((profile) => `- ${profile.profileId} (${profile.source})`).join("\n")}`
-              : "No auth profiles found.",
-          );
-          return true;
-        }
-        if (!PROFILE_ID_PATTERN.test(nextProfileId)) {
-          await sendReply(
-            this.api,
-            event,
-            "Invalid profile ID. Use 1-128 letters, numbers, dots, slashes, underscores, colons, or hyphens.",
-          );
-          return true;
-        }
-        if (!this.authProfiles.get(nextProfileId)) {
-          await sendReply(this.api, event, `Unknown profile ${nextProfileId}.`);
-          return true;
-        }
-        this.sessions.setProfileId(session.sessionKey, nextProfileId);
-        await sendReply(this.api, event, `Profile set to ${nextProfileId}.`);
+        await handleProfileCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          sessions: this.sessions,
+          authProfiles: this.authProfiles,
+        });
         return true;
       }
       case "fast": {
-        if (!parsed.args[0] || !["on", "off"].includes(parsed.args[0])) {
-          await sendReply(this.api, event, "Usage: /fast on|off");
-          return true;
-        }
-        const next = parsed.args[0] === "on";
-        this.sessions.setFastMode(session.sessionKey, next);
-        await sendReply(this.api, event, `Fast mode ${next ? "enabled" : "disabled"}.`);
+        await handleFastCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          sessions: this.sessions,
+        });
         return true;
       }
       case "new":
       case "reset": {
-        this.transcripts.clearSession(session.sessionKey);
-        await sendReply(this.api, event, "Session transcript cleared.");
+        await handleResetCommand({
+          api: this.api,
+          event,
+          session,
+          transcripts: this.transcripts,
+        });
         return true;
       }
       case "stop": {
-        const stopped = await this.orchestrator.stop(session.sessionKey);
-        await sendReply(this.api, event, stopped ? "Active run cancelled." : "No active run.");
+        await handleStopCommand({
+          api: this.api,
+          event,
+          session,
+          orchestrator: this.orchestrator,
+        });
         return true;
       }
       case "bind": {
-        const bindingName = normalizeBindingName(parsed.args);
-        if (!validateBindingName(bindingName)) {
-          await sendReply(this.api, event, "Invalid binding name. Use 1-64 visible characters.");
-          return true;
-        }
-        this.sessions.bind(session.sessionKey, bindingName);
-        await sendReply(this.api, event, "Route bound for always-on replies in this chat/topic.");
+        await handleBindCommand({
+          api: this.api,
+          event,
+          session,
+          args: parsed.args,
+          sessions: this.sessions,
+        });
         return true;
       }
       case "unbind": {
-        this.sessions.unbind(session.sessionKey);
-        await sendReply(this.api, event, "Route unbound.");
+        await handleUnbindCommand({
+          api: this.api,
+          event,
+          session,
+          sessions: this.sessions,
+        });
         return true;
       }
       case "auth": {
@@ -561,14 +541,6 @@ export class TelegramCommandRouter {
     return this.config.agents.list.find((agent) => agent.id === session.agentId);
   }
 
-  private async requireAdmin(event: InboundEvent, action: string): Promise<boolean> {
-    if (this.isAdmin(event)) {
-      return true;
-    }
-    await sendReply(this.api, event, `Only owner/admin roles can ${action}.`);
-    return false;
-  }
-
   private formatHelp(event: InboundEvent, session: SessionRoute): string {
     const isAdmin = this.isAdmin(event);
     const exposedTools = this.listExposedToolsForSession(event, session);
@@ -701,144 +673,5 @@ export class TelegramCommandRouter {
         : undefined,
     ].filter((section): section is string => Boolean(section));
     return sections.join("\n\n");
-  }
-
-  private async handleUsageCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    if (!this.usageBudget) {
-      await sendReply(this.api, event, "Usage budgets are not available.");
-      return;
-    }
-    const selectedWindow = args[0]?.toLowerCase();
-    if (selectedWindow && selectedWindow !== "daily" && selectedWindow !== "monthly") {
-      await sendReply(this.api, event, "Usage: /usage [daily|monthly]");
-      return;
-    }
-    const window = selectedWindow === "monthly" ? "monthly" : "daily";
-    await sendReply(this.api, event, this.usageBudget.formatUsageReport({ session, window }));
-  }
-
-  private async handleAgentCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
-    const sub = args[0]?.toLowerCase() ?? "show";
-    if (sub === "list") {
-      await sendReply(
-        this.api,
-        event,
-        [
-          "Configured agents:",
-          ...this.config.agents.list.map((agent) =>
-            formatAgentLine(agent, { currentId: session.agentId, defaultId: this.config.agents.defaultId }),
-          ),
-        ].join("\n"),
-      );
-      return;
-    }
-    if (sub === "show") {
-      const requestedAgentId = normalizeSingleArg(args[1]);
-      const agent = requestedAgentId ? this.findAgent(requestedAgentId) : this.agentForSession(session);
-      if (!agent) {
-        await sendReply(
-          this.api,
-          event,
-          requestedAgentId
-            ? `Unknown agent ${requestedAgentId}.`
-            : `Current route agent ${session.agentId} is not in the current config.`,
-        );
-        return;
-      }
-      await sendReply(this.api, event, formatAgentDetails(agent));
-      return;
-    }
-    if (sub === "set") {
-      if (!(await this.requireAdmin(event, "change session agents"))) {
-        return;
-      }
-      const agentId = normalizeSingleArg(args[1]);
-      const agent = agentId ? this.findAgent(agentId) : undefined;
-      if (!agent) {
-        await sendReply(this.api, event, "Usage: /agent set <agent-id>");
-        return;
-      }
-      await this.applyAgentSelection(event, session, agent, "Agent set");
-      return;
-    }
-    if (sub === "reset") {
-      if (!(await this.requireAdmin(event, "reset session agents"))) {
-        return;
-      }
-      await this.applyAgentSelection(event, session, this.routes.selectAgent(event), "Agent reset");
-      return;
-    }
-    await sendReply(this.api, event, "Usage: /agent [list|show [agent-id]|set <agent-id>|reset]");
-  }
-
-  private findAgent(agentId: string): AgentConfig | undefined {
-    return this.config.agents.list.find((agent) => agent.id === agentId);
-  }
-
-  private sessionWithAgent(session: SessionRoute, agent: AgentConfig): SessionRoute {
-    return {
-      ...session,
-      agentId: agent.id,
-      profileId: agent.profileId,
-      modelRef: agent.modelRef,
-      fastMode: agent.fastMode,
-      systemPrompt: agent.systemPrompt,
-    };
-  }
-
-  private validateAgentSelection(
-    event: InboundEvent,
-    session: SessionRoute,
-    agent: AgentConfig,
-  ): { allowed: true; warnings: string[] } | { allowed: false; message: string } {
-    if (!isCodexModelRef(agent.modelRef)) {
-      return { allowed: false, message: `Invalid agent model ${agent.modelRef}. Expected openai-codex/<model>.` };
-    }
-    if (!this.authProfiles.get(agent.profileId)) {
-      return { allowed: false, message: `Agent profile ${agent.profileId} is not configured.` };
-    }
-    if (this.governance && !this.governance.isModelAllowed({ chatId: event.chatId, modelRef: agent.modelRef })) {
-      return { allowed: false, message: `Agent model ${agent.modelRef} is not allowed in this chat.` };
-    }
-    const nextSession = this.sessionWithAgent(session, agent);
-    const budgetDecision = this.usageBudget?.evaluate({
-      session: nextSession,
-      modelRef: agent.modelRef,
-    });
-    if (budgetDecision && !budgetDecision.allowed) {
-      return {
-        allowed: false,
-        message: budgetDecision.deniedReason ?? `Agent model ${agent.modelRef} exceeds a usage budget.`,
-      };
-    }
-    return {
-      allowed: true,
-      warnings: budgetDecision?.warnings ?? [],
-    };
-  }
-
-  private async applyAgentSelection(
-    event: InboundEvent,
-    session: SessionRoute,
-    agent: AgentConfig,
-    label: string,
-  ): Promise<void> {
-    const decision = this.validateAgentSelection(event, session, agent);
-    if (!decision.allowed) {
-      await sendReply(this.api, event, decision.message);
-      return;
-    }
-    this.sessions.setAgent(session.sessionKey, agent);
-    await sendReply(
-      this.api,
-      event,
-      [
-        `${label} to ${agent.id}.`,
-        `Model: ${agent.modelRef}`,
-        `Profile: ${agent.profileId}`,
-        `Fast mode: ${agent.fastMode ? "on" : "off"}`,
-        ...decision.warnings,
-      ].join("\n"),
-    );
   }
 }
