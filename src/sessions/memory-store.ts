@@ -511,12 +511,21 @@ export class MemoryStore {
   }
 
   clear(sessionKey: string, source?: SessionMemorySource): number {
-    if (source) {
-      return this.database.db
-        .prepare("delete from session_memories where session_key = ? and source = ?")
-        .run(sessionKey, source).changes;
-    }
-    return this.database.db.prepare("delete from session_memories where session_key = ?").run(sessionKey).changes;
+    const whereClause = source ? "session_key = ? and source = ?" : "session_key = ?";
+    const params = source ? [sessionKey, source] : [sessionKey];
+    const detachCandidates = this.database.db.prepare(
+      `update memory_candidates
+       set accepted_memory_id = null
+       where accepted_memory_id in (
+         select id from session_memories where ${whereClause}
+       )`,
+    );
+    const deleteMemories = this.database.db.prepare(`delete from session_memories where ${whereClause}`);
+    const clear = this.database.db.transaction(() => {
+      detachCandidates.run(...params);
+      return deleteMemories.run(...params).changes;
+    });
+    return clear();
   }
 
   addCandidate(params: {
