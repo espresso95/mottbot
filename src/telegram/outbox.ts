@@ -8,6 +8,8 @@ import { splitTelegramText } from "./formatting.js";
 import type { TelegramMessageStore } from "./message-store.js";
 import type { TelegramInlineKeyboard } from "./command-replies.js";
 
+type TelegramOutboxApi = Pick<Api, "editMessageText" | "sendMessage">;
+
 type OutboxHandle = {
   outboxId: string;
   runId: string;
@@ -26,7 +28,7 @@ type FinalizedOutbox = {
 /** Sends, edits, finalizes, and recovers Telegram messages for streaming run output. */
 export class TelegramOutbox {
   constructor(
-    private readonly api: Api,
+    private readonly api: TelegramOutboxApi,
     private readonly database: DatabaseClient,
     private readonly clock: Clock,
     private readonly logger: Logger,

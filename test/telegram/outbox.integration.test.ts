@@ -36,7 +36,7 @@ describe("TelegramOutbox", () => {
       sendMessage: vi.fn(async () => ({ message_id: 100 })),
       editMessageText: vi.fn(async () => undefined),
     };
-    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    const outbox = new TelegramOutbox(api, stores.database, clock, stores.logger, 0, stores.messageStore);
 
     let handle = await outbox.start({
       runId: run.runId,
@@ -81,7 +81,7 @@ describe("TelegramOutbox", () => {
       }),
     };
     const outbox = new TelegramOutbox(
-      api as any,
+      api,
       stores.database,
       stores.clock as FakeClock,
       stores.logger,
@@ -124,7 +124,7 @@ describe("TelegramOutbox", () => {
       }),
     };
     const outbox = new TelegramOutbox(
-      api as any,
+      api,
       stores.database,
       stores.clock as FakeClock,
       stores.logger,
@@ -181,7 +181,7 @@ describe("TelegramOutbox", () => {
       editMessageText: vi.fn(async () => undefined),
     };
     const outbox = new TelegramOutbox(
-      api as any,
+      api,
       stores.database,
       stores.clock as FakeClock,
       stores.logger,
@@ -231,7 +231,7 @@ describe("TelegramOutbox", () => {
       sendMessage: vi.fn(async () => ({ message_id: 100 })),
       editMessageText: vi.fn(async () => undefined),
     };
-    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    const outbox = new TelegramOutbox(api, stores.database, clock, stores.logger, 0, stores.messageStore);
     let handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
@@ -280,7 +280,7 @@ describe("TelegramOutbox", () => {
       sendMessage: vi.fn(async () => ({ message_id: 100 })),
       editMessageText: vi.fn(async () => undefined),
     };
-    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    const outbox = new TelegramOutbox(api, stores.database, clock, stores.logger, 0, stores.messageStore);
     const handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
@@ -327,7 +327,7 @@ describe("TelegramOutbox", () => {
       }),
     };
     const clock = stores.clock as FakeClock;
-    const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
+    const outbox = new TelegramOutbox(api, stores.database, clock, stores.logger, 0, stores.messageStore);
     let handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",

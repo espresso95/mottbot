@@ -19,6 +19,9 @@ import { sendReply } from "./command-replies.js";
 import type { TelegramGovernanceStore } from "./governance.js";
 import type { InboundEvent } from "./types.js";
 
+type StatusTokenResolver = Pick<CodexTokenResolver, "resolve">;
+type StopRunOrchestrator = Pick<RunOrchestrator, "stop">;
+
 type SessionCommandBaseDependencies = {
   api: Api;
   event: InboundEvent;
@@ -28,7 +31,7 @@ type SessionCommandBaseDependencies = {
 /** Dependencies needed by the Telegram session status command handler. */
 type StatusCommandDependencies = SessionCommandBaseDependencies & {
   authProfiles: AuthProfileStore;
-  tokenResolver: CodexTokenResolver;
+  tokenResolver: StatusTokenResolver;
 };
 
 /** Dependencies needed by the Telegram local usage command handler. */
@@ -64,7 +67,7 @@ type ResetCommandDependencies = SessionCommandBaseDependencies & {
 
 /** Dependencies needed by the Telegram run cancellation command handler. */
 type StopCommandDependencies = SessionCommandBaseDependencies & {
-  orchestrator: RunOrchestrator;
+  orchestrator: StopRunOrchestrator;
 };
 
 /** Dependencies needed by the Telegram route binding command handler. */

@@ -1019,7 +1019,7 @@ describe("RunOrchestrator", () => {
       }),
     ]);
     const streamMessages = transport.stream.mock.calls[0]?.[0].messages;
-    const lastUserMessage = streamMessages?.findLast((message: any) => message.role === "user");
+    const lastUserMessage = streamMessages?.findLast((message) => message.role === "user");
     expect(lastUserMessage?.content).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "image", data: "aW1hZ2U=", mimeType: "image/png" })]),
     );

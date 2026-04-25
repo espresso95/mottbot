@@ -25,6 +25,21 @@ const restrictedBoundaryImports = (moduleNames, message) => ({
   ],
 });
 
+const strictTypedTestRules = {
+  "@typescript-eslint/no-explicit-any": "error",
+  "no-restricted-syntax": [
+    "error",
+    {
+      selector: "TSAsExpression[typeAnnotation.type='TSNeverKeyword']",
+      message: "Use a typed test helper or a narrower structural type instead of `as never`.",
+    },
+    {
+      selector: "TSTypeAssertion[typeAnnotation.type='TSNeverKeyword']",
+      message: "Use a typed test helper or a narrower structural type instead of `<never>`.",
+    },
+  ],
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -198,6 +213,20 @@ export default tseslint.config(
       "@typescript-eslint/prefer-promise-reject-errors": "off",
       "@typescript-eslint/unbound-method": "off",
     },
+  },
+  {
+    files: [
+      "test/helpers/fakes.ts",
+      "test/helpers/telegram.ts",
+      "test/runs/run-orchestrator.integration.test.ts",
+      "test/telegram/bot.test.ts",
+      "test/telegram/commands.integration.test.ts",
+      "test/telegram/outbox.integration.test.ts",
+      "test/telegram/reactions.test.ts",
+      "test/telegram/safety.test.ts",
+      "test/telegram/update-normalizer.test.ts",
+    ],
+    rules: strictTypedTestRules,
   },
   prettier,
 );

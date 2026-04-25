@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeClock, createInboundEvent, createStores, createTestConfig } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
-const handlers = new Map<string, (ctx: any) => Promise<void>>();
-let requestHandler: ((req: any, res: any) => void) | undefined;
+const handlers = new Map<string, (ctx: unknown) => Promise<void>>();
+let requestHandler: ((req: unknown, res: unknown) => void) | undefined;
 const botApi = {
   getMe: vi.fn(async () => ({ username: "mottbot" })),
   deleteWebhook: vi.fn(async () => true),
@@ -23,7 +23,7 @@ const serverClose = vi.fn((callback?: (error?: Error) => void) => {
   callback?.();
 });
 const serverOnce = vi.fn();
-const createServerMock = vi.fn((handler: (req: any, res: any) => void) => {
+const createServerMock = vi.fn((handler: (req: unknown, res: unknown) => void) => {
   requestHandler = handler;
   return {
     listen: serverListen,
@@ -35,7 +35,7 @@ const createServerMock = vi.fn((handler: (req: any, res: any) => void) => {
 class FakeBot {
   api = botApi;
   catch = vi.fn();
-  on = vi.fn((event: string, handler: (ctx: any) => Promise<void>) => {
+  on = vi.fn((event: string, handler: (ctx: unknown) => Promise<void>) => {
     handlers.set(event, handler);
   });
   start = botStart;
@@ -71,17 +71,17 @@ describe("TelegramBotServer", () => {
     const session = { sessionKey: "s1" };
     const routes = { resolve: vi.fn(() => session) };
     const orchestrator = { enqueueMessage: vi.fn(async () => undefined) };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() } as any,
-      access as any,
-      commands as any,
-      routes as any,
-      orchestrator as any,
-      new TelegramReactionService(botApi as any),
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() },
+      access: access,
+      commands: commands,
+      routes: routes,
+      orchestrator: orchestrator,
+      reactions: new TelegramReactionService(botApi),
+    });
     await server.start();
     await handlers.get("message")?.({
       update: { update_id: 1 },
@@ -131,16 +131,16 @@ describe("TelegramBotServer", () => {
       markProcessed: vi.fn(),
       release: vi.fn(),
     };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(456),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      commands as any,
-      { resolve: vi.fn() } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(456),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: commands,
+      routes: { resolve: vi.fn() },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+    });
     await server.start();
     await handlers.get("callback_query:data")?.({
       update: { update_id: 77 },
@@ -187,16 +187,16 @@ describe("TelegramBotServer", () => {
       markProcessed: vi.fn(),
       release: vi.fn(),
     };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      commands as any,
-      { resolve: vi.fn() } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: commands,
+      routes: { resolve: vi.fn() },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+    });
     await server.start();
     await handlers.get("callback_query:data")?.({
       update: { update_id: 78 },
@@ -233,7 +233,7 @@ describe("TelegramBotServer", () => {
           removeAckAfterReply: false,
           notifications: "all",
         },
-      } as any,
+      },
     });
     try {
       const session = stores.sessions.ensure({
@@ -244,19 +244,19 @@ describe("TelegramBotServer", () => {
         profileId: "openai-codex:default",
         modelRef: "openai-codex/gpt-5.4",
       });
-      const server = new TelegramBotServer(
-        stores.config,
-        stores.clock,
-        stores.logger,
-        stores.updateStore,
-        { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-        { maybeHandle: vi.fn(async () => false) } as any,
-        { resolve: vi.fn(() => session) } as any,
-        { enqueueMessage: vi.fn(async () => undefined) } as any,
-        new TelegramReactionService(botApi as any),
-        stores.transcripts,
-        stores.messageStore,
-      );
+      const server = new TelegramBotServer({
+        config: stores.config,
+        clock: stores.clock,
+        logger: stores.logger,
+        updates: stores.updateStore,
+        access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+        commands: { maybeHandle: vi.fn(async () => false) },
+        routes: { resolve: vi.fn(() => session) },
+        orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+        reactions: new TelegramReactionService(botApi),
+        transcripts: stores.transcripts,
+        messages: stores.messageStore,
+      });
       await server.start();
       await handlers.get("message_reaction")?.({
         update: {
@@ -298,19 +298,19 @@ describe("TelegramBotServer", () => {
         profileId: "openai-codex:default",
         modelRef: "openai-codex/gpt-5.4",
       });
-      const server = new TelegramBotServer(
-        stores.config,
-        stores.clock,
-        stores.logger,
-        stores.updateStore,
-        { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-        { maybeHandle: vi.fn(async () => false) } as any,
-        { resolve: vi.fn(() => session) } as any,
-        { enqueueMessage: vi.fn(async () => undefined) } as any,
-        new TelegramReactionService(botApi as any),
-        stores.transcripts,
-        stores.messageStore,
-      );
+      const server = new TelegramBotServer({
+        config: stores.config,
+        clock: stores.clock,
+        logger: stores.logger,
+        updates: stores.updateStore,
+        access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+        commands: { maybeHandle: vi.fn(async () => false) },
+        routes: { resolve: vi.fn(() => session) },
+        orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+        reactions: new TelegramReactionService(botApi),
+        transcripts: stores.transcripts,
+        messages: stores.messageStore,
+      });
       await server.start();
       await handlers.get("message_reaction")?.({
         update: {
@@ -340,19 +340,18 @@ describe("TelegramBotServer", () => {
     botStart
       .mockRejectedValueOnce(Object.assign(new Error("409: Conflict"), { error_code: 409 }))
       .mockResolvedValueOnce(undefined);
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      logger as any,
-      { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() } as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      { maybeHandle: vi.fn(async () => false) } as any,
-      { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-      undefined,
-      {} as any,
-      {} as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: logger,
+      updates: { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() },
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: { maybeHandle: vi.fn(async () => false) },
+      routes: { resolve: vi.fn(() => ({ sessionKey: "s1" })) },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+      transcripts: {},
+      messages: {},
+    });
 
     const startPromise = server.start();
     await vi.waitFor(() => expect(botStart).toHaveBeenCalledTimes(1));
@@ -370,16 +369,16 @@ describe("TelegramBotServer", () => {
     const { TelegramBotServer } = await import("../../src/telegram/bot.js");
     const commands = { maybeHandle: vi.fn(async () => true) };
     const orchestrator = { enqueueMessage: vi.fn(async () => undefined) };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() } as any,
-      { evaluate: vi.fn() } as any,
-      commands as any,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() },
+      access: { evaluate: vi.fn() },
+      commands: commands,
+      routes: { resolve: vi.fn() },
+      orchestrator: orchestrator,
+    });
     await server.start();
     await handlers.get("message")?.({
       update: { update_id: 1 },
@@ -408,16 +407,16 @@ describe("TelegramBotServer", () => {
       markProcessed: vi.fn(),
       release: vi.fn(),
     };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      access as any,
-      commands as any,
-      routes as any,
-      orchestrator as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: access,
+      commands: commands,
+      routes: routes,
+      orchestrator: orchestrator,
+    });
     await server.start();
     const ctx = {
       update: { update_id: 1 },
@@ -440,16 +439,16 @@ describe("TelegramBotServer", () => {
       markProcessed: vi.fn(),
       release: vi.fn(),
     };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      { evaluate: vi.fn(() => ({ allow: false, reason: "mention_required" })) } as any,
-      { maybeHandle: vi.fn(async () => false) } as any,
-      { resolve: vi.fn() } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-    );
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: { evaluate: vi.fn(() => ({ allow: false, reason: "mention_required" })) },
+      commands: { maybeHandle: vi.fn(async () => false) },
+      routes: { resolve: vi.fn() },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+    });
     await server.start();
     await handlers.get("message")?.({
       update: { update_id: 7 },
@@ -479,18 +478,18 @@ describe("TelegramBotServer", () => {
     const commands = { maybeHandle: vi.fn(async () => false) };
     const access = { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) };
     const orchestrator = { enqueueMessage: vi.fn(async () => undefined) };
-    const server = new TelegramBotServer(
-      createTestConfig({
-        behavior: { maxInboundTextChars: 5 } as any,
+    const server = new TelegramBotServer({
+      config: createTestConfig({
+        behavior: { maxInboundTextChars: 5 },
       }),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      access as any,
-      commands as any,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-    );
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: access,
+      commands: commands,
+      routes: { resolve: vi.fn() },
+      orchestrator: orchestrator,
+    });
     await server.start();
     await handlers.get("message")?.({
       update: { update_id: 9 },
@@ -525,18 +524,18 @@ describe("TelegramBotServer", () => {
     };
     const logger = { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() };
     botApi.sendMessage.mockRejectedValueOnce(new Error("send failed"));
-    const server = new TelegramBotServer(
-      createTestConfig({
-        behavior: { maxInboundTextChars: 5 } as any,
+    const server = new TelegramBotServer({
+      config: createTestConfig({
+        behavior: { maxInboundTextChars: 5 },
       }),
-      new FakeClock(),
-      logger as any,
-      updates as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      { maybeHandle: vi.fn(async () => false) } as any,
-      { resolve: vi.fn() } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-    );
+      clock: new FakeClock(),
+      logger: logger,
+      updates: updates,
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: { maybeHandle: vi.fn(async () => false) },
+      routes: { resolve: vi.fn() },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+    });
     await server.start();
     await handlers.get("message")?.({
       update: { update_id: 10 },
@@ -564,20 +563,20 @@ describe("TelegramBotServer", () => {
       markProcessed: vi.fn(),
       release: vi.fn(),
     };
-    const server = new TelegramBotServer(
-      createTestConfig(),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      updates as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      { maybeHandle: vi.fn(async () => false) } as any,
-      { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
-      {
+    const server = new TelegramBotServer({
+      config: createTestConfig(),
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: updates,
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: { maybeHandle: vi.fn(async () => false) },
+      routes: { resolve: vi.fn(() => ({ sessionKey: "s1" })) },
+      orchestrator: {
         enqueueMessage: vi.fn(async () => {
           throw new Error("queue failed");
         }),
-      } as any,
-    );
+      },
+    });
     await server.start();
     await expect(
       handlers.get("message")?.({
@@ -597,8 +596,8 @@ describe("TelegramBotServer", () => {
 
   it("starts in webhook mode and closes the local server on stop", async () => {
     const { TelegramBotServer } = await import("../../src/telegram/bot.js");
-    const server = new TelegramBotServer(
-      createTestConfig({
+    const server = new TelegramBotServer({
+      config: createTestConfig({
         telegram: {
           polling: false,
           webhook: {
@@ -608,19 +607,18 @@ describe("TelegramBotServer", () => {
             port: 9090,
             secretToken: "secret",
           },
-        } as any,
+        },
       }),
-      new FakeClock(),
-      { info: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
-      { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() } as any,
-      { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) } as any,
-      { maybeHandle: vi.fn(async () => false) } as any,
-      { resolve: vi.fn(() => ({ sessionKey: "s1" })) } as any,
-      { enqueueMessage: vi.fn(async () => undefined) } as any,
-      undefined,
-      {} as any,
-      {} as any,
-    );
+      clock: new FakeClock(),
+      logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      updates: { begin: vi.fn(() => ({ accepted: true, reason: "new" })), markProcessed: vi.fn(), release: vi.fn() },
+      access: { evaluate: vi.fn(() => ({ allow: true, reason: "private" })) },
+      commands: { maybeHandle: vi.fn(async () => false) },
+      routes: { resolve: vi.fn(() => ({ sessionKey: "s1" })) },
+      orchestrator: { enqueueMessage: vi.fn(async () => undefined) },
+      transcripts: {},
+      messages: {},
+    });
     await server.start();
 
     expect(botStart).not.toHaveBeenCalled();

@@ -11,7 +11,7 @@ describe("Telegram reactions", () => {
     const api = {
       setMessageReaction: vi.fn(async () => true),
     };
-    const service = new TelegramReactionService(api as any);
+    const service = new TelegramReactionService(api);
 
     await service.setEmojiReaction({
       chatId: "chat-1",
@@ -50,7 +50,7 @@ describe("Telegram reactions", () => {
             ],
           },
         },
-      } as any,
+      },
     });
 
     expect(event).toEqual({

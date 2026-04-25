@@ -233,40 +233,40 @@ export async function bootstrapApplication() {
     },
   });
   orchestrator.recoverQueuedRuns();
-  const commands = new TelegramCommandRouter(
-    telegramApi,
+  const commands = new TelegramCommandRouter({
+    api: telegramApi,
     config,
-    routeResolver,
-    sessionStore,
-    transcriptStore,
+    routes: routeResolver,
+    sessions: sessionStore,
+    transcripts: transcriptStore,
     authProfiles,
     tokenResolver,
     orchestrator,
     health,
     toolRegistry,
-    toolApprovalStore,
-    memoryStore,
+    toolApprovals: toolApprovalStore,
+    memories: memoryStore,
     diagnostics,
-    attachmentRecordStore,
+    attachments: attachmentRecordStore,
     toolPolicy,
     github,
     governance,
     usageBudget,
-  );
-  const bot = new TelegramBotServer(
+  });
+  const bot = new TelegramBotServer({
     config,
-    systemClock,
+    clock: systemClock,
     logger,
-    updateStore,
-    new AccessController(config, sessionStore, messageStore, governance),
+    updates: updateStore,
+    access: new AccessController(config, sessionStore, messageStore, governance),
     commands,
-    routeResolver,
+    routes: routeResolver,
     orchestrator,
     reactions,
-    transcriptStore,
-    messageStore,
-    telegramBot,
-  );
+    transcripts: transcriptStore,
+    messages: messageStore,
+    bot: telegramBot,
+  });
 
   return {
     config,

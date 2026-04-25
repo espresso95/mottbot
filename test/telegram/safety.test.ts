@@ -5,8 +5,8 @@ import { createInboundEvent, createTestConfig } from "../helpers/fakes.js";
 describe("validateInboundSafety", () => {
   it("allows normal inbound events", () => {
     const config = createTestConfig({
-      behavior: { maxInboundTextChars: 20 } as any,
-      attachments: { maxPerMessage: 2, maxFileBytes: 10, maxTotalBytes: 20 } as any,
+      behavior: { maxInboundTextChars: 20 },
+      attachments: { maxPerMessage: 2, maxFileBytes: 10, maxTotalBytes: 20 },
     });
 
     expect(
@@ -22,7 +22,7 @@ describe("validateInboundSafety", () => {
 
   it("rejects oversized text", () => {
     const config = createTestConfig({
-      behavior: { maxInboundTextChars: 5 } as any,
+      behavior: { maxInboundTextChars: 5 },
     });
 
     expect(validateInboundSafety(config, createInboundEvent({ text: "too long" }))).toMatchObject({
@@ -34,7 +34,7 @@ describe("validateInboundSafety", () => {
 
   it("rejects too many attachments", () => {
     const config = createTestConfig({
-      attachments: { maxPerMessage: 1 } as any,
+      attachments: { maxPerMessage: 1 },
     });
 
     expect(
@@ -56,7 +56,7 @@ describe("validateInboundSafety", () => {
 
   it("rejects oversized known attachment bytes", () => {
     const config = createTestConfig({
-      attachments: { maxFileBytes: 4, maxTotalBytes: 10 } as any,
+      attachments: { maxFileBytes: 4, maxTotalBytes: 10 },
     });
 
     expect(
@@ -74,7 +74,7 @@ describe("validateInboundSafety", () => {
 
   it("rejects oversized combined known attachment bytes", () => {
     const config = createTestConfig({
-      attachments: { maxPerMessage: 3, maxFileBytes: 10, maxTotalBytes: 9 } as any,
+      attachments: { maxPerMessage: 3, maxFileBytes: 10, maxTotalBytes: 9 },
     });
 
     expect(

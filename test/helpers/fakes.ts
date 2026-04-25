@@ -16,6 +16,16 @@ import { AttachmentRecordStore } from "../../src/sessions/attachment-store.js";
 import { HealthReporter } from "../../src/app/health.js";
 import { createTempDir } from "./tmp.js";
 
+type DeepPartial<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? {
+        [K in keyof T]?: DeepPartial<T[K]>;
+      }
+    : T;
+
+type TestConfigOverrides = DeepPartial<AppConfig>;
+
 export class FakeClock implements Clock {
   constructor(private value = 1_700_000_000_000) {}
 
@@ -28,7 +38,7 @@ export class FakeClock implements Clock {
   }
 }
 
-export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+export function createTestConfig(overrides: TestConfigOverrides = {}): AppConfig {
   const tempDir = createTempDir();
   const base: AppConfig = {
     configPath: path.join(tempDir, "mottbot.config.json"),
@@ -230,7 +240,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
   };
 }
 
-export function createStores(overrides: Partial<AppConfig> = {}) {
+export function createStores(overrides: TestConfigOverrides = {}) {
   const config = createTestConfig(overrides);
   const tempDir = path.dirname(config.storage.sqlitePath);
   const clock = new FakeClock();

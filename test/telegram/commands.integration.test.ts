@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TelegramCommandRouter } from "../../src/telegram/commands.js";
 import { RouteResolver } from "../../src/telegram/route-resolver.js";
 import { fetchCodexUsage } from "../../src/codex/usage.js";
 import { createCallbackEvent, createInboundEvent, createStores } from "../helpers/fakes.js";
+import { createRunOrchestratorMock, createTelegramCommandRouter } from "../helpers/telegram.js";
 import { removeTempDir } from "../helpers/tmp.js";
 import { ToolApprovalStore } from "../../src/tools/approval.js";
 import { createRuntimeToolRegistry } from "../../src/tools/registry.js";
@@ -54,17 +54,9 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     const handled = await router.maybeHandle(
       createInboundEvent({ text: "/model openai-codex/gpt-5.4-mini", isCommand: true }),
@@ -82,17 +74,9 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/model openai-codex/not-a-model", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/profile bad!", isCommand: true }));
@@ -123,24 +107,16 @@ describe("TelegramCommandRouter", () => {
     const stores = createStores({
       telegram: {
         allowedChatIds: ["allowed-chat"],
-      } as any,
+      },
     });
     cleanup.push(() => {
       stores.database.close();
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/auth import-cli", isCommand: true }));
     await router.maybeHandle(
@@ -182,17 +158,9 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     const handled = await router.maybeHandle(
       createInboundEvent({
@@ -225,23 +193,16 @@ describe("TelegramCommandRouter", () => {
       plan: "pro",
       windows: [{ label: "3h", usedPercent: 20, resetAt: 1_700_000_000_000 }],
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      {
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      tokenResolver: {
         resolve: vi.fn(async () => ({
           accessToken: "access",
           apiKey: "access",
           profile: stores.authProfiles.get("openai-codex:default")!,
         })),
-      } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+      },
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/status", isCommand: true }));
     expect(api.sendMessage).toHaveBeenCalledWith(
@@ -265,23 +226,16 @@ describe("TelegramCommandRouter", () => {
     });
     vi.mocked(fetchCodexUsage).mockRejectedValueOnce(new Error("usage failed"));
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      {
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      tokenResolver: {
         resolve: vi.fn(async () => ({
           accessToken: "access",
           apiKey: "access",
           profile: stores.authProfiles.get("openai-codex:default")!,
         })),
-      } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+      },
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/status", isCommand: true }));
 
@@ -333,24 +287,10 @@ describe("TelegramCommandRouter", () => {
       })),
       recentWorkflowFailures: vi.fn(async () => ({ repository: "espresso95/mottbot", runs: [], truncated: false })),
     };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      github,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      github: github,
+    });
 
     const handled = await router.maybeHandle(
       createInboundEvent({ text: "/github status 2 espresso95/mottbot", fromUserId: "admin-1", isCommand: true }),
@@ -413,24 +353,10 @@ describe("TelegramCommandRouter", () => {
       })),
       recentWorkflowFailures: vi.fn(async () => ({ repository: "espresso95/mottbot", runs: [], truncated: false })),
     };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      github,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      github: github,
+    });
 
     for (const text of [
       "/github help",
@@ -480,38 +406,16 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const unavailableRouter = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const unavailableRouter = createTelegramCommandRouter(stores, {
+      api: api,
+    });
     await unavailableRouter.maybeHandle(
       createInboundEvent({ text: "/github status", fromUserId: "admin-1", isCommand: true }),
     );
 
-    const errorRouter = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
+    const errorRouter = createTelegramCommandRouter(stores, {
+      api: api,
+      github: {
         repository: vi.fn(async () => {
           throw new Error("gh auth failed");
         }),
@@ -520,7 +424,7 @@ describe("TelegramCommandRouter", () => {
         ciStatus: vi.fn(),
         recentWorkflowFailures: vi.fn(),
       } as unknown as GithubReadOperations,
-    );
+    });
     await errorRouter.maybeHandle(createInboundEvent({ text: "/github repo", fromUserId: "admin-1", isCommand: true }));
 
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "GitHub integration is not available.", expect.any(Object));
@@ -537,24 +441,10 @@ describe("TelegramCommandRouter", () => {
     const github = {
       repository: vi.fn(),
     } as unknown as GithubReadOperations;
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      github,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      github: github,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/github status", isCommand: true }));
 
@@ -574,17 +464,10 @@ describe("TelegramCommandRouter", () => {
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
     const orchestrator = { stop: vi.fn(async () => true) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      orchestrator: createRunOrchestratorMock(orchestrator),
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/stop", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/auth import-cli", isCommand: true }));
@@ -607,17 +490,9 @@ describe("TelegramCommandRouter", () => {
       email: "user@example.com",
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/profile", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/fast on", isCommand: true }));
@@ -690,17 +565,9 @@ describe("TelegramCommandRouter", () => {
       refreshToken: "refresh",
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/agent list", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/agent set docs", fromUserId: "admin-1", isCommand: true }));
@@ -758,25 +625,10 @@ describe("TelegramCommandRouter", () => {
       policy: { modelRefs: ["openai-codex/gpt-5.4"] },
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      governance,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      governance: governance,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/agent set docs", fromUserId: "admin-1", isCommand: true }));
 
@@ -801,17 +653,9 @@ describe("TelegramCommandRouter", () => {
       refreshToken: "refresh",
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/profile does-not-exist", isCommand: true }));
 
@@ -831,17 +675,9 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/health", isCommand: true }));
 
@@ -873,26 +709,10 @@ describe("TelegramCommandRouter", () => {
     });
     stores.runs.update(run.runId, { status: "completed", finishedAt: stores.clock.now() });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      new UsageBudgetService(stores.config, stores.runs, stores.clock),
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      usageBudget: new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/usage monthly", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/usage yearly", isCommand: true }));
@@ -926,21 +746,13 @@ describe("TelegramCommandRouter", () => {
     const memories = new MemoryStore(stores.database, stores.clock);
     const approvals = new ToolApprovalStore(stores.database, stores.clock);
     const diagnostics = new OperatorDiagnostics(stores.config, stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-      memories,
-      diagnostics,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+      memories: memories,
+      diagnostics: diagnostics,
+    });
 
     await router.maybeHandle(
       createInboundEvent({ text: "/help@StartupMottBot", fromUserId: "admin-1", isCommand: true }),
@@ -979,25 +791,10 @@ describe("TelegramCommandRouter", () => {
     const governance = new TelegramGovernanceStore(stores.database, stores.clock, {
       ownerUserIds: stores.config.telegram.adminUserIds,
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      governance,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      governance: governance,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/users me", fromUserId: "user-1", isCommand: true }));
     await router.maybeHandle(
@@ -1081,19 +878,11 @@ describe("TelegramCommandRouter", () => {
       removeTempDir(stores.tempDir);
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      new ToolApprovalStore(stores.database, stores.clock),
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: new ToolApprovalStore(stores.database, stores.clock),
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/tool help", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/tools", fromUserId: "user-1", isCommand: true }));
@@ -1129,25 +918,12 @@ describe("TelegramCommandRouter", () => {
       actorUserId: "admin-1",
       policy: { commandRoles: { tools: ["trusted"] } },
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      new ToolApprovalStore(stores.database, stores.clock),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      governance,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: new ToolApprovalStore(stores.database, stores.clock),
+      governance: governance,
+    });
 
     await router.maybeHandle(
       createInboundEvent({
@@ -1200,21 +976,10 @@ describe("TelegramCommandRouter", () => {
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
     const diagnostics = new OperatorDiagnostics(stores.config, stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      diagnostics,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      diagnostics: diagnostics,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/runs here", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/debug config", fromUserId: "admin-1", isCommand: true }));
@@ -1247,20 +1012,10 @@ describe("TelegramCommandRouter", () => {
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
     const memories = new MemoryStore(stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      memories,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      memories: memories,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/remember scope:personal use pnpm", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/memory", isCommand: true }));
@@ -1306,20 +1061,11 @@ describe("TelegramCommandRouter", () => {
     const api = { sendMessage: vi.fn(async () => ({})) };
     const memories = new MemoryStore(stores.database, stores.clock);
     const routes = new RouteResolver(stores.config, stores.sessions);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      routes,
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      memories,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      routes: routes,
+      memories: memories,
+    });
 
     await router.maybeHandle(
       createInboundEvent({ text: "/remember scope:project:mottbot Project uses pnpm.", isCommand: true }),
@@ -1344,20 +1090,10 @@ describe("TelegramCommandRouter", () => {
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
     const memories = new MemoryStore(stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      memories,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      memories: memories,
+    });
     const session = new RouteResolver(stores.config, stores.sessions).resolve(createInboundEvent());
     const candidate = memories.addCandidate({
       sessionKey: session.sessionKey,
@@ -1437,20 +1173,10 @@ describe("TelegramCommandRouter", () => {
       sendMessage: vi.fn(async () => ({})),
     };
     const memories = new MemoryStore(stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      memories,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      memories: memories,
+    });
     const session = new RouteResolver(stores.config, stores.sessions).resolve(createInboundEvent());
     const candidate = memories.addCandidate({
       sessionKey: session.sessionKey,
@@ -1568,22 +1294,10 @@ describe("TelegramCommandRouter", () => {
       ],
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      stores.attachmentRecords,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      attachments: stores.attachmentRecords,
+    });
 
     await router.maybeHandle(createInboundEvent({ text: "/files", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/files forget file-rec", isCommand: true }));
@@ -1612,19 +1326,11 @@ describe("TelegramCommandRouter", () => {
     });
     const api = { sendMessage: vi.fn(async () => ({})) };
     const approvals = new ToolApprovalStore(stores.database, stores.clock);
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+    });
 
     await router.maybeHandle(
       createInboundEvent({
@@ -1716,19 +1422,11 @@ describe("TelegramCommandRouter", () => {
       requestFingerprint: "request-fingerprint",
       previewText: "Approval preview text",
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      { stop: vi.fn(async () => false) } as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+    });
 
     await router.maybeHandle(
       createInboundEvent({
@@ -1800,19 +1498,12 @@ describe("TelegramCommandRouter", () => {
       requestFingerprint: "request-fingerprint",
       previewText: "Approval preview text",
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      orchestrator: createRunOrchestratorMock(orchestrator),
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+    });
 
     const handled = await router.maybeHandleCallback(
       createCallbackEvent({
@@ -1938,19 +1629,12 @@ describe("TelegramCommandRouter", () => {
       requestFingerprint: "request-fingerprint",
       previewText: "Approval preview text",
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      orchestrator: createRunOrchestratorMock(orchestrator),
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+    });
 
     const handled = await router.maybeHandleCallback(
       createCallbackEvent({
@@ -2030,19 +1714,12 @@ describe("TelegramCommandRouter", () => {
       requestFingerprint: "request-fingerprint",
       previewText: "Approval preview text",
     });
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-      stores.health,
-      createRuntimeToolRegistry({ enableSideEffectTools: true }),
-      approvals,
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      orchestrator: createRunOrchestratorMock(orchestrator),
+      toolRegistry: createRuntimeToolRegistry({ enableSideEffectTools: true }),
+      toolApprovals: approvals,
+    });
 
     const handled = await router.maybeHandleCallback(
       createCallbackEvent({
@@ -2114,26 +1791,12 @@ describe("TelegramCommandRouter", () => {
       stop: vi.fn(async () => true),
       retryRun: vi.fn(async () => "queued" as "queued" | "attachments_not_retryable"),
     };
-    const router = new TelegramCommandRouter(
-      api as any,
-      stores.config,
-      new RouteResolver(stores.config, stores.sessions),
-      stores.sessions,
-      stores.transcripts,
-      stores.authProfiles,
-      { resolve: vi.fn() } as any,
-      orchestrator as any,
-      stores.health,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      stores.attachmentRecords,
-      undefined,
-      undefined,
-      undefined,
-      new UsageBudgetService(stores.config, stores.runs, stores.clock),
-    );
+    const router = createTelegramCommandRouter(stores, {
+      api: api,
+      orchestrator: createRunOrchestratorMock(orchestrator),
+      attachments: stores.attachmentRecords,
+      usageBudget: new UsageBudgetService(stores.config, stores.runs, stores.clock),
+    });
 
     await expect(
       router.maybeHandleCallback(

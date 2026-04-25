@@ -67,30 +67,63 @@ function hasTelegramErrorCode(error: unknown, code: number): boolean {
   return text.includes(`${code}:`);
 }
 
+type BotLogger = Pick<Logger, "debug" | "error" | "info" | "warn">;
+type BotUpdateStore = Pick<TelegramUpdateStore, "begin" | "markProcessed" | "release">;
+type BotAccessController = Pick<AccessController, "evaluate">;
+type BotCommandRouter = Pick<TelegramCommandRouter, "maybeHandle" | "maybeHandleCallback">;
+type BotRouteResolver = Pick<RouteResolver, "resolve">;
+type BotRunOrchestrator = Pick<RunOrchestrator, "enqueueMessage">;
+type BotReactionService = Pick<TelegramReactionService, "setEmojiReaction">;
+
+/** Collaborators required to run the Telegram bot ingress server. */
+type TelegramBotServerOptions = {
+  config: AppConfig;
+  clock: Clock;
+  logger: BotLogger;
+  updates: BotUpdateStore;
+  access: BotAccessController;
+  commands: BotCommandRouter;
+  routes: BotRouteResolver;
+  orchestrator: BotRunOrchestrator;
+  reactions?: BotReactionService;
+  transcripts?: TranscriptStore;
+  messages?: TelegramMessageStore;
+  bot?: Bot<Context>;
+};
+
 /** Owns grammY polling or webhook ingress and routes normalized updates into application services. */
 export class TelegramBotServer {
   private readonly bot: Bot<Context>;
+  private readonly config: AppConfig;
+  private readonly clock: Clock;
+  private readonly logger: BotLogger;
+  private readonly updates: BotUpdateStore;
+  private readonly access: BotAccessController;
+  private readonly commands: BotCommandRouter;
+  private readonly routes: BotRouteResolver;
+  private readonly orchestrator: BotRunOrchestrator;
+  private readonly reactions?: BotReactionService;
+  private readonly transcripts?: TranscriptStore;
+  private readonly messages?: TelegramMessageStore;
   private botUsername?: string;
   private webhookServer?: Server;
   private stopping = false;
   private retryTimeout?: NodeJS.Timeout;
   private retryResolve?: () => void;
 
-  constructor(
-    private readonly config: AppConfig,
-    private readonly clock: Clock,
-    private readonly logger: Logger,
-    private readonly updates: TelegramUpdateStore,
-    private readonly access: AccessController,
-    private readonly commands: TelegramCommandRouter,
-    private readonly routes: RouteResolver,
-    private readonly orchestrator: RunOrchestrator,
-    private readonly reactions?: TelegramReactionService,
-    private readonly transcripts?: TranscriptStore,
-    private readonly messages?: TelegramMessageStore,
-    bot?: Bot<Context>,
-  ) {
-    this.bot = bot ?? new Bot<Context>(config.telegram.botToken);
+  constructor(options: TelegramBotServerOptions) {
+    this.config = options.config;
+    this.clock = options.clock;
+    this.logger = options.logger;
+    this.updates = options.updates;
+    this.access = options.access;
+    this.commands = options.commands;
+    this.routes = options.routes;
+    this.orchestrator = options.orchestrator;
+    this.reactions = options.reactions;
+    this.transcripts = options.transcripts;
+    this.messages = options.messages;
+    this.bot = options.bot ?? new Bot<Context>(options.config.telegram.botToken);
   }
 
   get api() {

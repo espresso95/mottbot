@@ -1,6 +1,15 @@
-import type { Api, Context } from "grammy";
+import type { Api } from "grammy";
 import type { ReactionType } from "grammy/types";
 import type { Clock } from "../shared/clock.js";
+
+type TelegramReactionApi = Pick<Api, "setMessageReaction">;
+
+type TelegramReactionContext = {
+  update: {
+    update_id: number;
+    message_reaction?: unknown;
+  };
+};
 
 /** Normalized Telegram message-reaction delta used by notifications and tests. */
 export type NormalizedReactionEvent = {
@@ -17,7 +26,7 @@ export type NormalizedReactionEvent = {
 
 /** Thin wrapper around Telegram reaction APIs used by run and tool status flows. */
 export class TelegramReactionService {
-  constructor(private readonly api: Api) {}
+  constructor(private readonly api: TelegramReactionApi) {}
 
   async setEmojiReaction(params: { chatId: string; messageId: number; emoji: string; isBig?: boolean }): Promise<true> {
     const reaction: ReactionType[] = params.emoji ? [{ type: "emoji", emoji: params.emoji } as ReactionType] : [];
@@ -77,7 +86,10 @@ function diffReactionEmojis(params: { oldEmojis: string[]; newEmojis: string[] }
 }
 
 /** Converts a grammY message_reaction update into added and removed emoji deltas. */
-export function normalizeReactionUpdate(params: { ctx: Context; clock: Clock }): NormalizedReactionEvent | undefined {
+export function normalizeReactionUpdate(params: {
+  ctx: TelegramReactionContext;
+  clock: Clock;
+}): NormalizedReactionEvent | undefined {
   const reaction = params.ctx.update.message_reaction;
   if (!reaction) {
     return undefined;

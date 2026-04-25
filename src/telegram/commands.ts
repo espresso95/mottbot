@@ -100,28 +100,73 @@ function buildAttachmentRetryGuidanceReplyMarkup(runId: string): TelegramInlineK
   };
 }
 
+type CommandTokenResolver = Pick<CodexTokenResolver, "resolve">;
+
+type CommandRunOrchestrator = Pick<RunOrchestrator, "continueApprovedTool" | "enqueueMessage" | "retryRun" | "stop">;
+
+/** Collaborators required for Telegram command and callback dispatch. */
+export type TelegramCommandRouterOptions = {
+  api: Api;
+  config: AppConfig;
+  routes: RouteResolver;
+  sessions: SessionStore;
+  transcripts: TranscriptStore;
+  authProfiles: AuthProfileStore;
+  tokenResolver: CommandTokenResolver;
+  orchestrator: CommandRunOrchestrator;
+  health: HealthReporter;
+  toolRegistry?: ToolRegistry;
+  toolApprovals?: ToolApprovalStore;
+  memories?: MemoryStore;
+  diagnostics?: OperatorDiagnostics;
+  attachments?: AttachmentRecordStore;
+  toolPolicy?: ToolPolicyEngine;
+  github?: GithubReadOperations;
+  governance?: TelegramGovernanceStore;
+  usageBudget?: UsageBudgetService;
+};
+
 /** Dispatches Telegram slash commands for auth, sessions, tools, memory, governance, and diagnostics. */
 export class TelegramCommandRouter {
-  constructor(
-    private readonly api: Api,
-    private readonly config: AppConfig,
-    private readonly routes: RouteResolver,
-    private readonly sessions: SessionStore,
-    private readonly transcripts: TranscriptStore,
-    private readonly authProfiles: AuthProfileStore,
-    private readonly tokenResolver: CodexTokenResolver,
-    private readonly orchestrator: RunOrchestrator,
-    private readonly health: HealthReporter,
-    private readonly toolRegistry?: ToolRegistry,
-    private readonly toolApprovals?: ToolApprovalStore,
-    private readonly memories?: MemoryStore,
-    private readonly diagnostics?: OperatorDiagnostics,
-    private readonly attachments?: AttachmentRecordStore,
-    private readonly toolPolicy?: ToolPolicyEngine,
-    private readonly github?: GithubReadOperations,
-    private readonly governance?: TelegramGovernanceStore,
-    private readonly usageBudget?: UsageBudgetService,
-  ) {}
+  private readonly api: Api;
+  private readonly config: AppConfig;
+  private readonly routes: RouteResolver;
+  private readonly sessions: SessionStore;
+  private readonly transcripts: TranscriptStore;
+  private readonly authProfiles: AuthProfileStore;
+  private readonly tokenResolver: CommandTokenResolver;
+  private readonly orchestrator: CommandRunOrchestrator;
+  private readonly health: HealthReporter;
+  private readonly toolRegistry?: ToolRegistry;
+  private readonly toolApprovals?: ToolApprovalStore;
+  private readonly memories?: MemoryStore;
+  private readonly diagnostics?: OperatorDiagnostics;
+  private readonly attachments?: AttachmentRecordStore;
+  private readonly toolPolicy?: ToolPolicyEngine;
+  private readonly github?: GithubReadOperations;
+  private readonly governance?: TelegramGovernanceStore;
+  private readonly usageBudget?: UsageBudgetService;
+
+  constructor(options: TelegramCommandRouterOptions) {
+    this.api = options.api;
+    this.config = options.config;
+    this.routes = options.routes;
+    this.sessions = options.sessions;
+    this.transcripts = options.transcripts;
+    this.authProfiles = options.authProfiles;
+    this.tokenResolver = options.tokenResolver;
+    this.orchestrator = options.orchestrator;
+    this.health = options.health;
+    this.toolRegistry = options.toolRegistry;
+    this.toolApprovals = options.toolApprovals;
+    this.memories = options.memories;
+    this.diagnostics = options.diagnostics;
+    this.attachments = options.attachments;
+    this.toolPolicy = options.toolPolicy;
+    this.github = options.github;
+    this.governance = options.governance;
+    this.usageBudget = options.usageBudget;
+  }
 
   async maybeHandle(event: InboundEvent): Promise<boolean> {
     const raw = event.text ?? event.caption;
@@ -526,7 +571,7 @@ export class TelegramCommandRouter {
   }
 
   private formatRunRetryResult(
-    result: Awaited<ReturnType<RunOrchestrator["retryRun"]>>,
+    result: Awaited<ReturnType<CommandRunOrchestrator["retryRun"]>>,
     runId: string,
   ): {
     callbackText: string;
