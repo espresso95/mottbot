@@ -4,6 +4,27 @@ import tsdoc from "eslint-plugin-tsdoc";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const relativeImportRoots = ["..", "../..", "../../..", "../../../..", "../../../../.."];
+
+const boundaryImportPatterns = (moduleNames) =>
+  relativeImportRoots.flatMap((root) =>
+    moduleNames.flatMap((moduleName) => [`${root}/${moduleName}`, `${root}/${moduleName}/**`]),
+  );
+
+const restrictedBoundaryImports = (moduleNames, message) => ({
+  "no-restricted-imports": [
+    "error",
+    {
+      patterns: [
+        {
+          group: boundaryImportPatterns(moduleNames),
+          message,
+        },
+      ],
+    },
+  ],
+});
+
 export default tseslint.config(
   {
     ignores: [
@@ -78,6 +99,88 @@ export default tseslint.config(
       "no-control-regex": "off",
       "tsdoc/syntax": "error",
     },
+  },
+  {
+    files: ["src/shared/**/*.ts"],
+    rules: restrictedBoundaryImports(
+      [
+        "app",
+        "codex",
+        "codex-cli",
+        "db",
+        "models",
+        "ops",
+        "project-tasks",
+        "runs",
+        "sessions",
+        "telegram",
+        "tools",
+        "worktrees",
+      ],
+      "Shared utilities must stay runtime-agnostic. Move domain behavior out of src/shared or pass it in from the caller.",
+    ),
+  },
+  {
+    files: ["src/db/**/*.ts"],
+    rules: restrictedBoundaryImports(
+      [
+        "app",
+        "codex",
+        "codex-cli",
+        "models",
+        "ops",
+        "project-tasks",
+        "runs",
+        "sessions",
+        "telegram",
+        "tools",
+        "worktrees",
+      ],
+      "Database helpers should only depend on storage-local code and shared infrastructure.",
+    ),
+  },
+  {
+    files: ["src/codex/**/*.ts"],
+    rules: restrictedBoundaryImports(
+      ["codex-cli", "project-tasks", "sessions", "telegram", "worktrees"],
+      "Codex provider code must not depend on Telegram, session, project-task, CLI-worker, or worktree orchestration modules.",
+    ),
+  },
+  {
+    files: [
+      "src/telegram/acl.ts",
+      "src/telegram/attachments.ts",
+      "src/telegram/bot.ts",
+      "src/telegram/file-extraction.ts",
+      "src/telegram/formatting.ts",
+      "src/telegram/governance.ts",
+      "src/telegram/message-store.ts",
+      "src/telegram/outbox.ts",
+      "src/telegram/reactions.ts",
+      "src/telegram/route-resolver.ts",
+      "src/telegram/safety.ts",
+      "src/telegram/types.ts",
+      "src/telegram/update-normalizer.ts",
+      "src/telegram/update-store.ts",
+    ],
+    rules: restrictedBoundaryImports(
+      ["codex", "codex-cli", "project-tasks", "worktrees"],
+      "Telegram runtime modules should stay transport-focused. Keep Codex and project-task orchestration behind command or app wiring.",
+    ),
+  },
+  {
+    files: ["src/worktrees/**/*.ts"],
+    rules: restrictedBoundaryImports(
+      ["app", "codex", "codex-cli", "db", "models", "ops", "project-tasks", "runs", "sessions", "telegram", "tools"],
+      "Worktree helpers should stay reusable Git/filesystem utilities.",
+    ),
+  },
+  {
+    files: ["src/codex-cli/codex-cli-service.ts", "src/codex-cli/codex-jsonl-parser.ts"],
+    rules: restrictedBoundaryImports(
+      ["app", "db", "models", "ops", "project-tasks", "runs", "sessions", "telegram", "tools", "worktrees"],
+      "Codex CLI service and parser code should stay reusable and independent of app runtime modules.",
+    ),
   },
   {
     files: ["test/**/*.ts"],
