@@ -24,6 +24,8 @@ These documents describe the current Telegram-first Codex bot runtime, operator 
   Guarded polling, webhook, Codex, attachment, optional MTProto user-account, and fault-injection checks for a real test bot environment.
 - [Tool Use](./tool-use-design.md)
   Safety requirements and runtime behavior for read-only and approval-gated model tool execution.
+- [LM Studio Memory Extraction](./lmstudio-memory-extraction-design.md)
+  Design for configurable local memory extraction with pre-response and async post-response modes.
 - [Release Notes](./release-notes.md)
   Operator-facing notes and validation checklists for newly added runtime capabilities.
 

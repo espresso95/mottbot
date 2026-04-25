@@ -7,6 +7,9 @@ import { DEFAULT_SERVICE_LABEL, SERVICE_LABEL_PATTERN } from "./service-label.js
 const transportSchema = z.enum(["auto", "sse", "websocket"]);
 const telegramReactionNotificationsSchema = z.enum(["off", "own", "all"]);
 const toolCallerRoleSchema = z.enum(["owner", "admin", "trusted", "user"]);
+const memoryCandidateApprovalPolicySchema = z.enum(["pending", "auto"]);
+const memoryCandidateExtractionProviderSchema = z.enum(["codex", "lmstudio"]);
+const memoryCandidateSensitivitySchema = z.enum(["low", "medium", "high"]);
 const toolPolicyConfigSchema = z.object({
   allowedRoles: z.array(toolCallerRoleSchema).optional(),
   allowedChatIds: z.array(z.string()).optional(),
@@ -288,8 +291,25 @@ const rawConfigSchema = z.object({
       autoSummaryRecentMessages: z.number().int().min(4).max(40).default(12),
       autoSummaryMaxChars: z.number().int().min(200).max(4_000).default(1_000),
       candidateExtractionEnabled: z.boolean().default(false),
+      extractionProvider: memoryCandidateExtractionProviderSchema.default("codex"),
+      preResponseExtractionEnabled: z.boolean().default(false),
+      preResponseExtractionTimeoutMs: z.number().int().min(100).max(30_000).default(1_500),
+      postResponseExtractionEnabled: z.boolean().default(true),
+      postResponseExtractionAsync: z.boolean().default(false),
+      postResponseExtractionTimeoutMs: z.number().int().min(100).max(60_000).default(10_000),
       candidateRecentMessages: z.number().int().min(4).max(40).default(12),
       candidateMaxPerRun: z.number().int().min(1).max(10).default(5),
+      candidateApprovalPolicy: memoryCandidateApprovalPolicySchema.default("pending"),
+      autoAcceptMaxSensitivity: memoryCandidateSensitivitySchema.default("low"),
+      lmStudio: z
+        .object({
+          baseUrl: z.string().url().default("http://127.0.0.1:1234/v1"),
+          model: z.string().min(1).optional(),
+          timeoutMs: z.number().int().min(100).max(60_000).default(5_000),
+          maxTokens: z.number().int().min(1).max(8_000).default(800),
+          temperature: z.number().min(0).max(2).default(0),
+        })
+        .default({}),
     })
     .default({}),
   usage: usageBudgetConfigSchema,
@@ -395,8 +415,23 @@ export type AppConfig = {
     autoSummaryRecentMessages: number;
     autoSummaryMaxChars: number;
     candidateExtractionEnabled: boolean;
+    extractionProvider: z.infer<typeof memoryCandidateExtractionProviderSchema>;
+    preResponseExtractionEnabled: boolean;
+    preResponseExtractionTimeoutMs: number;
+    postResponseExtractionEnabled: boolean;
+    postResponseExtractionAsync: boolean;
+    postResponseExtractionTimeoutMs: number;
     candidateRecentMessages: number;
     candidateMaxPerRun: number;
+    candidateApprovalPolicy: z.infer<typeof memoryCandidateApprovalPolicySchema>;
+    autoAcceptMaxSensitivity: z.infer<typeof memoryCandidateSensitivitySchema>;
+    lmStudio: {
+      baseUrl: string;
+      model?: string;
+      timeoutMs: number;
+      maxTokens: number;
+      temperature: number;
+    };
   };
   usage: z.infer<typeof usageBudgetConfigSchema>;
   security: {

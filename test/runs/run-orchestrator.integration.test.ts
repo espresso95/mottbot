@@ -38,6 +38,7 @@ describe("RunOrchestrator", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     while (cleanup.length > 0) {
       cleanup.pop()?.();
     }
@@ -860,6 +861,346 @@ describe("RunOrchestrator", () => {
         scopeKey: "user-1",
         contentText: "User prefers pnpm for repository checks.",
         sensitivity: "low",
+      }),
+    ]);
+  });
+
+  it("auto-accepts memory candidates at or below the configured sensitivity ceiling", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+        candidateApprovalPolicy: "auto",
+        autoAcceptMaxSensitivity: "low",
+        candidateRecentMessages: 8,
+        candidateMaxPerRun: 5,
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport: ModelTransport = {
+      stream: vi
+        .fn()
+        .mockImplementationOnce(async ({ onStart }) => {
+          await onStart?.();
+          return { text: "I will remember the stable preference.", transport: "sse", requestIdentity: "req-answer" };
+        })
+        .mockImplementationOnce(async () => ({
+          text: JSON.stringify({
+            candidates: [
+              {
+                contentText: "User prefers pnpm for repository checks.",
+                reason: "Preference appeared in the latest conversation.",
+                scope: "personal",
+                sensitivity: "low",
+              },
+              {
+                contentText: "User lives in Boston.",
+                reason: "Personal location appeared in the latest conversation.",
+                scope: "personal",
+                sensitivity: "medium",
+              },
+            ],
+          }),
+          transport: "sse",
+          requestIdentity: "req-memory-candidates",
+        })),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Use pnpm when checking this repo. I live in Boston." }),
+      session,
+    });
+    await flushAsync();
+
+    expect(memories.listCandidates(session.sessionKey, "accepted")).toEqual([
+      expect.objectContaining({
+        contentText: "User prefers pnpm for repository checks.",
+        sensitivity: "low",
+        status: "accepted",
+      }),
+    ]);
+    expect(memories.listCandidates(session.sessionKey, "pending")).toEqual([
+      expect.objectContaining({
+        contentText: "User lives in Boston.",
+        sensitivity: "medium",
+        status: "pending",
+      }),
+    ]);
+    expect(memories.list(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        contentText: "User prefers pnpm for repository checks.",
+        source: "model_candidate",
+      }),
+    ]);
+  });
+
+  it("uses LM Studio pre-response extraction before building the main prompt", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+        extractionProvider: "lmstudio",
+        preResponseExtractionEnabled: true,
+        postResponseExtractionEnabled: false,
+        candidateApprovalPolicy: "auto",
+        autoAcceptMaxSensitivity: "low",
+        lmStudio: {
+          baseUrl: "http://127.0.0.1:1234/v1",
+          model: "memory-model",
+          timeoutMs: 2_000,
+          maxTokens: 800,
+          temperature: 0,
+        },
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    candidates: [
+                      {
+                        contentText: 'The assistant should answer to the name "Jeff" in this chat.',
+                        reason: "The user directly set the assistant's chat-facing name.",
+                        scope: "chat",
+                        scopeKey: "",
+                        sensitivity: "low",
+                        sourceMessageIds: [],
+                      },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport: ModelTransport = {
+      stream: vi.fn(async ({ messages, onStart }) => {
+        await onStart?.();
+        expect(JSON.stringify(messages)).toContain("Long-term memory approved for this chat");
+        expect(JSON.stringify(messages)).toContain("Jeff");
+        return { text: "My name is Jeff.", transport: "sse", requestIdentity: "req-answer" };
+      }),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Your name is Jeff." }),
+      session,
+    });
+    await flushAsync();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(transport.stream).toHaveBeenCalledTimes(1);
+    expect(memories.list(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        scope: "chat",
+        scopeKey: "chat-1",
+        contentText: 'The assistant should answer to the name "Jeff" in this chat.',
+        source: "model_candidate",
+      }),
+    ]);
+  });
+
+  it("can run LM Studio post-response extraction asynchronously", async () => {
+    const stores = createStores({
+      memory: {
+        candidateExtractionEnabled: true,
+        extractionProvider: "lmstudio",
+        preResponseExtractionEnabled: false,
+        postResponseExtractionEnabled: true,
+        postResponseExtractionAsync: true,
+        candidateApprovalPolicy: "auto",
+        autoAcceptMaxSensitivity: "low",
+        lmStudio: {
+          baseUrl: "http://127.0.0.1:1234/v1",
+          model: "memory-model",
+          timeoutMs: 2_000,
+          maxTokens: 800,
+          temperature: 0,
+        },
+      },
+    });
+    cleanup.push(() => {
+      stores.database.close();
+      removeTempDir(stores.tempDir);
+    });
+    let resolveFetch: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const session = stores.sessions.ensure({
+      sessionKey: "tg:dm:chat-1:user:user-1",
+      chatId: "chat-1",
+      userId: "user-1",
+      routeMode: "dm",
+      profileId: "openai-codex:default",
+      modelRef: "openai-codex/gpt-5.4",
+    });
+    const memories = new MemoryStore(stores.database, stores.clock);
+    const outbox: RunOutbox = {
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
+      update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
+      finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
+      fail: vi.fn(async () => ({ primaryMessageId: 1 })),
+    };
+    const transport: ModelTransport = {
+      stream: vi.fn(async ({ onStart }) => {
+        await onStart?.();
+        return { text: "Got it.", transport: "sse", requestIdentity: "req-answer" };
+      }),
+    };
+    const orchestrator = new RunOrchestrator({
+      config: stores.config,
+      queue: new SessionQueue(),
+      sessions: stores.sessions,
+      transcripts: stores.transcripts,
+      runs: stores.runs,
+      tokenResolver: createTokenResolver(),
+      transport,
+      outbox,
+      clock: stores.clock,
+      logger: stores.logger,
+      memories: memories,
+    });
+
+    await orchestrator.enqueueMessage({
+      event: createInboundEvent({ text: "Please keep replies concise." }),
+      session,
+    });
+    await flushAsync();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(memories.list(session.sessionKey)).toEqual([]);
+    expect(
+      stores.database.db.prepare<unknown[], { status: string }>("select status from runs limit 1").get()?.status,
+    ).toBe("completed");
+
+    resolveFetch?.(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  candidates: [
+                    {
+                      contentText: "User prefers concise replies.",
+                      reason: "The user asked to keep replies concise.",
+                      scope: "personal",
+                      scopeKey: "",
+                      sensitivity: "low",
+                      sourceMessageIds: [],
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    await flushAsync();
+    await flushAsync();
+
+    expect(memories.list(session.sessionKey)).toEqual([
+      expect.objectContaining({
+        scope: "personal",
+        scopeKey: "user-1",
+        contentText: "User prefers concise replies.",
+        source: "model_candidate",
       }),
     ]);
   });

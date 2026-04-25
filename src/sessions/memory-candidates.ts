@@ -12,13 +12,20 @@ import { classifyMemorySensitivity } from "./memory-sensitivity.js";
 export { classifyMemorySensitivity } from "./memory-sensitivity.js";
 
 /** Parsed model proposal for a durable memory candidate. */
-type ParsedMemoryCandidate = {
+export type ParsedMemoryCandidate = {
   scope: MemoryScope;
   scopeKey: string;
   contentText: string;
   reason?: string;
   sourceMessageIds: string[];
   sensitivity: MemoryCandidateSensitivity;
+};
+
+/** Provider-facing prompt used to extract model-proposed memory candidates. */
+export type MemoryCandidateExtractionPrompt = {
+  systemPrompt: string;
+  messages: PromptMessage[];
+  sourceMessageIds: string[];
 };
 
 const MAX_CANDIDATE_TEXT_CHARS = 4_000;
@@ -165,12 +172,13 @@ function renderTranscriptLine(message: TranscriptMessage): string | undefined {
 export function buildMemoryCandidateExtractionPrompt(params: {
   messages: TranscriptMessage[];
   maxCandidates: number;
-}): { systemPrompt: string; messages: PromptMessage[]; sourceMessageIds: string[] } | undefined {
+  minTranscriptLines?: number;
+}): MemoryCandidateExtractionPrompt | undefined {
   const lines = params.messages.flatMap((message) => {
     const line = renderTranscriptLine(message);
     return line ? [line] : [];
   });
-  if (lines.length < 2) {
+  if (lines.length < (params.minTranscriptLines ?? 2)) {
     return undefined;
   }
   const sourceMessageIds = params.messages.map((message) => message.id);

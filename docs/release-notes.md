@@ -9,6 +9,8 @@
 
 ### Memory
 
+- Added `memory.candidateApprovalPolicy` and `memory.autoAcceptMaxSensitivity` so opt-in model-assisted memory can automatically accept low-sensitivity candidates while keeping more sensitive facts pending for review.
+- Added configurable LM Studio memory extraction through the local OpenAI-compatible chat-completions API, including pre-response extraction and async post-response extraction modes.
 - Project-scoped memory now becomes visible to routes whose agent binding declares the matching `projectKey`.
 - Memory candidate accept and edit paths now avoid creating duplicate approved memory.
 - `/forget all` now clears all active approved memory visible to the current route, not only rows stored under the current session key.

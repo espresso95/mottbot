@@ -316,7 +316,7 @@ When a run hits a side-effecting tool without an active approval, the final Tele
 - `/unbind` restores the route mode based on the session key shape
 - `/remember`, `/memory`, and `/forget` manage approved long-term memory for the current route
 - memory can be scoped to the session, Telegram user, chat, group, or an explicit project key
-- model-assisted memory candidates are stored separately and require `/memory accept` or an inline accept button before they are included in prompts
+- model-assisted memory candidates are stored separately; they require `/memory accept` or an inline accept button before prompt use unless `memory.candidateApprovalPolicy="auto"` accepts them within the configured sensitivity ceiling
 - `/memory pin` raises accepted memory above ordinary scoped memory and automatic summaries; `/memory archive` hides it without deleting the row
 - `/auth import-cli` imports credentials from Codex CLI storage into the configured default profile
 - `/auth login` intentionally tells the operator to run a host-local command instead of attempting OAuth inside Telegram
@@ -420,7 +420,8 @@ Current policy:
 - tool messages are excluded from prompt construction
 - approved scoped memories are injected as system context before recent transcript history
 - optional automatic summaries are stored as session memory only when `memory.autoSummariesEnabled=true`
-- model-proposed memory candidates are never injected until accepted
+- model-proposed memory candidates are never injected until accepted by review or by the configured automatic approval policy
+- optional pre-response memory extraction can accept low-sensitivity memory before prompt construction; optional async post-response extraction can reflect on the completed turn without delaying the Telegram reply
 - older history is compacted into a deterministic summary system message
 - attachment metadata is rendered into user prompt text
 - native image inputs are appended only to the latest user message

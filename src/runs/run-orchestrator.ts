@@ -22,9 +22,14 @@ import type { SessionQueue } from "../sessions/queue.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
-import type { MemoryStore } from "../sessions/memory-store.js";
+import type { MemoryCandidateSensitivity, MemoryStore } from "../sessions/memory-store.js";
 import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
-import { buildMemoryCandidateExtractionPrompt, parseMemoryCandidateResponse } from "../sessions/memory-candidates.js";
+import {
+  buildMemoryCandidateExtractionPrompt,
+  parseMemoryCandidateResponse,
+  type MemoryCandidateExtractionPrompt,
+} from "../sessions/memory-candidates.js";
+import { extractMemoryCandidatesWithLmStudio } from "../sessions/lmstudio-memory-extractor.js";
 import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
@@ -69,6 +74,45 @@ const MAX_TOOL_ROUNDS_PER_RUN = 3;
 const MAX_TOOL_CALLS_PER_RUN = 5;
 const ATTACHMENT_RETRY_GUIDANCE =
   "This request included a file. Send the file again to retry it, or use Files below to inspect retained file metadata.";
+const MEMORY_CANDIDATE_SENSITIVITY_RANK: Record<MemoryCandidateSensitivity, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+function isWithinAutoAcceptSensitivity(
+  sensitivity: MemoryCandidateSensitivity,
+  maxSensitivity: MemoryCandidateSensitivity,
+): boolean {
+  return MEMORY_CANDIDATE_SENSITIVITY_RANK[sensitivity] <= MEMORY_CANDIDATE_SENSITIVITY_RANK[maxSensitivity];
+}
+
+type MemoryExtractionSignal = {
+  signal: AbortSignal;
+  dispose: () => void;
+};
+
+function createMemoryExtractionSignal(parent: AbortSignal | undefined, timeoutMs: number): MemoryExtractionSignal {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`Memory extraction timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+  const abortFromParent = () => {
+    controller.abort(parent?.reason);
+  };
+  if (parent?.aborted) {
+    abortFromParent();
+  } else {
+    parent?.addEventListener("abort", abortFromParent, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      clearTimeout(timeout);
+      parent?.removeEventListener("abort", abortFromParent);
+    },
+  };
+}
 
 /** Outbox operations required by run orchestration. */
 export type RunOutbox = Pick<TelegramOutbox, "start" | "update" | "finish" | "fail">;
@@ -79,6 +123,7 @@ export type RunReactionService = Pick<TelegramReactionService, "clearReaction">;
 type OutboxHandle = Awaited<ReturnType<RunOutbox["start"]>>;
 
 type ApprovedToolContinuation = RunQueueApprovedToolContinuation;
+type MemoryExtractionPhase = "pre_response" | "post_response";
 
 /** Outcome returned when an operator asks to retry a prior run. */
 type RunRetryResult =
@@ -1030,6 +1075,16 @@ export class RunOrchestrator {
           JSON.stringify({ attachments: attachmentPreparation.transcriptAttachments }),
         );
       }
+      if (this.config.memory.preResponseExtractionEnabled) {
+        await this.proposeMemoryCandidates({
+          session: params.session,
+          auth,
+          signal: params.signal,
+          phase: "pre_response",
+          minTranscriptLines: 1,
+          timeoutMs: this.config.memory.preResponseExtractionTimeoutMs,
+        });
+      }
       const history = this.transcripts.listRecent(params.session.sessionKey, 30);
       const prompt = buildPrompt({
         history,
@@ -1209,7 +1264,7 @@ export class RunOrchestrator {
         contentJson: Object.keys(assistantEnvelope).length > 0 ? JSON.stringify(assistantEnvelope) : undefined,
       });
       this.updateAutomaticMemorySummary(params.session.sessionKey);
-      await this.proposeMemoryCandidates({
+      await this.proposePostResponseMemoryCandidates({
         session: params.session,
         auth,
         signal: params.signal,
@@ -1395,10 +1450,69 @@ export class RunOrchestrator {
     return placeholder;
   }
 
-  private async proposeMemoryCandidates(params: {
+  private async proposePostResponseMemoryCandidates(params: {
     session: SessionRoute;
     auth: Awaited<ReturnType<ModelTokenResolver["resolve"]>>;
     signal: AbortSignal;
+  }): Promise<void> {
+    if (!this.config.memory.postResponseExtractionEnabled) {
+      return;
+    }
+    const extraction = this.proposeMemoryCandidates({
+      session: params.session,
+      auth: params.auth,
+      signal: this.config.memory.postResponseExtractionAsync ? undefined : params.signal,
+      phase: "post_response",
+      minTranscriptLines: 2,
+      timeoutMs: this.config.memory.postResponseExtractionTimeoutMs,
+    });
+    if (this.config.memory.postResponseExtractionAsync) {
+      void extraction;
+      return;
+    }
+    await extraction;
+  }
+
+  private async extractMemoryCandidateText(params: {
+    session: SessionRoute;
+    auth: Awaited<ReturnType<ModelTokenResolver["resolve"]>>;
+    prompt: MemoryCandidateExtractionPrompt;
+    signal: AbortSignal;
+  }): Promise<{ rawText: string; provider: AppConfig["memory"]["extractionProvider"] }> {
+    if (this.config.memory.extractionProvider === "lmstudio") {
+      return {
+        provider: "lmstudio",
+        rawText: await extractMemoryCandidatesWithLmStudio({
+          config: this.config.memory.lmStudio,
+          prompt: params.prompt,
+          maxCandidates: this.config.memory.candidateMaxPerRun,
+          signal: params.signal,
+        }),
+      };
+    }
+    const result = await this.transport.stream({
+      sessionKey: params.session.sessionKey,
+      modelRef: params.session.modelRef,
+      transport: this.config.models.transport,
+      auth: params.auth,
+      systemPrompt: params.prompt.systemPrompt,
+      messages: params.prompt.messages,
+      signal: params.signal,
+      fastMode: true,
+    });
+    return {
+      provider: "codex",
+      rawText: result.text,
+    };
+  }
+
+  private async proposeMemoryCandidates(params: {
+    session: SessionRoute;
+    auth: Awaited<ReturnType<ModelTokenResolver["resolve"]>>;
+    signal?: AbortSignal;
+    phase: MemoryExtractionPhase;
+    minTranscriptLines: number;
+    timeoutMs: number;
   }): Promise<void> {
     if (!this.config.memory.candidateExtractionEnabled || !this.memories) {
       return;
@@ -1406,27 +1520,26 @@ export class RunOrchestrator {
     const extractionPrompt = buildMemoryCandidateExtractionPrompt({
       messages: this.transcripts.listRecent(params.session.sessionKey, this.config.memory.candidateRecentMessages),
       maxCandidates: this.config.memory.candidateMaxPerRun,
+      minTranscriptLines: params.minTranscriptLines,
     });
     if (!extractionPrompt) {
       return;
     }
+    const extractionSignal = createMemoryExtractionSignal(params.signal, params.timeoutMs);
     try {
-      const result = await this.transport.stream({
-        sessionKey: params.session.sessionKey,
-        modelRef: params.session.modelRef,
-        transport: this.config.models.transport,
+      const result = await this.extractMemoryCandidateText({
+        session: params.session,
         auth: params.auth,
-        systemPrompt: extractionPrompt.systemPrompt,
-        messages: extractionPrompt.messages,
-        signal: params.signal,
-        fastMode: true,
+        prompt: extractionPrompt,
+        signal: extractionSignal.signal,
       });
       const candidates = parseMemoryCandidateResponse({
-        raw: result.text,
+        raw: result.rawText,
         context: params.session,
         allowedSourceMessageIds: extractionPrompt.sourceMessageIds,
       }).slice(0, this.config.memory.candidateMaxPerRun);
       let inserted = 0;
+      let accepted = 0;
       for (const candidate of candidates) {
         const outcome = this.memories.addCandidate({
           sessionKey: params.session.sessionKey,
@@ -1436,19 +1549,47 @@ export class RunOrchestrator {
           reason: candidate.reason,
           sourceMessageIds: candidate.sourceMessageIds,
           sensitivity: candidate.sensitivity,
-          proposedBy: "model",
+          proposedBy: `model:${result.provider}:${params.phase}`,
         });
         if (outcome.inserted) {
           inserted += 1;
         }
+        if (
+          this.config.memory.candidateApprovalPolicy === "auto" &&
+          outcome.candidate?.status === "pending" &&
+          isWithinAutoAcceptSensitivity(outcome.candidate.sensitivity, this.config.memory.autoAcceptMaxSensitivity)
+        ) {
+          const acceptedCandidate = this.memories.acceptCandidate({
+            sessionKey: params.session.sessionKey,
+            idPrefix: outcome.candidate.id,
+          });
+          if (acceptedCandidate) {
+            accepted += 1;
+          }
+        }
       }
-      if (inserted > 0) {
+      if (inserted > 0 || accepted > 0) {
         this.logger.info(
           {
             sessionKey: params.session.sessionKey,
+            phase: params.phase,
+            provider: result.provider,
+            parsed: candidates.length,
             inserted,
+            accepted,
+            pending: Math.max(0, inserted - accepted),
           },
-          "Stored memory candidates for review.",
+          "Stored memory candidates.",
+        );
+      } else {
+        this.logger.info(
+          {
+            sessionKey: params.session.sessionKey,
+            phase: params.phase,
+            provider: result.provider,
+            parsed: candidates.length,
+          },
+          "Memory extraction completed without stored candidates.",
         );
       }
     } catch (error) {
@@ -1456,9 +1597,13 @@ export class RunOrchestrator {
         {
           error,
           sessionKey: params.session.sessionKey,
+          phase: params.phase,
+          provider: this.config.memory.extractionProvider,
         },
         "Failed to extract memory candidates.",
       );
+    } finally {
+      extractionSignal.dispose();
     }
   }
 

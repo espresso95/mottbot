@@ -74,7 +74,21 @@ describe("loadConfig", () => {
           mcp: { servers: [{ name: "file-mcp", command: "node", args: ["server.js"], allowedTools: ["read"] }] },
         },
         runtime: { instanceLeaseEnabled: false },
-        memory: { autoSummariesEnabled: true, autoSummaryRecentMessages: 16 },
+        memory: {
+          autoSummariesEnabled: true,
+          autoSummaryRecentMessages: 16,
+          candidateExtractionEnabled: true,
+          extractionProvider: "lmstudio",
+          preResponseExtractionEnabled: true,
+          postResponseExtractionAsync: true,
+          candidateApprovalPolicy: "auto",
+          autoAcceptMaxSensitivity: "medium",
+          lmStudio: {
+            baseUrl: "http://127.0.0.1:1234/v1",
+            model: "file-memory-model",
+            timeoutMs: 2000,
+          },
+        },
         usage: { dailyRuns: 5, monthlyRunsPerModel: 20, warningThresholdPercent: 75 },
         service: { label: "ai.mottbot.bot.file" },
       }),
@@ -90,6 +104,20 @@ describe("loadConfig", () => {
     expect(config.tools.enableSideEffectTools).toBe(true);
     expect(config.models.transport).toBe("sse");
     expect(config.agents.bindings[0]?.projectKey).toBe("mottbot");
+    expect(config.memory).toMatchObject({
+      autoSummariesEnabled: true,
+      autoSummaryRecentMessages: 16,
+      candidateExtractionEnabled: true,
+      extractionProvider: "lmstudio",
+      preResponseExtractionEnabled: true,
+      postResponseExtractionAsync: true,
+      candidateApprovalPolicy: "auto",
+      autoAcceptMaxSensitivity: "medium",
+      lmStudio: expect.objectContaining({
+        model: "file-memory-model",
+        timeoutMs: 2000,
+      }),
+    });
     expect(config.storage.sqlitePath).toBe(path.resolve("./custom.sqlite"));
     expect(config.service.label).toBe("ai.mottbot.bot.file");
   });

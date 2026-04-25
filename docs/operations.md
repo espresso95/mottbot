@@ -601,7 +601,7 @@ Useful commands:
 - `/forget <memory-id-prefix|all|auto>` removes one matching visible memory, all active memory visible to the current route, or active automatic summaries visible to the current route
 - `/usage [daily|monthly]` shows local run counts by global/chat/session/user/model and configured limits
 
-Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default and require explicit approval before they appear in prompts:
+Optional automatic session summaries are deterministic and disabled by default. Model-assisted memory candidates are also disabled by default. By default they require explicit approval before they appear in prompts; set `candidateApprovalPolicy` to `auto` to accept low-sensitivity candidates automatically while leaving more sensitive candidates pending:
 
 ```json
 {
@@ -610,13 +610,30 @@ Optional automatic session summaries are deterministic and disabled by default. 
     "autoSummaryRecentMessages": 12,
     "autoSummaryMaxChars": 1000,
     "candidateExtractionEnabled": true,
+    "extractionProvider": "lmstudio",
+    "preResponseExtractionEnabled": true,
+    "preResponseExtractionTimeoutMs": 1500,
+    "postResponseExtractionEnabled": true,
+    "postResponseExtractionAsync": true,
+    "postResponseExtractionTimeoutMs": 10000,
     "candidateRecentMessages": 12,
-    "candidateMaxPerRun": 5
+    "candidateMaxPerRun": 5,
+    "candidateApprovalPolicy": "auto",
+    "autoAcceptMaxSensitivity": "low",
+    "lmStudio": {
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "model": "your-loaded-model-id",
+      "timeoutMs": 5000,
+      "maxTokens": 800,
+      "temperature": 0
+    }
   }
 }
 ```
 
-Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive them before use.
+Automatic summaries are tagged separately from explicit `/remember` entries and can be removed with `/forget auto`. Memory candidates store the proposed scope, reason, source message IDs, and sensitivity classification so the operator can approve, edit, reject, or archive pending entries before use. Keep `autoAcceptMaxSensitivity` at `low` unless the deployment is comfortable storing more personal facts without review.
+
+When `extractionProvider="lmstudio"`, Mottbot calls LM Studio's local OpenAI-compatible chat completions endpoint. Pre-response extraction can make newly accepted memory available to the immediate model response. Async post-response extraction reflects on the completed turn without delaying the Telegram reply. If LM Studio is unavailable, slow, or returns malformed JSON, the chat run continues and the extraction failure is logged.
 
 ## Persistent macOS Service
 

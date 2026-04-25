@@ -133,8 +133,23 @@
     "autoSummaryRecentMessages": 12,
     "autoSummaryMaxChars": 1000,
     "candidateExtractionEnabled": false,
+    "extractionProvider": "codex",
+    "preResponseExtractionEnabled": false,
+    "preResponseExtractionTimeoutMs": 1500,
+    "postResponseExtractionEnabled": true,
+    "postResponseExtractionAsync": false,
+    "postResponseExtractionTimeoutMs": 10000,
     "candidateRecentMessages": 12,
-    "candidateMaxPerRun": 5
+    "candidateMaxPerRun": 5,
+    "candidateApprovalPolicy": "pending",
+    "autoAcceptMaxSensitivity": "low",
+    "lmStudio": {
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "model": "REPLACE_WITH_LOADED_LM_STUDIO_MODEL",
+      "timeoutMs": 5000,
+      "maxTokens": 800,
+      "temperature": 0
+    }
   },
   "usage": {
     "dailyRuns": 0,

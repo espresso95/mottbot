@@ -457,7 +457,7 @@ Explicit memory is changed through `/remember`, `/memory`, and `/forget`; automa
 
 Purpose:
 
-- store model-proposed memory candidates separately from accepted memory until a user or admin explicitly reviews them
+- store model-proposed memory candidates separately from accepted memory until they are explicitly reviewed or accepted by the configured automatic approval policy
 
 Notable fields:
 
@@ -471,7 +471,7 @@ Notable fields:
 - `accepted_memory_id`
 - decision and timestamp fields
 
-Candidates are created only when `memory.candidateExtractionEnabled=true`. The extraction prompt asks for strict JSON, source message IDs, proposed scope, reason, and sensitivity. Malformed output is ignored and logged without failing the user-facing run. `/memory accept <id-prefix>` copies a pending candidate into `session_memories`; `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
+Candidates are created only when `memory.candidateExtractionEnabled=true`. The extraction prompt asks for strict JSON, source message IDs, proposed scope, reason, and sensitivity. Malformed output is ignored and logged without failing the user-facing run. Extraction can use the existing Codex transport or LM Studio's local OpenAI-compatible endpoint. Pre-response extraction can run against a single user turn before prompt construction; post-response extraction can run after the assistant turn and may be scheduled asynchronously. When `memory.candidateApprovalPolicy="auto"`, pending candidates whose sensitivity is at or below `memory.autoAcceptMaxSensitivity` are immediately copied into `session_memories` as `model_candidate` memory. Higher-sensitivity candidates remain pending. `/memory accept <id-prefix>` copies a pending candidate into `session_memories`; `/memory reject`, `/memory edit`, `/memory archive candidate`, and `/memory clear candidates` manage the review queue.
 
 ### `telegram_user_roles`
 
