@@ -512,6 +512,26 @@ corepack pnpm run restart
 corepack pnpm service stop
 ```
 
+Automatic host sync is available as a separate LaunchAgent:
+
+- label: `ai.mottbot.sync-main`
+- plist: `~/Library/LaunchAgents/ai.mottbot.sync-main.plist`
+- logs: `~/Library/Logs/mottbot/sync-main.out.log` and `~/Library/Logs/mottbot/sync-main.err.log`
+- interval: 300 seconds by default
+
+The sync helper only fast-forwards a clean checkout from `origin/main`. It refuses dirty worktrees and non-fast-forward history, then runs `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm health`, and a service restart with `MOTTBOT_SERVICE_NODE_PATH`.
+
+Common commands:
+
+```bash
+corepack pnpm run sync:service
+corepack pnpm run sync:service:install
+corepack pnpm run sync:service:status
+corepack pnpm run sync:service:uninstall
+```
+
+Set `MOTTBOT_AUTO_SYNC_INTERVAL_SECONDS`, `MOTTBOT_AUTO_SYNC_LABEL`, `MOTTBOT_AUTO_SYNC_REMOTE`, `MOTTBOT_AUTO_SYNC_BRANCH`, or `MOTTBOT_AUTO_SYNC_SERVICE_LABEL` before install/run to override the defaults.
+
 Runtime secrets remain in `.env`, not in the LaunchAgent plist.
 
 Polling conflict behavior:

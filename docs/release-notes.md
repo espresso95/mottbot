@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Automatic Service Sync
+
+- Added a guarded `sync:service` workflow that fast-forwards a clean checkout from `origin/main`, verifies the build and health check, then restarts the macOS service with the configured Node runtime.
+- Added install, status, and uninstall scripts for a separate `ai.mottbot.sync-main` LaunchAgent timer.
+
 ### Telegram Approval Buttons
 
 - Added inline Telegram approve and deny buttons for side-effecting tool approval prompts. Approve now clears the keyboard and queues a same-session continuation run; deny records `operator_denied` without continuing.
