@@ -24,17 +24,10 @@ describe("scheduleServiceRestart", () => {
       delayMs: 13_000,
       reason: "planned restart",
     });
-    expect(spawn).toHaveBeenCalledWith(
-      "/bin/zsh",
-      [
-        "-lc",
-        expect.stringContaining("sleep 13"),
-      ],
-      {
-        detached: true,
-        stdio: "ignore",
-      },
-    );
+    expect(spawn).toHaveBeenCalledWith("/bin/zsh", ["-lc", expect.stringContaining("sleep 13")], {
+      detached: true,
+      stdio: "ignore",
+    });
     expect(spawn.mock.calls[0]?.[1]?.[1]).toContain("service restart");
     expect(spawn.mock.calls[0]?.[1]?.[1]).toContain("'/tmp/mottbot test'");
     expect(unref).toHaveBeenCalled();

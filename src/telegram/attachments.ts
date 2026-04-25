@@ -116,10 +116,7 @@ function isImageMimeType(mimeType: string | undefined): boolean {
   return Boolean(mimeType && IMAGE_MIME_TYPES.has(mimeType));
 }
 
-function nativeFileMimeType(params: {
-  mimeType?: string;
-  extractionKind: AttachmentExtractionKind;
-}): string {
+function nativeFileMimeType(params: { mimeType?: string; extractionKind: AttachmentExtractionKind }): string {
   return params.mimeType ?? NATIVE_FILE_MIME_BY_KIND[params.extractionKind];
 }
 
@@ -128,10 +125,7 @@ function cacheFileName(attachment: NormalizedAttachment, telegramFile: TelegramF
   return `${createId()}-${sanitizeFileName(path.basename(sourceName))}`;
 }
 
-async function readResponseBody(params: {
-  response: Response;
-  maxBytes: number;
-}): Promise<Buffer> {
+async function readResponseBody(params: { response: Response; maxBytes: number }): Promise<Buffer> {
   const contentLength = params.response.headers.get("content-length");
   if (contentLength && Number(contentLength) > params.maxBytes) {
     throw new AttachmentIngestionError("attachment.too_large", "Attachment is larger than the configured limit.");
@@ -144,7 +138,7 @@ async function readResponseBody(params: {
     return buffer;
   }
 
-  const reader = params.response.body.getReader();
+  const reader = params.response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const chunks: Buffer[] = [];
   let totalBytes = 0;
   while (true) {
@@ -152,7 +146,7 @@ async function readResponseBody(params: {
     if (next.done) {
       break;
     }
-    const chunk = Buffer.from(next.value);
+    const chunk: Buffer = Buffer.from(next.value);
     totalBytes += chunk.byteLength;
     if (totalBytes > params.maxBytes) {
       throw new AttachmentIngestionError("attachment.too_large", "Attachment is larger than the configured limit.");

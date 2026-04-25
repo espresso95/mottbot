@@ -168,6 +168,8 @@ CI checks:
 - dependency installation with the pinned pnpm version
 - native `better-sqlite3` rebuild
 - TypeScript check
+- ESLint
+- Prettier format check
 - unit and integration tests
 - coverage thresholds from `vitest.config.ts`
 - TypeScript build output
@@ -178,6 +180,8 @@ Local equivalent:
 
 ```bash
 corepack pnpm check
+corepack pnpm lint
+corepack pnpm format:check
 corepack pnpm test
 corepack pnpm test:coverage
 corepack pnpm build

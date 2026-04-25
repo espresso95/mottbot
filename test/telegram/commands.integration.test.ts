@@ -86,9 +86,7 @@ describe("TelegramCommandRouter", () => {
 
     await router.maybeHandle(createInboundEvent({ text: "/model openai-codex/not-a-model", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/profile bad!", isCommand: true }));
-    await router.maybeHandle(
-      createInboundEvent({ text: `/bind ${"x".repeat(65)}`, isCommand: true }),
-    );
+    await router.maybeHandle(createInboundEvent({ text: `/bind ${"x".repeat(65)}`, isCommand: true }));
 
     const session = stores.sessions.findByChat("chat-1");
     expect(session?.modelRef).toBe("openai-codex/gpt-5.4");
@@ -193,7 +191,13 @@ describe("TelegramCommandRouter", () => {
       stores.sessions,
       stores.transcripts,
       stores.authProfiles,
-      { resolve: vi.fn(async () => ({ accessToken: "access", apiKey: "access", profile: stores.authProfiles.get("openai-codex:default")! })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          accessToken: "access",
+          apiKey: "access",
+          profile: stores.authProfiles.get("openai-codex:default")!,
+        })),
+      } as any,
       { stop: vi.fn(async () => false) } as any,
       stores.health,
     );
@@ -227,7 +231,13 @@ describe("TelegramCommandRouter", () => {
       stores.sessions,
       stores.transcripts,
       stores.authProfiles,
-      { resolve: vi.fn(async () => ({ accessToken: "access", apiKey: "access", profile: stores.authProfiles.get("openai-codex:default")! })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          accessToken: "access",
+          apiKey: "access",
+          profile: stores.authProfiles.get("openai-codex:default")!,
+        })),
+      } as any,
       { stop: vi.fn(async () => false) } as any,
       stores.health,
     );
@@ -260,7 +270,9 @@ describe("TelegramCommandRouter", () => {
       })),
       openPullRequests: vi.fn(async () => ({
         repository: "espresso95/mottbot",
-        pullRequests: [{ number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false }],
+        pullRequests: [
+          { number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false },
+        ],
         truncated: false,
       })),
       recentIssues: vi.fn(async () => ({ repository: "espresso95/mottbot", issues: [], truncated: false })),
@@ -332,12 +344,16 @@ describe("TelegramCommandRouter", () => {
       })),
       openPullRequests: vi.fn(async () => ({
         repository: "espresso95/mottbot",
-        pullRequests: [{ number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false }],
+        pullRequests: [
+          { number: 3, title: "Add feature", url: "https://github.com/espresso95/mottbot/pull/3", isDraft: false },
+        ],
         truncated: false,
       })),
       recentIssues: vi.fn(async () => ({
         repository: "espresso95/mottbot",
-        issues: [{ number: 5, title: "Fix issue", url: "https://github.com/espresso95/mottbot/issues/5", labels: ["bug"] }],
+        issues: [
+          { number: 5, title: "Fix issue", url: "https://github.com/espresso95/mottbot/issues/5", labels: ["bug"] },
+        ],
         truncated: false,
       })),
       ciStatus: vi.fn(async () => ({
@@ -387,12 +403,32 @@ describe("TelegramCommandRouter", () => {
       await router.maybeHandle(createInboundEvent({ text, fromUserId: "admin-1", isCommand: true }));
     }
 
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("GitHub commands"), expect.any(Object));
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("GitHub repository"), expect.any(Object));
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Open pull requests"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("GitHub commands"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("GitHub repository"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Open pull requests"),
+      expect.any(Object),
+    );
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Open issues"), expect.any(Object));
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Recent workflow runs"), expect.any(Object));
-    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Recent failed workflow runs"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Recent workflow runs"),
+      expect.any(Object),
+    );
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.stringContaining("Recent failed workflow runs"),
+      expect.any(Object),
+    );
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Latest CI"), expect.any(Object));
   });
 
@@ -444,15 +480,9 @@ describe("TelegramCommandRouter", () => {
         recentWorkflowFailures: vi.fn(),
       } as unknown as GithubReadOperations,
     );
-    await errorRouter.maybeHandle(
-      createInboundEvent({ text: "/github repo", fromUserId: "admin-1", isCommand: true }),
-    );
+    await errorRouter.maybeHandle(createInboundEvent({ text: "/github repo", fromUserId: "admin-1", isCommand: true }));
 
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      "GitHub integration is not available.",
-      expect.any(Object),
-    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "GitHub integration is not available.", expect.any(Object));
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "gh auth failed", expect.any(Object));
   });
 
@@ -774,11 +804,7 @@ describe("TelegramCommandRouter", () => {
 
     await router.maybeHandle(createInboundEvent({ text: "/health", isCommand: true }));
 
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("Status: ok"),
-      expect.any(Object),
-    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Status: ok"), expect.any(Object));
   });
 
   it("handles /usage with local budget reporting", async () => {
@@ -1154,11 +1180,7 @@ describe("TelegramCommandRouter", () => {
     await router.maybeHandle(createInboundEvent({ text: "/debug agents", fromUserId: "admin-1", isCommand: true }));
     await router.maybeHandle(createInboundEvent({ text: "/debug service", fromUserId: "user-1", isCommand: true }));
 
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("Recent runs:"),
-      expect.any(Object),
-    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Recent runs:"), expect.any(Object));
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",
       expect.stringContaining("Runtime config:"),
@@ -1209,16 +1231,8 @@ describe("TelegramCommandRouter", () => {
     })[0];
     await router.maybeHandle(createInboundEvent({ text: `/forget ${memory?.id.slice(0, 8)}`, isCommand: true }));
 
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("Remembered"),
-      expect.any(Object),
-    );
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("use pnpm"),
-      expect.any(Object),
-    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Remembered"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("use pnpm"), expect.any(Object));
     expect(
       memories.listForScopeContext({
         sessionKey: "tg:dm:chat-1:user:user-1",
@@ -1267,15 +1281,16 @@ describe("TelegramCommandRouter", () => {
 
     await router.maybeHandle(createInboundEvent({ text: "/memory candidates", isCommand: true }));
     await router.maybeHandle(
-      createInboundEvent({ text: `/memory edit ${candidate.candidate.id.slice(0, 8)} User likes direct answers.`, isCommand: true }),
+      createInboundEvent({
+        text: `/memory edit ${candidate.candidate.id.slice(0, 8)} User likes direct answers.`,
+        isCommand: true,
+      }),
     );
     await router.maybeHandle(
       createInboundEvent({ text: `/memory accept ${candidate.candidate.id.slice(0, 8)}`, isCommand: true }),
     );
     const accepted = memories.listForScopeContext(session)[0];
-    await router.maybeHandle(
-      createInboundEvent({ text: `/memory pin ${accepted?.id.slice(0, 8)}`, isCommand: true }),
-    );
+    await router.maybeHandle(createInboundEvent({ text: `/memory pin ${accepted?.id.slice(0, 8)}`, isCommand: true }));
     await router.maybeHandle(
       createInboundEvent({ text: `/memory archive ${accepted?.id.slice(0, 8)}`, isCommand: true }),
     );
@@ -1306,16 +1321,8 @@ describe("TelegramCommandRouter", () => {
       expect.stringContaining("User likes short answers."),
       expect.any(Object),
     );
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("Candidate"),
-      expect.any(Object),
-    );
-    expect(api.sendMessage).toHaveBeenCalledWith(
-      "chat-1",
-      expect.stringContaining("Accepted"),
-      expect.any(Object),
-    );
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Candidate"), expect.any(Object));
+    expect(api.sendMessage).toHaveBeenCalledWith("chat-1", expect.stringContaining("Accepted"), expect.any(Object));
     expect(api.sendMessage).toHaveBeenCalledWith("chat-1", "Candidate rejected.", expect.any(Object));
     expect(api.sendMessage).toHaveBeenCalledWith(
       "chat-1",

@@ -36,11 +36,6 @@ describe("AgentRunLimiter", () => {
     firstRelease.resolve();
     await expect(first).resolves.toBe("first");
     await expect(second).resolves.toBe("second");
-    expect(events).toEqual([
-      "docs:first:start",
-      "ops:first:start",
-      "docs:first:end",
-      "docs:second:start",
-    ]);
+    expect(events).toEqual(["docs:first:start", "ops:first:start", "docs:first:end", "docs:second:start"]);
   });
 });

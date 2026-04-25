@@ -6,7 +6,6 @@ import {
   importCodexCliAuthProfile,
   readCodexCliAuthFile,
   resolveCodexCliHome,
-  resolveCodexAccessTokenExpiry,
   resolveCodexAuthIdentity,
 } from "./cli-auth-import.js";
 import type { AuthProfile, CodexResolvedAuth } from "./types.js";
@@ -154,7 +153,7 @@ export class CodexTokenResolver {
     accountId?: string;
   }): boolean {
     const authFile = readCodexCliAuthFile();
-    if (!authFile || authFile.auth_mode !== "chatgpt") {
+    if (authFile?.auth_mode !== "chatgpt") {
       return false;
     }
     const authPath = path.join(resolveCodexCliHome(process.env), "auth.json");

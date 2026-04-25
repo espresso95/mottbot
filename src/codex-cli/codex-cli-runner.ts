@@ -135,7 +135,9 @@ export class CodexCliRunner {
         exitCode: code ?? undefined,
         signal: signal ?? undefined,
         finishedAt: this.clock.now(),
-        ...(code === 0 ? {} : { lastError: `Codex exited with code ${code ?? "null"}${signal ? ` signal ${signal}` : ""}` }),
+        ...(code === 0
+          ? {}
+          : { lastError: `Codex exited with code ${code ?? "null"}${signal ? ` signal ${signal}` : ""}` }),
       });
     });
 

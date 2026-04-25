@@ -96,9 +96,7 @@ describe("buildPrompt", () => {
           updatedAt: 1,
         },
       ],
-      history: [
-        { id: "1", sessionKey: "s", role: "user", contentText: "hi", createdAt: 2 },
-      ],
+      history: [{ id: "1", sessionKey: "s", role: "user", contentText: "hi", createdAt: 2 }],
     });
 
     expect(prompt.messages[0]).toEqual({

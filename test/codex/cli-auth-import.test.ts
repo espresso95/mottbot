@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { importCodexCliAuthProfile, resolveCodexAccessTokenExpiry, resolveCodexCliHome } from "../../src/codex/cli-auth-import.js";
+import {
+  importCodexCliAuthProfile,
+  resolveCodexAccessTokenExpiry,
+  resolveCodexCliHome,
+} from "../../src/codex/cli-auth-import.js";
 import { createStores } from "../helpers/fakes.js";
 import { createTempDir, removeTempDir } from "../helpers/tmp.js";
 

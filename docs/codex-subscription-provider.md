@@ -16,9 +16,9 @@ This is not the normal OpenAI API key path.
 Current provider constants:
 
 ```ts
-OPENAI_CODEX_PROVIDER_ID = "openai-codex"
-OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api"
-OPENAI_CODEX_API = "openai-codex-responses"
+OPENAI_CODEX_PROVIDER_ID = "openai-codex";
+OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+OPENAI_CODEX_API = "openai-codex-responses";
 ```
 
 Current built-in model refs:

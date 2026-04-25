@@ -2,11 +2,7 @@ export class AgentRunLimiter {
   private readonly active = new Map<string, number>();
   private readonly waiters = new Map<string, Array<() => void>>();
 
-  async run<T>(
-    agentId: string,
-    maxConcurrentRuns: number | undefined,
-    task: () => Promise<T>,
-  ): Promise<T> {
+  async run<T>(agentId: string, maxConcurrentRuns: number | undefined, task: () => Promise<T>): Promise<T> {
     if (maxConcurrentRuns === undefined) {
       return task();
     }

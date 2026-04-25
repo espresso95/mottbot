@@ -232,8 +232,7 @@ export async function bootstrapApplication() {
       resolveCallerRole: (userId) => governance.resolveToolCallerRole(userId),
       isModelAllowed: ({ chatId, modelRef }) => governance.isModelAllowed({ chatId, modelRef }),
       isToolAllowed: ({ chatId, toolName }) => governance.isToolAllowed({ chatId, toolName }),
-      validateAttachments: ({ chatId, attachments }) =>
-        governance.validateAttachments({ chatId, attachments }),
+      validateAttachments: ({ chatId, attachments }) => governance.validateAttachments({ chatId, attachments }),
     },
   );
   orchestrator.recoverQueuedRuns();

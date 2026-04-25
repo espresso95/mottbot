@@ -148,7 +148,12 @@ const projectTasksConfigSchema = z
         command: z.string().min(1).default("codex"),
         coderProfile: z.string().min(1).default("mottbot-coder"),
         reviewerProfile: z.string().min(1).default("mottbot-reviewer"),
-        defaultTimeoutMs: z.number().int().min(30_000).max(24 * 60 * 60 * 1000).default(60 * 60 * 1000),
+        defaultTimeoutMs: z
+          .number()
+          .int()
+          .min(30_000)
+          .max(24 * 60 * 60 * 1000)
+          .default(60 * 60 * 1000),
       })
       .default({}),
     approvals: z
@@ -206,8 +211,16 @@ const rawConfigSchema = z.object({
   attachments: z
     .object({
       cacheDir: z.string().default("./data/attachments"),
-      maxFileBytes: z.number().int().min(1).default(20 * 1024 * 1024),
-      maxTotalBytes: z.number().int().min(1).default(30 * 1024 * 1024),
+      maxFileBytes: z
+        .number()
+        .int()
+        .min(1)
+        .default(20 * 1024 * 1024),
+      maxTotalBytes: z
+        .number()
+        .int()
+        .min(1)
+        .default(30 * 1024 * 1024),
       maxPerMessage: z.number().int().min(0).max(10).default(4),
       maxExtractedTextCharsPerFile: z.number().int().min(0).default(40_000),
       maxExtractedTextCharsTotal: z.number().int().min(0).default(80_000),
@@ -247,7 +260,11 @@ const rawConfigSchema = z.object({
   tools: z
     .object({
       enableSideEffectTools: z.boolean().default(false),
-      approvalTtlMs: z.number().int().min(1_000).default(5 * 60 * 1000),
+      approvalTtlMs: z
+        .number()
+        .int()
+        .min(1_000)
+        .default(5 * 60 * 1000),
       restartDelayMs: z.number().int().min(1_000).default(60_000),
       policies: z.record(toolPolicyConfigSchema).default({}),
       repository: repositoryToolConfigSchema,
@@ -263,7 +280,11 @@ const rawConfigSchema = z.object({
   runtime: z
     .object({
       instanceLeaseEnabled: z.boolean().default(true),
-      instanceLeaseTtlMs: z.number().int().min(5_000).default(2 * 60 * 1000),
+      instanceLeaseTtlMs: z
+        .number()
+        .int()
+        .min(5_000)
+        .default(2 * 60 * 1000),
       instanceLeaseRefreshMs: z.number().int().min(1_000).default(30_000),
     })
     .default({}),
@@ -468,8 +489,7 @@ export function resolveConfigPath(): string {
 export function loadConfig(): AppConfig {
   const configPath = resolveConfigPath();
   const fileConfig = readConfigFile(configPath);
-  const fileObject =
-    typeof fileConfig === "object" && fileConfig ? (fileConfig as Record<string, unknown>) : {};
+  const fileObject = typeof fileConfig === "object" && fileConfig ? (fileConfig as Record<string, unknown>) : {};
   const parsed = rawConfigSchema.parse(fileObject);
 
   const botToken = parsed.telegram.botToken?.trim();

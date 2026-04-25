@@ -24,13 +24,9 @@ describe("Telegram reactions", () => {
       messageId: 42,
     });
 
-    expect(api.setMessageReaction).toHaveBeenNthCalledWith(
-      1,
-      "chat-1",
-      42,
-      [{ type: "emoji", emoji: "\u{1F44D}" }],
-      { is_big: true },
-    );
+    expect(api.setMessageReaction).toHaveBeenNthCalledWith(1, "chat-1", 42, [{ type: "emoji", emoji: "\u{1F44D}" }], {
+      is_big: true,
+    });
     expect(api.setMessageReaction).toHaveBeenNthCalledWith(2, "chat-1", 42, [], {});
   });
 

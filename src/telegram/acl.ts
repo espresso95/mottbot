@@ -18,16 +18,14 @@ export class AccessController {
   ) {}
 
   evaluate(event: InboundEvent): AccessDecision {
-    const role = this.governance?.resolveUserRole(event.fromUserId) ??
+    const role =
+      this.governance?.resolveUserRole(event.fromUserId) ??
       (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId) ? "owner" : "user");
     if (isGovernanceOperatorRole(role)) {
       return { allow: true, reason: event.isCommand ? "command" : "private" };
     }
 
-    if (
-      this.config.telegram.allowedChatIds.length > 0 &&
-      !this.config.telegram.allowedChatIds.includes(event.chatId)
-    ) {
+    if (this.config.telegram.allowedChatIds.length > 0 && !this.config.telegram.allowedChatIds.includes(event.chatId)) {
       return { allow: false, reason: "chat_not_allowed" };
     }
 
@@ -60,9 +58,7 @@ export class AccessController {
     }
 
     if (this.config.behavior.respondInGroupsOnlyWhenMentioned) {
-      return event.mentionsBot
-        ? { allow: true, reason: "mentioned" }
-        : { allow: false, reason: "mention_required" };
+      return event.mentionsBot ? { allow: true, reason: "mentioned" } : { allow: false, reason: "mention_required" };
     }
 
     return { allow: true, reason: "mentioned" };

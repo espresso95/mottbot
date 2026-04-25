@@ -40,9 +40,7 @@ function printJson(value: unknown): void {
 }
 
 function countRows(database: DatabaseClient, table: string): number {
-  return database.db
-    .prepare<unknown[], { count: number }>(`select count(*) as count from ${table}`)
-    .get()?.count ?? 0;
+  return database.db.prepare<unknown[], { count: number }>(`select count(*) as count from ${table}`).get()?.count ?? 0;
 }
 
 function readMigrations(database: DatabaseClient): MigrationVersionRow[] {

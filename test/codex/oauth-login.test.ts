@@ -3,12 +3,7 @@ import { runCodexOAuthLogin } from "../../src/codex/oauth-login.js";
 import { createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
-const {
-  loginOpenAICodex,
-  openMock,
-  questionMock,
-  closeMock,
-} = vi.hoisted(() => ({
+const { loginOpenAICodex, openMock, questionMock, closeMock } = vi.hoisted(() => ({
   loginOpenAICodex: vi.fn(),
   openMock: vi.fn(async () => undefined),
   questionMock: vi.fn(async () => "code"),
@@ -77,9 +72,7 @@ describe("runCodexOAuthLogin", () => {
     });
 
     expect(profileId).toBe("openai-codex:default");
-    expect(openMock).toHaveBeenCalledWith(
-      expect.stringContaining("api.responses.write"),
-    );
+    expect(openMock).toHaveBeenCalledWith(expect.stringContaining("api.responses.write"));
     expect(stores.authProfiles.get(profileId)).toMatchObject({
       source: "local_oauth",
       accountId: "acct-1",

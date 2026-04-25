@@ -43,7 +43,7 @@ function parseJsonOutput(stdout: string): unknown | undefined {
     return undefined;
   }
   try {
-    return JSON.parse(trimmed);
+    return JSON.parse(trimmed) as unknown;
   } catch {
     return undefined;
   }

@@ -47,8 +47,10 @@ function collectAttachments(message: Record<string, unknown>): NormalizedAttachm
     });
   };
 
-  if (Array.isArray(message.photo) && message.photo.length > 0) {
-    const photo = message.photo[message.photo.length - 1];
+  const photoList = message.photo;
+  if (Array.isArray(photoList) && photoList.length > 0) {
+    const photos: unknown[] = photoList;
+    const photo = photos[photos.length - 1];
     push("photo", photo);
   }
   push("document", message.document);
@@ -60,11 +62,7 @@ function collectAttachments(message: Record<string, unknown>): NormalizedAttachm
   return attachments;
 }
 
-export function normalizeUpdate(params: {
-  ctx: Context;
-  botUsername?: string;
-  clock: Clock;
-}): InboundEvent | null {
+export function normalizeUpdate(params: { ctx: Context; botUsername?: string; clock: Clock }): InboundEvent | null {
   const message = params.ctx.message;
   if (!message) {
     return null;
@@ -94,9 +92,7 @@ export function normalizeUpdate(params: {
         : "private",
     messageId: typeof rawMessage.message_id === "number" ? rawMessage.message_id : 0,
     ...(typeof rawMessage.message_thread_id === "number" ? { threadId: rawMessage.message_thread_id } : {}),
-    ...(from && (typeof from.id === "number" || typeof from.id === "string")
-      ? { fromUserId: String(from.id) }
-      : {}),
+    ...(from && (typeof from.id === "number" || typeof from.id === "string") ? { fromUserId: String(from.id) } : {}),
     ...(from && typeof from.username === "string" ? { fromUsername: from.username } : {}),
     ...(text ? { text } : {}),
     ...(caption ? { caption } : {}),

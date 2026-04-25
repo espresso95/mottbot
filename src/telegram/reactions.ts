@@ -17,27 +17,12 @@ export type NormalizedReactionEvent = {
 export class TelegramReactionService {
   constructor(private readonly api: Api) {}
 
-  async setEmojiReaction(params: {
-    chatId: string;
-    messageId: number;
-    emoji: string;
-    isBig?: boolean;
-  }): Promise<true> {
-    const reaction: ReactionType[] = params.emoji
-      ? [({ type: "emoji", emoji: params.emoji } as ReactionType)]
-      : [];
-    return this.api.setMessageReaction(
-      params.chatId,
-      params.messageId,
-      reaction,
-      params.isBig ? { is_big: true } : {},
-    );
+  async setEmojiReaction(params: { chatId: string; messageId: number; emoji: string; isBig?: boolean }): Promise<true> {
+    const reaction: ReactionType[] = params.emoji ? [{ type: "emoji", emoji: params.emoji } as ReactionType] : [];
+    return this.api.setMessageReaction(params.chatId, params.messageId, reaction, params.isBig ? { is_big: true } : {});
   }
 
-  async clearReaction(params: {
-    chatId: string;
-    messageId: number;
-  }): Promise<true> {
+  async clearReaction(params: { chatId: string; messageId: number }): Promise<true> {
     return this.setEmojiReaction({
       chatId: params.chatId,
       messageId: params.messageId,
@@ -66,10 +51,10 @@ function countValues(values: string[]): Map<string, number> {
   return counts;
 }
 
-function diffReactionEmojis(params: {
-  oldEmojis: string[];
-  newEmojis: string[];
-}): { addedEmojis: string[]; removedEmojis: string[] } {
+function diffReactionEmojis(params: { oldEmojis: string[]; newEmojis: string[] }): {
+  addedEmojis: string[];
+  removedEmojis: string[];
+} {
   const oldCounts = countValues(params.oldEmojis);
   const newCounts = countValues(params.newEmojis);
   const addedEmojis: string[] = [];
@@ -89,10 +74,7 @@ function diffReactionEmojis(params: {
   return { addedEmojis, removedEmojis };
 }
 
-export function normalizeReactionUpdate(params: {
-  ctx: Context;
-  clock: Clock;
-}): NormalizedReactionEvent | undefined {
+export function normalizeReactionUpdate(params: { ctx: Context; clock: Clock }): NormalizedReactionEvent | undefined {
   const reaction = params.ctx.update.message_reaction;
   if (!reaction) {
     return undefined;

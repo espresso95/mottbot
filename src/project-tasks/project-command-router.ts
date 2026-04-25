@@ -65,7 +65,11 @@ export class ProjectCommandRouter {
       await this.handleApprove(event, rest[0], event.fromUserId);
       return;
     }
-    await sendReply(this.api, event, "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | approve <approval>");
+    await sendReply(
+      this.api,
+      event,
+      "Usage: /project start <repo> <task> | status [task] | tail <subtask> | cancel <task> | approve <approval>",
+    );
   }
 
   private async handleStart(event: InboundEvent, args: string[]): Promise<void> {
@@ -130,14 +134,20 @@ export class ProjectCommandRouter {
         requestedBy: event.fromUserId,
         requestJson: JSON.stringify({ repoRoot, prompt }),
       });
-      await sendReply(this.api, event, `Created task ${task.taskId}. Awaiting approval ${approval.approvalId}. Run /project approve ${approval.approvalId}`);
+      await sendReply(
+        this.api,
+        event,
+        `Created task ${task.taskId}. Awaiting approval ${approval.approvalId}. Run /project approve ${approval.approvalId}`,
+      );
       return;
     }
     await sendReply(this.api, event, `Started project task ${task.taskId} in ${repoRoot}.`);
   }
 
   private async handleStatus(event: InboundEvent, taskId?: string): Promise<void> {
-    const targetTask = taskId?.trim() ? this.store.getTask(taskId.trim()) : this.store.listTasksByChat(event.chatId, 1)[0];
+    const targetTask = taskId?.trim()
+      ? this.store.getTask(taskId.trim())
+      : this.store.listTasksByChat(event.chatId, 1)[0];
     if (!targetTask) {
       await sendReply(this.api, event, "No project tasks found.");
       return;
@@ -150,9 +160,10 @@ export class ProjectCommandRouter {
     const subtaskLines =
       snapshot.subtasks
         .map((subtask) => {
-          const deps = subtask.dependsOnSubtaskIds.length > 0
-            ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
-            : "";
+          const deps =
+            subtask.dependsOnSubtaskIds.length > 0
+              ? ` (depends on ${subtask.dependsOnSubtaskIds.map((entry) => entry.slice(0, 8)).join(", ")})`
+              : "";
           return `- ${subtask.subtaskId.slice(0, 8)} ${subtask.title}: ${subtask.status}${deps}`;
         })
         .join("\n") || "- none";
@@ -196,7 +207,13 @@ export class ProjectCommandRouter {
       const details = parsed.text ?? parsed.message ?? "";
       return `- #${entry.eventIndex} ${entry.eventType ?? "event"}${details ? `: ${details}` : ""}`;
     });
-    await sendReply(this.api, event, [`Subtask: ${subtask.title}`, `Status: ${subtask.status}`, "Events:", lines.join("\n") || "- no events yet"].join("\n"));
+    await sendReply(
+      this.api,
+      event,
+      [`Subtask: ${subtask.title}`, `Status: ${subtask.status}`, "Events:", lines.join("\n") || "- no events yet"].join(
+        "\n",
+      ),
+    );
   }
 
   private async handleCancel(event: InboundEvent, taskId?: string): Promise<void> {

@@ -1,9 +1,6 @@
 import type { Logger } from "../shared/logger.js";
 
-export function installShutdown(params: {
-  logger: Logger;
-  onShutdown: () => Promise<void>;
-}): void {
+export function installShutdown(params: { logger: Logger; onShutdown: () => Promise<void> }): void {
   let shuttingDown = false;
   const handle = async (signal: NodeJS.Signals) => {
     if (shuttingDown) {

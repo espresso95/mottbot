@@ -136,10 +136,12 @@ describe("tool approval design", () => {
         previewText: "Tool: mottbot_restart_service\nArguments:\n{}",
       });
 
-      expect(store.findActive({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-      })).toMatchObject({
+      expect(
+        store.findActive({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+        }),
+      ).toMatchObject({
         id: approval.id,
         requestFingerprint: "request-1",
         previewText: expect.stringContaining("Tool:"),
@@ -158,15 +160,15 @@ describe("tool approval design", () => {
         requestFingerprint: approval.requestFingerprint,
         previewText: approval.previewText,
       });
-      expect(store.findLatestPendingRequest({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-      })).toBeUndefined();
       expect(
-        stores.database.db
-          .prepare("select count(*) as count from tool_approval_audit")
-          .get(),
-      ).toEqual({ count: 1 });
+        store.findLatestPendingRequest({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+        }),
+      ).toBeUndefined();
+      expect(stores.database.db.prepare("select count(*) as count from tool_approval_audit").get()).toEqual({
+        count: 1,
+      });
       store.recordAudit({
         toolName: approval.toolName,
         sideEffect: "process_control",
@@ -178,23 +180,29 @@ describe("tool approval design", () => {
         requestFingerprint: "request-2",
         previewText: "Tool: mottbot_restart_service\nArguments:\n{}",
       });
-      expect(store.findLatestPendingRequest({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-      })).toMatchObject({
+      expect(
+        store.findLatestPendingRequest({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+        }),
+      ).toMatchObject({
         decisionCode: "approval_required",
         requestFingerprint: "request-2",
       });
-      expect(store.listAudit({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-        decisionCode: "approval_required",
-      })).toHaveLength(1);
+      expect(
+        store.listAudit({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+          decisionCode: "approval_required",
+        }),
+      ).toHaveLength(1);
       expect(store.consume(approval.id)).toBe(true);
-      expect(store.findActive({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-      })).toBeUndefined();
+      expect(
+        store.findActive({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+        }),
+      ).toBeUndefined();
 
       store.approve({
         sessionKey: approval.sessionKey,
@@ -203,10 +211,12 @@ describe("tool approval design", () => {
         reason: "second",
         ttlMs: 60_000,
       });
-      expect(store.revokeActive({
-        sessionKey: approval.sessionKey,
-        toolName: approval.toolName,
-      })).toBe(1);
+      expect(
+        store.revokeActive({
+          sessionKey: approval.sessionKey,
+          toolName: approval.toolName,
+        }),
+      ).toBe(1);
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

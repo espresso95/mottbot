@@ -77,9 +77,7 @@ describe("UsageBudgetService", () => {
       const decision = budgets.evaluate({ session, modelRef: session.modelRef });
 
       expect(decision.allowed).toBe(true);
-      expect(decision.warnings).toEqual([
-        "daily session run budget is 2/3. Approaching the daily UTC limit.",
-      ]);
+      expect(decision.warnings).toEqual(["daily session run budget is 2/3. Approaching the daily UTC limit."]);
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);
@@ -110,7 +108,9 @@ describe("UsageBudgetService", () => {
       stores.runs.update(run.runId, { status: "completed", finishedAt: stores.clock.now() });
       const budgets = new UsageBudgetService(stores.config, stores.runs, stores.clock);
 
-      expect(budgets.formatUsageReport({ session, window: "daily" })).toContain("Configured daily limits: daily global=10");
+      expect(budgets.formatUsageReport({ session, window: "daily" })).toContain(
+        "Configured daily limits: daily global=10",
+      );
       expect(budgets.formatUsageReport({ session, window: "monthly" })).toContain("monthly model=20");
       expect(budgets.formatUsageReport({ session, window: "monthly" })).toContain("Top models:");
     } finally {

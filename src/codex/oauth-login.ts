@@ -62,8 +62,7 @@ export async function runCodexOAuthLogin(params: {
       },
       onPrompt: async (prompt: { message: string; placeholder?: string }) =>
         await rl.question(`${prompt.message}${prompt.placeholder ? ` (${prompt.placeholder})` : ""}: `),
-      onManualCodeInput: async () =>
-        await rl.question("Paste the authorization code or full redirect URL: "),
+      onManualCodeInput: async () => await rl.question("Paste the authorization code or full redirect URL: "),
       onProgress: (message: string) => params.logger.info({ message }, "OAuth progress"),
     });
     if (!creds) {

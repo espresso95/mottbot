@@ -293,7 +293,7 @@ async function runCommand(params: {
         stderr: error.stderr ?? "",
       };
     }
-    throw new Error(error.stderr?.trim() || error.message);
+    throw new Error(error.stderr?.trim() || error.message, { cause: caught });
   }
 }
 
@@ -317,11 +317,7 @@ function parseRgMatches(params: {
     } catch {
       continue;
     }
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      (parsed as { type?: unknown }).type !== "match"
-    ) {
+    if (!parsed || typeof parsed !== "object" || (parsed as { type?: unknown }).type !== "match") {
       continue;
     }
     const data = (parsed as { data?: unknown }).data;
@@ -543,7 +539,11 @@ function filterGitStatus(scope: RepositoryScope, stdout: string): string {
       if (!line.trim() || line.startsWith("##")) {
         return true;
       }
-      const rawPaths = line.slice(3).split(" -> ").map((item) => item.trim()).filter(Boolean);
+      const rawPaths = line
+        .slice(3)
+        .split(" -> ")
+        .map((item) => item.trim())
+        .filter(Boolean);
       return rawPaths.every((rawPath) => !scope.isDenied(rawPath));
     })
     .join("\n")
@@ -553,7 +553,7 @@ function filterGitStatus(scope: RepositoryScope, stdout: string): string {
 function parseGitChangedPaths(scope: RepositoryScope, output: string): string[] {
   const parts = output.split("\0").filter(Boolean);
   const paths: string[] = [];
-  for (let index = 0; index < parts.length;) {
+  for (let index = 0; index < parts.length; ) {
     const status = parts[index++];
     if (!status) {
       break;
@@ -662,9 +662,7 @@ async function gitDiffSummary(params: {
   });
 }
 
-export function createRepositoryToolHandlers(
-  config: RepositoryToolConfig,
-): Partial<Record<string, ToolHandler>> {
+export function createRepositoryToolHandlers(config: RepositoryToolConfig): Partial<Record<string, ToolHandler>> {
   const scope = createRepositoryScope(config);
   return {
     mottbot_repo_list_files: ({ arguments: input }) => {

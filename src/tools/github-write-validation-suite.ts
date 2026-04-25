@@ -115,9 +115,7 @@ export function buildGithubWriteSmokePlan(env: NodeJS.ProcessEnv): GithubWriteSm
   const confirmed = env.MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM === CONFIRMATION_PHRASE;
   const issues = [
     !repository ? "MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY is required." : undefined,
-    !dryRun && !confirmed
-      ? `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM must equal ${CONFIRMATION_PHRASE}.`
-      : undefined,
+    !dryRun && !confirmed ? `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM must equal ${CONFIRMATION_PHRASE}.` : undefined,
     prNumberRaw && prNumber === undefined
       ? "MOTTBOT_GITHUB_WRITE_SMOKE_PR_NUMBER must be a positive integer when set."
       : undefined,
@@ -162,7 +160,7 @@ function parseToolJson(result: ToolExecutionResult): Record<string, unknown> {
   if (result.isError) {
     throw new Error(result.contentText);
   }
-  const parsed = JSON.parse(result.contentText);
+  const parsed: unknown = JSON.parse(result.contentText);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`Tool ${result.toolName} returned non-object JSON.`);
   }
@@ -234,10 +232,12 @@ async function runScenarioOnce(
   }
 }
 
-export async function createGithubWriteValidationSuiteResult(params: {
-  env?: NodeJS.ProcessEnv;
-  github?: GithubReadOperations & GithubWriteOperations;
-} = {}): Promise<GithubWriteSmokeResult> {
+export async function createGithubWriteValidationSuiteResult(
+  params: {
+    env?: NodeJS.ProcessEnv;
+    github?: GithubReadOperations & GithubWriteOperations;
+  } = {},
+): Promise<GithubWriteSmokeResult> {
   const env = params.env ?? process.env;
   const plan = buildGithubWriteSmokePlan(env);
   if (plan.issues.length > 0 && !plan.dryRun) {

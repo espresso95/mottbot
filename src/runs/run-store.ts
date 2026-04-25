@@ -79,14 +79,21 @@ export class RunStore {
           run_id, session_key, agent_id, status, model_ref, profile_id, transport, request_identity, started_at, finished_at, error_code, error_message, usage_json, created_at, updated_at
         ) values (?, ?, ?, ?, ?, ?, null, null, null, null, null, null, null, ?, ?)`,
       )
-      .run(run.runId, run.sessionKey, run.agentId, run.status, run.modelRef, run.profileId, run.createdAt, run.updatedAt);
+      .run(
+        run.runId,
+        run.sessionKey,
+        run.agentId,
+        run.status,
+        run.modelRef,
+        run.profileId,
+        run.createdAt,
+        run.updatedAt,
+      );
     return run;
   }
 
   get(runId: string): RunRecord | undefined {
-    const row = this.database.db
-      .prepare<unknown[], RunRow>("select * from runs where run_id = ?")
-      .get(runId);
+    const row = this.database.db.prepare<unknown[], RunRow>("select * from runs where run_id = ?").get(runId);
     return row ? mapRunRow(row) : undefined;
   }
 
@@ -130,9 +137,7 @@ export class RunStore {
     }
     const placeholders = statuses.map(() => "?").join(", ");
     const row = this.database.db
-      .prepare<unknown[], { count: number }>(
-        `select count(*) as count from runs where status in (${placeholders})`,
-      )
+      .prepare<unknown[], { count: number }>(`select count(*) as count from runs where status in (${placeholders})`)
       .get(...statuses);
     return row?.count ?? 0;
   }
@@ -206,9 +211,10 @@ export class RunStore {
 
   recoverInterruptedRuns(): RunRecord[] {
     const rows = this.database.db
-      .prepare<unknown[], RunRow>(
-        "select * from runs where status in ('starting', 'streaming') order by created_at asc",
-      )
+      .prepare<
+        unknown[],
+        RunRow
+      >("select * from runs where status in ('starting', 'streaming') order by created_at asc")
       .all();
     if (rows.length === 0) {
       return [];
@@ -222,14 +228,7 @@ export class RunStore {
     );
     const transaction = this.database.db.transaction((items: RunRecord[]) => {
       for (const item of items) {
-        update.run(
-          "failed",
-          "restart_recovery",
-          "Recovered as failed after process restart.",
-          now,
-          now,
-          item.runId,
-        );
+        update.run("failed", "restart_recovery", "Recovered as failed after process restart.", now, now, item.runId);
       }
     });
     transaction(recovered);

@@ -53,7 +53,10 @@ function matchesDeniedPath(relativePath: string, spec: string): boolean {
   if (!normalizedSpec.includes("/")) {
     return pathSegments(normalizedRelative).some((segment) => matchesSpec.test(segment));
   }
-  return matchesSpec.test(normalizedRelative) || normalizedRelative.toLowerCase().startsWith(`${normalizedSpec.toLowerCase()}/`);
+  return (
+    matchesSpec.test(normalizedRelative) ||
+    normalizedRelative.toLowerCase().startsWith(`${normalizedSpec.toLowerCase()}/`)
+  );
 }
 
 function isInside(parent: string, child: string): boolean {
@@ -62,7 +65,13 @@ function isInside(parent: string, child: string): boolean {
 }
 
 function sanitizeBranchPart(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "task";
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "task"
+  );
 }
 
 function shellGit(cwd: string, args: string[]): string {
@@ -90,7 +99,11 @@ export class WorktreeManager {
   prepareSubtask(params: { taskId: string; subtaskId: string; repoRoot: string; baseRef: string }): PreparedWorktree {
     const repoRoot = this.resolveApprovedRepoRoot(params.repoRoot);
     const branchName = `mottbot/${sanitizeBranchPart(params.taskId)}/${sanitizeBranchPart(params.subtaskId)}`;
-    const worktreePath = path.join(this.worktreeRoot, sanitizeBranchPart(params.taskId), sanitizeBranchPart(params.subtaskId));
+    const worktreePath = path.join(
+      this.worktreeRoot,
+      sanitizeBranchPart(params.taskId),
+      sanitizeBranchPart(params.subtaskId),
+    );
     this.cleanupSubtask({ repoRoot, worktreePath, branchName });
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
     shellGit(repoRoot, ["worktree", "add", "--detach", worktreePath, params.baseRef]);
@@ -135,7 +148,12 @@ export class WorktreeManager {
       if (!entry) {
         continue;
       }
-      const relativePath = normalizeDisplayPath(entry.slice(3).trim().replace(/^"+|"+$/g, ""));
+      const relativePath = normalizeDisplayPath(
+        entry
+          .slice(3)
+          .trim()
+          .replace(/^"+|"+$/g, ""),
+      );
       if (this.deniedPaths.some((spec) => matchesDeniedPath(relativePath, spec))) {
         violations.add(relativePath);
       }

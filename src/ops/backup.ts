@@ -269,7 +269,9 @@ export function validateOperationalBackup(params: {
     warnings.push(".env was not included. Restore requires recreating runtime secrets separately.");
   }
   if (params.targetSqlitePath && fs.existsSync(params.targetSqlitePath)) {
-    warnings.push(`Restore target already exists and would need downtime plus an explicit replace: ${params.targetSqlitePath}`);
+    warnings.push(
+      `Restore target already exists and would need downtime plus an explicit replace: ${params.targetSqlitePath}`,
+    );
   }
 
   return {

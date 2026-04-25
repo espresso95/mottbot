@@ -306,8 +306,12 @@ export class OperatorDiagnostics {
     });
     const lines = tailFileLines(this.paths().stderrPath, clampInteger(limit, 10, 1, 50));
     return [
-      runs.length > 0 ? ["Recent failed or cancelled runs:", ...runs.map(formatRun)].join("\n") : "No failed or cancelled runs.",
-      lines.length > 0 ? ["Recent stderr log lines:", ...lines.map((line) => `- ${line}`)].join("\n") : "No stderr log lines.",
+      runs.length > 0
+        ? ["Recent failed or cancelled runs:", ...runs.map(formatRun)].join("\n")
+        : "No failed or cancelled runs.",
+      lines.length > 0
+        ? ["Recent stderr log lines:", ...lines.map((line) => `- ${line}`)].join("\n")
+        : "No stderr log lines.",
     ].join("\n\n");
   }
 
@@ -317,10 +321,20 @@ export class OperatorDiagnostics {
     const paths = this.paths();
     const sections: string[] = [];
     if (stream === "stdout" || stream === "both") {
-      sections.push([logHeading("stdout", paths.stdoutPath), ...tailFileLines(paths.stdoutPath, lines).map((line) => `- ${line}`)].join("\n"));
+      sections.push(
+        [
+          logHeading("stdout", paths.stdoutPath),
+          ...tailFileLines(paths.stdoutPath, lines).map((line) => `- ${line}`),
+        ].join("\n"),
+      );
     }
     if (stream === "stderr" || stream === "both") {
-      sections.push([logHeading("stderr", paths.stderrPath), ...tailFileLines(paths.stderrPath, lines).map((line) => `- ${line}`)].join("\n"));
+      sections.push(
+        [
+          logHeading("stderr", paths.stderrPath),
+          ...tailFileLines(paths.stderrPath, lines).map((line) => `- ${line}`),
+        ].join("\n"),
+      );
     }
     return sections.join("\n\n");
   }

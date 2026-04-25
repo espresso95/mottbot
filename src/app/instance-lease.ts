@@ -53,16 +53,12 @@ export class ApplicationInstanceLease {
   private acquire(): void {
     const now = this.clock.now();
     const row = this.database.db
-      .prepare<unknown[], { owner_id: string; expires_at: number }>(
-        "select owner_id, expires_at from app_instance_leases where lease_name = ?",
-      )
+      .prepare<
+        unknown[],
+        { owner_id: string; expires_at: number }
+      >("select owner_id, expires_at from app_instance_leases where lease_name = ?")
       .get(this.options.leaseName);
-    if (
-      row &&
-      row.owner_id !== this.ownerId &&
-      row.expires_at > now &&
-      !this.isDeadLocalOwner(row.owner_id)
-    ) {
+    if (row && row.owner_id !== this.ownerId && row.expires_at > now && !this.isDeadLocalOwner(row.owner_id)) {
       throw new Error(
         `Another Mottbot instance owns lease ${this.options.leaseName} until ${new Date(row.expires_at).toISOString()}.`,
       );

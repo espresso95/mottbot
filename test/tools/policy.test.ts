@@ -221,18 +221,18 @@ describe("tool policy engine", () => {
       definitions: [localWrite, networkWrite, telegramSend, githubWrite, processControl],
     });
 
-    expect(buildToolApprovalPreview({ definition: localWrite, policy: policy.get("local_note")!, arguments: {} })).toContain(
-      "write local files",
-    );
-    expect(buildToolApprovalPreview({ definition: networkWrite, policy: policy.get("network_write")!, arguments: {} })).toContain(
-      "write through an external network API",
-    );
-    expect(buildToolApprovalPreview({ definition: telegramSend, policy: policy.get("telegram_send")!, arguments: {} })).toContain(
-      "Telegram Bot API",
-    );
-    expect(buildToolApprovalPreview({ definition: githubWrite, policy: policy.get("github_write")!, arguments: {} })).toContain(
-      "GitHub API",
-    );
+    expect(
+      buildToolApprovalPreview({ definition: localWrite, policy: policy.get("local_note")!, arguments: {} }),
+    ).toContain("write local files");
+    expect(
+      buildToolApprovalPreview({ definition: networkWrite, policy: policy.get("network_write")!, arguments: {} }),
+    ).toContain("write through an external network API");
+    expect(
+      buildToolApprovalPreview({ definition: telegramSend, policy: policy.get("telegram_send")!, arguments: {} }),
+    ).toContain("Telegram Bot API");
+    expect(
+      buildToolApprovalPreview({ definition: githubWrite, policy: policy.get("github_write")!, arguments: {} }),
+    ).toContain("GitHub API");
     expect(
       buildToolApprovalPreview({ definition: processControl, policy: policy.get("process_control")!, arguments: {} }),
     ).toContain("control the local Mottbot process");

@@ -4,10 +4,7 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { SessionRoute } from "../sessions/types.js";
 import type { InboundEvent } from "./types.js";
 
-function matchesBinding(
-  binding: AppConfig["agents"]["bindings"][number],
-  event: InboundEvent,
-): boolean {
+function matchesBinding(binding: AppConfig["agents"]["bindings"][number], event: InboundEvent): boolean {
   return (
     (binding.chatId === undefined || binding.chatId === event.chatId) &&
     (binding.threadId === undefined || binding.threadId === event.threadId) &&

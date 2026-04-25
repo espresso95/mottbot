@@ -36,14 +36,14 @@ describe("RunStore", () => {
       status: "completed",
       transport: "sse",
       requestIdentity: "req-1",
-      usageJson: "{\"input\":1}",
+      usageJson: '{"input":1}',
     });
     expect(updated).toMatchObject({
       agentId: "docs",
       status: "completed",
       transport: "sse",
       requestIdentity: "req-1",
-      usageJson: "{\"input\":1}",
+      usageJson: '{"input":1}',
     });
     expect(stores.runs.countByAgentStatuses("docs", ["completed"])).toBe(1);
     expect(stores.runs.countByAgentStatuses("main", ["completed"])).toBe(0);

@@ -36,11 +36,7 @@ export class TelegramMessageStore {
       );
   }
 
-  hasMessage(params: {
-    chatId: string;
-    threadId?: number;
-    telegramMessageId: number;
-  }): boolean {
+  hasMessage(params: { chatId: string; threadId?: number; telegramMessageId: number }): boolean {
     const row = this.database.db
       .prepare<unknown[], { telegram_message_id: number }>(
         `select telegram_message_id
@@ -52,10 +48,7 @@ export class TelegramMessageStore {
     return Boolean(row);
   }
 
-  hasMessageInChat(params: {
-    chatId: string;
-    telegramMessageId: number;
-  }): boolean {
+  hasMessageInChat(params: { chatId: string; telegramMessageId: number }): boolean {
     const row = this.database.db
       .prepare<unknown[], { telegram_message_id: number }>(
         `select telegram_message_id

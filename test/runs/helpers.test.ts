@@ -19,7 +19,7 @@ describe("run helpers", () => {
     recorder.record("run-1", { input: 2 });
     recorder.record("run-2", undefined);
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update).toHaveBeenCalledWith("run-1", { usageJson: "{\"input\":2}" });
+    expect(update).toHaveBeenCalledWith("run-1", { usageJson: '{"input":2}' });
   });
 
   it("appends extracted file text and native images only to the latest user message", () => {

@@ -1,11 +1,6 @@
 import path from "node:path";
 import { parse as parseCsv } from "csv-parse/sync";
-import {
-  FormatError,
-  InvalidPDFException,
-  PasswordException,
-  PDFParse,
-} from "pdf-parse";
+import { FormatError, InvalidPDFException, PasswordException, PDFParse } from "pdf-parse";
 import { getErrorMessage } from "../shared/errors.js";
 import type { NormalizedAttachment } from "./types.js";
 
@@ -159,10 +154,7 @@ function normalizeMimeType(value: string | undefined): string | undefined {
   return mime?.trim() || undefined;
 }
 
-function extensionFrom(params: {
-  attachment: NormalizedAttachment;
-  filePath?: string;
-}): string {
+function extensionFrom(params: { attachment: NormalizedAttachment; filePath?: string }): string {
   return path.extname(basename(params.attachment.fileName) ?? basename(params.filePath) ?? "").toLowerCase();
 }
 
@@ -203,10 +195,7 @@ export function classifyAttachmentForExtraction(params: {
   return undefined;
 }
 
-export function mayInspectAttachmentBytes(params: {
-  attachment: NormalizedAttachment;
-  mimeType?: string;
-}): boolean {
+export function mayInspectAttachmentBytes(params: { attachment: NormalizedAttachment; mimeType?: string }): boolean {
   if (params.attachment.kind !== "document") {
     return false;
   }
@@ -255,11 +244,11 @@ function normalizeTextForPrompt(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim();
 }
 
-function truncateForBudget(params: {
+function truncateForBudget(params: { text: string; limits: FileExtractionLimits; budget: FileExtractionBudget }): {
   text: string;
-  limits: FileExtractionLimits;
-  budget: FileExtractionBudget;
-}): { text: string; promptChars: number; truncated: boolean } {
+  promptChars: number;
+  truncated: boolean;
+} {
   const maxChars = Math.min(params.limits.maxTextCharsPerFile, params.budget.remainingChars);
   if (maxChars <= 0) {
     return { text: "", promptChars: 0, truncated: params.text.length > 0 };
@@ -348,10 +337,8 @@ function failed(kind: AttachmentExtractionKind, reason: string): FileExtractionR
 }
 
 function formatCell(value: unknown): string {
-  const text = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .replaceAll("|", "\\|")
-    .trim();
+  const raw = typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : "";
+  const text = raw.replace(/\s+/g, " ").replaceAll("|", "\\|").trim();
   return text.length > 80 ? `${text.slice(0, 77).trimEnd()}...` : text;
 }
 
@@ -376,15 +363,15 @@ function extractDelimited(params: {
       skip_empty_lines: false,
       to_line: params.limits.csvPreviewRows,
       max_record_size: 128 * 1024,
-    }) as string[][];
+    });
     const previewRows = records.slice(0, params.limits.csvPreviewRows);
     const maxColumns = previewRows.reduce((max, row) => Math.max(max, row.length), 0);
     const previewColumns = Math.min(maxColumns, params.limits.csvPreviewColumns);
     if (previewRows.length === 0 || previewColumns === 0) {
       return failed(params.classification.kind, "empty_table");
     }
-    const rows = previewRows.map((row) =>
-      `| ${Array.from({ length: previewColumns }, (_, index) => formatCell(row[index])).join(" | ")} |`,
+    const rows = previewRows.map(
+      (row) => `| ${Array.from({ length: previewColumns }, (_, index) => formatCell(row[index])).join(" | ")} |`,
     );
     const separator = `| ${Array.from({ length: previewColumns }, () => "---").join(" | ")} |`;
     const table = [rows[0], separator, ...rows.slice(1)].filter(Boolean).join("\n");
@@ -464,7 +451,8 @@ export async function extractAttachmentText(params: {
   budget: FileExtractionBudget;
 }): Promise<FileExtractionResult | undefined> {
   const classification =
-    classifyAttachmentForExtraction(params) ?? (mayInspectAttachmentBytes(params) ? classifyByBytes(params.buffer) : undefined);
+    classifyAttachmentForExtraction(params) ??
+    (mayInspectAttachmentBytes(params) ? classifyByBytes(params.buffer) : undefined);
   if (!classification) {
     return undefined;
   }

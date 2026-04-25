@@ -58,8 +58,8 @@ function parseEnvelope(raw: string | undefined): TranscriptEnvelope | undefined 
     return undefined;
   }
   try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as TranscriptEnvelope) : undefined;
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -103,7 +103,9 @@ function renderAttachmentMetadata(attachment: NonNullable<TranscriptEnvelope["at
   return `- ${attachment.kind}${details.length > 0 ? ` (${details.join(", ")})` : ""}`;
 }
 
-function renderExtractionMetadata(extraction: NonNullable<NonNullable<TranscriptEnvelope["attachments"]>[number]["extraction"]>): string {
+function renderExtractionMetadata(
+  extraction: NonNullable<NonNullable<TranscriptEnvelope["attachments"]>[number]["extraction"]>,
+): string {
   const details = [
     typeof extraction.kind === "string" ? extraction.kind : undefined,
     typeof extraction.status === "string" ? extraction.status : undefined,
@@ -128,12 +130,7 @@ function renderTranscriptContent(entry: TranscriptMessage): string {
     (attachment) => attachment && typeof attachment.kind === "string" && typeof attachment.fileId === "string",
   );
   if (attachments && attachments.length > 0) {
-    parts.push(
-      [
-        "Attachments:",
-        ...attachments.map(renderAttachmentMetadata),
-      ].join("\n"),
-    );
+    parts.push(["Attachments:", ...attachments.map(renderAttachmentMetadata)].join("\n"));
   }
   return parts.join("\n\n").trim();
 }
@@ -152,11 +149,7 @@ function buildSummary(entries: TranscriptMessage[]): string | undefined {
   const visible = relevant.slice(-12);
   const lines = visible.map((entry) => `- ${entry.role}: ${condenseText(entry.content)}`);
   const omitted = relevant.length - visible.length;
-  return [
-    omitted > 0 ? `Omitted ${omitted} earlier turns.` : undefined,
-    "Earlier conversation summary:",
-    ...lines,
-  ]
+  return [omitted > 0 ? `Omitted ${omitted} earlier turns.` : undefined, "Earlier conversation summary:", ...lines]
     .filter(Boolean)
     .join("\n");
 }
@@ -223,8 +216,7 @@ export function buildPrompt(params: {
   memories?: SessionMemory[];
 }): BuiltPrompt {
   const historyLimit = params.historyLimit ?? 24;
-  const olderHistory =
-    params.history.length > historyLimit ? params.history.slice(0, -historyLimit) : [];
+  const olderHistory = params.history.length > historyLimit ? params.history.slice(0, -historyLimit) : [];
   const trimmedHistory = params.history.slice(-historyLimit);
   const messages: PromptMessage[] = [];
   const memoryMessage = buildMemoryMessage(params.memories ?? []);

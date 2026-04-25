@@ -22,6 +22,10 @@ import {
 
 const POLLING_CONFLICT_RETRY_MS = 30_000;
 
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 function hasTelegramErrorCode(error: unknown, code: number): boolean {
   if (!error || typeof error !== "object") {
     return false;
@@ -30,7 +34,7 @@ function hasTelegramErrorCode(error: unknown, code: number): boolean {
   if (maybe.error_code === code) {
     return true;
   }
-  const text = `${String(maybe.message ?? "")}\n${String(maybe.description ?? "")}`;
+  const text = `${stringField(maybe.message)}\n${stringField(maybe.description)}`;
   return text.includes(`${code}:`);
 }
 
@@ -286,10 +290,7 @@ export class TelegramBotServer {
     if (event.addedEmojis.length === 0 && event.removedEmojis.length === 0) {
       return false;
     }
-    if (
-      this.config.telegram.allowedChatIds.length > 0 &&
-      !this.config.telegram.allowedChatIds.includes(event.chatId)
-    ) {
+    if (this.config.telegram.allowedChatIds.length > 0 && !this.config.telegram.allowedChatIds.includes(event.chatId)) {
       return false;
     }
     if (this.config.telegram.reactions.notifications === "all") {
@@ -303,10 +304,7 @@ export class TelegramBotServer {
     );
   }
 
-  private async trySendAckReaction(event: {
-    chatId: string;
-    messageId: number;
-  }): Promise<void> {
+  private async trySendAckReaction(event: { chatId: string; messageId: number }): Promise<void> {
     const ackEmoji = this.config.telegram.reactions.ackEmoji.trim();
     if (!this.config.telegram.reactions.enabled || !ackEmoji || !this.reactions) {
       return;
@@ -322,11 +320,14 @@ export class TelegramBotServer {
     }
   }
 
-  private async sendReply(event: {
-    chatId: string;
-    threadId?: number;
-    messageId: number;
-  }, text: string): Promise<void> {
+  private async sendReply(
+    event: {
+      chatId: string;
+      threadId?: number;
+      messageId: number;
+    },
+    text: string,
+  ): Promise<void> {
     for (const chunk of splitTelegramText(text)) {
       await this.bot.api.sendMessage(event.chatId, chunk, {
         ...(typeof event.threadId === "number" ? { message_thread_id: event.threadId } : {}),
@@ -360,11 +361,7 @@ export class TelegramBotServer {
     });
     await new Promise<void>((resolve, reject) => {
       this.webhookServer?.once("error", reject);
-      this.webhookServer?.listen(
-        this.config.telegram.webhook.port,
-        this.config.telegram.webhook.host,
-        () => resolve(),
-      );
+      this.webhookServer?.listen(this.config.telegram.webhook.port, this.config.telegram.webhook.host, () => resolve());
     });
     await this.bot.api.setWebhook(new URL(path, publicUrl).toString(), {
       secret_token: secretToken,

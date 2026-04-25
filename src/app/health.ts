@@ -30,23 +30,23 @@ export class HealthReporter {
   snapshot(): HealthSnapshot {
     const sessions = this.scalarCount("select count(*) as count from session_routes");
     const queuedRuns = this.scalarCount("select count(*) as count from runs where status = 'queued'");
-    const activeRuns = this.scalarCount(
-      `select count(*) as count from runs where status in ('starting', 'streaming')`,
-    );
-    const staleOutboxMessages = this.database.db
-      .prepare<unknown[], { count: number }>(
-        `select count(*) as count
+    const activeRuns = this.scalarCount(`select count(*) as count from runs where status in ('starting', 'streaming')`);
+    const staleOutboxMessages =
+      this.database.db
+        .prepare<unknown[], { count: number }>(
+          `select count(*) as count
          from outbox_messages
          where state = 'active' and updated_at <= ?`,
-      )
-      .get(this.clock.now() - STALE_OUTBOX_MS)?.count ?? 0;
-    const degradedSessions = this.database.db
-      .prepare<unknown[], { count: number }>(
-        `select count(*) as count
+        )
+        .get(this.clock.now() - STALE_OUTBOX_MS)?.count ?? 0;
+    const degradedSessions =
+      this.database.db
+        .prepare<unknown[], { count: number }>(
+          `select count(*) as count
          from transport_state
          where websocket_degraded_until is not null and websocket_degraded_until > ?`,
-      )
-      .get(this.clock.now())?.count ?? 0;
+        )
+        .get(this.clock.now())?.count ?? 0;
     const processedUpdates = this.scalarCount("select count(*) as count from telegram_updates");
     return {
       status: activeRuns > 0 || staleOutboxMessages > 0 ? "degraded" : "ok",

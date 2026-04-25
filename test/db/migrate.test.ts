@@ -60,9 +60,7 @@ describe("migrateDatabase", () => {
     expect(countRows(database, "schema_migrations")).toBe(10);
     expect(
       database.db
-        .prepare<unknown[], NameRow>(
-          "select name from sqlite_master where type = 'table' and name = 'run_queue'",
-        )
+        .prepare<unknown[], NameRow>("select name from sqlite_master where type = 'table' and name = 'run_queue'")
         .get(),
     ).toEqual({ name: "run_queue" });
 
@@ -156,9 +154,7 @@ describe("migrateDatabase", () => {
     expect(runColumns).toContain("agent_id");
     expect(
       database.db
-        .prepare<unknown[], NameRow>(
-          "select name from sqlite_master where type = 'table' and name = 'run_queue'",
-        )
+        .prepare<unknown[], NameRow>("select name from sqlite_master where type = 'table' and name = 'run_queue'")
         .get(),
     ).toEqual({ name: "run_queue" });
   });
@@ -173,17 +169,13 @@ describe("migrateDatabase", () => {
     migrateDatabase(database);
 
     const indexNames = database.db
-      .prepare<unknown[], NameRow>(
-        "select name from sqlite_master where type = 'index' and tbl_name = 'run_queue'",
-      )
+      .prepare<unknown[], NameRow>("select name from sqlite_master where type = 'index' and tbl_name = 'run_queue'")
       .all()
       .map((row) => row.name);
     expect(indexNames).toContain("idx_run_queue_state_updated");
     expect(indexNames).toContain("idx_run_queue_session_state");
 
-    const foreignKeys = database.db
-      .prepare<unknown[], ForeignKeyRow>("pragma foreign_key_list(run_queue)")
-      .all();
+    const foreignKeys = database.db.prepare<unknown[], ForeignKeyRow>("pragma foreign_key_list(run_queue)").all();
     expect(foreignKeys).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ from: "run_id", table: "runs" }),
@@ -214,9 +206,7 @@ describe("migrateDatabase", () => {
     ]) {
       expect(
         database.db
-          .prepare<unknown[], NameRow>(
-            "select name from sqlite_master where type = 'table' and name = ?",
-          )
+          .prepare<unknown[], NameRow>("select name from sqlite_master where type = 'table' and name = ?")
           .get(table),
       ).toEqual({ name: table });
     }

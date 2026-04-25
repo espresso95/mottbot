@@ -53,17 +53,19 @@ export class ProjectTaskScheduler {
       if (runningSubtasks.length > 0 && activeRuns.length === 0) {
         for (const subtask of runningSubtasks) {
           const finalSummary = this.readFinalSummary(task.taskId, subtask.subtaskId);
-          const protectedChanges = subtask.worktreePath ? this.worktrees.listProtectedChanges(subtask.worktreePath) : [];
+          const protectedChanges = subtask.worktreePath
+            ? this.worktrees.listProtectedChanges(subtask.worktreePath)
+            : [];
           const protectedPathError =
-            protectedChanges.length > 0 ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}` : undefined;
+            protectedChanges.length > 0
+              ? `Protected paths modified: ${protectedChanges.slice(0, 8).join(", ")}`
+              : undefined;
           const failureError = protectedPathError ?? finalSummary.text ?? "Worker failed";
           this.store.updateSubtask(subtask.subtaskId, {
             status: finalSummary.failed || !!protectedPathError ? "failed" : "completed",
             finishedAt: this.clock.now(),
             ...(finalSummary.text ? { resultSummary: finalSummary.text } : {}),
-            ...((finalSummary.failed || protectedPathError)
-              ? { lastError: failureError }
-              : {}),
+            ...(finalSummary.failed || protectedPathError ? { lastError: failureError } : {}),
           });
           if (subtask.worktreePath || subtask.branchName) {
             this.worktrees.cleanupSubtask({
@@ -133,7 +135,13 @@ export class ProjectTaskScheduler {
   private refreshDependencyStates(subtasks: ReturnType<ProjectTaskStore["listSubtasks"]>): void {
     const byId = new Map(subtasks.map((subtask) => [subtask.subtaskId, subtask]));
     for (const subtask of subtasks) {
-      if (subtask.status === "completed" || subtask.status === "running" || subtask.status === "failed" || subtask.status === "cancelled" || subtask.status === "skipped") {
+      if (
+        subtask.status === "completed" ||
+        subtask.status === "running" ||
+        subtask.status === "failed" ||
+        subtask.status === "cancelled" ||
+        subtask.status === "skipped"
+      ) {
         continue;
       }
       if (subtask.dependsOnSubtaskIds.length === 0) {
@@ -143,7 +151,11 @@ export class ProjectTaskScheduler {
         continue;
       }
       const dependencyStates = subtask.dependsOnSubtaskIds.map((dependencyId) => byId.get(dependencyId)?.status);
-      if (dependencyStates.some((status) => status === "failed" || status === "cancelled" || status === "skipped" || status === undefined)) {
+      if (
+        dependencyStates.some(
+          (status) => status === "failed" || status === "cancelled" || status === "skipped" || status === undefined,
+        )
+      ) {
         this.store.updateSubtask(subtask.subtaskId, {
           status: "skipped",
           finishedAt: this.clock.now(),

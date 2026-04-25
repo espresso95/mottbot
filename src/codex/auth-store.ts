@@ -1,6 +1,6 @@
 import type { DatabaseClient } from "../db/client.js";
 import type { Clock } from "../shared/clock.js";
-import { SecretBox } from "../shared/crypto.js";
+import { type SecretBox } from "../shared/crypto.js";
 import type { AuthProfile, AuthProfileSource } from "./types.js";
 
 type AuthProfileRow = {
@@ -23,7 +23,7 @@ function parseMetadata(raw: string | null): Record<string, unknown> | undefined 
     return undefined;
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : undefined;
   } catch {
     return undefined;
@@ -106,12 +106,8 @@ export class AuthProfileStore {
       profileId: row.profile_id,
       provider: row.provider,
       source: row.source,
-      ...(row.access_token_ciphertext
-        ? { accessToken: this.secretBox.open(row.access_token_ciphertext) }
-        : {}),
-      ...(row.refresh_token_ciphertext
-        ? { refreshToken: this.secretBox.open(row.refresh_token_ciphertext) }
-        : {}),
+      ...(row.access_token_ciphertext ? { accessToken: this.secretBox.open(row.access_token_ciphertext) } : {}),
+      ...(row.refresh_token_ciphertext ? { refreshToken: this.secretBox.open(row.refresh_token_ciphertext) } : {}),
       ...(row.expires_at !== null ? { expiresAt: row.expires_at } : {}),
       ...(row.account_id ? { accountId: row.account_id } : {}),
       ...(row.email ? { email: row.email } : {}),

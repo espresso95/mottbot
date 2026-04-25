@@ -14,6 +14,8 @@ These documents describe the Telegram-first Codex subscription bot implemented i
   Config, session keys, SQLite schema, entity lifecycles, and secret storage.
 - [Testing](./testing.md)
   Unit and integration test coverage, verified results, and current gaps.
+- [Code Quality](./code-quality.md)
+  Local linting, formatting, naming, and TSDoc expectations.
 - [Operations](./operations.md)
   Local setup, auth bootstrap, operator commands, deployment posture, and hardening backlog.
 - [Persistent Setup](../SETUP.md)
@@ -71,7 +73,7 @@ Implemented in this repo:
 - queued/active/stale outbox health counters and safer structured run logs
 - outbox mid-stream rebind to continuation messages when Telegram edits fail
 - unit and integration test suite with coverage reporting
-- GitHub Actions CI for install, native SQLite rebuild, typecheck, tests, coverage, build, package validation, and dirty-worktree guard
+- GitHub Actions CI for install, native SQLite rebuild, typecheck, lint, format check, tests, coverage, build, package validation, and dirty-worktree guard
 - tool-use safety design documentation
 - deny-by-default tool registry, read-only health snapshot execution, and opt-in one-shot-approved restart tool execution
 - read-only operator diagnostics tools and admin `/runs` and `/debug` commands

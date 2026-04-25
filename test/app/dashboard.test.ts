@@ -171,7 +171,7 @@ describe("DashboardServer", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.body).toContain("Mottbot Dashboard");
-    expect(response.body).toContain("id=\"agents\"");
+    expect(response.body).toContain('id="agents"');
     expect(response.body).toContain("renderAgents");
     await dashboard.stop();
     database.close();
@@ -235,8 +235,8 @@ describe("DashboardServer", () => {
     await invokeRequest(createRequest("GET", "/api/dashboard/runtime"), runtimeResponse);
     expect(runtimeResponse.statusCode).toBe(200);
     expect(runtimeResponse.body).toContain("run_failed");
-    expect(runtimeResponse.body).toContain("\"agents\"");
-    expect(runtimeResponse.body).toContain("\"agentId\":\"main\"");
+    expect(runtimeResponse.body).toContain('"agents"');
+    expect(runtimeResponse.body).toContain('"agentId":"main"');
     expect(runtimeResponse.body).not.toContain("test-token");
 
     const logsResponse = createResponseCapture();
@@ -248,7 +248,9 @@ describe("DashboardServer", () => {
     const toolsResponse = createResponseCapture();
     await invokeRequest(createRequest("GET", "/api/dashboard/tools"), toolsResponse);
     const toolsPayload = JSON.parse(toolsResponse.body);
-    expect(toolsPayload.enabledTools.some((tool: { name: string }) => tool.name === "mottbot_health_snapshot")).toBe(true);
+    expect(toolsPayload.enabledTools.some((tool: { name: string }) => tool.name === "mottbot_health_snapshot")).toBe(
+      true,
+    );
     expect(toolsPayload.modelTools.owner).toContain("mottbot_recent_runs");
     expect(toolsPayload.modelTools.trusted).toContain("mottbot_health_snapshot");
     expect(toolsPayload.modelTools.trusted).not.toContain("mottbot_recent_runs");

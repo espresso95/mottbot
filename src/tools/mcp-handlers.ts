@@ -143,7 +143,7 @@ class McpStdioClient {
       } catch {
         continue;
       }
-      const response = asObject(parsed) as JsonRpcResponse | undefined;
+      const response = asObject(parsed);
       if (!response) {
         continue;
       }

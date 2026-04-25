@@ -106,7 +106,11 @@ describe("local exec tool handlers", () => {
     const outsideRoot = createTempDir();
     try {
       fs.mkdirSync(path.join(secondRoot, "work"));
-      fs.writeFileSync(path.join(secondRoot, "work/script.js"), "console.log(process.argv.slice(2).join(','));", "utf8");
+      fs.writeFileSync(
+        path.join(secondRoot, "work/script.js"),
+        "console.log(process.argv.slice(2).join(','));",
+        "utf8",
+      );
       expect(() =>
         createLocalExecToolHandlers({
           roots: [],

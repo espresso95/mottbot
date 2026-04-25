@@ -27,7 +27,13 @@ describe("ProjectTaskScheduler", () => {
         maxParallelWorkers: 1,
         maxAttemptsPerSubtask: 1,
       });
-      const subtask = store.createSubtask({ taskId: task.taskId, title: "worker", role: "worker", prompt: "p", status: "ready" });
+      const subtask = store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "p",
+        status: "ready",
+      });
       const fakeRunner = {
         start: () => "run-1",
         cancelSubtask: () => true,
@@ -54,7 +60,6 @@ describe("ProjectTaskScheduler", () => {
     }
   });
 
-
   it("cancels running tasks", () => {
     const root = createTempDir();
     try {
@@ -73,7 +78,13 @@ describe("ProjectTaskScheduler", () => {
         maxParallelWorkers: 1,
         maxAttemptsPerSubtask: 1,
       });
-      const subtask = store.createSubtask({ taskId: task.taskId, title: "worker", role: "worker", prompt: "p", status: "running" });
+      const subtask = store.createSubtask({
+        taskId: task.taskId,
+        title: "worker",
+        role: "worker",
+        prompt: "p",
+        status: "running",
+      });
       const fakeRunner = {
         start: () => "run-1",
         cancelSubtask: (_id: string) => true,
@@ -113,7 +124,13 @@ describe("ProjectTaskScheduler", () => {
         maxParallelWorkers: 1,
         maxAttemptsPerSubtask: 1,
       });
-      const first = store.createSubtask({ taskId: task.taskId, title: "first", role: "worker", prompt: "first", status: "ready" });
+      const first = store.createSubtask({
+        taskId: task.taskId,
+        title: "first",
+        role: "worker",
+        prompt: "first",
+        status: "ready",
+      });
       const second = store.createSubtask({
         taskId: task.taskId,
         title: "second",
@@ -131,7 +148,10 @@ describe("ProjectTaskScheduler", () => {
         cancelSubtask: (_id: string) => true,
       };
       const fakeWorktrees = {
-        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({ worktreePath: root, branchName: `mottbot/test/${subtaskId}` }),
+        prepareSubtask: ({ subtaskId }: { subtaskId: string }) => ({
+          worktreePath: root,
+          branchName: `mottbot/test/${subtaskId}`,
+        }),
         cleanupSubtask: () => {},
         listProtectedChanges: () => [],
       };

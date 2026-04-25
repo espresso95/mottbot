@@ -1,0 +1,15 @@
+coverage/
+data/
+dist/
+node_modules/
+patches/
+.vitest/
+mottbot.config.json
+pnpm-lock.yaml
+*.sqlite
+*.sqlite-*
+*.session
+*.log
+.env
+.env.local
+.env.*.local

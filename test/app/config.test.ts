@@ -64,7 +64,12 @@ describe("loadConfig", () => {
           localExec: { roots: ["./file-workspace"], allowedCommands: ["node"] },
           telegramSend: { allowedChatIds: ["file-chat"] },
           github: { defaultRepository: "file-owner/file-repo", command: "file-gh", maxItems: 6 },
-          microsoftTodo: { enabled: true, tenantId: "file-tenant", clientId: "file-client", defaultListId: "file-list" },
+          microsoftTodo: {
+            enabled: true,
+            tenantId: "file-tenant",
+            clientId: "file-client",
+            defaultListId: "file-list",
+          },
           googleDrive: { enabled: true, accessTokenEnv: "FILE_GDRIVE_TOKEN", maxBytes: 65432 },
           mcp: { servers: [{ name: "file-mcp", command: "node", args: ["server.js"], allowedTools: ["read"] }] },
         },

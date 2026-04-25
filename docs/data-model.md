@@ -114,13 +114,13 @@ The session key is the primary identity boundary for queueing, transcript storag
 
 ### Session key taxonomy
 
-| Route kind | Example |
-| --- | --- |
-| private chat | `tg:dm:123:user:123` |
-| private chat without user ID | `tg:dm:123` |
-| group | `tg:group:-1001111111111` |
-| topic | `tg:group:-1001111111111:topic:42` |
-| bound route | `tg:bound:here` |
+| Route kind                   | Example                            |
+| ---------------------------- | ---------------------------------- |
+| private chat                 | `tg:dm:123:user:123`               |
+| private chat without user ID | `tg:dm:123`                        |
+| group                        | `tg:group:-1001111111111`          |
+| topic                        | `tg:group:-1001111111111:topic:42` |
+| bound route                  | `tg:bound:here`                    |
 
 ## Core Domain Records
 

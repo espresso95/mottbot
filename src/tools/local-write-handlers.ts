@@ -252,11 +252,7 @@ function displayRoot(root: LocalWriteRoot): string {
   return `${root.label}:${root.realPath}`;
 }
 
-function createNote(params: {
-  target: ResolvedLocalWritePath;
-  content: string;
-  maxWriteBytes: number;
-}): {
+function createNote(params: { target: ResolvedLocalWritePath; content: string; maxWriteBytes: number }): {
   ok: true;
   action: "created_file";
   root: string;
@@ -284,11 +280,7 @@ function createNote(params: {
   };
 }
 
-function appendDocument(params: {
-  target: ResolvedLocalWritePath;
-  content: string;
-  maxWriteBytes: number;
-}): {
+function appendDocument(params: { target: ResolvedLocalWritePath; content: string; maxWriteBytes: number }): {
   ok: true;
   action: "appended_file";
   root: string;
@@ -329,7 +321,9 @@ function replaceDocument(params: {
   const previous = fs.readFileSync(params.target.absolutePath);
   const previousSha256 = sha256(previous);
   if (previousSha256 !== params.expectedSha256.toLowerCase()) {
-    throw new Error(`Local write path ${params.target.displayPath} changed; expected SHA-256 ${params.expectedSha256}.`);
+    throw new Error(
+      `Local write path ${params.target.displayPath} changed; expected SHA-256 ${params.expectedSha256}.`,
+    );
   }
   fs.writeFileSync(params.target.absolutePath, params.content, { encoding: "utf8", mode: 0o600 });
   return {
@@ -343,10 +337,7 @@ function replaceDocument(params: {
   };
 }
 
-function readDocument(params: {
-  target: ResolvedLocalWritePath;
-  maxBytes: number;
-}): {
+function readDocument(params: { target: ResolvedLocalWritePath; maxBytes: number }): {
   ok: true;
   action: "read_file";
   root: string;

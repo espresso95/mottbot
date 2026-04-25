@@ -71,7 +71,7 @@ describe("live validation suite helpers", () => {
       MOTTBOT_USER_SMOKE_TARGET: "Test Group",
       MOTTBOT_USER_SMOKE_MESSAGE: "@StartupMottBot run a short live validation health reply.",
     });
-    expect(plan.scenarios.filter((scenario) => scenario.kind === "file")[0]?.env).toMatchObject({
+    expect(plan.scenarios.find((scenario) => scenario.kind === "file")?.env).toMatchObject({
       MOTTBOT_USER_SMOKE_FILE_PATH: "/tmp/a.txt",
       MOTTBOT_USER_SMOKE_FORCE_DOCUMENT: "true",
     });

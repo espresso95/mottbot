@@ -27,11 +27,7 @@ export class TelegramUpdateStore {
     return { accepted: true, reason: "new" };
   }
 
-  markProcessed(params: {
-    updateId: number;
-    chatId?: string;
-    messageId?: number;
-  }): void {
+  markProcessed(params: { updateId: number; chatId?: string; messageId?: number }): void {
     this.database.db
       .prepare(
         `insert or ignore into telegram_updates (

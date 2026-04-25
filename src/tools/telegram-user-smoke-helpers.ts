@@ -94,11 +94,7 @@ export function buildTelegramUserSmokeConfig(params: {
       "MOTTBOT_USER_SMOKE_POLL_INTERVAL_MS",
       DEFAULT_POLL_INTERVAL_MS,
     ),
-    stableReplyMs: parsePositiveIntegerEnv(
-      params.env,
-      "MOTTBOT_USER_SMOKE_STABLE_REPLY_MS",
-      DEFAULT_STABLE_REPLY_MS,
-    ),
+    stableReplyMs: parsePositiveIntegerEnv(params.env, "MOTTBOT_USER_SMOKE_STABLE_REPLY_MS", DEFAULT_STABLE_REPLY_MS),
     waitForReply: parseBooleanEnv(params.env, "MOTTBOT_USER_SMOKE_WAIT_FOR_REPLY", true),
   };
 }

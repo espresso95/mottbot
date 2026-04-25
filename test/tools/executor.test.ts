@@ -82,13 +82,16 @@ describe("ToolExecutor", () => {
         adminUserIds: ["admin-1"],
       });
 
-      const result = await executor.execute({
-        id: "call-runs",
-        name: "mottbot_recent_runs",
-        arguments: { limit: 1 },
-      }, {
-        requestedByUserId: "admin-1",
-      });
+      const result = await executor.execute(
+        {
+          id: "call-runs",
+          name: "mottbot_recent_runs",
+          arguments: { limit: 1 },
+        },
+        {
+          requestedByUserId: "admin-1",
+        },
+      );
 
       expect(result.isError).toBe(false);
       expect(result.contentText).toContain("openai-codex/gpt-5.4");
@@ -137,23 +140,29 @@ describe("ToolExecutor", () => {
         adminUserIds: ["admin-1"],
       });
 
-      const denied = await executor.execute({
-        id: "call-repo-denied",
-        name: "mottbot_repo_read_file",
-        arguments: { path: "README.md" },
-      }, {
-        requestedByUserId: "user-1",
-      });
+      const denied = await executor.execute(
+        {
+          id: "call-repo-denied",
+          name: "mottbot_repo_read_file",
+          arguments: { path: "README.md" },
+        },
+        {
+          requestedByUserId: "user-1",
+        },
+      );
       expect(denied.isError).toBe(true);
       expect(denied.errorCode).toBe("role_denied");
 
-      const allowed = await executor.execute({
-        id: "call-repo-allowed",
-        name: "mottbot_repo_read_file",
-        arguments: { path: "README.md" },
-      }, {
-        requestedByUserId: "admin-1",
-      });
+      const allowed = await executor.execute(
+        {
+          id: "call-repo-allowed",
+          name: "mottbot_repo_read_file",
+          arguments: { path: "README.md" },
+        },
+        {
+          requestedByUserId: "admin-1",
+        },
+      );
       expect(allowed.isError).toBe(false);
       expect(allowed.contentText).toContain("hello from repo");
     } finally {
@@ -276,14 +285,17 @@ describe("ToolExecutor", () => {
         },
       });
 
-      const result = await executor.execute({
-        id: "call-policy-denied",
-        name: "lookup_value",
-        arguments: {},
-      }, {
-        sessionKey: "tg:dm:chat-1:user:user-1",
-        requestedByUserId: "user-1",
-      });
+      const result = await executor.execute(
+        {
+          id: "call-policy-denied",
+          name: "lookup_value",
+          arguments: {},
+        },
+        {
+          sessionKey: "tg:dm:chat-1:user:user-1",
+          requestedByUserId: "user-1",
+        },
+      );
 
       expect(result.isError).toBe(true);
       expect(result.errorCode).toBe("role_denied");
@@ -309,14 +321,17 @@ describe("ToolExecutor", () => {
         isToolAllowed: ({ toolName }) => toolName !== "lookup_value",
       });
 
-      const result = await executor.execute({
-        id: "call-chat-denied",
-        name: "lookup_value",
-        arguments: {},
-      }, {
-        chatId: "chat-1",
-        requestedByUserId: "user-1",
-      });
+      const result = await executor.execute(
+        {
+          id: "call-chat-denied",
+          name: "lookup_value",
+          arguments: {},
+        },
+        {
+          chatId: "chat-1",
+          requestedByUserId: "user-1",
+        },
+      );
 
       expect(result.isError).toBe(true);
       expect(result.errorCode).toBe("chat_denied");

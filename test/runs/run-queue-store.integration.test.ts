@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { RunQueueStore } from "../../src/runs/run-queue-store.js";
-import { FakeClock, createInboundEvent, createStores } from "../helpers/fakes.js";
+import { type FakeClock, createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
 describe("RunQueueStore", () => {

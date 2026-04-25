@@ -16,16 +16,17 @@ function createConfig(overrides: Partial<GoogleDriveToolConfig> = {}): GoogleDri
 
 describe("GoogleDriveService", () => {
   it("searches files using Drive API", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          files: [
-            { id: "A", name: "Spec", mimeType: "text/plain" },
-            { id: "B", name: "Roadmap", mimeType: "application/vnd.google-apps.document" },
-          ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            files: [
+              { id: "A", name: "Spec", mimeType: "text/plain" },
+              { id: "B", name: "Roadmap", mimeType: "application/vnd.google-apps.document" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     );
     const service = new GoogleDriveService(createConfig(), { fetchImpl, getEnv: () => "token" });
 
@@ -37,11 +38,12 @@ describe("GoogleDriveService", () => {
   });
 
   it("returns metadata-only file payload", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({ id: "f-1", name: "notes.txt", mimeType: "text/plain", size: "12" }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: "f-1", name: "notes.txt", mimeType: "text/plain", size: "12" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
     const service = new GoogleDriveService(createConfig(), { fetchImpl, getEnv: () => "token" });
 
@@ -91,10 +93,10 @@ describe("GoogleDriveService", () => {
       if (url.includes("alt=media")) {
         return new Response("line one\nline two", { status: 200, headers: { "Content-Type": "text/plain" } });
       }
-      return new Response(
-        JSON.stringify({ id: "txt-1", name: "notes.txt", mimeType: "text/plain" }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ id: "txt-1", name: "notes.txt", mimeType: "text/plain" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     });
     const service = new GoogleDriveService(createConfig(), { fetchImpl, getEnv: () => "token" });
 

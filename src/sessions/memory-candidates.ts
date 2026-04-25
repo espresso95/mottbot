@@ -135,9 +135,7 @@ export function parseMemoryCandidateResponse(params: {
   const candidates: ParsedMemoryCandidate[] = [];
 
   for (const rawCandidate of rawCandidates) {
-    const contentText = normalizeCandidateText(
-      rawCandidate.contentText ?? rawCandidate.content ?? rawCandidate.memory,
-    );
+    const contentText = normalizeCandidateText(rawCandidate.contentText ?? rawCandidate.content ?? rawCandidate.memory);
     if (!contentText) {
       continue;
     }
@@ -150,9 +148,7 @@ export function parseMemoryCandidateResponse(params: {
     if (!scopeKey) {
       continue;
     }
-    const sourceMessageIds = [...new Set(rawCandidate.sourceMessageIds ?? [])].filter((id) =>
-      allowedIds.has(id),
-    );
+    const sourceMessageIds = [...new Set(rawCandidate.sourceMessageIds ?? [])].filter((id) => allowedIds.has(id));
     const sensitivity = maxSensitivity(rawCandidate.sensitivity ?? "low", classifyMemorySensitivity(contentText));
     const dedupeKey = `${scope}:${scopeKey}:${contentText.replace(/\s+/g, " ").trim().toLocaleLowerCase()}`;
     if (seen.has(dedupeKey)) {
@@ -204,7 +200,7 @@ export function buildMemoryCandidateExtractionPrompt(params: {
         role: "user",
         content: [
           `Return at most ${params.maxCandidates} candidates.`,
-          "Candidate shape: {\"contentText\":\"...\",\"reason\":\"...\",\"scope\":\"session|personal|chat|group|project\",\"scopeKey\":\"project-key-only\",\"sensitivity\":\"low|medium|high\",\"sourceMessageIds\":[\"message-id\"]}.",
+          'Candidate shape: {"contentText":"...","reason":"...","scope":"session|personal|chat|group|project","scopeKey":"project-key-only","sensitivity":"low|medium|high","sourceMessageIds":["message-id"]}.',
           "Transcript:",
           ...lines,
         ].join("\n"),

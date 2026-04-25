@@ -41,7 +41,9 @@ export class TelegramOutbox {
   }): Promise<OutboxHandle> {
     const sent = await this.api.sendMessage(params.chatId, params.placeholderText, {
       ...(typeof params.threadId === "number" ? { message_thread_id: params.threadId } : {}),
-      ...(typeof params.replyToMessageId === "number" ? { reply_parameters: { message_id: params.replyToMessageId } } : {}),
+      ...(typeof params.replyToMessageId === "number"
+        ? { reply_parameters: { message_id: params.replyToMessageId } }
+        : {}),
     });
     const now = this.clock.now();
     const handle: OutboxHandle = {

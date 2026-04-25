@@ -196,7 +196,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -234,7 +235,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -279,7 +281,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -325,7 +328,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
       },
       required: [],
@@ -347,7 +351,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
       },
       required: [],
@@ -369,7 +374,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
         limit: {
           type: "integer",
@@ -397,13 +403,15 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved repository root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved repository root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional repository-relative file path for a content diff. Omit for diff stat and summary only.",
+          description:
+            "Optional repository-relative file path for a content diff. Omit for diff stat and summary only.",
         },
         maxBytes: {
           type: "integer",
@@ -431,7 +439,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
       },
       required: [],
@@ -453,7 +462,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         limit: {
           type: "integer",
@@ -481,7 +491,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         limit: {
           type: "integer",
@@ -509,7 +520,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         limit: {
           type: "integer",
@@ -537,7 +549,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         limit: {
           type: "integer",
@@ -579,7 +592,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_ms_todo_tasks",
-    description: "Read Microsoft To Do tasks for a specific list through Microsoft Graph using the configured delegated access token.",
+    description:
+      "Read Microsoft To Do tasks for a specific list through Microsoft Graph using the configured delegated access token.",
     inputSchema: {
       type: "object",
       properties: {
@@ -699,7 +713,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_local_doc_read",
-    description: "Read a bounded Markdown or text document from an approved local-write root and return its SHA-256 for safe edits.",
+    description:
+      "Read a bounded Markdown or text document from an approved local-write root and return its SHA-256 for safe edits.",
     inputSchema: {
       type: "object",
       properties: {
@@ -707,7 +722,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved local-write root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -736,7 +752,8 @@ export const READ_ONLY_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "mottbot_local_note_create",
-    description: "Create a new Markdown or text note in an approved local notes directory after explicit operator approval.",
+    description:
+      "Create a new Markdown or text note in an approved local notes directory after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -744,7 +761,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved local-write root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -770,7 +788,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_local_doc_append",
-    description: "Append plain text to an existing Markdown or text document under an approved local-write root after explicit operator approval.",
+    description:
+      "Append plain text to an existing Markdown or text document under an approved local-write root after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -778,7 +797,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved local-write root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -804,7 +824,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_local_doc_replace",
-    description: "Replace an existing Markdown or text document under an approved local-write root after explicit operator approval and SHA-256 match.",
+    description:
+      "Replace an existing Markdown or text document under an approved local-write root after explicit operator approval and SHA-256 match.",
     inputSchema: {
       type: "object",
       properties: {
@@ -812,7 +833,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved local-write root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved local-write root label or path. Required only when multiple roots are configured.",
         },
         path: {
           type: "string",
@@ -852,7 +874,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "Optional approved execution root label or path. Required only when multiple roots are configured.",
+          description:
+            "Optional approved execution root label or path. Required only when multiple roots are configured.",
         },
         cwd: {
           type: "string",
@@ -925,7 +948,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_ms_todo_task_create",
-    description: "Create a Microsoft To Do task in a selected list through Microsoft Graph after explicit operator approval.",
+    description:
+      "Create a Microsoft To Do task in a selected list through Microsoft Graph after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1027,7 +1051,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         title: {
           type: "string",
@@ -1069,7 +1094,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         number: {
           type: "integer",
@@ -1103,7 +1129,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
           type: "string",
           minLength: 1,
           maxLength: 200,
-          description: "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
+          description:
+            "Optional GitHub repository in owner/name form. Defaults to configured or local origin repository.",
         },
         number: {
           type: "integer",
@@ -1129,7 +1156,8 @@ export const SIDE_EFFECT_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: "mottbot_telegram_send_message",
-    description: "Send a plain-text Telegram message to the current chat or a configured approved chat after explicit operator approval.",
+    description:
+      "Send a plain-text Telegram message to the current chat or a configured approved chat after explicit operator approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1267,11 +1295,7 @@ function assertValidDefinition(definition: ToolDefinition, options: ToolRegistry
       `Tool ${definition.name} max output must be between 1 and ${MAX_OUTPUT_BYTES} bytes.`,
     );
   }
-  if (
-    definition.enabled &&
-    definition.sideEffect !== "read_only" &&
-    options.allowSideEffectDefinitions !== true
-  ) {
+  if (definition.enabled && definition.sideEffect !== "read_only" && options.allowSideEffectDefinitions !== true) {
     throw new ToolRegistryError(
       "side_effect_not_allowed",
       `Tool ${definition.name} has side effect ${definition.sideEffect} and must stay disabled.`,
@@ -1364,10 +1388,7 @@ function validateAgainstSchema(schema: ToolJsonSchema, value: unknown, path: str
 export class ToolRegistry {
   private readonly definitions = new Map<string, ToolDefinition>();
 
-  constructor(
-    definitions: readonly ToolDefinition[] = DEFAULT_TOOL_DEFINITIONS,
-    options: ToolRegistryOptions = {},
-  ) {
+  constructor(definitions: readonly ToolDefinition[] = DEFAULT_TOOL_DEFINITIONS, options: ToolRegistryOptions = {}) {
     for (const definition of definitions) {
       assertValidDefinition(definition, options);
       if (this.definitions.has(definition.name)) {

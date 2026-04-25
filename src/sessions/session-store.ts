@@ -55,9 +55,10 @@ export class SessionStore {
 
   findByChat(chatId: string, threadId?: number): SessionRoute | undefined {
     const row = this.database.db
-      .prepare<unknown[], SessionRow>(
-        "select * from session_routes where chat_id = ? and thread_id is ? order by updated_at desc limit 1",
-      )
+      .prepare<
+        unknown[],
+        SessionRow
+      >("select * from session_routes where chat_id = ? and thread_id is ? order by updated_at desc limit 1")
       .get(chatId, threadId ?? null);
     return mapSessionRow(row);
   }
@@ -140,11 +141,7 @@ export class SessionStore {
       return;
     }
     const routeMode: SessionRouteMode =
-      current.threadId !== undefined
-        ? "topic"
-        : current.sessionKey.startsWith("tg:dm:")
-          ? "dm"
-          : "group";
+      current.threadId !== undefined ? "topic" : current.sessionKey.startsWith("tg:dm:") ? "dm" : "group";
     this.touch(sessionKey, {
       route_mode: routeMode,
       bound_name: null,
@@ -169,14 +166,12 @@ export class SessionStore {
     }
     const next = {
       route_mode: patch.route_mode ?? existing.routeMode,
-      bound_name:
-        patch.bound_name === undefined ? (existing.boundName ?? null) : patch.bound_name,
+      bound_name: patch.bound_name === undefined ? (existing.boundName ?? null) : patch.bound_name,
       agent_id: patch.agent_id ?? existing.agentId,
       profile_id: patch.profile_id ?? existing.profileId,
       model_ref: patch.model_ref ?? existing.modelRef,
       fast_mode: patch.fast_mode ?? (existing.fastMode ? 1 : 0),
-      system_prompt:
-        patch.system_prompt === undefined ? (existing.systemPrompt ?? null) : patch.system_prompt,
+      system_prompt: patch.system_prompt === undefined ? (existing.systemPrompt ?? null) : patch.system_prompt,
       updated_at: this.clock.now(),
       session_key: sessionKey,
     };

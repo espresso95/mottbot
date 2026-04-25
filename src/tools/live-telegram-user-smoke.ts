@@ -48,11 +48,7 @@ async function prompt(label: string): Promise<string> {
   }
 }
 
-async function readCredential(params: {
-  envName: string;
-  promptLabel: string;
-  allowPrompt: boolean;
-}): Promise<string> {
+async function readCredential(params: { envName: string; promptLabel: string; allowPrompt: boolean }): Promise<string> {
   const fromEnv = process.env[params.envName]?.trim();
   if (fromEnv) {
     return fromEnv;
@@ -95,7 +91,11 @@ async function startUserClient(config: TelegramUserSmokeConfig): Promise<Telegra
       throw error;
     },
   });
-  writeSession(config.sessionPath, client.session.save() as unknown as string);
+  const serializedSession = (client.session as { save: () => unknown }).save();
+  if (typeof serializedSession !== "string") {
+    throw new Error("Telegram client did not return a serialized session.");
+  }
+  writeSession(config.sessionPath, serializedSession);
   return client;
 }
 
@@ -112,7 +112,10 @@ function entityId(entity: unknown): string | undefined {
     return undefined;
   }
   const id = (entity as { id?: unknown }).id;
-  return id === undefined || id === null ? undefined : String(id);
+  if (typeof id === "string" || typeof id === "number" || typeof id === "bigint") {
+    return String(id);
+  }
+  return undefined;
 }
 
 async function findLatestBotMessage(params: {
@@ -199,11 +202,7 @@ async function waitForReply(params: {
     if (!newestCandidate) {
       candidate = undefined;
       candidateSince = 0;
-    } else if (
-      candidate &&
-      candidate.messageId === newestCandidate.messageId &&
-      candidate.text === newestCandidate.text
-    ) {
+    } else if (candidate?.messageId === newestCandidate.messageId && candidate.text === newestCandidate.text) {
       if (now - candidateSince >= params.stableReplyMs) {
         return { reply: candidate, lastIncoming };
       }

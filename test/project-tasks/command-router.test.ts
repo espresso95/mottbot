@@ -64,7 +64,6 @@ describe("ProjectCommandRouter", () => {
     }
   });
 
-
   it("handles status and cancel commands", async () => {
     const root = createTempDir();
     try {

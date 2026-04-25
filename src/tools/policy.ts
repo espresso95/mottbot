@@ -155,7 +155,11 @@ function intersectChatIds(left: string[], right: string[]): string[] {
   return left.filter((chatId) => rightSet.has(chatId));
 }
 
-function applyAdditionalPolicy(definition: ToolDefinition, base: ToolPolicy, override: ToolPolicyConfig | undefined): ToolPolicy {
+function applyAdditionalPolicy(
+  definition: ToolDefinition,
+  base: ToolPolicy,
+  override: ToolPolicyConfig | undefined,
+): ToolPolicy {
   if (!override) {
     return base;
   }
@@ -255,10 +259,7 @@ export function createToolPolicyEngine(params: {
   );
 }
 
-export function createToolRequestFingerprint(params: {
-  toolName: string;
-  arguments: Record<string, unknown>;
-}): string {
+export function createToolRequestFingerprint(params: { toolName: string; arguments: Record<string, unknown> }): string {
   return crypto
     .createHash("sha256")
     .update(JSON.stringify({ toolName: params.toolName, arguments: canonicalize(params.arguments) }))

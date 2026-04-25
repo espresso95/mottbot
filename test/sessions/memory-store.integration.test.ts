@@ -27,10 +27,7 @@ describe("MemoryStore", () => {
 
       expect(first.contentText).toBe("prefers concise answers");
       expect(first.source).toBe("explicit");
-      expect(memories.list("tg:dm:chat-1:user:user-1").map((memory) => memory.id)).toEqual([
-        first.id,
-        second.id,
-      ]);
+      expect(memories.list("tg:dm:chat-1:user:user-1").map((memory) => memory.id)).toEqual([first.id, second.id]);
       expect(memories.remove("tg:dm:chat-1:user:user-1", first.id.slice(0, 8))).toBe(true);
       expect(memories.list("tg:dm:chat-1:user:user-1").map((memory) => memory.id)).toEqual([second.id]);
       expect(memories.clear("tg:dm:chat-1:user:user-1")).toBe(1);
@@ -150,7 +147,9 @@ describe("MemoryStore", () => {
         "Automatic summary",
       ]);
       expect(visible[0]?.id).toBe(personal.id);
-      expect(visible).not.toEqual(expect.arrayContaining([expect.objectContaining({ contentText: "Other chat fact" })]));
+      expect(visible).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ contentText: "Other chat fact" })]),
+      );
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);
@@ -192,7 +191,11 @@ describe("MemoryStore", () => {
         throw new Error("expected inserted candidate");
       }
 
-      const updated = memories.updateCandidate(session.sessionKey, first.candidate.id.slice(0, 8), "User prefers concise replies.");
+      const updated = memories.updateCandidate(
+        session.sessionKey,
+        first.candidate.id.slice(0, 8),
+        "User prefers concise replies.",
+      );
       expect(updated?.contentText).toBe("User prefers concise replies.");
       const accepted = memories.acceptCandidate({
         sessionKey: session.sessionKey,

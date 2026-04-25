@@ -80,13 +80,15 @@ function listArchiveDirs(root: string): string[] {
     .sort();
 }
 
-export function rotateServiceLogs(params: {
-  paths?: LaunchAgentPaths;
-  archiveRoot?: string;
-  truncate?: boolean;
-  maxArchives?: number;
-  now?: Date;
-} = {}): ServiceLogRotationResult {
+export function rotateServiceLogs(
+  params: {
+    paths?: LaunchAgentPaths;
+    archiveRoot?: string;
+    truncate?: boolean;
+    maxArchives?: number;
+    now?: Date;
+  } = {},
+): ServiceLogRotationResult {
   const paths = params.paths ?? launchAgentPaths();
   const archiveRoot = path.resolve(params.archiveRoot ?? path.join(paths.logDir, "archive"));
   const archiveDir = path.join(archiveRoot, `logs-${timestampForPath(params.now)}`);

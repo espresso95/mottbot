@@ -24,7 +24,7 @@ export function decodeCodexJwtPayload(accessToken: string): Record<string, unkno
   }
   try {
     const decoded = Buffer.from(payloadSegment, "base64url").toString("utf8");
-    const parsed = JSON.parse(decoded);
+    const parsed: unknown = JSON.parse(decoded);
     return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
@@ -49,8 +49,7 @@ export function resolveCodexAuthIdentity(accessToken: string): {
 } {
   const payload = decodeCodexJwtPayload(accessToken);
   const profile =
-    payload?.["https://api.openai.com/profile"] &&
-    typeof payload["https://api.openai.com/profile"] === "object"
+    payload?.["https://api.openai.com/profile"] && typeof payload["https://api.openai.com/profile"] === "object"
       ? (payload["https://api.openai.com/profile"] as Record<string, unknown>)
       : undefined;
   const email = trimNonEmptyString(profile?.email);
@@ -78,8 +77,8 @@ export function readCodexCliAuthFile(env: NodeJS.ProcessEnv = process.env): Code
   try {
     const authPath = path.join(resolveCodexCliHome(env), "auth.json");
     const raw = fs.readFileSync(authPath, "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as CodexCliAuthFile) : null;
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
@@ -91,7 +90,7 @@ export function importCodexCliAuthProfile(params: {
   env?: NodeJS.ProcessEnv;
 }): { profileId: string; imported: boolean } {
   const authFile = readCodexCliAuthFile(params.env ?? process.env);
-  if (!authFile || authFile.auth_mode !== "chatgpt") {
+  if (authFile?.auth_mode !== "chatgpt") {
     return {
       profileId: params.profileId ?? "openai-codex:default",
       imported: false,

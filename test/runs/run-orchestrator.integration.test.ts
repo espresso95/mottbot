@@ -38,7 +38,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -57,7 +64,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -78,17 +91,17 @@ describe("RunOrchestrator", () => {
     const runRow = stores.database.db
       .prepare("select status, transport, request_identity, usage_json, started_at, finished_at from runs limit 1")
       .get() as {
-        status: string;
-        transport: string;
-        request_identity: string;
-        usage_json: string;
-        started_at: number;
-        finished_at: number;
-      };
+      status: string;
+      transport: string;
+      request_identity: string;
+      usage_json: string;
+      started_at: number;
+      finished_at: number;
+    };
     expect(runRow.status).toBe("completed");
     expect(runRow.transport).toBe("sse");
     expect(runRow.request_identity).toBe("req-1");
-    expect(runRow.usage_json).toContain("\"input\":1");
+    expect(runRow.usage_json).toContain('"input":1');
     expect(runRow.started_at).toBe(stores.clock.now());
     expect(runRow.finished_at).toBe(stores.clock.now());
     expect(outbox.finish).toHaveBeenCalled();
@@ -119,7 +132,14 @@ describe("RunOrchestrator", () => {
     });
     stores.runs.update(prior.runId, { status: "completed", finishedAt: stores.clock.now() });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -190,7 +210,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -204,7 +231,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       {
         stream: vi.fn(async () => ({ text: "done", transport: "sse", requestIdentity: "req-ack" })),
       } as any,
@@ -247,7 +280,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle) => handle),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -258,8 +298,18 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
-      { stream: vi.fn(async () => { throw new Error("boom"); }) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
+      {
+        stream: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+      } as any,
       outbox as any,
       stores.clock,
       stores.logger,
@@ -272,9 +322,11 @@ describe("RunOrchestrator", () => {
 
     await flushAsync();
 
-    const runRow = stores.database.db
-      .prepare("select status, error_code, error_message from runs limit 1")
-      .get() as { status: string; error_code: string; error_message: string };
+    const runRow = stores.database.db.prepare("select status, error_code, error_message from runs limit 1").get() as {
+      status: string;
+      error_code: string;
+      error_message: string;
+    };
     expect(runRow.status).toBe("failed");
     expect(runRow.error_code).toBe("run_failed");
     expect(runRow.error_message).toContain("boom");
@@ -303,7 +355,14 @@ describe("RunOrchestrator", () => {
     });
     const memories = new MemoryStore(stores.database, stores.clock);
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -314,7 +373,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       {
         stream: vi.fn(async ({ onStart }) => {
           await onStart?.();
@@ -365,7 +430,14 @@ describe("RunOrchestrator", () => {
     });
     const memories = new MemoryStore(stores.database, stores.clock);
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -398,7 +470,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -447,7 +525,14 @@ describe("RunOrchestrator", () => {
     });
     const memories = new MemoryStore(stores.database, stores.clock);
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -456,7 +541,11 @@ describe("RunOrchestrator", () => {
       stream: vi
         .fn()
         .mockImplementationOnce(async () => ({ text: "Done.", transport: "sse", requestIdentity: "req-answer" }))
-        .mockImplementationOnce(async () => ({ text: "not json", transport: "sse", requestIdentity: "req-bad-memory" })),
+        .mockImplementationOnce(async () => ({
+          text: "not json",
+          transport: "sse",
+          requestIdentity: "req-bad-memory",
+        })),
     };
     const orchestrator = new RunOrchestrator(
       stores.config,
@@ -464,7 +553,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -502,7 +597,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -536,7 +638,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -576,9 +684,7 @@ describe("RunOrchestrator", () => {
     const streamMessages = transport.stream.mock.calls[0]?.[0].messages;
     const lastUserMessage = streamMessages?.findLast((message: any) => message.role === "user");
     expect(lastUserMessage?.content).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ type: "image", data: "aW1hZ2U=", mimeType: "image/png" })]),
     );
     expect(attachmentIngestor.prepare).toHaveBeenCalledWith(
       expect.objectContaining({ allowNativeFiles: false, allowNativeImages: true }),
@@ -601,7 +707,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -670,7 +783,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -694,10 +813,7 @@ describe("RunOrchestrator", () => {
     expect(messages[1]?.contentJson).toContain("mottbot_health_snapshot");
     expect(messages[2]?.contentText).toBe("Health is ok.");
     expect(messages[2]?.contentJson).toContain('"tools"');
-    expect(outbox.update).toHaveBeenCalledWith(
-      expect.anything(),
-      formatToolRunningStatus("mottbot_health_snapshot"),
-    );
+    expect(outbox.update).toHaveBeenCalledWith(expect.anything(), formatToolRunningStatus("mottbot_health_snapshot"));
     expect(transport.stream).toHaveBeenCalledTimes(2);
   });
 
@@ -716,7 +832,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -739,7 +862,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -789,7 +918,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4-mini",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -801,7 +937,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -829,10 +971,7 @@ describe("RunOrchestrator", () => {
     await flushAsync();
 
     expect(transport.stream).not.toHaveBeenCalled();
-    expect(outbox.fail).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("not allowed in this chat"),
-    );
+    expect(outbox.fail).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("not allowed in this chat"));
   });
 
   it("rejects new runs when the selected agent queue is full", async () => {
@@ -865,7 +1004,14 @@ describe("RunOrchestrator", () => {
       modelRef: "openai-codex/gpt-5.4",
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -891,10 +1037,7 @@ describe("RunOrchestrator", () => {
 
     expect(transport.stream).not.toHaveBeenCalled();
     expect(stores.runs.countByAgentStatuses("main", ["failed"])).toBe(1);
-    expect(outbox.fail).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("queue is full"),
-    );
+    expect(outbox.fail).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("queue is full"));
   });
 
   it("executes an approved side-effecting restart tool once", async () => {
@@ -926,7 +1069,14 @@ describe("RunOrchestrator", () => {
       ttlMs: 60_000,
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 1, chatId: "chat-1", runId: "run", lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 1,
+        chatId: "chat-1",
+        runId: "run",
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 1, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 1 })),
@@ -967,7 +1117,9 @@ describe("RunOrchestrator", () => {
             text: "",
             transport: "sse",
             requestIdentity: "req-restart-1",
-            toolCalls: [{ id: "call-restart", name: "mottbot_restart_service", arguments: { reason: "planned restart" } }],
+            toolCalls: [
+              { id: "call-restart", name: "mottbot_restart_service", arguments: { reason: "planned restart" } },
+            ],
             assistantMessage: assistantToolMessage,
             stopReason: "toolUse",
           };
@@ -991,7 +1143,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       transport as any,
       outbox as any,
       stores.clock,
@@ -1055,7 +1213,14 @@ describe("RunOrchestrator", () => {
       event: createInboundEvent({ text: "resume me", messageId: 42 }),
     });
     const outbox = {
-      start: vi.fn(async () => ({ outboxId: "o1", messageId: 100, chatId: "chat-1", runId: run.runId, lastText: RUN_STATUS_TEXT.starting, lastEditAt: 1 })),
+      start: vi.fn(async () => ({
+        outboxId: "o1",
+        messageId: 100,
+        chatId: "chat-1",
+        runId: run.runId,
+        lastText: RUN_STATUS_TEXT.starting,
+        lastEditAt: 1,
+      })),
       update: vi.fn(async (handle, text) => ({ ...handle, lastText: text })),
       finish: vi.fn(async () => ({ primaryMessageId: 100, continuationMessageIds: [] })),
       fail: vi.fn(async () => ({ primaryMessageId: 100 })),
@@ -1066,7 +1231,13 @@ describe("RunOrchestrator", () => {
       stores.sessions,
       stores.transcripts,
       stores.runs,
-      { resolve: vi.fn(async () => ({ profile: { profileId: "openai-codex:default" }, accessToken: "access", apiKey: "api" })) } as any,
+      {
+        resolve: vi.fn(async () => ({
+          profile: { profileId: "openai-codex:default" },
+          accessToken: "access",
+          apiKey: "api",
+        })),
+      } as any,
       {
         stream: vi.fn(async ({ onStart }) => {
           await onStart?.();
@@ -1083,9 +1254,11 @@ describe("RunOrchestrator", () => {
     expect(orchestrator.recoverQueuedRuns()).toEqual({ resumed: 1, failed: 0 });
     await flushAsync();
 
-    expect(outbox.start).toHaveBeenCalledWith(expect.objectContaining({
-      placeholderText: RUN_STATUS_TEXT.resumingAfterRestart,
-    }));
+    expect(outbox.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        placeholderText: RUN_STATUS_TEXT.resumingAfterRestart,
+      }),
+    );
     expect(stores.runs.get(run.runId)).toMatchObject({ status: "completed" });
     expect(durableQueue.get(run.runId)).toMatchObject({ state: "completed", attempts: 1 });
   });

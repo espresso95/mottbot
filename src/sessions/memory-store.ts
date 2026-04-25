@@ -25,10 +25,7 @@ export type SessionMemorySource = "explicit" | "auto_summary" | "model_candidate
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
 export type MemoryCandidateSensitivity = (typeof MEMORY_CANDIDATE_SENSITIVITIES)[number];
 export type MemoryCandidateStatus = (typeof MEMORY_CANDIDATE_STATUSES)[number];
-export type MemoryScopeContext = Pick<
-  SessionRoute,
-  "sessionKey" | "chatId" | "threadId" | "userId" | "routeMode"
-> & {
+export type MemoryScopeContext = Pick<SessionRoute, "sessionKey" | "chatId" | "threadId" | "userId" | "routeMode"> & {
   projectKey?: string;
 };
 
@@ -111,7 +108,7 @@ function mapMemoryRow(row: SessionMemoryRow): SessionMemory {
 
 function parseSourceMessageIds(raw: string): string[] {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.filter((value): value is string => typeof value === "string" && value.length > 0)
       : [];
@@ -661,10 +658,7 @@ export class MemoryStore {
       .run(sessionKey, status).changes;
   }
 
-  private findMemoryByPrefixForScopeContext(
-    context: MemoryScopeContext,
-    idPrefix: string,
-  ): SessionMemory | undefined {
+  private findMemoryByPrefixForScopeContext(context: MemoryScopeContext, idPrefix: string): SessionMemory | undefined {
     const scopes = scopeValues(context);
     if (scopes.length === 0) {
       return undefined;

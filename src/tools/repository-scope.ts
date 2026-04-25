@@ -162,10 +162,7 @@ export class RepositoryScope {
     throw new Error(`Repository root ${trimmed} is not approved.`);
   }
 
-  resolvePath(params: {
-    root?: string;
-    targetPath?: string;
-  }): ResolvedRepositoryPath {
+  resolvePath(params: { root?: string; targetPath?: string }): ResolvedRepositoryPath {
     const root = this.resolveRoot(params.root);
     const rawPath = params.targetPath?.trim() || ".";
     const decodedPath = decodePathInput(rawPath);

@@ -109,11 +109,7 @@ export function pruneOperationalData(params: {
           or run_id not in (${activeRunIdsSql})
           or run_id in (${terminalRunIdsSql})
         )`,
-      params: [
-        params.cutoffs.messagesBefore,
-        ...activeRunParams,
-        ...terminalRunParams,
-      ],
+      params: [params.cutoffs.messagesBefore, ...activeRunParams, ...terminalRunParams],
     },
     telegramBotMessages: {
       sql: `created_at < ?
@@ -122,11 +118,7 @@ export function pruneOperationalData(params: {
           or run_id not in (${activeRunIdsSql})
           or run_id in (${terminalRunIdsSql})
         )`,
-      params: [
-        params.cutoffs.telegramBotMessagesBefore,
-        ...activeRunParams,
-        ...terminalRunParams,
-      ],
+      params: [params.cutoffs.telegramBotMessagesBefore, ...activeRunParams, ...terminalRunParams],
     },
     attachmentRecords: {
       sql: `created_at < ?
@@ -135,20 +127,12 @@ export function pruneOperationalData(params: {
           or run_id not in (${activeRunIdsSql})
           or run_id in (${terminalRunIdsSql})
         )`,
-      params: [
-        params.cutoffs.attachmentRecordsBefore,
-        ...activeRunParams,
-        ...terminalRunParams,
-      ],
+      params: [params.cutoffs.attachmentRecordsBefore, ...activeRunParams, ...terminalRunParams],
     },
     outboxMessages: {
       sql: `(state != 'active' and updated_at < ? and run_id not in (${activeRunIdsSql}))
         or run_id in (${terminalRunIdsSql})`,
-      params: [
-        params.cutoffs.outboxMessagesBefore,
-        ...activeRunParams,
-        ...terminalRunParams,
-      ],
+      params: [params.cutoffs.outboxMessagesBefore, ...activeRunParams, ...terminalRunParams],
     },
     runQueue: {
       sql: `updated_at < ? and state in ('completed', 'failed')
@@ -162,7 +146,12 @@ export function pruneOperationalData(params: {
   };
 
   const counts = {
-    telegramUpdates: count(params.database, "telegram_updates", where.telegramUpdates.sql, where.telegramUpdates.params),
+    telegramUpdates: count(
+      params.database,
+      "telegram_updates",
+      where.telegramUpdates.sql,
+      where.telegramUpdates.params,
+    ),
     messages: count(params.database, "messages", where.messages.sql, where.messages.params),
     attachmentRecords: count(
       params.database,

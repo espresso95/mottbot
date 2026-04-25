@@ -148,8 +148,7 @@ export function buildLiveValidationPlan(env: LiveValidationEnv): LiveValidationP
         env: {
           ...base,
           MOTTBOT_USER_SMOKE_TARGET: privateTarget,
-          MOTTBOT_USER_SMOKE_MESSAGE:
-            env.MOTTBOT_LIVE_VALIDATION_PRIVATE_MESSAGE?.trim() || DEFAULT_PRIVATE_MESSAGE,
+          MOTTBOT_USER_SMOKE_MESSAGE: env.MOTTBOT_LIVE_VALIDATION_PRIVATE_MESSAGE?.trim() || DEFAULT_PRIVATE_MESSAGE,
         },
       }),
     );

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { DatabaseClient } from "./client.js";
+import { type DatabaseClient } from "./client.js";
 
 type Migration = {
   version: number;

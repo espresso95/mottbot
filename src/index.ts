@@ -161,7 +161,9 @@ async function runBackupCommand(args: string[]): Promise<void> {
     process.exitCode = result.ok ? 0 : 1;
     return;
   }
-  throw new Error("Usage: mottbot backup create [--dest <dir>] [--include-env] | validate <backup-dir> [--target-sqlite <path>]");
+  throw new Error(
+    "Usage: mottbot backup create [--dest <dir>] [--include-env] | validate <backup-dir> [--target-sqlite <path>]",
+  );
 }
 
 function runLogsCommand(args: string[]): void {
@@ -174,9 +176,7 @@ function runLogsCommand(args: string[]): void {
     const result = rotateServiceLogs({
       archiveRoot: readOptionalStringFlag(rest, "--archive-dir"),
       truncate: rest.includes("--truncate"),
-      maxArchives: rest.includes("--max-archives")
-        ? readPositiveIntFlag(rest, "--max-archives", 10)
-        : undefined,
+      maxArchives: rest.includes("--max-archives") ? readPositiveIntFlag(rest, "--max-archives", 10) : undefined,
     });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
@@ -245,7 +245,9 @@ async function main(): Promise<void> {
     return;
   }
   if (group === "restart") {
-    process.exitCode = runServiceCommand(["restart", subcommand, ...rest].filter((value): value is string => Boolean(value)));
+    process.exitCode = runServiceCommand(
+      ["restart", subcommand, ...rest].filter((value): value is string => Boolean(value)),
+    );
     return;
   }
   if (group === "health") {

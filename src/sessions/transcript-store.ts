@@ -58,9 +58,7 @@ export class TranscriptStore {
       role: params.role,
       ...(params.contentText ? { contentText: params.contentText } : {}),
       ...(params.contentJson ? { contentJson: params.contentJson } : {}),
-      ...(typeof params.telegramMessageId === "number"
-        ? { telegramMessageId: params.telegramMessageId }
-        : {}),
+      ...(typeof params.telegramMessageId === "number" ? { telegramMessageId: params.telegramMessageId } : {}),
       ...(typeof params.replyToTelegramMessageId === "number"
         ? { replyToTelegramMessageId: params.replyToTelegramMessageId }
         : {}),
@@ -88,9 +86,7 @@ export class TranscriptStore {
 
   listRecent(sessionKey: string, limit = 30): TranscriptMessage[] {
     const rows = this.database.db
-      .prepare<unknown[], MessageRow>(
-        "select * from messages where session_key = ? order by created_at desc limit ?",
-      )
+      .prepare<unknown[], MessageRow>("select * from messages where session_key = ? order by created_at desc limit ?")
       .all(sessionKey, limit);
     return rows.reverse().map(mapMessageRow);
   }
@@ -105,11 +101,7 @@ export class TranscriptStore {
       .run(contentJson ?? null, runId, role);
   }
 
-  removeAttachmentMetadata(params: {
-    sessionKey: string;
-    runId?: string;
-    recordId?: string;
-  }): number {
+  removeAttachmentMetadata(params: { sessionKey: string; runId?: string; recordId?: string }): number {
     const rows = this.database.db
       .prepare<unknown[], MessageJsonRow>(
         `select id, content_json
@@ -132,7 +124,11 @@ export class TranscriptStore {
         } catch {
           continue;
         }
-        if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { attachments?: unknown }).attachments)) {
+        if (
+          !parsed ||
+          typeof parsed !== "object" ||
+          !Array.isArray((parsed as { attachments?: unknown }).attachments)
+        ) {
           continue;
         }
         const recordId = params.recordId;
@@ -162,11 +158,10 @@ export class TranscriptStore {
 
   hasRunMessage(runId: string, role?: TranscriptMessageRole): boolean {
     const row = this.database.db
-      .prepare<unknown[], { id: string }>(
-        role
-          ? "select id from messages where run_id = ? and role = ? limit 1"
-          : "select id from messages where run_id = ? limit 1",
-      )
+      .prepare<
+        unknown[],
+        { id: string }
+      >(role ? "select id from messages where run_id = ? and role = ? limit 1" : "select id from messages where run_id = ? limit 1")
       .get(...(role ? [runId, role] : [runId]));
     return Boolean(row);
   }

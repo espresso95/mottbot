@@ -25,12 +25,14 @@ export function buildProjectPlan(input: { prompt: string; taskTitle: string }): 
     .filter((line) => line.length > 0);
 
   const seeds = checklistLines.length > 0 ? checklistLines : [input.prompt.trim()];
-  const steps = seeds.map((seed, index): ProjectPlanStep => ({
-    stepId: toStepId(index),
-    title: seed.split(/\s+/).slice(0, 8).join(" "),
-    prompt: seed,
-    dependsOnStepIds: index === 0 ? [] : [toStepId(index - 1)],
-  }));
+  const steps = seeds.map(
+    (seed, index): ProjectPlanStep => ({
+      stepId: toStepId(index),
+      title: seed.split(/\s+/).slice(0, 8).join(" "),
+      prompt: seed,
+      dependsOnStepIds: index === 0 ? [] : [toStepId(index - 1)],
+    }),
+  );
 
   return {
     title: input.taskTitle,

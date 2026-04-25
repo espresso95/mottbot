@@ -40,9 +40,7 @@ describe("ToolRegistry", () => {
   it("exposes only non-admin enabled read-only model declarations by default", () => {
     const registry = createDefaultToolRegistry();
 
-    expect(registry.listModelDeclarations().map((tool) => tool.name)).toEqual([
-      "mottbot_health_snapshot",
-    ]);
+    expect(registry.listModelDeclarations().map((tool) => tool.name)).toEqual(["mottbot_health_snapshot"]);
   });
 
   it("includes admin-only model declarations when requested", () => {
@@ -76,10 +74,7 @@ describe("ToolRegistry", () => {
   });
 
   it("filters model declarations with caller policy", () => {
-    const registry = new ToolRegistry([
-      readOnlyTool({ name: "lookup_value" }),
-      readOnlyTool({ name: "hidden_value" }),
-    ]);
+    const registry = new ToolRegistry([readOnlyTool({ name: "lookup_value" }), readOnlyTool({ name: "hidden_value" })]);
 
     expect(
       registry
@@ -129,9 +124,7 @@ describe("ToolRegistry", () => {
       { allowSideEffectDefinitions: true },
     );
 
-    expect(registry.listModelDeclarations()).toEqual([
-      expect.objectContaining({ name: "lookup_value" }),
-    ]);
+    expect(registry.listModelDeclarations()).toEqual([expect.objectContaining({ name: "lookup_value" })]);
     expect(() => registry.resolve("lookup_value")).toThrow("side effect process_control");
     expect(registry.resolve("lookup_value", { allowSideEffects: true })).toMatchObject({
       sideEffect: "process_control",
@@ -141,7 +134,9 @@ describe("ToolRegistry", () => {
   it("enables the reserved restart tool only through the runtime registry factory", () => {
     const registry = createDefaultToolRegistry();
     const runtimeRegistry = createRuntimeToolRegistry({ enableSideEffectTools: true });
-    const sideEffectToolNames = runtimeRegistry.listModelDeclarations({ includeAdminTools: true }).map((tool) => tool.name);
+    const sideEffectToolNames = runtimeRegistry
+      .listModelDeclarations({ includeAdminTools: true })
+      .map((tool) => tool.name);
 
     expect(registry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");
     expect(runtimeRegistry.listModelDeclarations().map((tool) => tool.name)).not.toContain("mottbot_restart_service");

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildOperationalRetentionCutoffs, pruneOperationalData } from "../../src/db/retention.js";
 import { AccessController } from "../../src/telegram/acl.js";
-import { FakeClock, createInboundEvent, createStores } from "../helpers/fakes.js";
+import { type FakeClock, createInboundEvent, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
 describe("operational retention", () => {
@@ -91,7 +91,16 @@ describe("operational retention", () => {
           id, run_id, chat_id, thread_id, telegram_message_id, state, last_rendered_text, last_edit_at, created_at, updated_at
         ) values (?, ?, ?, null, ?, 'final', ?, ?, ?, ?)`,
       )
-      .run("outbox-terminal", terminalRun.runId, "terminal-chat", 201, "old answer", oldTimestamp, oldTimestamp, oldTimestamp);
+      .run(
+        "outbox-terminal",
+        terminalRun.runId,
+        "terminal-chat",
+        201,
+        "old answer",
+        oldTimestamp,
+        oldTimestamp,
+        oldTimestamp,
+      );
     stores.updateStore.markProcessed({
       updateId: 9001,
       chatId: "terminal-chat",
@@ -152,7 +161,16 @@ describe("operational retention", () => {
           id, run_id, chat_id, thread_id, telegram_message_id, state, last_rendered_text, last_edit_at, created_at, updated_at
         ) values (?, ?, ?, null, ?, 'active', ?, ?, ?, ?)`,
       )
-      .run("outbox-active", activeRun.runId, "active-chat", 301, "active answer", oldTimestamp, oldTimestamp, oldTimestamp);
+      .run(
+        "outbox-active",
+        activeRun.runId,
+        "active-chat",
+        301,
+        "active answer",
+        oldTimestamp,
+        oldTimestamp,
+        oldTimestamp,
+      );
 
     const dryRun = pruneOperationalData({ database: stores.database, cutoffs, dryRun: true });
     expect(dryRun).toMatchObject({

@@ -67,7 +67,10 @@ describe("CodexCliRunner", () => {
     }
 
     const allEvents = database.db
-      .prepare<unknown[], { cli_run_id: string; status: string }>("select cli_run_id, status from codex_cli_runs order by updated_at desc")
+      .prepare<
+        unknown[],
+        { cli_run_id: string; status: string }
+      >("select cli_run_id, status from codex_cli_runs order by updated_at desc")
       .all();
     expect(allEvents.length).toBeGreaterThan(0);
     expect(allEvents[0]?.status).toBe("exited");

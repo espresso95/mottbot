@@ -3,7 +3,7 @@ import type { HealthReporter } from "../app/health.js";
 import type { CodexToolCall } from "../codex/tool-calls.js";
 import type { Clock } from "../shared/clock.js";
 import { getErrorMessage } from "../shared/errors.js";
-import { ToolRegistry, ToolRegistryError, type ToolDefinition } from "./registry.js";
+import { type ToolRegistry, ToolRegistryError, type ToolDefinition } from "./registry.js";
 import {
   buildToolApprovalAuditRecord,
   evaluateToolApproval,
@@ -32,10 +32,7 @@ export type ToolExecutionResult = {
   errorCode?: string;
 };
 
-export type RestartServiceHandler = (params: {
-  reason: string;
-  delayMs: number;
-}) => Promise<unknown> | unknown;
+export type RestartServiceHandler = (params: { reason: string; delayMs: number }) => Promise<unknown> | unknown;
 
 export type ToolExecutionContext = {
   definition: ToolDefinition;
@@ -101,8 +98,7 @@ export class ToolExecutor {
     if (deps.restartService) {
       this.handlers.set("mottbot_restart_service", ({ arguments: input }) => {
         const reason = typeof input.reason === "string" ? input.reason : "operator requested restart";
-        const delaySeconds =
-          typeof input.delaySeconds === "number" ? input.delaySeconds : undefined;
+        const delaySeconds = typeof input.delaySeconds === "number" ? input.delaySeconds : undefined;
         return deps.restartService?.({
           reason,
           delayMs: delaySeconds ? delaySeconds * 1000 : (deps.defaultRestartDelayMs ?? 60_000),
@@ -156,12 +152,16 @@ export class ToolExecutor {
         });
         return this.errorResult(call, startedAt, decision.code, decision.message);
       }
-      const policyDecision = this.policy.evaluate(definition, {
-        role,
-        chatId: options.chatId,
-      }, {
-        override: options.toolPolicyOverrides?.[definition.name],
-      });
+      const policyDecision = this.policy.evaluate(
+        definition,
+        {
+          role,
+          chatId: options.chatId,
+        },
+        {
+          override: options.toolPolicyOverrides?.[definition.name],
+        },
+      );
       if (!policyDecision.allowed) {
         this.recordAudit({
           definition,
@@ -464,8 +464,7 @@ function limitUtf8Bytes(text: string, maxBytes: number): { text: string; bytes: 
   }
   const sliced = text.slice(0, low);
   const suffix = `\n[tool output truncated to ${maxBytes} bytes]`;
-  const textWithSuffix =
-    Buffer.byteLength(sliced + suffix, "utf8") <= maxBytes ? sliced + suffix : sliced;
+  const textWithSuffix = Buffer.byteLength(sliced + suffix, "utf8") <= maxBytes ? sliced + suffix : sliced;
   return {
     text: textWithSuffix,
     bytes: Buffer.byteLength(textWithSuffix, "utf8"),

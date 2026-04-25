@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RUN_STATUS_TEXT, formatToolRunningStatus } from "../../src/shared/run-status.js";
 import { TelegramOutbox } from "../../src/telegram/outbox.js";
-import { FakeClock, createStores } from "../helpers/fakes.js";
+import { type FakeClock, createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
 describe("TelegramOutbox", () => {
@@ -141,10 +141,12 @@ describe("TelegramOutbox", () => {
     expect(delivery.primaryMessageId).toBe(100);
     expect(delivery.continuationMessageIds).toEqual([101]);
     expect(api.sendMessage).toHaveBeenCalledTimes(2);
-    expect(stores.messageStore.hasMessage({
-      chatId: "chat-1",
-      telegramMessageId: 101,
-    })).toBe(true);
+    expect(
+      stores.messageStore.hasMessage({
+        chatId: "chat-1",
+        telegramMessageId: 101,
+      }),
+    ).toBe(true);
   });
 
   it("recovers interrupted runs and marks active outbox rows failed", async () => {
@@ -190,9 +192,9 @@ describe("TelegramOutbox", () => {
         partialText: "Partial output",
       },
     ]);
-    const row = stores.database.db
-      .prepare("select state from outbox_messages where id = ?")
-      .get(handle.outboxId) as { state: string };
+    const row = stores.database.db.prepare("select state from outbox_messages where id = ?").get(handle.outboxId) as {
+      state: string;
+    };
     expect(row.state).toBe("failed");
   });
 
@@ -220,13 +222,13 @@ describe("TelegramOutbox", () => {
       editMessageText: vi.fn(async () => undefined),
     };
     const outbox = new TelegramOutbox(api as any, stores.database, clock, stores.logger, 0, stores.messageStore);
-    let handle = await outbox.start({
+    const handle = await outbox.start({
       runId: run.runId,
       chatId: "chat-1",
       placeholderText: RUN_STATUS_TEXT.starting,
     });
     clock.advance(1);
-    handle = await outbox.update(handle, formatToolRunningStatus("mottbot_health_snapshot"));
+    await outbox.update(handle, formatToolRunningStatus("mottbot_health_snapshot"));
 
     const recovered = outbox.recoverInterruptedRuns({
       runs: [{ runId: run.runId, sessionKey: "s1" }],

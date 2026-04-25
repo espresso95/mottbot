@@ -220,25 +220,29 @@ export class ProjectTaskStore {
       createdAt: now,
       updatedAt: now,
     };
-    this.database.db.prepare(`insert into project_tasks (
+    this.database.db
+      .prepare(
+        `insert into project_tasks (
       task_id, chat_id, requested_by_user_id, requested_by_username, repo_root, base_ref, title, original_prompt,
       plan_json, status, max_parallel_workers, max_attempts_per_subtask, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      task.taskId,
-      task.chatId,
-      task.requestedByUserId ?? null,
-      task.requestedByUsername ?? null,
-      task.repoRoot,
-      task.baseRef,
-      task.title,
-      task.originalPrompt,
-      task.planJson ?? null,
-      task.status,
-      task.maxParallelWorkers,
-      task.maxAttemptsPerSubtask,
-      task.createdAt,
-      task.updatedAt,
-    );
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        task.taskId,
+        task.chatId,
+        task.requestedByUserId ?? null,
+        task.requestedByUsername ?? null,
+        task.repoRoot,
+        task.baseRef,
+        task.title,
+        task.originalPrompt,
+        task.planJson ?? null,
+        task.status,
+        task.maxParallelWorkers,
+        task.maxAttemptsPerSubtask,
+        task.createdAt,
+        task.updatedAt,
+      );
     return task;
   }
 
@@ -263,45 +267,58 @@ export class ProjectTaskStore {
       createdAt: now,
       updatedAt: now,
     };
-    this.database.db.prepare(`insert into project_subtasks (
+    this.database.db
+      .prepare(
+        `insert into project_subtasks (
       subtask_id, task_id, title, role, prompt, depends_on_json, status, attempt, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      subtask.subtaskId,
-      subtask.taskId,
-      subtask.title,
-      subtask.role,
-      subtask.prompt,
-      JSON.stringify(subtask.dependsOnSubtaskIds),
-      subtask.status,
-      subtask.attempt,
-      subtask.createdAt,
-      subtask.updatedAt,
-    );
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        subtask.subtaskId,
+        subtask.taskId,
+        subtask.title,
+        subtask.role,
+        subtask.prompt,
+        JSON.stringify(subtask.dependsOnSubtaskIds),
+        subtask.status,
+        subtask.attempt,
+        subtask.createdAt,
+        subtask.updatedAt,
+      );
     return subtask;
   }
 
   getTask(taskId: string): ProjectTask | undefined {
-    const row = this.database.db.prepare<unknown[], ProjectTaskRow>("select * from project_tasks where task_id = ?").get(taskId);
+    const row = this.database.db
+      .prepare<unknown[], ProjectTaskRow>("select * from project_tasks where task_id = ?")
+      .get(taskId);
     return row ? mapTask(row) : undefined;
   }
 
   listTasksByChat(chatId: string, limit = 10): ProjectTask[] {
     return this.database.db
-      .prepare<unknown[], ProjectTaskRow>("select * from project_tasks where chat_id = ? order by created_at desc limit ?")
+      .prepare<unknown[], ProjectTaskRow>(
+        "select * from project_tasks where chat_id = ? order by created_at desc limit ?",
+      )
       .all(chatId, Math.max(1, Math.min(50, limit)))
       .map(mapTask);
   }
 
   listRunnableTasks(limit = 20): ProjectTask[] {
     return this.database.db
-      .prepare<unknown[], ProjectTaskRow>("select * from project_tasks where status in ('queued', 'running') order by updated_at asc limit ?")
+      .prepare<unknown[], ProjectTaskRow>(
+        "select * from project_tasks where status in ('queued', 'running') order by updated_at asc limit ?",
+      )
       .all(Math.max(1, Math.min(limit, 100)))
       .map(mapTask);
   }
 
   listReadySubtasks(taskId: string): ProjectSubtask[] {
     return this.database.db
-      .prepare<unknown[], ProjectSubtaskRow>("select * from project_subtasks where task_id = ? and status in ('ready', 'queued') order by created_at asc")
+      .prepare<
+        unknown[],
+        ProjectSubtaskRow
+      >("select * from project_subtasks where task_id = ? and status in ('ready', 'queued') order by created_at asc")
       .all(taskId)
       .map(mapSubtask);
   }
@@ -320,7 +337,10 @@ export class ProjectTaskStore {
     return row ? mapSubtask(row) : undefined;
   }
 
-  updateTask(taskId: string, patch: Partial<Omit<ProjectTask, "taskId" | "chatId" | "repoRoot" | "baseRef" | "createdAt">>): ProjectTask {
+  updateTask(
+    taskId: string,
+    patch: Partial<Omit<ProjectTask, "taskId" | "chatId" | "repoRoot" | "baseRef" | "createdAt">>,
+  ): ProjectTask {
     const current = this.getTask(taskId);
     if (!current) {
       throw new Error(`Unknown project task ${taskId}.`);
@@ -330,30 +350,37 @@ export class ProjectTaskStore {
       ...patch,
       updatedAt: this.clock.now(),
     };
-    this.database.db.prepare(`update project_tasks set
+    this.database.db
+      .prepare(
+        `update project_tasks set
       requested_by_user_id=?, requested_by_username=?, title=?, original_prompt=?, plan_json=?, status=?, max_parallel_workers=?,
       max_attempts_per_subtask=?, updated_at=?, started_at=?, finished_at=?, last_error=?, final_summary=?, final_branch=?
-      where task_id=?`).run(
-      next.requestedByUserId ?? null,
-      next.requestedByUsername ?? null,
-      next.title,
-      next.originalPrompt,
-      next.planJson ?? null,
-      next.status,
-      next.maxParallelWorkers,
-      next.maxAttemptsPerSubtask,
-      next.updatedAt,
-      next.startedAt ?? null,
-      next.finishedAt ?? null,
-      next.lastError ?? null,
-      next.finalSummary ?? null,
-      next.finalBranch ?? null,
-      taskId,
-    );
+      where task_id=?`,
+      )
+      .run(
+        next.requestedByUserId ?? null,
+        next.requestedByUsername ?? null,
+        next.title,
+        next.originalPrompt,
+        next.planJson ?? null,
+        next.status,
+        next.maxParallelWorkers,
+        next.maxAttemptsPerSubtask,
+        next.updatedAt,
+        next.startedAt ?? null,
+        next.finishedAt ?? null,
+        next.lastError ?? null,
+        next.finalSummary ?? null,
+        next.finalBranch ?? null,
+        taskId,
+      );
     return next;
   }
 
-  updateSubtask(subtaskId: string, patch: Partial<Omit<ProjectSubtask, "subtaskId" | "taskId" | "createdAt">>): ProjectSubtask {
+  updateSubtask(
+    subtaskId: string,
+    patch: Partial<Omit<ProjectSubtask, "subtaskId" | "taskId" | "createdAt">>,
+  ): ProjectSubtask {
     const current = this.getSubtask(subtaskId);
     if (!current) {
       throw new Error(`Unknown project subtask ${subtaskId}.`);
@@ -363,25 +390,29 @@ export class ProjectTaskStore {
       ...patch,
       updatedAt: this.clock.now(),
     };
-    this.database.db.prepare(`update project_subtasks set
+    this.database.db
+      .prepare(
+        `update project_subtasks set
       title=?, role=?, prompt=?, depends_on_json=?, status=?, branch_name=?, worktree_path=?, codex_session_id=?, attempt=?, updated_at=?,
-      started_at=?, finished_at=?, result_summary=?, last_error=? where subtask_id=?`).run(
-      next.title,
-      next.role,
-      next.prompt,
-      JSON.stringify(next.dependsOnSubtaskIds),
-      next.status,
-      next.branchName ?? null,
-      next.worktreePath ?? null,
-      next.codexSessionId ?? null,
-      next.attempt,
-      next.updatedAt,
-      next.startedAt ?? null,
-      next.finishedAt ?? null,
-      next.resultSummary ?? null,
-      next.lastError ?? null,
-      subtaskId,
-    );
+      started_at=?, finished_at=?, result_summary=?, last_error=? where subtask_id=?`,
+      )
+      .run(
+        next.title,
+        next.role,
+        next.prompt,
+        JSON.stringify(next.dependsOnSubtaskIds),
+        next.status,
+        next.branchName ?? null,
+        next.worktreePath ?? null,
+        next.codexSessionId ?? null,
+        next.attempt,
+        next.updatedAt,
+        next.startedAt ?? null,
+        next.finishedAt ?? null,
+        next.resultSummary ?? null,
+        next.lastError ?? null,
+        subtaskId,
+      );
     return next;
   }
 
@@ -409,26 +440,38 @@ export class ProjectTaskStore {
       ...(input.finalMessagePath ? { finalMessagePath: input.finalMessagePath } : {}),
       updatedAt: now,
     };
-    this.database.db.prepare(`insert into codex_cli_runs (
+    this.database.db
+      .prepare(
+        `insert into codex_cli_runs (
       cli_run_id, task_id, subtask_id, command_json, cwd, status, stdout_log_path, stderr_log_path, jsonl_log_path,
       final_message_path, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      run.cliRunId,
-      run.taskId,
-      run.subtaskId ?? null,
-      run.commandJson,
-      run.cwd,
-      run.status,
-      run.stdoutLogPath,
-      run.stderrLogPath,
-      run.jsonlLogPath,
-      run.finalMessagePath ?? null,
-      run.updatedAt,
-    );
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        run.cliRunId,
+        run.taskId,
+        run.subtaskId ?? null,
+        run.commandJson,
+        run.cwd,
+        run.status,
+        run.stdoutLogPath,
+        run.stderrLogPath,
+        run.jsonlLogPath,
+        run.finalMessagePath ?? null,
+        run.updatedAt,
+      );
     return run;
   }
 
-  updateCliRun(cliRunId: string, patch: Partial<Omit<CodexCliRun, "cliRunId" | "taskId" | "commandJson" | "cwd" | "stdoutLogPath" | "stderrLogPath" | "jsonlLogPath">>): CodexCliRun {
+  updateCliRun(
+    cliRunId: string,
+    patch: Partial<
+      Omit<
+        CodexCliRun,
+        "cliRunId" | "taskId" | "commandJson" | "cwd" | "stdoutLogPath" | "stderrLogPath" | "jsonlLogPath"
+      >
+    >,
+  ): CodexCliRun {
     const currentRow = this.database.db
       .prepare<unknown[], CodexCliRunRow>("select * from codex_cli_runs where cli_run_id = ?")
       .get(cliRunId);
@@ -441,42 +484,46 @@ export class ProjectTaskStore {
       ...patch,
       updatedAt: this.clock.now(),
     };
-    this.database.db.prepare(`update codex_cli_runs set
+    this.database.db
+      .prepare(
+        `update codex_cli_runs set
       subtask_id=?, pid=?, status=?, exit_code=?, signal=?, final_message_path=?, started_at=?, updated_at=?, finished_at=?, last_error=?
-      where cli_run_id=?`).run(
-      next.subtaskId ?? null,
-      next.pid ?? null,
-      next.status,
-      next.exitCode ?? null,
-      next.signal ?? null,
-      next.finalMessagePath ?? null,
-      next.startedAt ?? null,
-      next.updatedAt,
-      next.finishedAt ?? null,
-      next.lastError ?? null,
-      cliRunId,
-    );
+      where cli_run_id=?`,
+      )
+      .run(
+        next.subtaskId ?? null,
+        next.pid ?? null,
+        next.status,
+        next.exitCode ?? null,
+        next.signal ?? null,
+        next.finalMessagePath ?? null,
+        next.startedAt ?? null,
+        next.updatedAt,
+        next.finishedAt ?? null,
+        next.lastError ?? null,
+        cliRunId,
+      );
     return next;
   }
 
   listActiveCliRuns(taskId: string): CodexCliRun[] {
     return this.database.db
-      .prepare<unknown[], CodexCliRunRow>("select * from codex_cli_runs where task_id = ? and status in ('starting', 'streaming') order by updated_at asc")
+      .prepare<
+        unknown[],
+        CodexCliRunRow
+      >("select * from codex_cli_runs where task_id = ? and status in ('starting', 'streaming') order by updated_at asc")
       .all(taskId)
       .map(mapRun);
   }
 
   addCliEvent(input: { cliRunId: string; eventIndex: number; eventType?: string; eventJson: string }): void {
-    this.database.db.prepare(`insert into codex_cli_events (
+    this.database.db
+      .prepare(
+        `insert into codex_cli_events (
       event_id, cli_run_id, event_index, event_type, event_json, created_at
-    ) values (?, ?, ?, ?, ?, ?)`).run(
-      createId(),
-      input.cliRunId,
-      input.eventIndex,
-      input.eventType ?? null,
-      input.eventJson,
-      this.clock.now(),
-    );
+    ) values (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(createId(), input.cliRunId, input.eventIndex, input.eventType ?? null, input.eventJson, this.clock.now());
   }
 
   listCliEvents(cliRunId: string, limit = 30): Array<{ eventIndex: number; eventType?: string; eventJson: string }> {
@@ -486,10 +533,19 @@ export class ProjectTaskStore {
       )
       .all(cliRunId, Math.max(1, Math.min(limit, 200)))
       .reverse()
-      .map((row) => ({ eventIndex: row.event_index, ...(row.event_type ? { eventType: row.event_type } : {}), eventJson: row.event_json }));
+      .map((row) => ({
+        eventIndex: row.event_index,
+        ...(row.event_type ? { eventType: row.event_type } : {}),
+        eventJson: row.event_json,
+      }));
   }
 
-  createApproval(input: { taskId: string; requestedBy?: string; requestJson: string; expiresAt?: number }): ProjectApproval {
+  createApproval(input: {
+    taskId: string;
+    requestedBy?: string;
+    requestJson: string;
+    expiresAt?: number;
+  }): ProjectApproval {
     const now = this.clock.now();
     const approval: ProjectApproval = {
       approvalId: createId(),
@@ -501,18 +557,22 @@ export class ProjectTaskStore {
       createdAt: now,
       ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
     };
-    this.database.db.prepare(`insert into project_approvals (
+    this.database.db
+      .prepare(
+        `insert into project_approvals (
       approval_id, task_id, kind, status, requested_by, request_json, created_at, expires_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      approval.approvalId,
-      approval.taskId,
-      approval.kind,
-      approval.status,
-      approval.requestedBy ?? null,
-      approval.requestJson,
-      approval.createdAt,
-      approval.expiresAt ?? null,
-    );
+    ) values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        approval.approvalId,
+        approval.taskId,
+        approval.kind,
+        approval.status,
+        approval.requestedBy ?? null,
+        approval.requestJson,
+        approval.createdAt,
+        approval.expiresAt ?? null,
+      );
     return approval;
   }
 
@@ -523,19 +583,18 @@ export class ProjectTaskStore {
     return row ? mapApproval(row) : undefined;
   }
 
-  decideApproval(approvalId: string, params: { status: "approved" | "rejected"; decidedBy?: string; note?: string }): ProjectApproval {
+  decideApproval(
+    approvalId: string,
+    params: { status: "approved" | "rejected"; decidedBy?: string; note?: string },
+  ): ProjectApproval {
     const current = this.getApproval(approvalId);
     if (!current) {
       throw new Error(`Unknown approval ${approvalId}.`);
     }
     const now = this.clock.now();
-    this.database.db.prepare(`update project_approvals set status=?, decided_by=?, decision_note=?, decided_at=? where approval_id=?`).run(
-      params.status,
-      params.decidedBy ?? null,
-      params.note ?? null,
-      now,
-      approvalId,
-    );
+    this.database.db
+      .prepare(`update project_approvals set status=?, decided_by=?, decision_note=?, decided_at=? where approval_id=?`)
+      .run(params.status, params.decidedBy ?? null, params.note ?? null, now, approvalId);
     return {
       ...current,
       status: params.status,

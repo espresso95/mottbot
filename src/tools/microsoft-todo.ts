@@ -171,8 +171,8 @@ export class MicrosoftTodoService {
     this.assertEnabled();
     const limit = normalizePositiveInt(params.limit, this.config.maxItems);
     const query = new URLSearchParams({
-      "$top": String(limit + 1),
-      "$select": "id,displayName,isOwner,isShared,wellknownListName",
+      $top: String(limit + 1),
+      $select: "id,displayName,isOwner,isShared,wellknownListName",
     });
     const payload = await this.requestJson<TodoListResponse>(`/me/todo/lists?${query.toString()}`, {
       method: "GET",
@@ -198,9 +198,9 @@ export class MicrosoftTodoService {
     const listId = this.resolveListId(params.listId);
     const limit = normalizePositiveInt(params.limit, this.config.maxItems);
     const query = new URLSearchParams({
-      "$top": String(limit + 1),
-      "$select": "id,title,status,importance,createdDateTime,dueDateTime",
-      "$orderby": "createdDateTime desc",
+      $top: String(limit + 1),
+      $select: "id,title,status,importance,createdDateTime,dueDateTime",
+      $orderby: "createdDateTime desc",
     });
     const payload = await this.requestJson<TodoTaskResponse>(
       `/me/todo/lists/${encodeURIComponent(listId)}/tasks?${query.toString()}`,

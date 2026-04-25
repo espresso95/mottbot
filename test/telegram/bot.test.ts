@@ -95,11 +95,18 @@ describe("TelegramBotServer", () => {
     expect(commands.maybeHandle).toHaveBeenCalled();
     expect(access.evaluate).toHaveBeenCalled();
     expect(routes.resolve).toHaveBeenCalled();
-    expect(botApi.setMessageReaction).toHaveBeenCalledWith("1", 42, [
-      { type: "emoji", emoji: "\u{1F440}" },
-    ], {});
+    expect(botApi.setMessageReaction).toHaveBeenCalledWith("1", 42, [{ type: "emoji", emoji: "\u{1F440}" }], {});
     expect(orchestrator.enqueueMessage).toHaveBeenCalledWith({
-      event: expect.objectContaining(createInboundEvent({ chatId: "1", fromUserId: "2", fromUsername: "user", messageId: 42, updateId: 1, text: "hello" })),
+      event: expect.objectContaining(
+        createInboundEvent({
+          chatId: "1",
+          fromUserId: "2",
+          fromUsername: "user",
+          messageId: 42,
+          updateId: 1,
+          text: "hello",
+        }),
+      ),
       session,
     });
     await server.stop();
@@ -285,7 +292,8 @@ describe("TelegramBotServer", () => {
     const routes = { resolve: vi.fn(() => session) };
     const orchestrator = { enqueueMessage: vi.fn(async () => undefined) };
     const updates = {
-      begin: vi.fn()
+      begin: vi
+        .fn()
         .mockReturnValueOnce({ accepted: true, reason: "new" })
         .mockReturnValueOnce({ accepted: false, reason: "processed" }),
       markProcessed: vi.fn(),

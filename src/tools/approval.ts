@@ -111,11 +111,7 @@ export function evaluateToolApproval(
       message: `Approval for ${definition.name} has expired.`,
     };
   }
-  if (
-    approval.requestFingerprint &&
-    requestFingerprint &&
-    approval.requestFingerprint !== requestFingerprint
-  ) {
+  if (approval.requestFingerprint && requestFingerprint && approval.requestFingerprint !== requestFingerprint) {
     return {
       allowed: false,
       code: "approval_mismatch",
@@ -170,10 +166,10 @@ export function buildToolApprovalAuditRecord(params: {
     decidedAt: params.decidedAt,
     ...(params.approval ? { approvedByUserId: params.approval.approvedByUserId } : {}),
     ...(params.approval?.reason ? { reason: params.approval.reason } : {}),
-    ...(params.requestFingerprint ?? params.approval?.requestFingerprint
+    ...((params.requestFingerprint ?? params.approval?.requestFingerprint)
       ? { requestFingerprint: params.requestFingerprint ?? params.approval?.requestFingerprint }
       : {}),
-    ...(params.previewText ?? params.approval?.previewText
+    ...((params.previewText ?? params.approval?.previewText)
       ? { previewText: params.previewText ?? params.approval?.previewText }
       : {}),
   };
@@ -282,10 +278,7 @@ export class ToolApprovalStore {
     return mapApprovalRow(row);
   }
 
-  findLatestPendingRequest(params: {
-    sessionKey: string;
-    toolName: string;
-  }): ToolApprovalAuditRecord | undefined {
+  findLatestPendingRequest(params: { sessionKey: string; toolName: string }): ToolApprovalAuditRecord | undefined {
     const row = this.database.db
       .prepare<unknown[], ToolApprovalAuditRow>(
         `select *
@@ -391,12 +384,14 @@ export class ToolApprovalStore {
     };
   }
 
-  listAudit(params: {
-    sessionKey?: string;
-    toolName?: string;
-    decisionCode?: ToolApprovalDecision["code"];
-    limit?: number;
-  } = {}): ToolApprovalAuditRecord[] {
+  listAudit(
+    params: {
+      sessionKey?: string;
+      toolName?: string;
+      decisionCode?: ToolApprovalDecision["code"];
+      limit?: number;
+    } = {},
+  ): ToolApprovalAuditRecord[] {
     const clauses: string[] = [];
     const values: unknown[] = [];
     if (params.sessionKey) {

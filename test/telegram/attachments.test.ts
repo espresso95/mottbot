@@ -25,10 +25,13 @@ describe("TelegramAttachmentIngestor", () => {
         file_size: 5,
       })),
     };
-    const fetchImpl = vi.fn(async () => new Response(Buffer.from("image"), {
-      status: 200,
-      headers: { "content-length": "5" },
-    }));
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(Buffer.from("image"), {
+          status: 200,
+          headers: { "content-length": "5" },
+        }),
+    );
     const ingestor = new TelegramAttachmentIngestor(api as any, stores.config, fetchImpl as any);
 
     const prepared = await ingestor.prepare({
@@ -136,9 +139,18 @@ describe("TelegramAttachmentIngestor", () => {
     expect(prepared.extractedTexts.map((text) => text.kind)).toEqual(["markdown", "code", "csv"]);
     expect(prepared.extractedTexts[1]).toMatchObject({ language: "typescript" });
     expect(prepared.transcriptAttachments).toEqual([
-      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "markdown" }) }),
-      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "code" }) }),
-      expect.objectContaining({ ingestionStatus: "extracted_text", extraction: expect.objectContaining({ kind: "csv" }) }),
+      expect.objectContaining({
+        ingestionStatus: "extracted_text",
+        extraction: expect.objectContaining({ kind: "markdown" }),
+      }),
+      expect.objectContaining({
+        ingestionStatus: "extracted_text",
+        extraction: expect.objectContaining({ kind: "code" }),
+      }),
+      expect.objectContaining({
+        ingestionStatus: "extracted_text",
+        extraction: expect.objectContaining({ kind: "csv" }),
+      }),
     ]);
 
     await ingestor.cleanup(prepared);
@@ -163,9 +175,7 @@ describe("TelegramAttachmentIngestor", () => {
     const prepared = await ingestor.prepare({
       allowNativeImages: true,
       allowNativeFiles: true,
-      attachments: [
-        { kind: "document", fileId: "doc-1", fileName: "quarterly report.pdf" },
-      ],
+      attachments: [{ kind: "document", fileId: "doc-1", fileName: "quarterly report.pdf" }],
     });
 
     expect(prepared.nativeInputs).toEqual([

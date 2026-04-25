@@ -66,11 +66,7 @@ export class RunQueueStore {
     private readonly clock: Clock,
   ) {}
 
-  create(params: {
-    runId: string;
-    sessionKey: string;
-    event: InboundEvent;
-  }): RunQueueRecord {
+  create(params: { runId: string; sessionKey: string; event: InboundEvent }): RunQueueRecord {
     const now = this.clock.now();
     const eventJson = JSON.stringify({
       chatType: params.event.chatType,
@@ -104,9 +100,7 @@ export class RunQueueStore {
   }
 
   get(runId: string): RunQueueRecord | undefined {
-    const row = this.database.db
-      .prepare<unknown[], RunQueueRow>("select * from run_queue where run_id = ?")
-      .get(runId);
+    const row = this.database.db.prepare<unknown[], RunQueueRow>("select * from run_queue where run_id = ?").get(runId);
     return mapRunQueueRow(row);
   }
 

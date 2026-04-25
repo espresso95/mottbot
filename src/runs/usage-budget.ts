@@ -116,10 +116,7 @@ export class UsageBudgetService {
   private rules(params: { session: SessionRoute; modelRef: string; currentRunId?: string }): BudgetRule[] {
     const daily = startOfUtcDay(this.clock.now());
     const monthly = startOfUtcMonth(this.clock.now());
-    return [
-      ...this.buildRules("daily", daily, params),
-      ...this.buildRules("monthly", monthly, params),
-    ];
+    return [...this.buildRules("daily", daily, params), ...this.buildRules("monthly", monthly, params)];
   }
 
   private buildRules(

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseChatGovernancePolicy,
-  TelegramGovernanceStore,
-} from "../../src/telegram/governance.js";
+import { parseChatGovernancePolicy, TelegramGovernanceStore } from "../../src/telegram/governance.js";
 import { createStores } from "../helpers/fakes.js";
 import { removeTempDir } from "../helpers/tmp.js";
 
@@ -45,12 +42,12 @@ describe("TelegramGovernanceStore", () => {
       const configured = new TelegramGovernanceStore(stores.database, stores.clock, {
         ownerUserIds: ["admin-1"],
       });
-      expect(() =>
-        configured.revokeUserRole({ userId: "admin-1", actorUserId: "admin-1" }),
-      ).toThrow("Configured owner roles cannot be revoked");
-      expect(() =>
-        configured.setUserRole({ userId: "admin-1", role: "admin", actorUserId: "admin-1" }),
-      ).toThrow("Configured owner roles cannot be changed");
+      expect(() => configured.revokeUserRole({ userId: "admin-1", actorUserId: "admin-1" })).toThrow(
+        "Configured owner roles cannot be revoked",
+      );
+      expect(() => configured.setUserRole({ userId: "admin-1", role: "admin", actorUserId: "admin-1" })).toThrow(
+        "Configured owner roles cannot be changed",
+      );
 
       const databaseOnly = new TelegramGovernanceStore(stores.database, stores.clock, {
         ownerUserIds: [],

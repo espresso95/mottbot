@@ -163,14 +163,8 @@ export function parseChatGovernancePolicy(raw: string): ChatGovernancePolicy {
   const modelRefs = assertStringList(parsed.modelRefs, "modelRefs");
   const toolNames = assertStringList(parsed.toolNames, "toolNames");
   const memoryScopes = assertMemoryScopes(parsed.memoryScopes);
-  const attachmentMaxFileBytes = assertPositiveInteger(
-    parsed.attachmentMaxFileBytes,
-    "attachmentMaxFileBytes",
-  );
-  const attachmentMaxPerMessage = assertPositiveInteger(
-    parsed.attachmentMaxPerMessage,
-    "attachmentMaxPerMessage",
-  );
+  const attachmentMaxFileBytes = assertPositiveInteger(parsed.attachmentMaxFileBytes, "attachmentMaxFileBytes");
+  const attachmentMaxPerMessage = assertPositiveInteger(parsed.attachmentMaxPerMessage, "attachmentMaxPerMessage");
   const commandRolesRaw = parsed.commandRoles;
   let commandRoles: Record<string, TelegramUserRole[]> | undefined;
   if (commandRolesRaw !== undefined) {
@@ -323,9 +317,8 @@ export class TelegramGovernanceStore {
 
   clearChatPolicy(params: { chatId: string; actorUserId?: string; reason?: string }): boolean {
     const existing = this.getChatPolicy(params.chatId);
-    const changed = this.database.db
-      .prepare("delete from telegram_chat_policies where chat_id = ?")
-      .run(params.chatId).changes > 0;
+    const changed =
+      this.database.db.prepare("delete from telegram_chat_policies where chat_id = ?").run(params.chatId).changes > 0;
     if (changed) {
       this.recordAudit({
         action: "clear_chat_policy",
@@ -386,9 +379,8 @@ export class TelegramGovernanceStore {
     if (previousRole === "owner") {
       this.assertAnotherOwner(params.userId);
     }
-    const changed = this.database.db
-      .prepare("delete from telegram_user_roles where user_id = ?")
-      .run(params.userId).changes > 0;
+    const changed =
+      this.database.db.prepare("delete from telegram_user_roles where user_id = ?").run(params.userId).changes > 0;
     if (changed) {
       this.recordAudit({
         action: "revoke_role",

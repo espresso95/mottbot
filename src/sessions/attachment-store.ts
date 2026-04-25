@@ -149,7 +149,8 @@ export class AttachmentRecordStore {
       extraction_reason: attachment.extraction?.reason ?? null,
       extracted_text_chars: attachment.extraction?.textChars ?? null,
       prompt_text_chars: attachment.extraction?.promptChars ?? null,
-      extraction_truncated: attachment.extraction?.truncated === undefined ? null : attachment.extraction.truncated ? 1 : 0,
+      extraction_truncated:
+        attachment.extraction?.truncated === undefined ? null : attachment.extraction.truncated ? 1 : 0,
       language: attachment.extraction?.language ?? null,
       row_count: attachment.extraction?.rowCount ?? null,
       column_count: attachment.extraction?.columnCount ?? null,
@@ -170,18 +171,20 @@ export class AttachmentRecordStore {
 
   listRecent(sessionKey: string, limit = 10): AttachmentRecord[] {
     const rows = this.database.db
-      .prepare<unknown[], AttachmentRecordRow>(
-        "select * from attachment_records where session_key = ? order by created_at desc limit ?",
-      )
+      .prepare<
+        unknown[],
+        AttachmentRecordRow
+      >("select * from attachment_records where session_key = ? order by created_at desc limit ?")
       .all(sessionKey, limit);
     return rows.map(mapRow);
   }
 
   findByIdPrefix(sessionKey: string, idPrefix: string): AttachmentRecord[] {
     const rows = this.database.db
-      .prepare<unknown[], AttachmentRecordRow>(
-        "select * from attachment_records where session_key = ? and id like ? order by created_at desc limit 2",
-      )
+      .prepare<
+        unknown[],
+        AttachmentRecordRow
+      >("select * from attachment_records where session_key = ? and id like ? order by created_at desc limit 2")
       .all(sessionKey, `${idPrefix}%`);
     return rows.map(mapRow);
   }

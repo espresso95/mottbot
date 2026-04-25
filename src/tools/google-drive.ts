@@ -156,12 +156,14 @@ export class GoogleDriveService {
 
   private readonly getEnv: (name: string) => string | undefined;
 
-  async searchFiles(params: {
-    query?: string;
-    limit?: number;
-    includeTrashed?: boolean;
-    signal?: AbortSignal;
-  } = {}): Promise<{ files: GoogleDriveFileSummary[]; truncated: boolean }> {
+  async searchFiles(
+    params: {
+      query?: string;
+      limit?: number;
+      includeTrashed?: boolean;
+      signal?: AbortSignal;
+    } = {},
+  ): Promise<{ files: GoogleDriveFileSummary[]; truncated: boolean }> {
     this.assertEnabled();
     const limit = normalizePositiveInt(params.limit, this.config.maxItems);
     const queryParts: string[] = [];

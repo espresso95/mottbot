@@ -14,16 +14,17 @@ function createConfig(overrides: Partial<MicrosoftTodoToolConfig> = {}): Microso
 
 describe("MicrosoftTodoService", () => {
   it("lists task lists using Graph", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          value: [
-            { id: "A", displayName: "Tasks", isOwner: true, isShared: false },
-            { id: "B", displayName: "Backlog", isOwner: true, isShared: false },
-          ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            value: [
+              { id: "A", displayName: "Tasks", isOwner: true, isShared: false },
+              { id: "B", displayName: "Backlog", isOwner: true, isShared: false },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     );
     const service = new MicrosoftTodoService(createConfig(), {
       fetchImpl,
@@ -38,13 +39,14 @@ describe("MicrosoftTodoService", () => {
   });
 
   it("lists tasks with configured default list", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          value: [{ id: "1", title: "Follow up", status: "notStarted", importance: "normal" }],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            value: [{ id: "1", title: "Follow up", status: "notStarted", importance: "normal" }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     );
     const service = new MicrosoftTodoService(createConfig({ defaultListId: "list-123" }), {
       fetchImpl,
@@ -58,11 +60,12 @@ describe("MicrosoftTodoService", () => {
   });
 
   it("creates tasks through Graph", async () => {
-    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
-      new Response(JSON.stringify({ id: "7", title: JSON.parse(String(init?.body)).title }), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchImpl = vi.fn(
+      async (_url: string, init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "7", title: JSON.parse(String(init?.body)).title }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
     const service = new MicrosoftTodoService(createConfig({ defaultListId: "list-123" }), {
       fetchImpl,
@@ -76,11 +79,12 @@ describe("MicrosoftTodoService", () => {
   });
 
   it("gets a single task through Graph", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify({ id: "7", title: "Follow up", status: "inProgress" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: "7", title: "Follow up", status: "inProgress" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
     const service = new MicrosoftTodoService(createConfig({ defaultListId: "list-123" }), {
       fetchImpl,
@@ -94,11 +98,12 @@ describe("MicrosoftTodoService", () => {
   });
 
   it("updates a task through Graph patch", async () => {
-    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
-      new Response(JSON.stringify({ id: "7", title: "Follow up tomorrow", status: "completed" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchImpl = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "7", title: "Follow up tomorrow", status: "completed" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
     const service = new MicrosoftTodoService(createConfig({ defaultListId: "list-123" }), {
       fetchImpl,

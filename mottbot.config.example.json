@@ -2,9 +2,7 @@
   "telegram": {
     "botToken": "REPLACE_WITH_TELEGRAM_BOT_TOKEN",
     "polling": true,
-    "adminUserIds": [
-      "123456789"
-    ],
+    "adminUserIds": ["123456789"],
     "allowedChatIds": [],
     "webhook": {
       "publicUrl": "",
@@ -73,9 +71,7 @@
     "restartDelayMs": 60000,
     "policies": {},
     "repository": {
-      "roots": [
-        "."
-      ],
+      "roots": ["."],
       "deniedPaths": [],
       "maxReadBytes": 40000,
       "maxSearchMatches": 100,
@@ -83,16 +79,12 @@
       "commandTimeoutMs": 5000
     },
     "localWrite": {
-      "roots": [
-        "./data/tool-notes"
-      ],
+      "roots": ["./data/tool-notes"],
       "deniedPaths": [],
       "maxWriteBytes": 20000
     },
     "localExec": {
-      "roots": [
-        "./data/tool-workspace"
-      ],
+      "roots": ["./data/tool-workspace"],
       "deniedPaths": [],
       "allowedCommands": [],
       "timeoutMs": 5000,
@@ -159,9 +151,7 @@
   },
   "projectTasks": {
     "enabled": false,
-    "repoRoots": [
-      "."
-    ],
+    "repoRoots": ["."],
     "worktreeRoot": "./data/project-worktrees",
     "artifactRoot": "./data/project-runs",
     "maxConcurrentProjects": 1,

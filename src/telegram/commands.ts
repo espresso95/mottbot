@@ -288,11 +288,7 @@ function formatAgentDetails(agent: AgentConfig): string {
   ].join("\n");
 }
 
-async function sendReply(
-  api: Api,
-  event: InboundEvent,
-  text: string,
-): Promise<void> {
+async function sendReply(api: Api, event: InboundEvent, text: string): Promise<void> {
   for (const chunk of splitTelegramText(text)) {
     await api.sendMessage(event.chatId, chunk, {
       ...(typeof event.threadId === "number" ? { message_thread_id: event.threadId } : {}),
@@ -424,10 +420,7 @@ export class TelegramCommandRouter {
           await sendReply(this.api, event, scoped.error);
           return true;
         }
-        if (
-          this.governance &&
-          !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: scoped.scope })
-        ) {
+        if (this.governance && !this.governance.isMemoryScopeAllowed({ chatId: event.chatId, scope: scoped.scope })) {
           await sendReply(this.api, event, `Memory scope ${scoped.scope} is not allowed in this chat.`);
           return true;
         }
@@ -521,7 +514,11 @@ export class TelegramCommandRouter {
           return true;
         }
         if (!PROFILE_ID_PATTERN.test(nextProfileId)) {
-          await sendReply(this.api, event, "Invalid profile ID. Use 1-128 letters, numbers, dots, slashes, underscores, colons, or hyphens.");
+          await sendReply(
+            this.api,
+            event,
+            "Invalid profile ID. Use 1-128 letters, numbers, dots, slashes, underscores, colons, or hyphens.",
+          );
           return true;
         }
         if (!this.authProfiles.get(nextProfileId)) {
@@ -578,8 +575,7 @@ export class TelegramCommandRouter {
             profiles.length > 0
               ? profiles
                   .map(
-                    (profile) =>
-                      `${profile.profileId}: ${profile.source}${profile.email ? ` (${profile.email})` : ""}`,
+                    (profile) => `${profile.profileId}: ${profile.source}${profile.email ? ` (${profile.email})` : ""}`,
                   )
                   .join("\n")
               : "No auth profiles configured.",
@@ -601,11 +597,7 @@ export class TelegramCommandRouter {
           return true;
         }
         if (sub === "login") {
-          await sendReply(
-            this.api,
-            event,
-            "Run `pnpm auth:login` on the host machine to complete local OAuth login.",
-          );
+          await sendReply(this.api, event, "Run `pnpm auth:login` on the host machine to complete local OAuth login.");
           return true;
         }
         await sendReply(this.api, event, "Usage: /auth status | /auth import-cli | /auth login");
@@ -634,16 +626,17 @@ export class TelegramCommandRouter {
       return true;
     }
     if (decision.reason === "group_policy_required") {
-      await sendReply(this.api, event, "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.");
+      await sendReply(
+        this.api,
+        event,
+        "Only owner/admin roles can run bot commands in groups unless a chat policy allows the command.",
+      );
       return true;
     }
     return true;
   }
 
-  private commandVisibility(
-    event: InboundEvent,
-    command: string,
-  ): CommandVisibility {
+  private commandVisibility(event: InboundEvent, command: string): CommandVisibility {
     const role = this.userRole(event);
     if (isGovernanceOperatorRole(role)) {
       return { allowed: true };
@@ -677,8 +670,10 @@ export class TelegramCommandRouter {
   }
 
   private userRole(event: InboundEvent): TelegramUserRole {
-    return this.governance?.resolveUserRole(event.fromUserId) ??
-      (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId) ? "owner" : "user");
+    return (
+      this.governance?.resolveUserRole(event.fromUserId) ??
+      (event.fromUserId && this.config.telegram.adminUserIds.includes(event.fromUserId) ? "owner" : "user")
+    );
   }
 
   private isAdmin(event: InboundEvent): boolean {
@@ -695,21 +690,29 @@ export class TelegramCommandRouter {
 
   private listExposedToolsForSession(event: InboundEvent, session: SessionRoute) {
     const agent = this.agentForSession(session);
-    return this.toolRegistry?.listModelDeclarations({
-      includeAdminTools: this.isAdmin(event),
-      filter: (definition) =>
-        (!agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name)) &&
-        (this.toolPolicy?.evaluate(definition, {
-          role: this.callerRole(event),
-          chatId: event.chatId,
-        }, {
-          override: agent?.toolPolicies?.[definition.name],
-        }).allowed ?? true) &&
-        (this.governance?.isToolAllowed({
-          chatId: event.chatId,
-          toolName: definition.name,
-        }) ?? true),
-    }) ?? [];
+    return (
+      this.toolRegistry?.listModelDeclarations({
+        includeAdminTools: this.isAdmin(event),
+        filter: (definition) =>
+          (!agent?.toolNames || agent.toolNames.length === 0 || agent.toolNames.includes(definition.name)) &&
+          (this.toolPolicy?.evaluate(
+            definition,
+            {
+              role: this.callerRole(event),
+              chatId: event.chatId,
+            },
+            {
+              override: agent?.toolPolicies?.[definition.name],
+            },
+          ).allowed ??
+            true) &&
+          (this.governance?.isToolAllowed({
+            chatId: event.chatId,
+            toolName: definition.name,
+          }) ??
+            true),
+      }) ?? []
+    );
   }
 
   private agentForSession(session: SessionRoute): AgentConfig | undefined {
@@ -774,7 +777,10 @@ export class TelegramCommandRouter {
               commandHelp("remember", "/remember <fact> - store memory for this session"),
               commandHelp("remember", "/remember scope:personal <fact> - store user-scoped memory"),
               commandHelp("memory", "/memory - list approved memory for this chat"),
-              commandHelp("memory", "/memory candidates [pending|accepted|rejected|archived|all] - list memory candidates"),
+              commandHelp(
+                "memory",
+                "/memory candidates [pending|accepted|rejected|archived|all] - list memory candidates",
+              ),
               commandHelp("memory", "/memory accept|reject|edit <candidate-id-prefix> - review candidates"),
               commandHelp("memory", "/memory pin|unpin|archive <memory-id-prefix> - manage approved memory"),
               commandHelp("memory", "/memory clear candidates - clear pending candidates"),
@@ -793,7 +799,10 @@ export class TelegramCommandRouter {
                 ? [
                     commandHelp("tool", "/tool approve <tool-name> <reason> - approve one side-effecting call"),
                     commandHelp("tool", "/tool revoke <tool-name> - revoke active approval"),
-                    commandHelp("tool", "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect tool audit records"),
+                    commandHelp(
+                      "tool",
+                      "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect tool audit records",
+                    ),
                   ]
                 : []),
             ]),
@@ -821,7 +830,10 @@ export class TelegramCommandRouter {
             "GitHub",
             this.visibleCommandTexts(event, [
               commandHelp(["github", "gh"], "/github status [repository] - show repository, open work, and latest CI"),
-              commandHelp(["github", "gh"], "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state"),
+              commandHelp(
+                ["github", "gh"],
+                "/github prs|issues|runs|failures [limit] [repository] - inspect GitHub read-only state",
+              ),
             ]),
           )
         : undefined,
@@ -850,10 +862,7 @@ export class TelegramCommandRouter {
         : undefined,
       this.toolRegistry
         ? exposedTools.length > 0
-          ? [
-              "Model-exposed tools for this caller:",
-              ...exposedTools.map((tool) => `- ${tool.name}`),
-            ].join("\n")
+          ? ["Model-exposed tools for this caller:", ...exposedTools.map((tool) => `- ${tool.name}`)].join("\n")
           : "No model-exposed tools for this caller."
         : undefined,
     ].filter((section): section is string => Boolean(section));
@@ -1038,7 +1047,11 @@ export class TelegramCommandRouter {
           actorUserId: event.fromUserId,
           reason: normalizeFreeText(args.slice(3)) || undefined,
         });
-        await sendReply(this.api, event, granted ? `Granted ${granted.role} to ${granted.userId}.` : `Revoked ${userId}.`);
+        await sendReply(
+          this.api,
+          event,
+          granted ? `Granted ${granted.role} to ${granted.userId}.` : `Revoked ${userId}.`,
+        );
       } catch (error) {
         await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
       }
@@ -1059,7 +1072,11 @@ export class TelegramCommandRouter {
           actorUserId: event.fromUserId,
           reason: normalizeFreeText(args.slice(2)) || undefined,
         });
-        await sendReply(this.api, event, revoked ? `Revoked role for ${userId}.` : `No database role found for ${userId}.`);
+        await sendReply(
+          this.api,
+          event,
+          revoked ? `Revoked role for ${userId}.` : `No database role found for ${userId}.`,
+        );
       } catch (error) {
         await sendReply(this.api, event, error instanceof Error ? error.message : String(error));
       }
@@ -1128,7 +1145,11 @@ export class TelegramCommandRouter {
       }
       const chatId = normalizeSingleArg(args[1]) ?? event.chatId;
       const cleared = this.governance.clearChatPolicy({ chatId, actorUserId: event.fromUserId });
-      await sendReply(this.api, event, cleared ? `Cleared chat policy for ${chatId}.` : `No chat policy set for ${chatId}.`);
+      await sendReply(
+        this.api,
+        event,
+        cleared ? `Cleared chat policy for ${chatId}.` : `No chat policy set for ${chatId}.`,
+      );
       return;
     }
     await sendReply(this.api, event, "Usage: /users chat show [chat-id] | set [chat-id] <json> | clear [chat-id]");
@@ -1197,7 +1218,9 @@ export class TelegramCommandRouter {
       await sendReply(
         this.api,
         event,
-        records.length > 0 ? ["Approved memory:", ...records.map(formatMemoryRecord)].join("\n") : "No approved memory.",
+        records.length > 0
+          ? ["Approved memory:", ...records.map(formatMemoryRecord)].join("\n")
+          : "No approved memory.",
       );
       return;
     }
@@ -1363,7 +1386,11 @@ export class TelegramCommandRouter {
     if (sub === "clear" || (sub === "forget" && args[1]?.toLowerCase() === "all")) {
       const removed = this.attachments.clearSession(session.sessionKey);
       const transcriptRows = this.transcripts.removeAttachmentMetadata({ sessionKey: session.sessionKey });
-      await sendReply(this.api, event, `Forgot ${removed} file records and updated ${transcriptRows} transcript messages.`);
+      await sendReply(
+        this.api,
+        event,
+        `Forgot ${removed} file records and updated ${transcriptRows} transcript messages.`,
+      );
       return;
     }
     if (sub === "forget") {
@@ -1397,7 +1424,11 @@ export class TelegramCommandRouter {
       );
       return;
     }
-    await sendReply(this.api, event, "Usage: /files [list [limit]] | /files forget <file-id-prefix|all> | /files clear");
+    await sendReply(
+      this.api,
+      event,
+      "Usage: /files [list [limit]] | /files forget <file-id-prefix|all> | /files clear",
+    );
   }
 
   private async handleDebugCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
@@ -1465,7 +1496,11 @@ export class TelegramCommandRouter {
       await sendReply(this.api, event, this.diagnostics.configText());
       return;
     }
-    await sendReply(this.api, event, "Usage: /debug [summary|service|runs [limit] [here]|agents|errors [limit]|logs [stdout|stderr|both] [lines]|config]");
+    await sendReply(
+      this.api,
+      event,
+      "Usage: /debug [summary|service|runs [limit] [here]|agents|errors [limit]|logs [stdout|stderr|both] [lines]|config]",
+    );
   }
 
   private parseGithubArgs(args: string[], defaultLimit = 5): { limit: number; repository?: string } {
@@ -1497,7 +1532,18 @@ export class TelegramCommandRouter {
       return;
     }
     const requestedSub = args[0]?.toLowerCase();
-    const knownSubcommands = new Set(["help", "status", "repo", "prs", "pulls", "issues", "runs", "ci", "failures", "failed"]);
+    const knownSubcommands = new Set([
+      "help",
+      "status",
+      "repo",
+      "prs",
+      "pulls",
+      "issues",
+      "runs",
+      "ci",
+      "failures",
+      "failed",
+    ]);
     const sub = requestedSub && knownSubcommands.has(requestedSub) ? requestedSub : "status";
     const rest = sub === "status" && requestedSub && !knownSubcommands.has(requestedSub) ? args : args.slice(1);
     const parsed = this.parseGithubArgs(rest);
@@ -1567,7 +1613,11 @@ export class TelegramCommandRouter {
         await sendReply(
           this.api,
           event,
-          formatGithubWorkflowRuns({ repository: result.repository, title: "Recent failed workflow runs", runs: result.runs }),
+          formatGithubWorkflowRuns({
+            repository: result.repository,
+            title: "Recent failed workflow runs",
+            runs: result.runs,
+          }),
         );
         return;
       }
@@ -1578,11 +1628,7 @@ export class TelegramCommandRouter {
     await sendReply(this.api, event, "Usage: /github status|repo|prs|issues|runs|failures [limit] [repository]");
   }
 
-  private async handleToolCommand(
-    event: InboundEvent,
-    session: SessionRoute,
-    args: string[],
-  ): Promise<void> {
+  private async handleToolCommand(event: InboundEvent, session: SessionRoute, args: string[]): Promise<void> {
     const sub = args[0]?.toLowerCase();
     if (!this.toolRegistry || !this.toolApprovals) {
       await sendReply(this.api, event, "Tool approvals are not available.");
@@ -1608,10 +1654,7 @@ export class TelegramCommandRouter {
             : "No enabled tools.",
           approvals.length > 0
             ? `Active approvals:\n${approvals
-                .map(
-                  (approval) =>
-                    `- ${approval.toolName}, expires ${new Date(approval.expiresAt).toISOString()}`,
-                )
+                .map((approval) => `- ${approval.toolName}, expires ${new Date(approval.expiresAt).toISOString()}`)
                 .join("\n")}`
             : "No active approvals.",
         ].join("\n\n"),
@@ -1740,7 +1783,11 @@ export class TelegramCommandRouter {
       await sendReply(this.api, event, revoked > 0 ? `Revoked ${revoked} approvals.` : "No active approval found.");
       return;
     }
-    await sendReply(this.api, event, "Usage: /tool status | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>");
+    await sendReply(
+      this.api,
+      event,
+      "Usage: /tool status | /tool audit [limit] [here] [tool:<name>] [code:<decision>] | /tool approve <tool-name> <reason> | /tool revoke <tool-name>",
+    );
   }
 
   private parseToolAuditArgs(args: string[]): {
@@ -1806,9 +1853,15 @@ export class TelegramCommandRouter {
       commandHelp("tools", "/tools - show this help"),
       ...(isAdmin
         ? [
-            commandHelp("tool", "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session"),
+            commandHelp(
+              "tool",
+              "/tool approve <tool-name> <reason> - approve one side-effecting tool call for this session",
+            ),
             commandHelp("tool", "/tool revoke <tool-name> - revoke active approvals for this session"),
-            commandHelp("tool", "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect recent tool audit records"),
+            commandHelp(
+              "tool",
+              "/tool audit [limit] [here] [tool:<name>] [code:<decision>] - inspect recent tool audit records",
+            ),
           ]
         : []),
     ]);
@@ -1828,6 +1881,8 @@ export class TelegramCommandRouter {
             .map((approval) => `- ${approval.toolName}, expires ${new Date(approval.expiresAt).toISOString()}`)
             .join("\n")}`
         : "No active approvals.",
-    ].filter((section): section is string => Boolean(section)).join("\n");
+    ]
+      .filter((section): section is string => Boolean(section))
+      .join("\n");
   }
 }

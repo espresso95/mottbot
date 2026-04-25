@@ -17,13 +17,13 @@ You do not need a permanent second `.env` file with every smoke variable set.
 
 Minimal command requirements:
 
-| Command | Required variables | Optional variables |
-| --- | --- | --- |
-| `pnpm smoke:preflight` | none | `MOTTBOT_LIVE_TEST_CHAT_ID`, `MOTTBOT_LIVE_TEST_MESSAGE` |
-| `pnpm smoke:telegram-user` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `MOTTBOT_LIVE_BOT_USERNAME` | `TELEGRAM_PHONE_NUMBER`, `TELEGRAM_LOGIN_CODE`, `TELEGRAM_2FA_PASSWORD`, `TELEGRAM_USER_SESSION`, `MOTTBOT_USER_SMOKE_*` tuning values |
-| `pnpm smoke:suite` | none (plus Telegram user credentials only if user-smoke scenarios are included) | `MOTTBOT_LIVE_VALIDATION_*` scenario filters/messages/fixtures |
-| `pnpm smoke:github-write` | `MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY` | `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN`, `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM`, title/body/labels/PR number overrides |
-| `pnpm smoke:dashboard` | none | `MOTTBOT_DASHBOARD_SMOKE_PORT` |
+| Command                    | Required variables                                                              | Optional variables                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm smoke:preflight`     | none                                                                            | `MOTTBOT_LIVE_TEST_CHAT_ID`, `MOTTBOT_LIVE_TEST_MESSAGE`                                                                               |
+| `pnpm smoke:telegram-user` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `MOTTBOT_LIVE_BOT_USERNAME`             | `TELEGRAM_PHONE_NUMBER`, `TELEGRAM_LOGIN_CODE`, `TELEGRAM_2FA_PASSWORD`, `TELEGRAM_USER_SESSION`, `MOTTBOT_USER_SMOKE_*` tuning values |
+| `pnpm smoke:suite`         | none (plus Telegram user credentials only if user-smoke scenarios are included) | `MOTTBOT_LIVE_VALIDATION_*` scenario filters/messages/fixtures                                                                         |
+| `pnpm smoke:github-write`  | `MOTTBOT_GITHUB_WRITE_SMOKE_REPOSITORY`                                         | `MOTTBOT_GITHUB_WRITE_SMOKE_DRY_RUN`, `MOTTBOT_GITHUB_WRITE_SMOKE_CONFIRM`, title/body/labels/PR number overrides                      |
+| `pnpm smoke:dashboard`     | none                                                                            | `MOTTBOT_DASHBOARD_SMOKE_PORT`                                                                                                         |
 
 ## Safety Guard
 
@@ -267,19 +267,19 @@ pnpm dev
 
 Run these manual checks from the configured test chats.
 
-| Check | Input | Expected result |
-| --- | --- | --- |
-| Private text | `hello` | Placeholder appears, streams, then finalizes. |
-| Private command | `/health` | Health text returns without starting a model run. |
-| Unknown model | `/model bad/model` | Clear rejection and current route unchanged. |
-| Group mention | `@<botname> hello` | Bot responds when mention gating is enabled. |
-| Group unmentioned text | `hello` | Bot ignores the message when mention gating is enabled. |
-| Reply gating | Reply to a bot-authored message | Bot accepts the reply. |
-| Bound route | `/bind smoke-test` then unmentioned text | Bot accepts the bound route. |
-| Stop | Send a long prompt, then `/stop` | Active run is cancelled and user-visible state is clear. |
-| Image attachment | Send a supported image | Image is included as native model input for image-capable models. |
-| Text-like attachment | Send a `.txt`, `.md`, code, CSV, TSV, or selectable-text PDF file | Attachment is extracted into bounded prompt text for the active run and appears in `/files`. |
-| Unsupported binary attachment | Send a `.zip` or invalid binary document | Attachment remains metadata or records an extraction failure without leaking paths, raw bytes, or Telegram file URLs. |
+| Check                         | Input                                                             | Expected result                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Private text                  | `hello`                                                           | Placeholder appears, streams, then finalizes.                                                                         |
+| Private command               | `/health`                                                         | Health text returns without starting a model run.                                                                     |
+| Unknown model                 | `/model bad/model`                                                | Clear rejection and current route unchanged.                                                                          |
+| Group mention                 | `@<botname> hello`                                                | Bot responds when mention gating is enabled.                                                                          |
+| Group unmentioned text        | `hello`                                                           | Bot ignores the message when mention gating is enabled.                                                               |
+| Reply gating                  | Reply to a bot-authored message                                   | Bot accepts the reply.                                                                                                |
+| Bound route                   | `/bind smoke-test` then unmentioned text                          | Bot accepts the bound route.                                                                                          |
+| Stop                          | Send a long prompt, then `/stop`                                  | Active run is cancelled and user-visible state is clear.                                                              |
+| Image attachment              | Send a supported image                                            | Image is included as native model input for image-capable models.                                                     |
+| Text-like attachment          | Send a `.txt`, `.md`, code, CSV, TSV, or selectable-text PDF file | Attachment is extracted into bounded prompt text for the active run and appears in `/files`.                          |
+| Unsupported binary attachment | Send a `.zip` or invalid binary document                          | Attachment remains metadata or records an extraction failure without leaking paths, raw bytes, or Telegram file URLs. |
 
 After the run:
 

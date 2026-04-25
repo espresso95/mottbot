@@ -252,7 +252,10 @@ export class CodexTransport {
       if (!canFallback) {
         throw error;
       }
-      this.logger.warn({ sessionKey: params.sessionKey, error: message }, "WebSocket transport failed. Falling back to SSE.");
+      this.logger.warn(
+        { sessionKey: params.sessionKey, error: message },
+        "WebSocket transport failed. Falling back to SSE.",
+      );
       const degradedUntil = Date.now() + 60_000;
       this.writeTransportState(params.sessionKey, {
         websocketDegradedUntil: degradedUntil,
@@ -318,7 +321,10 @@ export class CodexTransport {
       await params.onToolCallEnd?.(toolCall);
     };
 
-    const maybeStream = await piAi.streamSimple(model, context, options);
+    type StreamSimpleResult = ReturnType<typeof piAi.streamSimple>;
+    const maybeStream = await Promise.resolve(
+      piAi.streamSimple(model, context, options) as StreamSimpleResult | Promise<StreamSimpleResult>,
+    );
     if (isAsyncIterable(maybeStream)) {
       for await (const event of maybeStream) {
         if (!started && event && typeof event === "object") {
@@ -426,9 +432,10 @@ export class CodexTransport {
 
   private readDegradedUntil(sessionKey: string): number | undefined {
     const row = this.database.db
-      .prepare<unknown[], { websocket_degraded_until: number | null }>(
-        "select websocket_degraded_until from transport_state where session_key = ?",
-      )
+      .prepare<
+        unknown[],
+        { websocket_degraded_until: number | null }
+      >("select websocket_degraded_until from transport_state where session_key = ?")
       .get(sessionKey);
     return row?.websocket_degraded_until ?? undefined;
   }
@@ -449,11 +456,7 @@ export class CodexTransport {
       .run(sessionKey, state.websocketDegradedUntil, state.lastTransport, Date.now());
   }
 
-  private recordSuccessfulTransport(
-    sessionKey: string,
-    transport: "sse" | "websocket",
-    degradedUntil?: number,
-  ): void {
+  private recordSuccessfulTransport(sessionKey: string, transport: "sse" | "websocket", degradedUntil?: number): void {
     this.writeTransportState(sessionKey, {
       websocketDegradedUntil:
         transport === "websocket"

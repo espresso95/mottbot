@@ -39,6 +39,24 @@ Run the TypeScript check:
 pnpm check
 ```
 
+Run the linter:
+
+```bash
+pnpm lint
+```
+
+Check formatting:
+
+```bash
+pnpm format:check
+```
+
+Apply formatting:
+
+```bash
+pnpm format
+```
+
 Run the suite:
 
 ```bash
@@ -78,7 +96,7 @@ The CI gate runs on pushes to `main` and pull requests. It:
 - enables Corepack and uses the pinned `pnpm@10.33.0`
 - installs dependencies with `pnpm install --frozen-lockfile`
 - rebuilds the native `better-sqlite3` binding
-- runs `pnpm check`, `pnpm test`, `pnpm test:coverage`, and `pnpm build`
+- runs `pnpm check`, `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm test:coverage`, and `pnpm build`
 - verifies `dist/index.js` exists, `package.json` remains private, and `bin.mottbot` points to `./dist/index.js`
 - runs the built CLI health command against a temporary SQLite database
 - fails if the worktree is dirty after verification
@@ -132,12 +150,12 @@ https://auth.openai.com/oauth/authorize?scope=openid+profile+email+offline_acces
 
 Last recorded coverage run on April 20, 2026:
 
-| Metric | Result |
-| --- | ---: |
+| Metric     | Result |
+| ---------- | -----: |
 | Statements | 84.85% |
-| Branches | 74.69% |
-| Functions | 93.4% |
-| Lines | 84.76% |
+| Branches   | 74.69% |
+| Functions  |  93.4% |
+| Lines      | 84.76% |
 
 Coverage thresholds are enforced in `vitest.config.ts`:
 

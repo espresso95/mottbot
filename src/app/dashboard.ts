@@ -3,7 +3,7 @@ import path from "node:path";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
 import type { AuthProfileStore } from "../codex/auth-store.js";
-import type { MemoryStore, SessionMemorySource } from "../sessions/memory-store.js";
+import type { MemoryStore } from "../sessions/memory-store.js";
 import type { Logger } from "../shared/logger.js";
 import type { ToolApprovalDecision, ToolApprovalStore, StoredToolApproval } from "../tools/approval.js";
 import type { ServiceRestartScheduled } from "../tools/process-control.js";
@@ -71,10 +71,7 @@ class DashboardHttpError extends Error {
   }
 }
 
-export type DashboardRestartService = (params: {
-  reason: string;
-  delayMs: number;
-}) => ServiceRestartScheduled;
+export type DashboardRestartService = (params: { reason: string; delayMs: number }) => ServiceRestartScheduled;
 
 export type DashboardServerOptions = {
   diagnostics?: OperatorDiagnostics;
@@ -330,10 +327,11 @@ export class DashboardServer {
   private readRuntimeState() {
     const diagnostics = this.options.diagnostics;
     const recentRuns = diagnostics?.recentRuns({ limit: 10 }) ?? [];
-    const recentErrors = diagnostics?.recentRuns({
-      limit: 10,
-      statuses: ["failed", "cancelled"],
-    }) ?? [];
+    const recentErrors =
+      diagnostics?.recentRuns({
+        limit: 10,
+        statuses: ["failed", "cancelled"],
+      }) ?? [];
     return sanitizeJsonValue({
       health: this.health.snapshot(),
       service: {
@@ -410,9 +408,7 @@ export class DashboardServer {
     const sessionKey = optionalSearchString(requestUrl, "sessionKey");
     const source = optionalSearchString(requestUrl, "source");
     const parsedSource =
-      source === "explicit" || source === "auto_summary" || source === "model_candidate"
-        ? (source as SessionMemorySource)
-        : undefined;
+      source === "explicit" || source === "auto_summary" || source === "model_candidate" ? source : undefined;
     const limit = searchInteger(requestUrl, "limit", 20, 1, 100);
     if (!memories || !sessionKey) {
       return {
@@ -468,7 +464,7 @@ export class DashboardServer {
     }
     try {
       const body = await this.readBody(req);
-      const rawPayload = JSON.parse(body);
+      const rawPayload: unknown = JSON.parse(body);
       if (req.method === "PATCH") {
         const parsed = updateMemorySchema.parse(rawPayload);
         const memory = memories.update(parsed.sessionKey, idPrefix, parsed.contentText);
@@ -655,8 +651,8 @@ export class DashboardServer {
   private async readBody(req: IncomingMessage): Promise<string> {
     const chunks: Buffer[] = [];
     let totalSize = 0;
-    for await (const chunk of req) {
-      const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    for await (const chunk of req as AsyncIterable<Buffer | string>) {
+      const buffer: Buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
       totalSize += buffer.length;
       if (totalSize > 1_000_000) {
         throw new DashboardHttpError(413, "Payload too large");

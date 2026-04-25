@@ -19,14 +19,11 @@ export function createOperatorDiagnosticToolHandlers(
         limit: optionalInteger(input.limit),
         sessionKey: optionalString(input.sessionKey),
       }),
-    mottbot_recent_errors: ({ arguments: input }) =>
-      diagnostics.recentErrorsText(optionalInteger(input.limit)),
+    mottbot_recent_errors: ({ arguments: input }) => diagnostics.recentErrorsText(optionalInteger(input.limit)),
     mottbot_recent_logs: ({ arguments: input }) =>
       diagnostics.recentLogsText({
         stream:
-          input.stream === "stdout" || input.stream === "stderr" || input.stream === "both"
-            ? input.stream
-            : undefined,
+          input.stream === "stdout" || input.stream === "stderr" || input.stream === "both" ? input.stream : undefined,
         lines: optionalInteger(input.lines),
       }),
   };

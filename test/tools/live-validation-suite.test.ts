@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createLiveValidationSuiteResult,
-  type ScenarioResult,
-} from "../../src/tools/live-validation-suite.js";
+import { createLiveValidationSuiteResult, type ScenarioResult } from "../../src/tools/live-validation-suite.js";
 import { buildLiveValidationPlan, type LiveValidationScenario } from "../../src/tools/live-validation-suite-helpers.js";
 
 describe("live validation suite runner", () => {
@@ -66,14 +63,16 @@ describe("live validation suite runner", () => {
   });
 
   it("runs scenarios sequentially and reports success", async () => {
-    const run = vi.fn(async (item: LiveValidationScenario): Promise<ScenarioResult> => ({
-      kind: item.kind,
-      name: item.name,
-      script: item.script,
-      status: "passed",
-      exitCode: 0,
-      output: { status: "passed" },
-    }));
+    const run = vi.fn(
+      async (item: LiveValidationScenario): Promise<ScenarioResult> => ({
+        kind: item.kind,
+        name: item.name,
+        script: item.script,
+        status: "passed",
+        exitCode: 0,
+        output: { status: "passed" },
+      }),
+    );
     const plan = buildLiveValidationPlan({
       TELEGRAM_API_ID: "12345",
       TELEGRAM_API_HASH: "hash",
@@ -94,14 +93,16 @@ describe("live validation suite runner", () => {
   });
 
   it("returns a failed status when any scenario fails", async () => {
-    const run = vi.fn(async (item: LiveValidationScenario): Promise<ScenarioResult> => ({
-      kind: item.kind,
-      name: item.name,
-      script: item.script,
-      status: item.kind === "usage" ? "failed" : "passed",
-      exitCode: item.kind === "usage" ? 1 : 0,
-      output: { status: item.kind === "usage" ? "timeout" : "passed" },
-    }));
+    const run = vi.fn(
+      async (item: LiveValidationScenario): Promise<ScenarioResult> => ({
+        kind: item.kind,
+        name: item.name,
+        script: item.script,
+        status: item.kind === "usage" ? "failed" : "passed",
+        exitCode: item.kind === "usage" ? 1 : 0,
+        output: { status: item.kind === "usage" ? "timeout" : "passed" },
+      }),
+    );
     const plan = buildLiveValidationPlan({
       TELEGRAM_API_ID: "12345",
       TELEGRAM_API_HASH: "hash",

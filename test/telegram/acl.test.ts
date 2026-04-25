@@ -20,12 +20,14 @@ describe("AccessController", () => {
     const stores = createStores();
     try {
       const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore);
-      expect(
-        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", mentionsBot: false })),
-      ).toEqual({ allow: false, reason: "mention_required" });
-      expect(
-        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", mentionsBot: true })),
-      ).toEqual({ allow: true, reason: "mentioned" });
+      expect(acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", mentionsBot: false }))).toEqual({
+        allow: false,
+        reason: "mention_required",
+      });
+      expect(acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", mentionsBot: true }))).toEqual({
+        allow: true,
+        reason: "mentioned",
+      });
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);
@@ -36,18 +38,20 @@ describe("AccessController", () => {
     const stores = createStores();
     try {
       const acl = new AccessController(createTestConfig(), stores.sessions, stores.messageStore);
-      expect(
-        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 })),
-      ).toEqual({ allow: false, reason: "mention_required" });
+      expect(acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 }))).toEqual({
+        allow: false,
+        reason: "mention_required",
+      });
 
       stores.messageStore.record({
         chatId: "g1",
         telegramMessageId: 10,
         kind: "primary",
       });
-      expect(
-        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 })),
-      ).toEqual({ allow: true, reason: "reply" });
+      expect(acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", replyToMessageId: 10 }))).toEqual({
+        allow: true,
+        reason: "reply",
+      });
 
       stores.sessions.ensure({
         sessionKey: "tg:bound:ops",
@@ -88,9 +92,10 @@ describe("AccessController", () => {
           createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "trusted-1", mentionsBot: true }),
         ),
       ).toEqual({ allow: true, reason: "mentioned" });
-      expect(
-        acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "admin-1" })),
-      ).toEqual({ allow: true, reason: "private" });
+      expect(acl.evaluate(createInboundEvent({ chatType: "group", chatId: "g1", fromUserId: "admin-1" }))).toEqual({
+        allow: true,
+        reason: "private",
+      });
     } finally {
       stores.database.close();
       removeTempDir(stores.tempDir);

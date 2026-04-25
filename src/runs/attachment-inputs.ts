@@ -23,12 +23,7 @@ function renderExtractedAttachment(input: ExtractedAttachmentText, index: number
     input.pageCount !== undefined ? `pages=${input.pageCount}` : undefined,
     input.truncated ? "truncated=true" : undefined,
   ].filter(Boolean);
-  return [
-    `Attachment ${index + 1} extracted text (${details.join(", ")}):`,
-    "```text",
-    input.text,
-    "```",
-  ].join("\n");
+  return [`Attachment ${index + 1} extracted text (${details.join(", ")}):`, "```text", input.text, "```"].join("\n");
 }
 
 export function appendPreparedAttachmentsToLatestUserMessage(params: {
@@ -51,29 +46,28 @@ export function appendPreparedAttachmentsToLatestUserMessage(params: {
       ...message,
       content: [
         ...toBlocks(message.content),
-        ...(
-          params.extractedTexts.length > 0
-            ? [
-                {
-                  type: "text" as const,
-                  text: params.extractedTexts.map(renderExtractedAttachment).join("\n\n"),
-                },
-              ]
-            : []
-        ),
-        ...params.nativeInputs.map((input): PromptContentBlock =>
-          input.type === "image"
-            ? {
-                type: "image",
-                data: input.data,
-                mimeType: input.mimeType,
-              }
-            : {
-                type: "file",
-                data: input.data,
-                mimeType: input.mimeType,
-                ...(input.fileName ? { fileName: sanitizeLabel(input.fileName) } : {}),
+        ...(params.extractedTexts.length > 0
+          ? [
+              {
+                type: "text" as const,
+                text: params.extractedTexts.map(renderExtractedAttachment).join("\n\n"),
               },
+            ]
+          : []),
+        ...params.nativeInputs.map(
+          (input): PromptContentBlock =>
+            input.type === "image"
+              ? {
+                  type: "image",
+                  data: input.data,
+                  mimeType: input.mimeType,
+                }
+              : {
+                  type: "file",
+                  data: input.data,
+                  mimeType: input.mimeType,
+                  ...(input.fileName ? { fileName: sanitizeLabel(input.fileName) } : {}),
+                },
         ),
       ],
     };

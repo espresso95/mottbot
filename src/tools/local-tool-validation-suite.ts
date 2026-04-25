@@ -78,7 +78,7 @@ function parseToolJson(result: ToolExecutionResult): Record<string, unknown> {
   if (result.isError) {
     throw new Error(result.contentText);
   }
-  const parsed = JSON.parse(result.contentText);
+  const parsed: unknown = JSON.parse(result.contentText);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`Tool ${result.toolName} returned non-object JSON.`);
   }

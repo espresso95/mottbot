@@ -158,7 +158,7 @@ async function defaultRunner(params: {
     };
   } catch (caught) {
     const error = caught as ExecFileError;
-    throw new Error(sanitizeCliText(error.stderr || error.stdout || error.message));
+    throw new Error(sanitizeCliText(error.stderr || error.stdout || error.message), { cause: caught });
   }
 }
 
@@ -214,7 +214,10 @@ function parseIssueNumberFromUrl(value: string | undefined): number | undefined 
 }
 
 function parseGithubUrl(value: string): string | undefined {
-  const firstLine = sanitizeCliText(value).split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  const firstLine = sanitizeCliText(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
   if (!firstLine) {
     return undefined;
   }
@@ -237,7 +240,10 @@ export function parseGithubRemoteUrl(value: string): string | undefined {
     if (parsed.hostname.toLowerCase() !== "github.com") {
       return undefined;
     }
-    const pathParts = parsed.pathname.replace(/^\/+/, "").replace(/\.git$/i, "").split("/");
+    const pathParts = parsed.pathname
+      .replace(/^\/+/, "")
+      .replace(/\.git$/i, "")
+      .split("/");
     if (pathParts.length < 2) {
       return undefined;
     }
@@ -275,7 +281,9 @@ export function formatGithubPullRequests(repository: string, pullRequests: Githu
         pr.author ? `by ${pr.author}` : undefined,
         pr.updatedAt ? `updated ${pr.updatedAt}` : undefined,
         pr.url,
-      ].filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" "),
     ),
   ].join("\n");
 }
@@ -294,7 +302,9 @@ export function formatGithubIssues(repository: string, issues: GithubIssueSummar
         issue.author ? `by ${issue.author}` : undefined,
         issue.updatedAt ? `updated ${issue.updatedAt}` : undefined,
         issue.url,
-      ].filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" "),
     ),
   ].join("\n");
 }
@@ -319,7 +329,9 @@ export function formatGithubWorkflowRuns(params: {
         sha ? `sha=${sha}` : undefined,
         run.createdAt ? `created=${run.createdAt}` : undefined,
         run.url,
-      ].filter(Boolean).join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
     }),
   ].join("\n");
 }
@@ -484,7 +496,9 @@ export class GithubCliReadService implements GithubReadOperations, GithubWriteOp
       "--json",
       "number,title,author,headRefName,baseRefName,isDraft,mergeStateStatus,reviewDecision,url,updatedAt",
     ]);
-    const pullRequests = asArray(parseJson(output.stdout)).map(parsePullRequest).filter((item): item is GithubPullRequestSummary => Boolean(item));
+    const pullRequests = asArray(parseJson(output.stdout))
+      .map(parsePullRequest)
+      .filter((item): item is GithubPullRequestSummary => Boolean(item));
     return {
       repository,
       pullRequests,
@@ -507,7 +521,9 @@ export class GithubCliReadService implements GithubReadOperations, GithubWriteOp
       "--json",
       "number,title,author,labels,url,updatedAt",
     ]);
-    const issues = asArray(parseJson(output.stdout)).map(parseIssue).filter((item): item is GithubIssueSummary => Boolean(item));
+    const issues = asArray(parseJson(output.stdout))
+      .map(parseIssue)
+      .filter((item): item is GithubIssueSummary => Boolean(item));
     return {
       repository,
       issues,
@@ -610,7 +626,9 @@ export class GithubCliReadService implements GithubReadOperations, GithubWriteOp
       "--json",
       "databaseId,workflowName,status,conclusion,headBranch,headSha,event,displayTitle,url,createdAt,updatedAt",
     ]);
-    return asArray(parseJson(output.stdout)).map(parseWorkflowRun).filter((item): item is GithubWorkflowRunSummary => Boolean(item));
+    return asArray(parseJson(output.stdout))
+      .map(parseWorkflowRun)
+      .filter((item): item is GithubWorkflowRunSummary => Boolean(item));
   }
 
   private async comment(params: {

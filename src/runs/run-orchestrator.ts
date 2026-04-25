@@ -24,10 +24,7 @@ import type { SessionStore } from "../sessions/session-store.js";
 import type { TranscriptStore } from "../sessions/transcript-store.js";
 import type { MemoryStore } from "../sessions/memory-store.js";
 import { buildAutomaticMemorySummary } from "../sessions/memory-summary.js";
-import {
-  buildMemoryCandidateExtractionPrompt,
-  parseMemoryCandidateResponse,
-} from "../sessions/memory-candidates.js";
+import { buildMemoryCandidateExtractionPrompt, parseMemoryCandidateResponse } from "../sessions/memory-candidates.js";
 import type { AttachmentRecordStore } from "../sessions/attachment-store.js";
 import type { InboundEvent } from "../telegram/types.js";
 import type { TelegramOutbox } from "../telegram/outbox.js";
@@ -255,42 +252,39 @@ export class RunOrchestrator {
     return { resumed, failed };
   }
 
-  private enqueueRun(params: {
-    event: InboundEvent;
-    session: SessionRoute;
-    runId: string;
-    recovered?: boolean;
-  }): void {
-    void this.queue.enqueue(params.session.sessionKey, async (signal) => {
-      const agent = this.agentForSession(params.session);
-      await this.agentLimiter.run(params.session.agentId, agent?.maxConcurrentRuns, async () => {
-        if (
-          this.runQueue &&
-          !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
-        ) {
-          return;
-        }
-        await this.execute({
-          event: params.event,
-          session: params.session,
-          runId: params.runId,
-          placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
-          signal,
+  private enqueueRun(params: { event: InboundEvent; session: SessionRoute; runId: string; recovered?: boolean }): void {
+    void this.queue
+      .enqueue(params.session.sessionKey, async (signal) => {
+        const agent = this.agentForSession(params.session);
+        await this.agentLimiter.run(params.session.agentId, agent?.maxConcurrentRuns, async () => {
+          if (
+            this.runQueue &&
+            !this.runQueue.claim(params.runId, RUN_QUEUE_LEASE_MS, { recoverClaimed: params.recovered === true })
+          ) {
+            return;
+          }
+          await this.execute({
+            event: params.event,
+            session: params.session,
+            runId: params.runId,
+            placeholderText: params.recovered ? RUN_STATUS_TEXT.resumingAfterRestart : RUN_STATUS_TEXT.starting,
+            signal,
+          });
+          const finalRun = this.runs.get(params.runId);
+          if (!this.runQueue || !finalRun) {
+            return;
+          }
+          if (finalRun.status === "completed") {
+            this.runQueue.complete(params.runId);
+            return;
+          }
+          this.runQueue.fail(params.runId, finalRun.errorMessage ?? finalRun.status);
         });
-        const finalRun = this.runs.get(params.runId);
-        if (!this.runQueue || !finalRun) {
-          return;
-        }
-        if (finalRun.status === "completed") {
-          this.runQueue.complete(params.runId);
-          return;
-        }
-        this.runQueue.fail(params.runId, finalRun.errorMessage ?? finalRun.status);
+      })
+      .catch((error) => {
+        this.runQueue?.fail(params.runId, getErrorMessage(error));
+        this.logger.error({ error, runId: params.runId }, "Queued run failed.");
       });
-    }).catch((error) => {
-      this.runQueue?.fail(params.runId, getErrorMessage(error));
-      this.logger.error({ error, runId: params.runId }, "Queued run failed.");
-    });
   }
 
   private agentQueueLimitMessage(session: SessionRoute, agent: AgentConfig | undefined): string | undefined {
@@ -458,16 +452,22 @@ export class RunOrchestrator {
               includeAdminTools,
               filter: (definition) =>
                 this.isToolAllowedByAgent(params.session, definition) &&
-                (this.toolPolicy?.evaluate(definition, {
-                  role: callerRole,
-                  chatId: params.event.chatId,
-                }, {
-                  override: this.agentForSession(params.session)?.toolPolicies?.[definition.name],
-                }).allowed ?? true) &&
+                (this.toolPolicy?.evaluate(
+                  definition,
+                  {
+                    role: callerRole,
+                    chatId: params.event.chatId,
+                  },
+                  {
+                    override: this.agentForSession(params.session)?.toolPolicies?.[definition.name],
+                  },
+                ).allowed ??
+                  true) &&
                 (this.governance?.isToolAllowed?.({
                   chatId: params.event.chatId,
                   toolName: definition.name,
-                }) ?? true),
+                }) ??
+                  true),
             })
           : undefined;
       const extraContextMessages: ProviderMessage[] = [];
@@ -670,8 +670,10 @@ export class RunOrchestrator {
   }
 
   private callerRole(userId: string | undefined): ToolCallerRole {
-    return this.governance?.resolveCallerRole?.(userId) ??
-      (userId && this.config.telegram.adminUserIds.includes(userId) ? "owner" : "user");
+    return (
+      this.governance?.resolveCallerRole?.(userId) ??
+      (userId && this.config.telegram.adminUserIds.includes(userId) ? "owner" : "user")
+    );
   }
 
   private agentForSession(session: SessionRoute) {
@@ -692,10 +694,7 @@ export class RunOrchestrator {
       return;
     }
     const extractionPrompt = buildMemoryCandidateExtractionPrompt({
-      messages: this.transcripts.listRecent(
-        params.session.sessionKey,
-        this.config.memory.candidateRecentMessages,
-      ),
+      messages: this.transcripts.listRecent(params.session.sessionKey, this.config.memory.candidateRecentMessages),
       maxCandidates: this.config.memory.candidateMaxPerRun,
     });
     if (!extractionPrompt) {
@@ -774,7 +773,7 @@ export class RunOrchestrator {
   }
 
   private rebuildEvent(record: RunQueueRecord, session: SessionRoute): InboundEvent {
-    let parsed: Partial<InboundEvent> = {};
+    let parsed: Partial<InboundEvent>;
     try {
       parsed = record.eventJson ? (JSON.parse(record.eventJson) as Partial<InboundEvent>) : {};
     } catch {
